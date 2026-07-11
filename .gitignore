@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+.DS_Store
+*.tsbuildinfo
+
+vite.config.js
+vite.config.d.ts
+
+# Original source photos; optimized web copies live in public/images.
+/IMG_*.JPG
+/logo.png
+
+.env
+.env.*
+!.env.example
