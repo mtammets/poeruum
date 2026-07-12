@@ -45,6 +45,14 @@
   overflow: hidden;
 }
 
+.story-track {
+  overscroll-behavior-x: contain;
+}
+
+.story-slide {
+  scroll-snap-stop: always;
+}
+
 .product-details {
   min-height: 38svh;
   padding: 2rem 1.35rem calc(2rem + env(safe-area-inset-bottom));
@@ -157,6 +165,12 @@
   height: 3.7rem;
   background: rgba(255, 255, 255, 0.94);
   color: #111 !important;
+}
+
+.admin-settings {
+  width: 2.7rem;
+  height: 2.7rem;
+  background: rgba(15, 15, 15, 0.68);
 }
 
 .admin-global-actions svg {
@@ -1056,6 +1070,86 @@
   font-size: 1.8rem;
 }
 
+.settings-sheet {
+  width: min(calc(100% - 2rem), 25rem);
+}
+
+.settings-toggle {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem !important;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-toggle > span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.settings-toggle small {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+}
+
+.settings-toggle input {
+  position: absolute;
+  opacity: 0;
+}
+
+.settings-toggle i {
+  position: relative;
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: #333;
+  transition: background 160ms ease;
+}
+
+.settings-toggle i::after {
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: #fff;
+  content: '';
+  transition: transform 160ms ease;
+}
+
+.settings-toggle input:checked + i {
+  background: #e5f25a;
+}
+
+.settings-toggle input:checked + i::after {
+  transform: translateX(1.25rem);
+}
+
+.settings-sheet fieldset {
+  display: grid;
+  gap: 0.8rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-sheet fieldset:disabled {
+  opacity: 0.38;
+}
+
+.settings-sheet select {
+  width: 100%;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.75rem;
+  background: #1d1d1d;
+  color: #fff;
+  font: inherit;
+}
+
 .delete-confirm {
   width: min(calc(100% - 2rem), 22rem);
 }
@@ -1843,9 +1937,14 @@
     position: absolute;
     z-index: 5;
     right: 1.5rem;
-    bottom: 6rem;
+    bottom: 6.25rem;
     display: flex;
     gap: 0.55rem;
+  }
+
+  .sale-badge {
+    right: 1.65rem;
+    bottom: 10.25rem;
   }
 
   .gallery-thumbnails {

@@ -266,6 +266,10 @@ export default function App() {
   const [selectedImages, setSelectedImages] = useState<Record<string, number>>({})
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [autoSwipeEnabled, setAutoSwipeEnabled] = useState(() => localStorage.getItem('autoSwipeEnabled') !== 'false')
+  const [autoSwipeDelay, setAutoSwipeDelay] = useState(() => Number(localStorage.getItem('autoSwipeDelay')) || 30)
+  const [autoSwipeSpeed, setAutoSwipeSpeed] = useState(() => Number(localStorage.getItem('autoSwipeSpeed')) || 10)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [showDeletedToast, setShowDeletedToast] = useState(false)
@@ -352,9 +356,29 @@ export default function App() {
     let frame = 0
     let normalizeTimeout: ReturnType<typeof window.setTimeout> | undefined
     const normalizePosition = () => {
-      const physicalIndex = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1))
-      if (physicalIndex === 0) track.scrollTo({ left: displayProducts.length * track.clientWidth, behavior: 'auto' })
-      if (physicalIndex === displayProducts.length + 1) track.scrollTo({ left: track.clientWidth, behavior: 'auto' })
+      const width = Math.max(track.clientWidth, 1)
+      const physicalIndex = Math.round(track.scrollLeft / width)
+      const snappedPosition = physicalIndex * width
+      const loopTarget = physicalIndex === 0
+        ? displayProducts.length * width
+        : physicalIndex === displayProducts.length + 1
+          ? width
+          : null
+
+      if (loopTarget === null) {
+        if (Math.abs(track.scrollLeft - snappedPosition) > 1) {
+          track.scrollTo({ left: snappedPosition, behavior: 'smooth' })
+        }
+        return
+      }
+
+      const previousSnap = track.style.scrollSnapType
+      track.style.scrollSnapType = 'none'
+      track.scrollLeft = loopTarget
+      void track.offsetWidth
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { track.style.scrollSnapType = previousSnap })
+      })
     }
     const syncIndex = () => {
       cancelAnimationFrame(frame)
@@ -370,13 +394,7 @@ export default function App() {
         setActiveIndex(logicalIndex)
 
         if (normalizeTimeout !== undefined) window.clearTimeout(normalizeTimeout)
-        if (physicalIndex === 0 || physicalIndex === displayProducts.length + 1) {
-          if (Math.abs(position - physicalIndex) < 0.02) {
-            normalizePosition()
-          } else {
-            normalizeTimeout = window.setTimeout(normalizePosition, 120)
-          }
-        }
+        normalizeTimeout = window.setTimeout(normalizePosition, 180)
       })
     }
     const alignPosition = () => track.scrollTo({ left: (activeIndexRef.current + 1) * track.clientWidth, behavior: 'auto' })
@@ -394,7 +412,7 @@ export default function App() {
   }, [displayProducts.length])
 
   useEffect(() => {
-    if (!isLoginOpen && !isEditOpen && !isAddOpen && !isSearchOpen && !isDeleteOpen && !isShareOpen) return
+    if (!isLoginOpen && !isEditOpen && !isAddOpen && !isSearchOpen && !isDeleteOpen && !isShareOpen && !isSettingsOpen) return
     const scrollY = window.scrollY
     const previous = {
       position: document.body.style.position,
@@ -413,7 +431,13 @@ export default function App() {
       document.body.style.overflow = previous.overflow
       window.scrollTo(0, scrollY)
     }
-  }, [isLoginOpen, isEditOpen, isAddOpen, isSearchOpen, isDeleteOpen, isShareOpen])
+  }, [isLoginOpen, isEditOpen, isAddOpen, isSearchOpen, isDeleteOpen, isShareOpen, isSettingsOpen])
+
+  useEffect(() => {
+    localStorage.setItem('autoSwipeEnabled', String(autoSwipeEnabled))
+    localStorage.setItem('autoSwipeDelay', String(autoSwipeDelay))
+    localStorage.setItem('autoSwipeSpeed', String(autoSwipeSpeed))
+  }, [autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed])
 
   useEffect(() => {
     if (!showDeletedToast) return
@@ -434,6 +458,10 @@ export default function App() {
   }, [authToast])
 
   useEffect(() => {
+    if (!autoSwipeEnabled) {
+      setIsScreensaverActive(false)
+      return
+    }
     let idleTimeout: ReturnType<typeof window.setTimeout> | undefined
     let autoplayInterval: ReturnType<typeof window.setInterval> | undefined
 
@@ -451,7 +479,20 @@ export default function App() {
       let physicalIndex = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1))
       if (physicalIndex >= displayProducts.length + 1) {
         physicalIndex = 1
+        const previousSnap = track.style.scrollSnapType
+        track.style.scrollSnapType = 'none'
         track.scrollTo({ left: track.clientWidth, behavior: 'auto' })
+        void track.offsetWidth
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            track.style.scrollSnapType = previousSnap
+            track.scrollTo({
+              left: 2 * track.clientWidth,
+              behavior: 'smooth',
+            })
+          })
+        })
+        return
       }
       track.scrollTo({
         left: (physicalIndex + 1) * track.clientWidth,
@@ -463,13 +504,13 @@ export default function App() {
       if (document.hidden || isCartOpen) return
       setIsScreensaverActive(true)
       showNextProduct()
-      autoplayInterval = window.setInterval(showNextProduct, 10_000)
+      autoplayInterval = window.setInterval(showNextProduct, autoSwipeSpeed * 1000)
     }
 
     const scheduleScreensaver = () => {
       stopScreensaver()
       if (!document.hidden && !isCartOpen) {
-        idleTimeout = window.setTimeout(startScreensaver, 30_000)
+        idleTimeout = window.setTimeout(startScreensaver, autoSwipeDelay * 1000)
       }
     }
 
@@ -484,7 +525,7 @@ export default function App() {
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, scheduleScreensaver))
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [isCartOpen, displayProducts.length])
+  }, [isCartOpen, displayProducts.length, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed])
 
   const goToProduct = (index: number) => {
     const track = trackRef.current
@@ -607,7 +648,7 @@ export default function App() {
         <div className="story-track" ref={trackRef}>
           {renderedProducts.map((product, index) => (
             <article className="story-slide" key={`${product.id}-${index}`}>
-              <img src={(product.gallery ?? [product.image])[selectedImages[product.id] ?? 0]} alt={product.alt} style={{ objectPosition: product.objectPosition }} />
+              <img src={(product.gallery ?? [product.image])[selectedImages[product.id] ?? 0]} alt={product.alt} style={{ objectPosition: product.objectPosition }} loading="eager" decoding="sync" />
               <div className="story-shade" />
             </article>
           ))}
@@ -641,6 +682,12 @@ export default function App() {
           <div className="admin-global-actions">
             <button className="admin-add-product" onClick={() => { setAddProductStep('source'); setIsAddOpen(true) }} aria-label="Lisa toode">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            </button>
+            <button className="admin-settings" onClick={() => setIsSettingsOpen(true)} aria-label="Seaded">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.5 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z" />
+              </svg>
             </button>
           </div>
         )}
@@ -701,6 +748,17 @@ export default function App() {
       </section>
 
       {isCartOpen && <Cart items={cart} initialStep={cartStep} onRemove={(index) => setCart((items) => items.filter((_, itemIndex) => itemIndex !== index))} onClose={() => setIsCartOpen(false)} />}
+      {isSettingsOpen && <div className="overlay login-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsSettingsOpen(false)}>
+        <section className="login-sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Seaded">
+          <button className="login-sheet__close" onClick={() => setIsSettingsOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <h2>Seaded</h2>
+          <label className="settings-toggle"><span><strong>Automaatne vahetamine</strong><small>Vahetab tegevuseta olekus tooteid</small></span><input type="checkbox" checked={autoSwipeEnabled} onChange={(event) => setAutoSwipeEnabled(event.target.checked)} /><i /></label>
+          <fieldset disabled={!autoSwipeEnabled}>
+            <label>Käivitub pärast<select value={autoSwipeDelay} onChange={(event) => setAutoSwipeDelay(Number(event.target.value))}><option value="15">15 sekundit</option><option value="30">30 sekundit</option><option value="60">1 minut</option></select></label>
+            <label>Vahetamise kiirus<select value={autoSwipeSpeed} onChange={(event) => setAutoSwipeSpeed(Number(event.target.value))}><option value="5">5 sekundit</option><option value="10">10 sekundit</option><option value="15">15 sekundit</option></select></label>
+          </fieldset>
+        </section>
+      </div>}
       {isShareOpen && <div className="overlay share-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsShareOpen(false)}>
         <section className={`share-sheet${isShareDragging ? ' is-dragging' : ''}`} style={shareDragY ? { transform: `translateY(${shareDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Jaga toodet">
           <div
