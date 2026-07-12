@@ -7,13 +7,40 @@ const getProductPrice = (product: Product) =>
     : product.price ?? 0
 
 type OmnivaLocation = { ZIP: string; NAME: string; TYPE: string; A0_NAME: string; A1_NAME: string; A2_NAME: string; A3_NAME: string }
+type ParcelMachine = { id: string; name: string; city: string; searchText: string }
+const MAX_PRODUCT_IMAGES = 3
+
+const normalizeSearch = (value: string) => value
+  .toLocaleLowerCase('et')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+
+const findParcelMachines = (machines: ParcelMachine[], query: string) => {
+  const terms = normalizeSearch(query).trim().split(/\s+/).filter(Boolean)
+  if (!terms.length) return machines.slice(0, 8)
+
+  return machines
+    .filter((machine) => terms.every((term) => machine.searchText.includes(term)))
+    .sort((a, b) => {
+      const queryStart = terms[0]
+      const aStarts = normalizeSearch(a.city).startsWith(queryStart) || normalizeSearch(a.name).startsWith(queryStart)
+      const bStarts = normalizeSearch(b.city).startsWith(queryStart) || normalizeSearch(b.name).startsWith(queryStart)
+      return Number(bStarts) - Number(aStarts) || a.city.localeCompare(b.city, 'et') || a.name.localeCompare(b.name, 'et')
+    })
+    .slice(0, 8)
+}
 
 function Cart({ items, initialStep, onRemove, onClose }: { items: Product[]; initialStep: 'cart' | 'checkout'; onRemove: (index: number) => void; onClose: () => void }) {
   const [step, setStep] = useState<'cart' | 'checkout'>(initialStep)
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'card'>('bank')
   const [bank, setBank] = useState('swedbank')
   const [delivery, setDelivery] = useState<'parcel' | 'pickup'>('parcel')
-  const [parcelMachines, setParcelMachines] = useState<{ id: string; label: string }[]>([])
+  const [parcelMachines, setParcelMachines] = useState<ParcelMachine[]>([])
+  const [parcelQuery, setParcelQuery] = useState('')
+  const [selectedParcelId, setSelectedParcelId] = useState('')
+  const [isParcelSearchOpen, setIsParcelSearchOpen] = useState(false)
+  const [activeParcelIndex, setActiveParcelIndex] = useState(0)
+  const [parcelLoadFailed, setParcelLoadFailed] = useState(false)
   const itemTotal = items.reduce((sum, item) => sum + getProductPrice(item), 0)
   const deliveryPrice = delivery === 'parcel' ? 2.9 : 0
   const orderTotal = itemTotal + deliveryPrice
@@ -31,11 +58,21 @@ function Cart({ items, initialStep, onRemove, onClose }: { items: Product[]; ini
       .then((response) => response.json())
       .then((locations: OmnivaLocation[]) => setParcelMachines(locations
         .filter((location) => location.A0_NAME === 'EE' && location.TYPE === '0' && !location.NAME.toLowerCase().includes('picapac'))
-        .map((location) => ({ id: location.ZIP, label: `${location.A3_NAME || location.A2_NAME || location.A1_NAME} · ${location.NAME}` }))
-        .sort((a, b) => a.label.localeCompare(b.label, 'et'))))
-      .catch(() => undefined)
+        .map((location) => {
+          const city = location.A3_NAME || location.A2_NAME || location.A1_NAME
+          return { id: location.ZIP, name: location.NAME, city, searchText: normalizeSearch(`${city} ${location.NAME} ${location.ZIP}`) }
+        })
+        .sort((a, b) => a.city.localeCompare(b.city, 'et') || a.name.localeCompare(b.name, 'et'))))
+      .catch((error) => { if (error.name !== 'AbortError') setParcelLoadFailed(true) })
     return () => controller.abort()
   }, [step, delivery, parcelMachines.length])
+
+  const parcelResults = findParcelMachines(parcelMachines, parcelQuery)
+  const selectParcelMachine = (machine: ParcelMachine) => {
+    setSelectedParcelId(machine.id)
+    setParcelQuery(`${machine.city} · ${machine.name}`)
+    setIsParcelSearchOpen(false)
+  }
 
   return (
     <div className="overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -69,7 +106,56 @@ function Cart({ items, initialStep, onRemove, onClose }: { items: Product[]; ini
                 <button type="button" className={delivery === 'parcel' ? 'is-selected' : ''} onClick={() => setDelivery('parcel')}>Pakiautomaat</button>
                 <button type="button" className={delivery === 'pickup' ? 'is-selected' : ''} onClick={() => setDelivery('pickup')}>Tulen ise järele</button>
               </div>
-              {delivery === 'parcel' ? <label className="parcel-select">Pakiautomaat<select required defaultValue=""><option value="" disabled>{parcelMachines.length ? 'Vali pakiautomaat' : 'Laadin pakiautomaate…'}</option>{parcelMachines.map((machine) => <option key={machine.id} value={machine.id}>{machine.label}</option>)}</select></label> : <div className="pickup-note"><a href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">Paldiski mnt 25, 10612 Tallinn</a><span>Järeletulemise aeg lepitakse kokku pärast tellimust.</span></div>}
+              {delivery === 'parcel' ? <div className="parcel-select">
+                <label htmlFor="parcel-search">Pakiautomaat</label>
+                <div className="parcel-combobox">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
+                  <input
+                    id="parcel-search"
+                    value={parcelQuery}
+                    autoComplete="off"
+                    placeholder={parcelMachines.length ? 'Otsi linna või pakiautomaati' : parcelLoadFailed ? 'Pakiautomaate ei saanud laadida' : 'Laadin pakiautomaate…'}
+                    disabled={!parcelMachines.length}
+                    role="combobox"
+                    aria-expanded={isParcelSearchOpen}
+                    aria-controls="parcel-results"
+                    aria-autocomplete="list"
+                    onFocus={() => setIsParcelSearchOpen(true)}
+                    onBlur={() => window.setTimeout(() => setIsParcelSearchOpen(false), 150)}
+                    onChange={(event) => {
+                      setParcelQuery(event.target.value)
+                      setSelectedParcelId('')
+                      setActiveParcelIndex(0)
+                      setIsParcelSearchOpen(true)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowDown') { event.preventDefault(); setActiveParcelIndex((index) => Math.min(index + 1, parcelResults.length - 1)) }
+                      if (event.key === 'ArrowUp') { event.preventDefault(); setActiveParcelIndex((index) => Math.max(index - 1, 0)) }
+                      if (event.key === 'Enter' && isParcelSearchOpen && parcelResults[activeParcelIndex]) { event.preventDefault(); selectParcelMachine(parcelResults[activeParcelIndex]) }
+                      if (event.key === 'Escape') setIsParcelSearchOpen(false)
+                    }}
+                  />
+                  {parcelQuery && <button type="button" aria-label="Tühjenda otsing" onMouseDown={(event) => event.preventDefault()} onClick={() => { setParcelQuery(''); setSelectedParcelId(''); setActiveParcelIndex(0); setIsParcelSearchOpen(true) }}>×</button>}
+                  <select className="parcel-required" required value={selectedParcelId} onChange={() => undefined} aria-label="Valitud pakiautomaat" tabIndex={-1}>
+                    <option value="" />
+                    {selectedParcelId && <option value={selectedParcelId}>{selectedParcelId}</option>}
+                  </select>
+                </div>
+                {isParcelSearchOpen && <div className="parcel-results" id="parcel-results" role="listbox">
+                  {parcelResults.length ? parcelResults.map((machine, index) => <button
+                    type="button"
+                    role="option"
+                    aria-selected={machine.id === selectedParcelId}
+                    className={index === activeParcelIndex ? 'is-active' : ''}
+                    key={machine.id}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => setActiveParcelIndex(index)}
+                    onClick={() => selectParcelMachine(machine)}
+                  ><strong>{machine.city}</strong><span>{machine.name}</span></button>) : <p>Sellist pakiautomaati ei leidnud.</p>}
+                </div>}
+                {parcelLoadFailed && <p className="parcel-status">Pakiautomaatide laadimine ebaõnnestus. Palun proovi lehte värskendada.</p>}
+                {!selectedParcelId && parcelMachines.length > 0 && <small>Kirjuta näiteks „Tartu Lõunakeskus“.</small>}
+              </div> : <div className="pickup-note"><a href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">Paldiski mnt 25, 10612 Tallinn</a><span>Järeletulemise aeg lepitakse kokku pärast tellimust.</span></div>}
             </fieldset>
             <fieldset className="payment">
               <legend>Makseviis</legend>
@@ -137,12 +223,71 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [showDeletedToast, setShowDeletedToast] = useState(false)
+  const [editProductImages, setEditProductImages] = useState<string[]>([])
+  const [editNewImages, setEditNewImages] = useState<string[]>([])
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [addProductStep, setAddProductStep] = useState<'source' | 'details'>('source')
+  const [addProductImages, setAddProductImages] = useState<string[]>([])
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const moreCameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [addedProducts, setAddedProducts] = useState<Product[]>([])
   const [deletedProductIds, setDeletedProductIds] = useState<string[]>([])
   const [productEdits, setProductEdits] = useState<Record<string, Partial<Product>>>({})
+
+  const openEditProduct = () => {
+    setEditProductImages([...(activeProduct.gallery ?? [activeProduct.image])].slice(0, MAX_PRODUCT_IMAGES))
+    setEditNewImages([])
+    setIsEditOpen(true)
+  }
+
+  const closeEditProduct = () => {
+    editNewImages.forEach((image) => URL.revokeObjectURL(image))
+    setEditProductImages([])
+    setEditNewImages([])
+    setIsEditOpen(false)
+  }
+
+  const addEditProductImages = (files: FileList | null) => {
+    if (!files?.length) return
+    const availableSlots = MAX_PRODUCT_IMAGES - editProductImages.length
+    const images = Array.from(files).slice(0, availableSlots).map((file) => URL.createObjectURL(file))
+    if (!images.length) return
+    setEditProductImages((current) => [...current, ...images])
+    setEditNewImages((current) => [...current, ...images])
+  }
+
+  const removeEditProductImage = (image: string, index: number) => {
+    if (editNewImages.includes(image)) {
+      URL.revokeObjectURL(image)
+      setEditNewImages((current) => current.filter((item) => item !== image))
+    }
+    setEditProductImages((images) => images.filter((_, imageIndex) => imageIndex !== index))
+  }
+
+  const closeAddProduct = () => {
+    addProductImages.forEach((image) => URL.revokeObjectURL(image))
+    setIsAddOpen(false)
+    setAddProductStep('source')
+    setAddProductImages([])
+  }
+
+  const chooseAddProductImages = (files: FileList | null) => {
+    if (!files?.length) return
+    addProductImages.forEach((image) => URL.revokeObjectURL(image))
+    setAddProductImages(Array.from(files).slice(0, MAX_PRODUCT_IMAGES).map((file) => URL.createObjectURL(file)))
+    setAddProductStep('details')
+  }
+
+  const addCameraProductImage = (files: FileList | null) => {
+    const file = files?.[0]
+    if (!file || addProductImages.length >= MAX_PRODUCT_IMAGES) return
+    setAddProductImages((images) => [...images, URL.createObjectURL(file)].slice(0, MAX_PRODUCT_IMAGES))
+  }
 
   activeIndexRef.current = activeIndex
   const displayProducts = [...products, ...addedProducts]
@@ -198,7 +343,7 @@ export default function App() {
   }, [displayProducts.length])
 
   useEffect(() => {
-    if (!isLoginOpen && !isEditOpen && !isAddOpen && !isSearchOpen) return
+    if (!isLoginOpen && !isEditOpen && !isAddOpen && !isSearchOpen && !isDeleteOpen) return
     const scrollY = window.scrollY
     const previous = {
       position: document.body.style.position,
@@ -217,7 +362,13 @@ export default function App() {
       document.body.style.overflow = previous.overflow
       window.scrollTo(0, scrollY)
     }
-  }, [isLoginOpen, isEditOpen, isAddOpen, isSearchOpen])
+  }, [isLoginOpen, isEditOpen, isAddOpen, isSearchOpen, isDeleteOpen])
+
+  useEffect(() => {
+    if (!showDeletedToast) return
+    const timeout = window.setTimeout(() => setShowDeletedToast(false), 2400)
+    return () => window.clearTimeout(timeout)
+  }, [showDeletedToast])
 
   useEffect(() => {
     let idleTimeout: ReturnType<typeof window.setTimeout> | undefined
@@ -309,6 +460,8 @@ export default function App() {
     setDeletedProductIds((ids) => [...ids, activeProduct.id])
     setCart((items) => items.filter((item) => item.id !== activeProduct.id))
     setActiveIndex(0)
+    setIsDeleteOpen(false)
+    setShowDeletedToast(true)
   }
 
   const searchResults = displayProducts.filter((product) =>
@@ -373,7 +526,7 @@ export default function App() {
 
         {isLoggedIn && (
           <div className="admin-global-actions">
-            <button className="admin-add-product" onClick={() => setIsAddOpen(true)} aria-label="Lisa toode">
+            <button className="admin-add-product" onClick={() => { setAddProductStep('source'); setIsAddOpen(true) }} aria-label="Lisa toode">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             </button>
             <button className="admin-logout" onClick={() => setIsLoggedIn(false)} aria-label="Logi välja">
@@ -393,8 +546,8 @@ export default function App() {
         <div className="product-details__heading">
           <h1>{activeProduct.name}</h1>
           {isLoggedIn && <div className="admin-actions">
-            <button onClick={() => setIsEditOpen(true)} aria-label="Muuda toodet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Zm9-9 4 4" /></svg></button>
-            <button onClick={deleteActiveProduct} aria-label="Kustuta toode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
+            <button onClick={openEditProduct} aria-label="Muuda toodet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Zm9-9 4 4" /></svg></button>
+            <button onClick={() => displayProducts.length > 1 && setIsDeleteOpen(true)} aria-label="Kustuta toode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
           </div>}
         </div>
         <div>
@@ -416,9 +569,38 @@ export default function App() {
             <span>Ostukorvis</span>
           ) : <span>Lisa ostukorvi</span>}
         </button>
+        <footer className="site-footer">
+          <div className="site-footer__top">
+            <a className="site-footer__address" href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">
+              <strong>Mavi Stuudio</strong><small>Paldiski mnt 25, Tallinn</small>
+            </a>
+            <div className="social-links" aria-label="Sotsiaalmeedia">
+              <a href="https://www.instagram.com/veidradasjad/" target="_blank" rel="noreferrer" aria-label="Instagram">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" className="social-dot"/></svg>
+              </a>
+              <a href="https://www.facebook.com/profile.php?id=61580779397203" target="_blank" rel="noreferrer" aria-label="Facebook">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 21v-8h3l.5-3H14V8.5c0-1 .4-1.5 1.7-1.5H18V4.2c-.7-.1-1.7-.2-2.8-.2C12.5 4 11 5.6 11 8.3V10H8v3h3v8"/></svg>
+              </a>
+            </div>
+          </div>
+          <div className="site-footer__bottom"><span>© 2026 Veidrad Asjad</span><a href="https://veidradasjad.ee">veidradasjad.ee</a></div>
+        </footer>
       </section>
 
       {isCartOpen && <Cart items={cart} initialStep={cartStep} onRemove={(index) => setCart((items) => items.filter((_, itemIndex) => itemIndex !== index))} onClose={() => setIsCartOpen(false)} />}
+      {showDeletedToast && <div className="toast" role="status">
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 12.5 3.5 3.5 7.5-8" /></svg></span>
+        <strong>Toode kustutatud</strong>
+      </div>}
+      {isDeleteOpen && <div className="overlay login-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsDeleteOpen(false)}>
+        <section className="login-sheet delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+          <h2 id="delete-title">Kustuta toode?</h2>
+          <div>
+            <button type="button" onClick={() => setIsDeleteOpen(false)}>Loobu</button>
+            <button type="button" onClick={deleteActiveProduct}>Kustuta</button>
+          </div>
+        </section>
+      </div>}
       {isLoginOpen && (
         <div className="overlay login-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsLoginOpen(false)}>
           <section className="login-sheet" role="dialog" aria-modal="true" aria-label="Logi sisse">
@@ -435,59 +617,97 @@ export default function App() {
         </div>
       )}
       {isEditOpen && (
-        <div className="overlay login-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsEditOpen(false)}>
+        <div className="overlay login-overlay" onMouseDown={(event) => event.target === event.currentTarget && closeEditProduct()}>
           <section className="login-sheet edit-sheet" role="dialog" aria-modal="true" aria-label="Muuda toodet">
-            <button className="login-sheet__close" onClick={() => setIsEditOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+            <button className="login-sheet__close" onClick={closeEditProduct} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
             <h2>Muuda toodet</h2>
             <form onSubmit={(event) => {
               event.preventDefault()
               const data = new FormData(event.currentTarget)
-              const files = data.getAll('images').filter((value): value is File => value instanceof File && value.size > 0)
-              const uploadedImages = files.map((file) => URL.createObjectURL(file))
+              if (!editProductImages.length) return
               setProductEdits((current) => ({ ...current, [activeProduct.id]: {
                 name: String(data.get('name')),
                 description: String(data.get('description')),
                 price: Number(data.get('price')),
                 salePrice: String(data.get('salePrice')).trim() ? Number(data.get('salePrice')) : undefined,
-                ...(uploadedImages.length ? { image: uploadedImages[0], gallery: uploadedImages } : {}),
+                image: editProductImages[0],
+                gallery: editProductImages,
               } }))
-              if (uploadedImages.length) setSelectedImages((current) => ({ ...current, [activeProduct.id]: 0 }))
+              setSelectedImages((current) => ({ ...current, [activeProduct.id]: 0 }))
               setIsEditOpen(false)
+              setEditProductImages([])
+              setEditNewImages([])
             }}>
               <label>Nimi<input name="name" defaultValue={activeProduct.name} /></label>
               <label>Kirjeldus<textarea name="description" defaultValue={activeProduct.description} /></label>
               <label>Hind<input name="price" type="number" min="0" step="0.01" defaultValue={activeProduct.price} /></label>
               <label>Soodushind<input name="salePrice" type="number" min="0" step="0.01" defaultValue={activeProduct.salePrice} placeholder="Valikuline" /></label>
-              <label>Pildid<input className="image-upload" name="images" type="file" accept="image/*" multiple /></label>
+              <fieldset className="edit-gallery">
+                <legend>Pildid</legend>
+                <div className="edit-gallery__grid">
+                  {editProductImages.map((image, index) => <div className={index === 0 ? 'is-primary' : ''} key={`${image}-${index}`}>
+                    <img src={image} alt={`Tootepilt ${index + 1}`} />
+                    {index === 0 ? <span>Põhifoto</span> : <button type="button" className="set-primary" onClick={() => setEditProductImages((images) => [images[index], ...images.slice(0, index), ...images.slice(index + 1)])}>Põhifotoks</button>}
+                    <button type="button" className="remove-image" disabled={editProductImages.length === 1} aria-label={`Eemalda pilt ${index + 1}`} onClick={() => removeEditProductImage(image, index)}>×</button>
+                  </div>)}
+                  {editProductImages.length < MAX_PRODUCT_IMAGES && <label className="edit-gallery__add">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    <span>Lisa pilte</span>
+                    <input type="file" accept="image/*" multiple onChange={(event) => { addEditProductImages(event.target.files); event.target.value = '' }} />
+                  </label>}
+                </div>
+                <small>{editProductImages.length}/{MAX_PRODUCT_IMAGES} pilti · Esimene pilt on toote põhifoto.</small>
+              </fieldset>
               <button type="submit">Salvesta</button>
             </form>
           </section>
         </div>
       )}
       {isAddOpen && (
-        <div className="overlay login-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsAddOpen(false)}>
+        <div className="overlay login-overlay" onMouseDown={(event) => event.target === event.currentTarget && closeAddProduct()}>
           <section className="login-sheet edit-sheet" role="dialog" aria-modal="true" aria-label="Lisa toode">
-            <button className="login-sheet__close" onClick={() => setIsAddOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-            <h2>Lisa toode</h2>
+            {addProductStep === 'details' && <button className="login-sheet__close" onClick={closeAddProduct} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>}
+            {addProductStep === 'source' ? <div className="add-source">
+              <div className="add-source__choices">
+                <button type="button" aria-label="Pildista toodet" onClick={() => cameraInputRef.current?.click()}>
+                  <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3v11H4V8Z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+                  <strong>Pildista</strong>
+                </button>
+                <button type="button" aria-label="Vali tootefotod galeriist" onClick={() => galleryInputRef.current?.click()}>
+                  <span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m4 18 5-5 3 3 2-2 6 5"/></svg></span>
+                  <strong>Vali galeriist</strong>
+                </button>
+              </div>
+              <input ref={cameraInputRef} className="source-file-input" type="file" accept="image/*" capture="environment" onChange={(event) => { chooseAddProductImages(event.target.files); event.target.value = '' }} />
+              <input ref={galleryInputRef} className="source-file-input" type="file" accept="image/*" multiple onChange={(event) => { chooseAddProductImages(event.target.files); event.target.value = '' }} />
+            </div> : <>
+            <h2>Toote andmed</h2>
+            <div className="add-image-preview">
+              <img src={addProductImages[0]} alt="Valitud tootepildi eelvaade" />
+              {addProductImages.length > 1 && <span>+{addProductImages.length - 1}</span>}
+              {addProductImages.length < MAX_PRODUCT_IMAGES && <button className="add-image-preview__camera" type="button" onClick={() => moreCameraInputRef.current?.click()}>Pildista veel</button>}
+              <button type="button" onClick={() => { addProductImages.forEach((image) => URL.revokeObjectURL(image)); setAddProductImages([]); setAddProductStep('source') }}>Muuda pilti</button>
+              <input ref={moreCameraInputRef} className="source-file-input" type="file" accept="image/*" capture="environment" onChange={(event) => { addCameraProductImage(event.target.files); event.target.value = '' }} />
+            </div>
             <form onSubmit={(event) => {
               event.preventDefault()
               const data = new FormData(event.currentTarget)
-              const files = data.getAll('images').filter((value): value is File => value instanceof File && value.size > 0)
-              if (!files.length) return
-              const images = files.map((file) => URL.createObjectURL(file))
+              if (!addProductImages.length) return
               const name = String(data.get('name'))
-              const product: Product = { id: `product-${Date.now()}`, name, description: String(data.get('description')), price: Number(data.get('price')), salePrice: String(data.get('salePrice')).trim() ? Number(data.get('salePrice')) : undefined, image: images[0], gallery: images, alt: name }
+              const product: Product = { id: `product-${Date.now()}`, name, description: String(data.get('description')), price: Number(data.get('price')), salePrice: String(data.get('salePrice')).trim() ? Number(data.get('salePrice')) : undefined, image: addProductImages[0], gallery: addProductImages, alt: name }
               setAddedProducts((current) => [...current, product])
               setActiveIndex(displayProducts.length)
               setIsAddOpen(false)
+              setAddProductStep('source')
+              setAddProductImages([])
             }}>
               <label>Nimi<input name="name" required /></label>
               <label>Kirjeldus<textarea name="description" required /></label>
               <label>Hind<input name="price" type="number" min="0" step="0.01" required /></label>
               <label>Soodushind<input name="salePrice" type="number" min="0" step="0.01" placeholder="Valikuline" /></label>
-              <label>Pildid<input className="image-upload" name="images" type="file" accept="image/*" multiple required /></label>
               <button type="submit">Lisa toode</button>
             </form>
+            </>}
           </section>
         </div>
       )}
