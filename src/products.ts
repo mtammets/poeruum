@@ -8,6 +8,9 @@ export type Product = {
   price?: number
   salePrice?: number
   objectPosition?: string
+  slug?: string
+  seoTitle?: string
+  searchVisible?: boolean
 }
 
 export const products: Product[] = [
