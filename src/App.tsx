@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { flushSync } from 'react-dom'
 import { products, type Product } from './products'
 
 const getProductPrice = (product: Product) =>
@@ -69,6 +70,7 @@ const getReadableTextColor = (hex: string) => {
 }
 
 const ACCENT_PRESETS = ['#e5f25a', '#ff7a59', '#73e2a7', '#77d4ff', '#d3a6ff', '#ff8fbd']
+const EMPTY_PRODUCT_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1200'%3E%3Crect width='900' height='1200' fill='%2315171a'/%3E%3Cg fill='none' stroke='%236b7682' stroke-width='18' stroke-linecap='round' stroke-linejoin='round' opacity='.8'%3E%3Crect x='310' y='460' width='280' height='220' rx='32'/%3E%3Cpath d='m342 638 82-82 62 62 38-38 38 38'/%3E%3Ccircle cx='506' cy='526' r='24'/%3E%3C/g%3E%3C/svg%3E"
 
 type OmnivaLocation = { ZIP: string; NAME: string; TYPE: string; A0_NAME: string; A1_NAME: string; A2_NAME: string; A3_NAME: string }
 type ShippingProvider = 'omniva' | 'dpd' | 'smartposti'
@@ -214,7 +216,21 @@ const FIXED_PLAN_MONTHLY_FEE = 29
 export type PricingPlan = 'flexible' | 'fixed'
 type StoreTheme = 'midnight' | 'paper' | 'pop'
 type BuyButtonSize = 'small' | 'medium' | 'large'
-type PaymentProvider = 'stripe' | 'montonio'
+type SaleBadgeStyle = 'quirky' | 'classic' | 'price' | 'elegant' | 'minimal'
+type AnnouncementSpeed = 'slow' | 'normal' | 'fast'
+type AnnouncementDirection = 'left' | 'right'
+export type PaymentProvider = 'stripe' | 'montonio'
+type SettingsSection = 'store' | 'appearance' | 'payments' | 'delivery' | 'business' | 'links' | 'notifications' | 'billing'
+const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string }> = [
+  { id: 'store', label: 'Pood', description: 'Põhiandmed ja nähtavus' },
+  { id: 'appearance', label: 'Kujundus', description: 'Logo, värvid ja stiil' },
+  { id: 'payments', label: 'Maksed', description: 'Makseviisid ja ühendused' },
+  { id: 'delivery', label: 'Tarne', description: 'Pakiautomaadid ja hinnad' },
+  { id: 'business', label: 'Müüja', description: 'Ettevõtte andmed' },
+  { id: 'links', label: 'Lingid', description: 'Kontakt ja sotsiaalmeedia' },
+  { id: 'notifications', label: 'Teavitused', description: 'E-kirjad ja märguanded' },
+  { id: 'billing', label: 'Plaan ja arved', description: 'Pakett, tasud ja arved' },
+]
 type DeliverySettings = {
   parcelProviders: Record<ShippingProvider, { enabled: boolean; price: number }>
   courierEnabled: boolean
@@ -614,10 +630,11 @@ export type StorefrontProps = {
   initialShipping?: string[]
   merchantMode?: boolean
   pricingPlan?: PricingPlan
+  onConnectPaymentProvider?: (provider: PaymentProvider) => void
   onExit?: () => void
 }
 
-export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', onExit }: StorefrontProps = {}) {
+export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', onConnectPaymentProvider, onExit }: StorefrontProps = {}) {
   const isPublicDemo = Boolean(onExit && !merchantMode)
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
@@ -625,6 +642,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const logoTapTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const storeLogoObjectUrlRef = useRef<string | null>(null)
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
+  const storeDescriptionInputRef = useRef<HTMLTextAreaElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [cart, setCart] = useState<Product[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
@@ -636,11 +654,12 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const [isLoggedIn, setIsLoggedIn] = useState(merchantMode)
   const [isCustomerPreview, setIsCustomerPreview] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isSettingsHome, setIsSettingsHome] = useState(true)
   const [settingsSaveStatus, setSettingsSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const savedSettingsSnapshotRef = useRef('')
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(true)
-  const [settingsSection, setSettingsSection] = useState<'store' | 'appearance' | 'payments' | 'delivery' | 'business' | 'links' | 'notifications' | 'billing'>('store')
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('store')
   const [isOrdersOpen, setIsOrdersOpen] = useState(false)
   const [orders, setOrders] = useState<DemoOrder[]>(() => merchantMode ? createDemoOrders() : [])
   const [orderLayout, setOrderLayout] = useState<'grid' | 'list'>('grid')
@@ -648,6 +667,14 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const [storeTheme, setStoreTheme] = useState<StoreTheme>(theme)
   const [storeAccent, setStoreAccent] = useState('#e5f25a')
   const [buyButtonSize, setBuyButtonSize] = useState<BuyButtonSize>('medium')
+  const [saleBadgeStyle, setSaleBadgeStyle] = useState<SaleBadgeStyle>('quirky')
+  const [announcementEnabled, setAnnouncementEnabled] = useState(false)
+  const [announcementText, setAnnouncementText] = useState('Tasuta tarne alates 50 €')
+  const [announcementLink, setAnnouncementLink] = useState('')
+  const [announcementSpeed, setAnnouncementSpeed] = useState<AnnouncementSpeed>('normal')
+  const [announcementDirection, setAnnouncementDirection] = useState<AnnouncementDirection>('left')
+  const [announcementBackground, setAnnouncementBackground] = useState('#e5f25a')
+  const [announcementColor, setAnnouncementColor] = useState('#111111')
   const [storeLogo, setStoreLogo] = useState<string | null>(() => storeSlug ? null : '/images/logo.png')
   const [editableStoreName, setEditableStoreName] = useState(storeName)
   const [storeDescription, setStoreDescription] = useState(() => storeSlug ? '' : 'Veidrad ja erilised esemed, mis muudavad argipäeva natuke põnevamaks.')
@@ -710,6 +737,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [addProductStep, setAddProductStep] = useState<'source' | 'details'>('source')
   const [addProductImages, setAddProductImages] = useState<string[]>([])
+  const [imageUpload, setImageUpload] = useState<{ images: string[]; progress: number; phase: 'preparing' | 'uploading' | 'ready' } | null>(null)
   const [addProductName, setAddProductName] = useState('')
   const [addProductDescription, setAddProductDescription] = useState('')
   const [addProductPrice, setAddProductPrice] = useState('')
@@ -735,12 +763,16 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const [deletedProductIds, setDeletedProductIds] = useState<string[]>([])
   const [productEdits, setProductEdits] = useState<Record<string, Partial<Product>>>({})
   const settingsSnapshot = JSON.stringify({
-    storeTheme, storeAccent, buyButtonSize, storeLogo, editableStoreName, storeDescription, storeAboutImage,
+    storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
+    announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
     isStoreVisible, contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, returnsText, orderNotificationEmail,
     billingEmail, billingPlan, sellerNotifications, customerConfirmations, customDomain,
     autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed,
   })
+  const hasUnsavedSettings = isSettingsOpen && Boolean(savedSettingsSnapshotRef.current) && savedSettingsSnapshotRef.current !== settingsSnapshot
+
+  useEffect(() => setActivePaymentProvider(paymentProvider), [paymentProvider])
 
   useEffect(() => {
     if (!isSettingsOpen) {
@@ -752,14 +784,16 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
       savedSettingsSnapshotRef.current = settingsSnapshot
       return
     }
-    if (savedSettingsSnapshotRef.current === settingsSnapshot) return
+  }, [isSettingsOpen])
+
+  const saveSettings = () => {
+    if (!hasUnsavedSettings || settingsSaveStatus === 'saving') return
     setSettingsSaveStatus('saving')
-    const timeout = window.setTimeout(() => {
+    window.setTimeout(() => {
       savedSettingsSnapshotRef.current = settingsSnapshot
       setSettingsSaveStatus('saved')
-    }, 650)
-    return () => window.clearTimeout(timeout)
-  }, [isSettingsOpen, settingsSnapshot])
+    }, 500)
+  }
 
   useEffect(() => {
     if (settingsSaveStatus !== 'saved') return
@@ -894,7 +928,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   }
 
   const removeEditProductImage = (index: number) => {
-    if (!activeProduct || editProductImages.length <= 1) return
+    if (!activeProduct) return
     const removed = editProductImages[index]
     if (editSessionImageUrlsRef.current.has(removed)) {
       URL.revokeObjectURL(removed)
@@ -902,7 +936,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     }
     const next = editProductImages.filter((_, imageIndex) => imageIndex !== index)
     setEditProductImages(next)
-    setSelectedImages((current) => ({ ...current, [activeProduct.id]: Math.min(current[activeProduct.id] ?? 0, next.length - 1) }))
+    setSelectedImages((current) => ({ ...current, [activeProduct.id]: Math.max(0, Math.min(current[activeProduct.id] ?? 0, next.length - 1)) }))
   }
 
   const closeAddProduct = () => {
@@ -928,25 +962,40 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     addProductImages.forEach((image) => URL.revokeObjectURL(image))
     const images = imageFiles.map((file) => URL.createObjectURL(file))
     const id = `product-${Date.now()}`
-    images.forEach((url) => committedEditImageUrlsRef.current.add(url))
-    setAddedProducts((current) => [...current, {
-      id,
-      name: '',
-      description: '',
-      image: images[0],
-      gallery: images,
-      alt: 'Uue toote pilt',
-      searchVisible: true,
-    }])
-    setActiveIndex(displayProducts.length)
-    setSelectedImages((current) => ({ ...current, [id]: 0 }))
-    setEditProductImages(images)
-    setDraftProductId(id)
     setIsAddOpen(false)
     setAddProductStep('source')
     setAddProductImages([])
     setAddProductError('')
-    setIsEditOpen(true)
+    setImageUpload({ images, progress: 7, phase: 'preparing' })
+
+    const uploadSteps: Array<[number, number, 'preparing' | 'uploading' | 'ready']> = [
+      [180, 18, 'preparing'],
+      [380, 34, 'uploading'],
+      [610, 57, 'uploading'],
+      [840, 78, 'uploading'],
+      [1060, 92, 'uploading'],
+      [1240, 100, 'ready'],
+    ]
+    uploadSteps.forEach(([delay, progress, phase]) => window.setTimeout(() => setImageUpload((current) => current ? { ...current, progress, phase } : null), delay))
+
+    window.setTimeout(() => {
+      images.forEach((url) => committedEditImageUrlsRef.current.add(url))
+      setAddedProducts((current) => [...current, {
+        id,
+        name: '',
+        description: '',
+        image: images[0],
+        gallery: images,
+        alt: 'Uue toote pilt',
+        searchVisible: true,
+      }])
+      setActiveIndex(displayProducts.length)
+      setSelectedImages((current) => ({ ...current, [id]: 0 }))
+      setEditProductImages(images)
+      setDraftProductId(id)
+      setImageUpload(null)
+      setIsEditOpen(true)
+    }, 1600)
   }
 
   const addCameraProductImage = (files: FileList | null) => {
@@ -1035,7 +1084,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   }, [displayProducts.length])
 
   useEffect(() => {
-    if (!isLoginOpen && !isEditOpen && !isAddOpen && !isSearchOpen && !isDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isAboutOpen) return
+    if (!isLoginOpen && !isEditOpen && !isAddOpen && !imageUpload && !isSearchOpen && !isDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isAboutOpen) return
     // On phones the product details editor is a regular document page. Let the
     // browser own vertical scrolling instead of combining a fixed body with a
     // nested fixed scroller (an unreliable combination in iOS Safari).
@@ -1058,7 +1107,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
       document.body.style.overflow = previous.overflow
       window.scrollTo(0, scrollY)
     }
-  }, [isLoginOpen, isEditOpen, isAddOpen, addProductStep, isSearchOpen, isDeleteOpen, isShareOpen, isSettingsOpen, isOrdersOpen, isAboutOpen])
+  }, [isLoginOpen, isEditOpen, isAddOpen, Boolean(imageUpload), addProductStep, isSearchOpen, isDeleteOpen, isShareOpen, isSettingsOpen, isOrdersOpen, isAboutOpen])
 
   useEffect(() => {
     const isProductEditorOpen = isAddOpen && addProductStep === 'details'
@@ -1202,9 +1251,13 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
 
   const activeProduct = displayProducts[activeIndex]
   const activeProductHasSale = activeProduct !== undefined && activeProduct.salePrice !== undefined && activeProduct.price !== undefined && activeProduct.salePrice < activeProduct.price
+  const activeProductDiscount = activeProductHasSale ? Math.round((1 - activeProduct.salePrice! / activeProduct.price!) * 100) : 0
   const isActiveProductInCart = activeProduct !== undefined && cart.some((item) => item.id === activeProduct.id)
   const getDisplayedProductImage = (product: Product) => {
-    const images = isEditOpen && activeProduct?.id === product.id && editProductImages.length ? editProductImages : (product.gallery ?? [product.image])
+    if (isEditOpen && activeProduct?.id === product.id) {
+      return editProductImages[Math.min(selectedImages[product.id] ?? 0, Math.max(0, editProductImages.length - 1))] ?? EMPTY_PRODUCT_IMAGE
+    }
+    const images = product.gallery?.length ? product.gallery : [product.image]
     return images[Math.min(selectedImages[product.id] ?? 0, images.length - 1)]
   }
 
@@ -1225,6 +1278,10 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     }
     if (salePrice !== undefined && (!Number.isFinite(salePrice) || salePrice < 0 || salePrice >= price)) {
       setAuthToast('Soodushind peab olema tavahinnast väiksem')
+      return
+    }
+    if (!editProductImages.length) {
+      setAuthToast('Lisa vähemalt üks tootepilt')
       return
     }
     setProductEdits((current) => ({ ...current, [activeProduct.id]: {
@@ -1343,7 +1400,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const billingMonth = now.toLocaleDateString('et-EE', { month: 'long', year: 'numeric' })
   const setupChecklist = [
     { id: 'store', label: 'Poe põhiandmed', done: Boolean(editableStoreName.trim()), section: 'store' as const },
-    { id: 'payments', label: 'Maksed ühendatud', done: Boolean(activePaymentProvider), section: 'payments' as const },
+    { id: 'payments', label: 'Maksed ühendatud', done: paymentsReady, section: 'payments' as const },
     { id: 'delivery', label: 'Tarneviis valitud', done: SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) || deliverySettings.courierEnabled || deliverySettings.pickupEnabled, section: 'delivery' as const },
     { id: 'product', label: 'Esimene toode lisatud', done: displayProducts.length > 0, section: null },
     { id: 'business', label: 'Müüja andmed', done: Boolean(businessName.trim() && registryCode.trim()), section: 'business' as const },
@@ -1351,6 +1408,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   ]
   const completedSetupSteps = setupChecklist.filter((item) => item.done).length
   const setupProgress = Math.round(completedSetupSteps / setupChecklist.length * 100)
+  const activeSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === settingsSection) ?? SETTINGS_SECTIONS[0]
 
   const openSetupItem = (item: (typeof setupChecklist)[number]) => {
     setIsSetupChecklistOpen(false)
@@ -1361,8 +1419,25 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     }
     if (item.section) {
       setSettingsSection(item.section)
+      setIsSettingsHome(false)
       setIsSettingsOpen(true)
     }
+  }
+
+  const openStoreDescriptionSettings = () => {
+    // Commit the settings view during the user's tap so iOS permits the
+    // newly mounted textarea to receive focus and open the keyboard.
+    flushSync(() => {
+      setSettingsSection('store')
+      setIsSettingsHome(false)
+      setIsSetupChecklistOpen(false)
+      setIsSettingsOpen(true)
+    })
+    const field = storeDescriptionInputRef.current
+    if (!field) return
+    field.focus({ preventScroll: true })
+    field.scrollIntoView({ block: 'center', behavior: 'auto' })
+    window.requestAnimationFrame(() => field.scrollIntoView({ block: 'center', behavior: 'smooth' }))
   }
 
   const saveNewProduct = () => {
@@ -1409,8 +1484,14 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     window.setTimeout(() => { addProductSubmitLockRef.current = false }, 300)
   }
 
+  const announcementTrack = <div className="announcement-bar__track">
+    {[0, 1].map((group) => <span className="announcement-bar__group" aria-hidden={group === 1 ? 'true' : undefined} key={group}>
+      {[0, 1, 2, 3].map((item) => <span key={item}><b>{announcementText}</b><i>✦</i></span>)}
+    </span>)}
+  </div>
+
   return (
-    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent) } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-demo={onExit && !merchantMode ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
+    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-demo={onExit && !merchantMode ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
       <input ref={desktopGalleryInputRef} className="source-file-input" type="file" accept="image/*" multiple onChange={(event) => { chooseAddProductImages(event.target.files); event.target.value = '' }} />
       <section className="story-stage">
         {onExit && !merchantMode && <div className="demo-preview-bar">
@@ -1451,6 +1532,12 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           </div>
         </header>
 
+        {announcementEnabled && announcementText.trim() && <div className="announcement-bar" aria-label={announcementText}>
+          {announcementLink.trim()
+            ? <a href={normalizeExternalUrl(announcementLink)} target="_blank" rel="noreferrer">{announcementTrack}</a>
+            : <div>{announcementTrack}</div>}
+        </div>}
+
         <div className="story-track" ref={trackRef}>
           {renderedProducts.map((product, index) => (
             <article className="story-slide" key={`${product.id}-${index}`}>
@@ -1464,7 +1551,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           {!isAdminMode && <header className="empty-storefront__header">
             <div className="empty-storefront__identity"><span>{storeInitial}</span><div><strong>{editableStoreName}</strong><button type="button" onClick={copyStoreUrl} aria-label={`Kopeeri poe aadress ${storePublicUrl}`}>{storePublicUrl}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div></div>
           </header>}
-          {isAdminMode && <button className="empty-storefront__settings" type="button" onClick={() => setIsSettingsOpen(true)} aria-label="Seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 8.5 7L6.1 6 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5 6.1 18l2.4-1a7 7 0 0 0 1.9 1l.3 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z"/></svg></button>}
+          {isAdminMode && <button className="empty-storefront__settings" type="button" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label="Seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 8.5 7L6.1 6 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5 6.1 18l2.4-1a7 7 0 0 0 1.9 1l.3 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z"/></svg></button>}
           {isAdminMode ? <div className="empty-storefront__content">
             <section className="empty-storefront__intro">
               <span><i>✓</i> Pood on aktiivne</span>
@@ -1484,18 +1571,18 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
               <span className="empty-storefront__product-copy"><small>{isProductDropActive ? 'FOTOD VALMIS' : 'JÄRGMINE SAMM'}</small><strong>{isProductDropActive ? 'Lase fotod lahti' : 'Alusta lisamist'}</strong><em className="empty-storefront__drop-copy">Vali arvutist või lohista fotod siia</em></span>
               <svg className="empty-storefront__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
             </button>
-          </div> : <div className="empty-storefront__customer"><h1>Pood avaneb peagi.</h1><p>Esimesed tooted on juba teel.</p></div>}
+          </div> : <div className="empty-storefront__customer"><h1>Pood avaneb peagi.</h1><p>Esimesed tooted on juba teel.</p>{!isCustomerPreview && <button className="empty-storefront__owner-login" type="button" onClick={() => setIsLoginOpen(true)}>Poe omanik? Logi sisse</button>}</div>}
         </div>}
 
         {activeProduct && isEditOpen && <div className="product-image-editor">
           <div className="product-image-editor__tray">
             {editProductImages.map((image, index) => <div className={(selectedImages[activeProduct.id] ?? 0) === index ? 'is-active' : ''} key={`${image}-${index}`}>
               <button type="button" onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))} aria-label={`Vali pilt ${index + 1}`}><img src={image} alt="" /></button>
-              {editProductImages.length > 1 && <button className="product-image-editor__remove" type="button" title="Eemalda pilt" aria-label={`Eemalda pilt ${index + 1}`} onClick={() => removeEditProductImage(index)}>×</button>}
+              <button className="product-image-editor__remove" type="button" title="Eemalda pilt" aria-label={`Eemalda pilt ${index + 1}`} onClick={() => removeEditProductImage(index)}>×</button>
+              {(selectedImages[activeProduct.id] ?? 0) === index && <button className="product-image-editor__replace" type="button" title="Vaheta valitud pilt" aria-label="Vaheta valitud pilt" onClick={() => { editProductImageModeRef.current = 'replace'; editProductImageInputRef.current?.click() }}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M18.2 16.4A7 7 0 1 1 19.5 9L20 12"/></svg>
+              </button>}
             </div>)}
-            <button className="product-image-editor__replace" type="button" title="Vaheta valitud pilt" aria-label="Vaheta valitud pilt" onClick={() => { editProductImageModeRef.current = 'replace'; editProductImageInputRef.current?.click() }}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m5 17 5-5 3 3 2-2 4 4"/><path d="M16 3h5v5M21 3l-5 5"/></svg>
-            </button>
             {editProductImages.length < MAX_PRODUCT_IMAGES && <button className="product-image-editor__add" type="button" title="Lisa pilt" aria-label="Lisa pilt" onClick={() => { editProductImageModeRef.current = 'add'; editProductImageInputRef.current?.click() }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>}
           </div>
           <input ref={editProductImageInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={(event) => { chooseEditProductImages(event.target.files); event.target.value = '' }} />
@@ -1516,13 +1603,15 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           </div>
         )}
 
-        {activeProductHasSale && <div className="sale-badge" aria-label="Veider soodukas">
-          <span aria-hidden="true">Veider</span>
-          <strong aria-hidden="true"><i>S</i><i>o</i><i>o</i><i>d</i><i>u</i><i>k</i><i>a</i><i>s</i></strong>
+        {activeProductHasSale && saleBadgeStyle !== 'price' && <div className={`sale-badge sale-badge--${saleBadgeStyle}`} aria-label={`Soodushind, ${activeProductDiscount}% odavam`}>
+          {saleBadgeStyle === 'quirky' && <><span aria-hidden="true">Veider</span><strong aria-hidden="true"><i>S</i><i>o</i><i>o</i><i>d</i><i>u</i><i>k</i><i>a</i><i>s</i></strong></>}
+          {saleBadgeStyle === 'classic' && <span className="sale-badge__classic" aria-hidden="true">−{activeProductDiscount}%</span>}
+          {saleBadgeStyle === 'elegant' && <span className="sale-badge__elegant" aria-hidden="true">Eripakkumine</span>}
+          {saleBadgeStyle === 'minimal' && <span className="sale-badge__minimal" aria-hidden="true">Soodus · −{activeProductDiscount}%</span>}
         </div>}
-        {activeProduct && <button className={`buy-now${activeProductHasSale ? ' has-sale' : ''}`} onClick={buyNow}>
+        {activeProduct && <button className={`buy-now${activeProductHasSale ? ' has-sale' : ''}${activeProductHasSale && saleBadgeStyle === 'price' ? ' has-inline-sale-price' : ''}`} onClick={buyNow}>
           <span>{activeProductHasSale ? 'Osta kohe' : 'Osta'}</span>
-          <strong>{getProductPrice(activeProduct)} €</strong>
+          <strong>{activeProductHasSale && saleBadgeStyle === 'price' ? <><s>{activeProduct.price} €</s><span>{activeProduct.salePrice} €</span></> : `${getProductPrice(activeProduct)} €`}</strong>
         </button>}
 
         {isAdminMode && activeProduct && (
@@ -1530,7 +1619,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
             {activeProduct && <button className="admin-add-product" onClick={openAddProductChooser} aria-label="Lisa toode">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             </button>}
-            <button className="admin-settings" onClick={() => setIsSettingsOpen(true)} aria-label={setupProgress < 100 && merchantMode ? `Seaded, ${setupChecklist.length - completedSetupSteps} sammu lõpetamata` : 'Seaded'}>
+            <button className="admin-settings" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label={setupProgress < 100 && merchantMode ? `Seaded, ${setupChecklist.length - completedSetupSteps} sammu lõpetamata` : 'Seaded'}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.5 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z" />
@@ -1626,6 +1715,11 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           ) : <span>Lisa ostukorvi</span>}
         </button>
         <footer className="site-footer">
+          {isAdminMode && !storeDescription.trim() && <button className="store-description-missing" type="button" onClick={openStoreDescriptionSettings}>
+            <span aria-hidden="true">＋</span>
+            <span><strong>Poe tutvustus on puudu</strong><small>Lisa lühike kirjeldus, mida ostja näeb poe jaluses.</small></span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+          </button>}
           {(storeDescription.trim() || storeAboutImage) && <div className={`site-footer__about${storeAboutImage ? ' has-image' : ''}`}>
             {storeAboutImage && <button className="site-footer__about-image" type="button" onClick={() => setIsAboutOpen(true)} aria-label="Ava poe tutvustus"><img src={storeAboutImage} alt="" /></button>}
             <div>{storeDescription.trim() && <p>{storeDescription}</p>}
@@ -1647,7 +1741,13 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
               </a>}
             </div>}
           </div>
-          <div className="site-footer__bottom"><span>© 2026 {editableStoreName}</span>{storeSlug ? <span>{storeSlug}.poeruum.ee</span> : <a href="https://veidradasjad.ee">veidradasjad.ee</a>}</div>
+          <div className="site-footer__bottom">
+            <span>© 2026 {editableStoreName}</span>
+            <div className="site-footer__meta">
+              {storeSlug ? <span>{storeSlug}.poeruum.ee</span> : <a href="https://veidradasjad.ee">veidradasjad.ee</a>}
+              {!isLoggedIn && !isCustomerPreview && <><i aria-hidden="true" /><button type="button" onClick={() => setIsLoginOpen(true)} aria-label="Poe omanikule: ava poe halduse sisselogimine">Poe haldus →</button></>}
+            </div>
+          </div>
         </footer>
       </section>}
 
@@ -1685,21 +1785,21 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           </article>) : <div className="orders-no-results"><span>⌕</span><h3>Tellimusi ei leitud</h3><p>Proovi tellimuse numbrit, kliendi nime või toodet.</p><button type="button" onClick={() => setOrderSearch('')}>Tühjenda otsing</button></div>}</div> : <div className="orders-empty"><span>□</span><h3>Tellimusi veel pole</h3><p>Uued ostud ilmuvad siia automaatselt.</p></div>}
         </section>
       </div>}
-      {isSettingsOpen && <div className="overlay login-overlay settings-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsSettingsOpen(false)}>
-        <section className="login-sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Seaded">
-          <button className="login-sheet__close" onClick={() => setIsSettingsOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+      {isSettingsOpen && <div className="overlay login-overlay settings-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsSettingsOpen(false); setIsSettingsHome(true) } }}>
+        <section className={`login-sheet settings-sheet${isSettingsHome ? ' is-home' : ''}`} role="dialog" aria-modal="true" aria-label="Seaded">
+          <button className="login-sheet__close" onClick={() => { setIsSettingsOpen(false); setIsSettingsHome(true) }} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
           <div className="settings-titlebar">
-            <h2>Seaded</h2>
-            <div className={`settings-save-status is-${settingsSaveStatus}`} role="status" aria-live="polite">
-              {settingsSaveStatus === 'idle' ? null : settingsSaveStatus === 'saving'
-                ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.35-5.65"/></svg>
-                : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>}
-              {settingsSaveStatus !== 'idle' && <span>{settingsSaveStatus === 'saving' ? 'Salvestan…' : 'Salvestatud'}</span>}
-            </div>
+            {!isSettingsHome && <button className="settings-titlebar__back" type="button" onClick={() => setIsSettingsHome(true)} aria-label="Kõik seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg><span>Seaded</span></button>}
+            <h2>{isSettingsHome ? 'Seaded' : activeSettingsSection.label}</h2>
+            <button className={`settings-save-button is-${settingsSaveStatus}${hasUnsavedSettings ? ' has-changes' : ''}`} type="button" disabled={!hasUnsavedSettings || settingsSaveStatus === 'saving'} onClick={saveSettings}>
+              {settingsSaveStatus === 'saving' ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.35-5.65"/></svg> : settingsSaveStatus === 'saved' && !hasUnsavedSettings ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg> : null}
+              <span>{settingsSaveStatus === 'saving' ? 'Salvestan…' : settingsSaveStatus === 'saved' && !hasUnsavedSettings ? 'Salvestatud' : 'Salvesta'}</span>
+            </button>
           </div>
-          <nav className="settings-tabs" aria-label="Seadete jaotised" role="tablist">
-            {([['store', 'Pood'], ['appearance', 'Välimus'], ['payments', 'Maksed'], ['delivery', 'Tarne'], ['business', 'Ettevõte'], ['links', 'Lingid'], ['notifications', 'Teavitused'], ['billing', 'Arveldus']] as const).map(([id, label]) => <button type="button" role="tab" aria-selected={settingsSection === id} className={settingsSection === id ? 'is-active' : ''} onClick={() => setSettingsSection(id)} key={id}>{label}</button>)}
-          </nav>
+          {isSettingsHome ? <div className="settings-home">
+            <p>Vali, mida soovid muuta.</p>
+            <div>{SETTINGS_SECTIONS.map((section) => <button type="button" onClick={() => { setSettingsSection(section.id); setIsSettingsHome(false) }} key={section.id}><span><strong>{section.label}</strong><small>{section.description}</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>)}</div>
+          </div> : null}
           {settingsSection === 'store' && <div className="settings-panel" role="tabpanel">
             <header><span>POE SEADED</span><p>Halda poe nähtavust ja põhiandmeid.</p></header>
             {merchantMode && <div className={`settings-onboarding${isSetupChecklistOpen ? ' is-open' : ''}`}>
@@ -1710,15 +1810,15 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4" /></svg>
               </button>
               {isSetupChecklistOpen && <div className="settings-onboarding__list">
-                {setupChecklist.map((item) => <button type="button" className={item.done ? 'is-done' : ''} onClick={() => !item.done && openSetupItem(item)} key={item.id}>
-                  <i>{item.done ? '✓' : ''}</i><span>{item.label}</span>{!item.done && <b>Seadista</b>}
+                {[...setupChecklist].sort((first, second) => Number(first.done) - Number(second.done)).map((item) => <button type="button" className={item.done ? 'is-done' : 'is-next'} onClick={() => !item.done && openSetupItem(item)} key={item.id}>
+                  <i>{item.done ? '✓' : ''}</i><span>{item.label}{!item.done && <small>Järgmine samm</small>}</span>{!item.done && <b>Alusta <span aria-hidden="true">→</span></b>}
                 </button>)}
               </div>}
             </div>}
             <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : 'Poodi näed praegu ainult sina'}</small></span><input type="checkbox" checked={isStoreVisible} onChange={(event) => setIsStoreVisible(event.target.checked)} /><i /></label>
             <div className="settings-fields">
               <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
-              <label>Poe tutvustus<textarea rows={4} maxLength={600} value={storeDescription} onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu pood pakub ja miks see eriline on." /><small className="settings-field-note">Kuvatakse ostjale poe jaluses · {storeDescription.length}/600</small></label>
+              <label>Poe tutvustus<textarea ref={storeDescriptionInputRef} rows={4} maxLength={600} value={storeDescription} onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu pood pakub ja miks see eriline on." /><small className="settings-field-note">Kuvatakse ostjale poe jaluses · {storeDescription.length}/600</small></label>
               <div className="settings-about-image">
                 <span className="settings-section-label">Tutvustuse pilt <small>valikuline</small></span>
                 <div>
@@ -1780,28 +1880,57 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
                 </div>
               </div>
             </div>
+            <div className="settings-sale-style">
+              <span className="settings-section-label">Soodushinna stiil</span>
+              <div>{([
+                ['quirky', 'Veider', 'Veider\nSoodukas'],
+                ['classic', 'Klassikaline', '−30%'],
+                ['price', 'Hinnasilt', '18 €|12 €'],
+                ['elegant', 'Elegantne', 'Eripakkumine'],
+                ['minimal', 'Minimalistlik', 'Soodus · −30%'],
+              ] as Array<[SaleBadgeStyle, string, string]>).map(([style, label, preview]) => <button type="button" className={saleBadgeStyle === style ? 'is-selected' : ''} aria-pressed={saleBadgeStyle === style} onClick={() => setSaleBadgeStyle(style)} key={style}>
+                <span className={`settings-sale-style__preview is-${style}`}>{style === 'price' ? <><s>18 €</s><b>12 €</b></> : preview.split('\n').map((line) => <i key={line}>{line}</i>)}</span>
+                <strong>{label}</strong>
+                <em aria-hidden="true">✓</em>
+              </button>)}</div>
+            </div>
+            <div className={`settings-announcement${announcementEnabled ? ' is-enabled' : ''}`}>
+              <label className="settings-toggle"><span><strong>Liikuv teateriba</strong><small>Kuvatakse poe päise all</small></span><input type="checkbox" checked={announcementEnabled} onChange={(event) => setAnnouncementEnabled(event.target.checked)} /><i /></label>
+              {announcementEnabled && <div className="settings-announcement__content">
+                <div className="settings-announcement__preview" style={{ '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties}>{announcementTrack}</div>
+                <label>Teade<input value={announcementText} maxLength={120} onChange={(event) => setAnnouncementText(event.target.value)} placeholder="Tasuta tarne alates 50 €" /></label>
+                <label>Link <small>valikuline</small><input type="url" value={announcementLink} onChange={(event) => setAnnouncementLink(event.target.value)} placeholder="https://minupood.ee/pakkumine" /></label>
+                <div className="settings-announcement__option"><span>Kiirus</span><div>{([['slow', 'Aeglane'], ['normal', 'Tavaline'], ['fast', 'Kiire']] as Array<[AnnouncementSpeed, string]>).map(([speed, label]) => <button type="button" className={announcementSpeed === speed ? 'is-selected' : ''} aria-pressed={announcementSpeed === speed} onClick={() => setAnnouncementSpeed(speed)} key={speed}>{label}</button>)}</div></div>
+                <div className="settings-announcement__option is-direction"><span>Suund</span><div>{([['left', '← Vasakule'], ['right', 'Paremale →']] as Array<[AnnouncementDirection, string]>).map(([direction, label]) => <button type="button" className={announcementDirection === direction ? 'is-selected' : ''} aria-pressed={announcementDirection === direction} onClick={() => setAnnouncementDirection(direction)} key={direction}>{label}</button>)}</div></div>
+                <div className="settings-announcement__colors"><span>Värvid</span><div><label aria-label="Teateriba taustavärv"><input type="color" value={announcementBackground} onChange={(event) => setAnnouncementBackground(event.target.value)} /><i style={{ background: announcementBackground }} /></label><label aria-label="Teateriba tekstivärv"><input type="color" value={announcementColor} onChange={(event) => setAnnouncementColor(event.target.value)} /><i style={{ background: announcementColor }} /></label></div></div>
+              </div>}
+            </div>
             <label className="settings-toggle"><span><strong>Automaatne vahetamine</strong><small>Vahetab tegevuseta olekus tooteid</small></span><input type="checkbox" checked={autoSwipeEnabled} onChange={(event) => setAutoSwipeEnabled(event.target.checked)} /><i /></label>
             <fieldset disabled={!autoSwipeEnabled}>
               <label>Käivitub pärast<select value={autoSwipeDelay} onChange={(event) => setAutoSwipeDelay(Number(event.target.value))}><option value="15">15 sekundit</option><option value="30">30 sekundit</option><option value="60">1 minut</option></select></label>
               <label>Vahetamise kiirus<select value={autoSwipeSpeed} onChange={(event) => setAutoSwipeSpeed(Number(event.target.value))}><option value="5">5 sekundit</option><option value="10">10 sekundit</option><option value="15">15 sekundit</option></select></label>
             </fieldset>
           </div>}
-          {settingsSection === 'payments' && <div className="settings-panel" role="tabpanel">
-            <header><span>MAKSED</span><p>Vali teenus, mille kaudu kliendid maksavad.</p></header>
+          {settingsSection === 'payments' && <div className="settings-panel payments-panel" role="tabpanel">
+            <header><p>Vali, kuidas kliendid sinu poes maksavad.</p></header>
             <div className="settings-provider-list">
-              {([['stripe', 'Stripe', 'Kaardid, Apple Pay ja Google Pay'], ['montonio', 'Montonio', 'Pangalingid ja kaardimaksed']] as Array<[PaymentProvider, string, string]>).map(([id, name, detail]) => <button type="button" className={activePaymentProvider === id ? 'is-active' : ''} onClick={() => setActivePaymentProvider(id)} key={id}>
+              {([
+                ['stripe', 'Stripe', 'Kliendid saavad maksta kaardi, Apple Pay või Google Payga. Raha liigub sinu kontole.', 'Ühenda, et võtta vastu kaardi- ja nutimakseid.'],
+                ['montonio', 'Montonio', 'Kliendid saavad maksta Eesti pangalingi või kaardiga. Raha liigub sinu kontole.', 'Ühenda, et kliendid saaksid maksta Eesti pangalingi või kaardiga.'],
+              ] as Array<[PaymentProvider, string, string, string]>).map(([id, name, connectedDetail, disconnectedDetail]) => {
+                const isCurrentProvider = activePaymentProvider === id
+                return <button type="button" disabled={isCurrentProvider} aria-pressed={isCurrentProvider} className={isCurrentProvider ? `is-active${paymentsReady ? '' : ' is-pending'}` : ''} onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider(id) : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')} key={id}>
                 <span className={`settings-provider-logo is-${id}`}>{id === 'stripe' ? 'S' : 'M'}</span>
-                <span><strong>{name}</strong><small>{detail}</small></span>
-                <i>{activePaymentProvider === id ? '✓' : 'Vali'}</i>
-              </button>)}
+                <span><strong>{name}</strong><small>{isCurrentProvider ? paymentsReady ? connectedDetail : 'Teenusepakkuja kontrollib sinu andmeid. Makseid saab vastu võtta pärast kinnitamist.' : disconnectedDetail}</small></span>
+                <i className="settings-provider-status">{isCurrentProvider ? paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
+              </button>})}
             </div>
-            <div className="settings-connection-status"><span>✓</span><div><strong>{activePaymentProvider === 'stripe' ? 'Stripe' : 'Montonio'} on ühendatud</strong><small>Maksed ja väljamaksed on demos aktiivsed.</small></div></div>
-            <button className="settings-secondary-action" type="button" onClick={() => setAuthToast(`${activePaymentProvider === 'stripe' ? 'Stripe’i töölaud' : 'Montonio partnerportaal'} avaneb päris ühenduses`)}>
+            {paymentsReady && <button className="settings-secondary-action" type="button" onClick={() => setAuthToast(`${activePaymentProvider === 'stripe' ? 'Stripe’i töölaud' : 'Montonio partnerportaal'} avaneb päris ühenduses`)}>
               <span>{activePaymentProvider === 'stripe' ? 'Ava Stripe’i töölaud' : 'Ava Montonio partnerportaal'}</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
-            </button>
+            </button>}
           </div>}
-          {settingsSection === 'delivery' && <div className="settings-panel" role="tabpanel">
+          {settingsSection === 'delivery' && <div className="settings-panel delivery-panel" role="tabpanel">
             <header><span>TARNE</span><p>Vali tarneviisid ja määra, kui palju ostja nende eest maksab.</p></header>
             <div className="settings-delivery-list">
               {SHIPPING_PROVIDERS.map((provider) => {
@@ -1809,12 +1938,16 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
                 const otherParcelProviderEnabled = SHIPPING_PROVIDERS.some((item) => item !== provider && deliverySettings.parcelProviders[item].enabled)
                 return <div className="settings-delivery-provider" key={provider}>
                   <label className="settings-toggle"><span><strong>{SHIPPING_PROVIDER_LABELS[provider]} pakiautomaat</strong><small>Asukohad kuvatakse ostjale kassas</small></span><input type="checkbox" checked={providerSettings.enabled} disabled={providerSettings.enabled && !otherParcelProviderEnabled && !deliverySettings.courierEnabled && !deliverySettings.pickupEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, parcelProviders: { ...current.parcelProviders, [provider]: { ...current.parcelProviders[provider], enabled: event.target.checked } } }))} /><i /></label>
-                  {providerSettings.enabled && <label className="settings-price-field">Ostja maksab<input type="number" min="0" step="0.1" value={providerSettings.price} onChange={(event) => setDeliverySettings((current) => ({ ...current, parcelProviders: { ...current.parcelProviders, [provider]: { ...current.parcelProviders[provider], price: Number(event.target.value) } } }))} /><span>€</span></label>}
+                  {providerSettings.enabled && <label className="settings-price-field">Tarne hind<input type="number" min="0" step="0.1" value={providerSettings.price} onChange={(event) => setDeliverySettings((current) => ({ ...current, parcelProviders: { ...current.parcelProviders, [provider]: { ...current.parcelProviders[provider], price: Number(event.target.value) } } }))} /><span>€</span></label>}
                 </div>
               })}
-              <label className="settings-toggle"><span><strong>Kuller</strong><small>Tarne kliendi aadressile</small></span><input type="checkbox" checked={deliverySettings.courierEnabled} disabled={deliverySettings.courierEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.pickupEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, courierEnabled: event.target.checked }))} /><i /></label>
-              {deliverySettings.courierEnabled && <label className="settings-price-field">Ostja maksab<input type="number" min="0" step="0.1" value={deliverySettings.courierPrice} onChange={(event) => setDeliverySettings((current) => ({ ...current, courierPrice: Number(event.target.value) }))} /><span>€</span></label>}
-              <label className="settings-toggle"><span><strong>Tulen ise järele</strong><small>Ostjale tasuta</small></span><input type="checkbox" checked={deliverySettings.pickupEnabled} disabled={deliverySettings.pickupEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.courierEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupEnabled: event.target.checked }))} /><i /></label>
+              <div className="settings-delivery-provider">
+                <label className="settings-toggle"><span><strong>Kuller</strong><small>Tarne kliendi aadressile</small></span><input type="checkbox" checked={deliverySettings.courierEnabled} disabled={deliverySettings.courierEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.pickupEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, courierEnabled: event.target.checked }))} /><i /></label>
+                {deliverySettings.courierEnabled && <label className="settings-price-field">Tarne hind<input type="number" min="0" step="0.1" value={deliverySettings.courierPrice} onChange={(event) => setDeliverySettings((current) => ({ ...current, courierPrice: Number(event.target.value) }))} /><span>€</span></label>}
+              </div>
+              <div className="settings-delivery-provider">
+                <label className="settings-toggle"><span><strong>Tulen ise järele</strong><small>Ostjale tasuta</small></span><input type="checkbox" checked={deliverySettings.pickupEnabled} disabled={deliverySettings.pickupEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.courierEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupEnabled: event.target.checked }))} /><i /></label>
+              </div>
             </div>
             <div className="settings-fields">
               {deliverySettings.pickupEnabled && <label>Järeletulemise aadress<input value={deliverySettings.pickupAddress} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupAddress: event.target.value }))} /></label>}
@@ -1833,9 +1966,21 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           {settingsSection === 'links' && <div className="settings-panel" role="tabpanel">
             <header><span>SOTSIAALMEEDIA</span><p>Lisa lingid, mis kuvatakse poe jaluses.</p></header>
             <div className="settings-fields settings-social">
-              <label>Instagram<input type="url" value={instagramUrl} onChange={(event) => setInstagramUrl(event.target.value)} placeholder="https://instagram.com/minupood" /></label>
-              <label>Facebook<input type="url" value={facebookUrl} onChange={(event) => setFacebookUrl(event.target.value)} placeholder="https://facebook.com/minupood" /></label>
-              <label>TikTok<input type="url" value={tiktokUrl} onChange={(event) => setTiktokUrl(event.target.value)} placeholder="https://tiktok.com/@minupood" /></label>
+              <label className={`settings-social-card is-instagram${instagramUrl.trim() ? ' has-value' : ''}`}>
+                <span className="settings-social-card__brand"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" className="social-dot"/></svg></span>
+                <span className="settings-social-card__field"><strong>Instagram</strong><input type="url" value={instagramUrl} onChange={(event) => setInstagramUrl(event.target.value)} placeholder="instagram.com/minupood" /></span>
+                <i aria-hidden="true">✓</i>
+              </label>
+              <label className={`settings-social-card is-facebook${facebookUrl.trim() ? ' has-value' : ''}`}>
+                <span className="settings-social-card__brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 21v-8h3l.5-3H14V8.5c0-1 .4-1.5 1.7-1.5H18V4.2c-.7-.1-1.7-.2-2.8-.2C12.5 4 11 5.6 11 8.3V10H8v3h3v8"/></svg></span>
+                <span className="settings-social-card__field"><strong>Facebook</strong><input type="url" value={facebookUrl} onChange={(event) => setFacebookUrl(event.target.value)} placeholder="facebook.com/minupood" /></span>
+                <i aria-hidden="true">✓</i>
+              </label>
+              <label className={`settings-social-card is-tiktok${tiktokUrl.trim() ? ' has-value' : ''}`}>
+                <span className="settings-social-card__brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4v10.3a4.2 4.2 0 1 1-3.3-4.1"/><path d="M14 4c.5 2.7 2.1 4.3 4.8 4.8"/></svg></span>
+                <span className="settings-social-card__field"><strong>TikTok</strong><input type="url" value={tiktokUrl} onChange={(event) => setTiktokUrl(event.target.value)} placeholder="tiktok.com/@minupood" /></span>
+                <i aria-hidden="true">✓</i>
+              </label>
             </div>
           </div>}
           {settingsSection === 'notifications' && <div className="settings-panel" role="tabpanel">
@@ -1922,6 +2067,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
             <button className="login-sheet__close" onClick={() => setIsLoginOpen(false)} aria-label="Sulge">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
             </button>
+            <span className="login-sheet__eyebrow">POE OMANIKULE</span>
             <h2>Logi sisse</h2>
             <form onSubmit={(event) => { event.preventDefault(); setIsLoggedIn(true); setIsCustomerPreview(false); setIsLoginOpen(false); setAuthToast('Sisse logitud') }}>
               <label>E-post<input type="email" autoComplete="username" /></label>
@@ -1931,6 +2077,25 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           </section>
         </div>
       )}
+      {imageUpload && <div className={`image-upload-overlay is-${imageUpload.phase}`} role="dialog" aria-modal="true" aria-label="Piltide lisamine poodi">
+        <section className="image-upload-progress" role="status" aria-live="polite">
+          <div className="image-upload-progress__visuals">
+            {imageUpload.images.map((image, index) => {
+              const imageProgress = Math.max(0, Math.min(100, imageUpload.progress * 1.35 - index * 30))
+              return <div className="image-upload-progress__image" style={{ '--image-progress': `${imageProgress}%`, '--image-delay': `${index * 70}ms` } as CSSProperties} key={image}>
+                <span><img src={image} alt="" /></span>
+                {imageProgress >= 100 && <i aria-hidden="true">✓</i>}
+              </div>
+            })}
+          </div>
+          <div className="image-upload-progress__copy">
+            <small>{imageUpload.phase === 'preparing' ? 'VALMISTAN ETTE' : imageUpload.phase === 'uploading' ? 'LAEN PILTE' : 'VALMIS'}</small>
+            <strong>{imageUpload.phase === 'ready' ? 'Pildid on poes' : imageUpload.images.length === 1 ? 'Lisan tootepildi…' : `Lisan ${imageUpload.images.length} tootepilti…`}</strong>
+          </div>
+          <div className="image-upload-progress__track" aria-label={`${imageUpload.progress}%`}><span style={{ width: `${imageUpload.progress}%` }}><i /></span></div>
+          <div className="image-upload-progress__meta"><span>{imageUpload.phase === 'ready' ? 'Kõik valmis' : `${imageUpload.progress}%`}</span><span>{imageUpload.images.length}/{MAX_PRODUCT_IMAGES} pilti</span></div>
+        </section>
+      </div>}
       {isAddOpen && (
         <div className={`overlay login-overlay${addProductStep === 'details' ? ' product-editor-overlay' : ' add-source-overlay'}`} onMouseDown={(event) => event.target === event.currentTarget && closeAddProduct()}>
           <section className={`login-sheet edit-sheet${addProductStep === 'details' ? ' product-editor-sheet product-editor-sheet--add' : ''}`} role="dialog" aria-modal="true" aria-label="Lisa toode">

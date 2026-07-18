@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Storefront, type PricingPlan } from './App'
+import { Storefront, type PaymentProvider, type PricingPlan } from './App'
 
-type Screen = 'landing' | 'account' | 'store' | 'payments' | 'shipping' | 'publish' | 'storefront' | 'sample'
+type Screen = 'landing' | 'login' | 'account' | 'store' | 'payments' | 'shipping' | 'publish' | 'storefront' | 'sample'
 
 const steps: Array<{ screen: Screen; label: string }> = [
   { screen: 'account', label: 'Konto' },
@@ -286,18 +286,23 @@ export default function DemoApp() {
   }
 
   const backMap: Partial<Record<Screen, Screen>> = {
-    account: 'landing', store: 'account', payments: 'store', shipping: 'payments', publish: 'shipping',
+    login: 'landing', account: 'landing', store: 'account', payments: 'store', shipping: 'payments', publish: 'shipping',
   }
   const phoneProduct = phonePreviewProducts[phoneProductIndex]
 
   if (screen === 'sample') return <Storefront key="sample-storefront" onExit={() => setScreen('landing')} />
-  if (screen === 'storefront') return <Storefront key="merchant-storefront" seedProducts={[]} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} merchantMode onExit={resetDemo} />
+  if (screen === 'storefront') return <>
+    <Storefront key="merchant-storefront" seedProducts={[]} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} merchantMode onConnectPaymentProvider={(provider: PaymentProvider) => provider === 'stripe' ? setIsStripeConnectOpen(true) : setIsMontonioConnectOpen(true)} onExit={resetDemo} />
+    {isStripeConnectOpen && <StripeConnectDemo email={email} onClose={() => setIsStripeConnectOpen(false)} onComplete={() => { setPayment('stripe'); setPaymentStatus('connected'); setIsStripeConnectOpen(false) }} />}
+    {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { setPayment('montonio'); setPaymentStatus(status); setIsMontonioConnectOpen(false) }} />}
+  </>
 
   if (screen === 'landing') return <main className="demo-landing">
     <nav><Brand /><div ref={mobileNavRef} className="demo-nav-actions">
       <a className="demo-nav-link" href="#hind">Hind</a>
       <a className="demo-nav-link" href="#kkk">KKK</a>
       <button className="demo-nav-link" onClick={() => setScreen('sample')}>Vaata näidispoodi</button>
+      <button className="demo-nav-link demo-nav-login" onClick={() => setScreen('login')}>Logi sisse</button>
       <button className="demo-nav-cta" onClick={() => setScreen('account')}>Loo pood</button>
       <button className="demo-mobile-menu-toggle" type="button" aria-label={isMobileNavOpen ? 'Sulge menüü' : 'Ava menüü'} aria-expanded={isMobileNavOpen} onClick={() => setIsMobileNavOpen((open) => !open)}>
         {isMobileNavOpen
@@ -308,6 +313,7 @@ export default function DemoApp() {
         <a href="#hind" onClick={() => setIsMobileNavOpen(false)}><span>Hind</span><b>→</b></a>
         <a href="#kkk" onClick={() => setIsMobileNavOpen(false)}><span>KKK</span><b>→</b></a>
         <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('sample') }}><span>Näidispood</span><b>→</b></button>
+        <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('login') }}><span>Logi sisse</span><b>→</b></button>
         <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('account') }}><span>Loo pood</span><b>→</b></button>
       </div>}
     </div></nav>
@@ -415,6 +421,32 @@ export default function DemoApp() {
     </footer>
   </main>
 
+  if (screen === 'login') return <main className="auth-page auth-page--login">
+    <FlowHeader onBack={() => setScreen('landing')} />
+    <div className="auth-flow auth-flow--login">
+      <div className="auth-content">
+        <aside className="auth-intro auth-intro--login">
+          <span className="demo-eyebrow">Tere tulemast tagasi</span>
+          <h1>Jätka sealt, kus pooleli jäi.</h1>
+          <p>Sinu poe mustand, tooted ja seadistus ootavad sind.</p>
+          <div className="auth-resume-card" aria-hidden="true">
+            <span>✓</span><p><strong>Poe mustand on alles</strong><small>Viimane muudatus salvestatud</small></p><b>→</b>
+          </div>
+        </aside>
+        <section className="auth-card auth-card--login">
+          <h1>Logi sisse</h1><p>Tagasi oma poe haldusesse.</p>
+          <form onSubmit={(event) => { event.preventDefault(); setScreen(storeName.trim() ? (paymentStatus === 'idle' ? 'payments' : 'shipping') : 'store') }}>
+            <label>E-posti aadress<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sina@ettevote.ee" autoComplete="username" autoFocus /></label>
+            <label>Parool<input required type="password" minLength={6} placeholder="Sinu parool" autoComplete="current-password" /></label>
+            <button type="submit">Jätka oma poega <span>→</span></button>
+          </form>
+          <div className="auth-switch"><span>Pole veel kontot?</span><button type="button" onClick={() => setScreen('account')}>Loo pood</button></div>
+          <small>Demo ei saada andmeid serverisse.</small>
+        </section>
+      </div>
+    </div>
+  </main>
+
   if (screen === 'account') return <main className="auth-page">
     <FlowHeader onBack={() => setScreen('landing')} />
     <div className="auth-flow">
@@ -443,6 +475,7 @@ export default function DemoApp() {
             </label>
             <button type="submit">Loo konto ja jätka <span>→</span></button>
           </form>
+          <div className="auth-switch"><span>Konto juba olemas?</span><button type="button" onClick={() => setScreen('login')}>Logi sisse</button></div>
           <small>Demo ei saada andmeid serverisse.</small>
         </section>
       </div>
