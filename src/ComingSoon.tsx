@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Brand } from './DemoApp'
 import './coming-soon.css'
 
 const showcaseProducts = [
@@ -16,7 +17,7 @@ export default function ComingSoon() {
 
   return <main className="coming-soon">
     <header className="coming-soon__header">
-      <div className="coming-soon__wordmark" aria-label="Poeruum">Poe<span>ruum</span></div>
+      <Brand />
       <span className="coming-soon__opening"><i /> Avame peagi</span>
     </header>
 

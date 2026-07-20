@@ -111,7 +111,7 @@ const phonePreviewProducts = [
   { name: 'Inglitega taldrik', description: 'Kuldne dekoratiivtaldrik kolme ruumilise ingliga.', price: 29, images: ['/images/demo/taldrik_1.jpg'] },
 ]
 
-function Brand() {
+export function Brand() {
   return <div className="demo-brand" aria-label="Poeruum">
     <span className="demo-brand__mark" aria-hidden="true">
       <svg viewBox="0 0 40 40">
