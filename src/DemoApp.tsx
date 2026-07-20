@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { loadConnectAndInitialize } from '@stripe/connect-js'
+import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
 import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PaymentProvider, type PricingPlan } from './App'
-import { createStore, getMyStore, getStoreBySlug, listProducts, updateStore, type StoreRecord } from './lib/database'
+import { createStore, getMyStore, getStoreBySlug, invokeStripeConnect, listProducts, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import type { Product } from './products'
 
@@ -21,6 +23,8 @@ type RegistryLookupResponse = {
 }
 
 const onboardingSteps = new Set<OnboardingStep>(['business', 'payments', 'shipping', 'publish', 'complete'])
+const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
+const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
 
 const getStoreDestination = (store: StoreRecord): Screen => {
   if (store.is_published) return 'storefront'
@@ -137,57 +141,76 @@ function SetupShell({ screen, children, onBack }: { screen: Screen; children: Re
   </main>
 }
 
-function StripeConnectDemo({ email, businessName, registryCode, onClose, onComplete }: { email: string; businessName: string; registryCode: string; onClose: () => void; onComplete: () => void }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1)
-  const [isVerifying, setIsVerifying] = useState(false)
+function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => void; onClose: () => void; onError: (message: string) => void }) {
+  const [connectInstance] = useState(() => stripePublishableKey ? loadConnectAndInitialize({
+    publishableKey: stripePublishableKey,
+    locale: 'et-EE',
+    appearance: {
+      overlays: 'drawer',
+      variables: {
+        colorPrimary: '#226748',
+        colorBackground: '#ffffff',
+        colorText: '#14261c',
+        colorSecondaryText: '#66736b',
+        colorBorder: '#d7ded7',
+        colorDanger: '#a4433b',
+        formBackgroundColor: '#fcfdfb',
+        formHighlightColorBorder: '#226748',
+        formAccentColor: '#226748',
+        formPlaceholderTextColor: '#7b857e',
+        buttonPrimaryColorBackground: '#226748',
+        buttonPrimaryColorBorder: '#226748',
+        buttonPrimaryColorText: '#ffffff',
+        buttonLabelFontSize: '14px',
+        buttonLabelFontWeight: '700',
+        buttonPaddingX: '18px',
+        buttonPaddingY: '12px',
+        inputFieldPaddingX: '12px',
+        inputFieldPaddingY: '11px',
+        fontSizeBase: '14px',
+        bodyMdFontSize: '14px',
+        bodySmFontSize: '13px',
+        headingXlFontSize: '24px',
+        headingLgFontSize: '20px',
+        headingMdFontSize: '18px',
+        headingSmFontSize: '16px',
+        labelMdFontSize: '14px',
+        labelMdFontWeight: '700',
+        labelSmFontSize: '12px',
+        borderRadius: '12px',
+        formBorderRadius: '10px',
+        buttonBorderRadius: '10px',
+        fontFamily: 'DM Sans, system-ui, sans-serif',
+        spacingUnit: '8px',
+      },
+    },
+    fetchClientSecret: async () => {
+      const result = await invokeStripeConnect('start')
+      if (!result.clientSecret) throw new Error('Stripe ei tagastanud AccountSessioni võtit.')
+      return result.clientSecret
+    },
+  }) : null)
 
-  const finishOnboarding = () => {
-    setIsVerifying(true)
-    window.setTimeout(() => {
-      setIsVerifying(false)
-      setStep(3)
-    }, 900)
-  }
+  useEffect(() => {
+    if (!connectInstance) onError('Stripe’i publishable key puudub.')
+  }, [connectInstance, onError])
 
-  return <div className="stripe-connect-overlay" role="dialog" aria-modal="true" aria-label="Stripe'i ühendamise demo">
-    <section className="stripe-connect">
-      <header>
-        <div className="stripe-connect__brand"><span>S</span><strong>Stripe</strong><small className="stripe-connect__context">Maksete ühendamine</small></div>
-        <button type="button" onClick={onClose} aria-label="Sulge Stripe'i ühendamine">×</button>
-      </header>
-      {step < 3 && <div className="stripe-connect__progress" aria-label={`Samm ${step} 2-st`}><span className="is-done" /><span className={step === 2 ? 'is-done' : ''} /></div>}
-
-      {step === 1 && <form className="stripe-connect__form" onSubmit={(event) => { event.preventDefault(); setStep(2) }}>
-        <span className="stripe-connect__eyebrow">SAMM 1 / 2</span>
-        <h2>Ettevõtte ja esindaja andmed</h2>
-        <div className="stripe-connect__prefill"><div><small>Ettevõte</small><strong>{businessName}</strong></div><div><small>Registrikood</small><strong>{registryCode}</strong></div><div><small>Riik ja tüüp</small><strong>Eesti · Ettevõte</strong></div><div><small>Kontakt</small><strong>{email}</strong></div></div>
-        <label>Ettevõtte esindaja nimi<input required autoComplete="name" placeholder="Ees- ja perekonnanimi" /></label>
-        <label>Esindaja telefon<input required type="tel" autoComplete="tel" placeholder="+372 5555 5555" /></label>
-        <button className="stripe-connect__next" type="submit">Jätka <span>→</span></button>
-      </form>}
-
-      {step === 2 && <form className="stripe-connect__form" onSubmit={(event) => { event.preventDefault(); finishOnboarding() }}>
-        <span className="stripe-connect__eyebrow">SAMM 2 / 2</span>
-        <h2>Kuhu müügitulu kanda?</h2>
-        <p>Lisa konto, kuhu Stripe teeb sinu poe väljamakseid.</p>
-        <label>Kontoomaniku nimi<input required defaultValue={businessName} autoComplete="organization" /></label>
-        <label>IBAN<div className="stripe-connect__iban"><span>🇪🇪</span><input required defaultValue="EE38 2200 2210 2014 685" inputMode="text" /></div></label>
-        <div className="stripe-connect__summary"><div><span>Väljamaksed</span><strong>Automaatselt</strong></div><div><span>Valuuta</span><strong>EUR</strong></div><div><span>Esimene väljamakse</span><strong>7–14 päeva</strong></div></div>
-        <label className="stripe-connect__consent"><input required type="checkbox" defaultChecked /><span>Kinnitan, et andmed on õiged ja nõustun Stripe’i teenusetingimustega.</span></label>
-        <div className="stripe-connect__buttons"><button type="button" onClick={() => setStep(1)}>← Tagasi</button><button className="stripe-connect__next" type="submit" disabled={isVerifying}>{isVerifying ? 'Kontrollin…' : 'Ühenda konto'} <span>{isVerifying ? '◌' : '→'}</span></button></div>
-      </form>}
-
-      {step === 3 && <div className="stripe-connect__success">
-        <div className="stripe-connect__check">✓</div>
-        <span className="stripe-connect__eyebrow">ÜHENDUS VALMIS</span>
-        <h2>Stripe on sinu poega ühendatud</h2>
-        <p>Kliendid saavad maksta kaardi, Apple Pay ja Google Payga. Müügitulu liigub otse sinu väljamaksekontole.</p>
-        <div className="stripe-connect__account"><span>S</span><div><strong>{businessName}</strong><small>Maksete vastuvõtmine aktiivne</small></div><b>AKTIIVNE</b></div>
-        <button className="stripe-connect__next" type="button" onClick={onComplete}>Tagasi Poeruumi</button>
-      </div>}
-      <footer><span>🔒 Stripe’i turvaline ühendus</span><small>Interaktiivne demo · andmeid ei salvestata</small></footer>
-    </section>
-  </div>
+  if (!connectInstance) return null
+  return <section className="stripe-embedded" aria-label="Stripe’i konto seadistamine">
+    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Turvaline vorm kuvatakse Poeruumis</small></span></div><button type="button" onClick={onClose} aria-label="Sulge Stripe’i seadistamine">×</button></header>
+    <div className="stripe-embedded__trust">
+      <span aria-hidden="true">✓</span>
+      <div><strong>Ametlik Stripe’i turvavorm</strong><small>Vormi haldab Stripe ning andmed edastatakse krüpteeritult. Poeruum täidab teadaolevad ettevõtteandmed automaatselt.</small></div>
+      {isStripeTestMode && <em>TESTKESKKOND</em>}
+    </div>
+    <ConnectComponentsProvider connectInstance={connectInstance}>
+      <ConnectAccountOnboarding
+        collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
+        onExit={onExit}
+        onLoadError={({ error }) => onError(error.message || 'Stripe’i vormi laadimine ebaõnnestus.')}
+      />
+    </ConnectComponentsProvider>
+  </section>
 }
 
 function MontonioConnectDemo({ storeName, businessName, registryCode, onClose, onComplete }: { storeName: string; businessName: string; registryCode: string; onClose: () => void; onComplete: (status: 'connected' | 'pending') => void }) {
@@ -258,7 +281,8 @@ export default function DemoApp() {
   const [pricingPlan, setPricingPlan] = useState<PricingPlan>('flexible')
   const [fixedPlanTrialStartedAt, setFixedPlanTrialStartedAt] = useState<string | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'connected' | 'pending'>('idle')
-  const [isStripeConnectOpen, setIsStripeConnectOpen] = useState(false)
+  const [isStripeConnecting, setIsStripeConnecting] = useState(false)
+  const [isStripeOnboardingOpen, setIsStripeOnboardingOpen] = useState(false)
   const [isMontonioConnectOpen, setIsMontonioConnectOpen] = useState(false)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const mobileNavRef = useRef<HTMLDivElement>(null)
@@ -411,7 +435,31 @@ export default function DemoApp() {
       if (!data.session || !active || recoveryMode) return
       setEmail(data.session.user.email ?? '')
       const existing = await getMyStore()
-      if (existing && active) await openOwnedStore(existing)
+      if (!existing || !active) return
+
+      const stripeConnectResult = new URLSearchParams(window.location.search).get('stripe_connect')
+      if (!stripeConnectResult) {
+        await openOwnedStore(existing)
+        return
+      }
+
+      await applyStore(existing)
+      setScreen('payments')
+      setIsStripeConnecting(true)
+      try {
+        if (stripeConnectResult === 'refresh') setIsStripeOnboardingOpen(true)
+        const result = await invokeStripeConnect('status')
+        const refreshedStore = await getMyStore()
+        if (refreshedStore && active) await applyStore(refreshedStore)
+        setAuthNotice(result.status === 'connected'
+          ? 'Stripe on ühendatud ja maksed on aktiivsed.'
+          : 'Stripe sai andmed kätte. Konto kontroll või seadistamine on veel pooleli.')
+      } finally {
+        setIsStripeConnecting(false)
+        const cleanUrl = new URL(window.location.href)
+        cleanUrl.searchParams.delete('stripe_connect')
+        window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
+      }
     }
     const { data } = requireSupabase().auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' && active) {
@@ -582,6 +630,41 @@ export default function DemoApp() {
     }
   }
 
+  const startStripeConnect = async () => {
+    setIsStripeConnecting(true)
+    setAuthError('')
+    setAuthNotice('')
+    try {
+      const saved = await persistStore(store?.is_published ?? false, { payment_provider: 'stripe', payment_status: 'pending' }, store?.is_published ? 'complete' : 'payments')
+      setPayment('stripe')
+      setPaymentStatus('pending')
+      setStore(saved)
+      setIsStripeOnboardingOpen(true)
+      setIsStripeConnecting(false)
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Stripe’i ühendamine ebaõnnestus.')
+      setIsStripeConnecting(false)
+    }
+  }
+
+  const finishStripeEmbeddedOnboarding = async () => {
+    setIsStripeConnecting(true)
+    setAuthError('')
+    try {
+      const result = await invokeStripeConnect('status')
+      const refreshedStore = await getMyStore()
+      if (refreshedStore) await applyStore(refreshedStore)
+      setIsStripeOnboardingOpen(false)
+      setAuthNotice(result.status === 'connected'
+        ? 'Stripe on ühendatud ja maksed on aktiivsed.'
+        : 'Stripe salvestas andmed. Konto kontroll või seadistamine on veel pooleli.')
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Stripe’i staatuse kontroll ebaõnnestus.')
+    } finally {
+      setIsStripeConnecting(false)
+    }
+  }
+
   const resetSetupScrollAfterKeyboard = () => {
     if (!storeName.trim()) return
 
@@ -660,7 +743,8 @@ export default function DemoApp() {
     setPricingPlan('flexible')
     setFixedPlanTrialStartedAt(null)
     setPaymentStatus('idle')
-    setIsStripeConnectOpen(false)
+    setIsStripeConnecting(false)
+    setIsStripeOnboardingOpen(false)
     setIsMontonioConnectOpen(false)
     setIsBillingCardOpen(false)
     setShipping(['omniva', 'pickup'])
@@ -717,8 +801,7 @@ export default function DemoApp() {
   />
   if (screen === 'sample') return <Storefront key="sample-storefront" onExit={() => setScreen('landing')} />
   if (screen === 'storefront') return <>
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(provider: PaymentProvider) => provider === 'stripe' ? setIsStripeConnectOpen(true) : setIsMontonioConnectOpen(true)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment(nextStore.payment_provider); setPaymentStatus(nextStore.payment_status); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetDemo} />
-    {isStripeConnectOpen && <StripeConnectDemo email={businessEmail || email} businessName={businessName} registryCode={registryCode} onClose={() => setIsStripeConnectOpen(false)} onComplete={() => { completePaymentConnection('stripe', 'connected'); setIsStripeConnectOpen(false) }} />}
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(provider: PaymentProvider) => provider === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment(nextStore.payment_provider); setPaymentStatus(nextStore.payment_status); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetDemo} />
     {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} businessName={businessName} registryCode={registryCode} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { completePaymentConnection('montonio', status); setIsMontonioConnectOpen(false) }} />}
   </>
 
@@ -974,21 +1057,35 @@ export default function DemoApp() {
       <button className="setup-next" type="submit">Jätka müüja andmetega <span>→</span></button>
     </form>}
 
-    {screen === 'payments' && <div className="setup-form"><span className="setup-kicker">Maksete vastuvõtmine</span><h1>Kuidas kliendid maksavad?</h1>
+    {screen === 'payments' && <div className="setup-form">
+      {!isStripeOnboardingOpen && <><span className="setup-kicker">Maksete vastuvõtmine</span><h1>Kuidas kliendid maksavad?</h1>
       <div className="provider-list">
-        <button className={payment === 'stripe' ? 'is-selected' : ''} onClick={() => { setPayment('stripe'); setPaymentStatus('idle') }}>
+        <button className={payment === 'stripe' ? 'is-selected' : ''} onClick={() => {
+          setPayment('stripe')
+          setPaymentStatus(store?.stripe_account_id
+            ? store.stripe_account_charges_enabled && store.stripe_account_payouts_enabled ? 'connected' : 'pending'
+            : 'idle')
+        }}>
           <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe <em>Kõige kiirem</em></strong><small>Kaardid, Apple Pay ja Google Pay</small></span><b>{payment === 'stripe' ? '✓' : ''}</b>
         </button>
-        <button className={payment === 'montonio' ? 'is-selected' : ''} onClick={() => { setPayment('montonio'); setPaymentStatus('idle') }}>
+        <button className={payment === 'montonio' ? 'is-selected' : ''} onClick={() => { setPayment('montonio'); setPaymentStatus('idle'); setIsStripeOnboardingOpen(false) }}>
           <i className="provider-logo provider-logo--montonio"><img src="/images/montonio-wordmark.svg" alt="" /></i><span><strong>Montonio</strong><small>Pangalingid, kaardid ja maksa hiljem</small></span><b>{payment === 'montonio' ? '✓' : ''}</b>
         </button>
-      </div>
-      {paymentStatus === 'idle' ? <button className={`connect-provider connect-provider--${payment}`} onClick={() => payment === 'stripe' ? setIsStripeConnectOpen(true) : setIsMontonioConnectOpen(true)}>
-        <span className="connect-provider__identity"><i className={`provider-logo provider-logo--${payment}`}><img src={payment === 'stripe' ? '/images/stripe-wordmark.svg' : '/images/montonio-wordmark.svg'} alt="" /></i><span><strong>Ühenda {payment === 'stripe' ? 'Stripe' : 'Montonio'}</strong><small>{payment === 'stripe' ? 'Turvaline demoühendus · umbes 2 minutit' : 'Olemasolev konto või uus taotlus'}</small></span></span><b>→</b>
-      </button> : <div className={`connected-provider${paymentStatus === 'pending' ? ' is-pending' : ''}`}><span>{paymentStatus === 'pending' ? '…' : '✓'}</span><div><strong>{paymentStatus === 'pending' ? 'Montonio taotlus on kontrollimisel' : payment === 'stripe' ? 'Kaardimaksed on valmis' : 'Montonio maksed on valmis'}</strong><small>{paymentStatus === 'pending' ? 'Kontroll võtab tavaliselt 1–2 tööpäeva. Päris maksed aktiveeruvad pärast kinnitamist.' : payment === 'stripe' ? 'Stripe kannab müügitulu otse sinu väljamaksekontole.' : 'Pangamaksed ja konto staatus on Poeruumiga sünkroonitud.'}</small></div></div>}
-      <div className="setup-fee-note"><span>i</span><p><strong>Makseteenus ja Poeruum on eraldi.</strong> {payment === 'stripe' ? 'Stripe’i' : 'Montonio'} tasud lähevad teenusepakkujale. Sinu valitud {pricingPlan === 'flexible' ? 'Paindlik pakett maksab 0 € kuus ja 4% toodete müügilt' : 'Kindel pakett on esimesed 30 päeva tasuta, seejärel 29 € kuus + km ning Poeruumi müügitasu on 0%'}.</p></div>
-      <button className="setup-next" disabled={paymentStatus === 'idle'} onClick={async () => { try { await persistStore(false, {}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>
-      {isStripeConnectOpen && <StripeConnectDemo email={businessEmail || email} businessName={businessName} registryCode={registryCode} onClose={() => setIsStripeConnectOpen(false)} onComplete={() => { void completePaymentConnection('stripe', 'connected', 'shipping'); setIsStripeConnectOpen(false) }} />}
+      </div></>}
+      {payment === 'stripe' && isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
+        onExit={() => void finishStripeEmbeddedOnboarding()}
+        onClose={() => void finishStripeEmbeddedOnboarding()}
+        onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
+      /> : <>{paymentStatus === 'idle' ? <button className={`connect-provider connect-provider--${payment}`} disabled={isStripeConnecting && payment === 'stripe'} onClick={() => payment === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)}>
+        <span className="connect-provider__identity"><i className={`provider-logo provider-logo--${payment}`}><img src={payment === 'stripe' ? '/images/stripe-wordmark.svg' : '/images/montonio-wordmark.svg'} alt="" /></i><span><strong>{isStripeConnecting && payment === 'stripe' ? 'Avan Stripe’i…' : `Ühenda ${payment === 'stripe' ? 'Stripe' : 'Montonio'}`}</strong><small>{payment === 'stripe' ? 'Turvaline Stripe’i ühendus · umbes 2 minutit' : 'Olemasolev konto või uus taotlus'}</small></span></span><b>→</b>
+      </button> : <div className={`connected-provider${paymentStatus === 'pending' ? ' is-pending' : ''}`}><span>{paymentStatus === 'pending' ? '…' : '✓'}</span><div><strong>{paymentStatus === 'pending' ? payment === 'stripe' ? 'Stripe’i konto seadistamine on pooleli' : 'Montonio taotlus on kontrollimisel' : payment === 'stripe' ? 'Kaardimaksed on valmis' : 'Montonio maksed on valmis'}</strong><small>{paymentStatus === 'pending' ? payment === 'stripe' ? 'Jätka Stripe’i seadistamist, et aktiveerida maksed ja väljamaksed.' : 'Kontroll võtab tavaliselt 1–2 tööpäeva. Päris maksed aktiveeruvad pärast kinnitamist.' : payment === 'stripe' ? 'Stripe kannab müügitulu otse sinu väljamaksekontole.' : 'Pangamaksed ja konto staatus on Poeruumiga sünkroonitud.'}</small></div></div>}
+      {payment === 'stripe' && paymentStatus === 'pending' && <button className="connect-provider connect-provider--stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect()}>
+        <span className="connect-provider__identity"><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>{isStripeConnecting ? 'Avan Stripe’i…' : 'Jätka Stripe’i seadistamist'}</strong><small>Turvaline vorm avaneb siin samal lehel</small></span></span><b>→</b>
+      </button>}</>}
+      {!isStripeOnboardingOpen && <div className="setup-fee-note"><span>i</span><p><strong>Makseteenuse tasud lähevad {payment === 'stripe' ? 'Stripe’ile' : 'Montoniole'}.</strong> Poeruumi {pricingPlan === 'flexible' ? 'Paindlik pakett maksab 0 € kuus + 4% müügilt' : 'Kindel pakett on esimesed 30 päeva tasuta, seejärel 29 € kuus + km ning müügitasu on 0%'}.</p></div>}
+      {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
+      {authError && <p className="add-product-error" role="alert">{authError}</p>}
+      {!isStripeOnboardingOpen && <button className="setup-next" disabled={paymentStatus === 'idle'} onClick={async () => { try { await persistStore(false, {}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
       {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} businessName={businessName} registryCode={registryCode} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { void completePaymentConnection('montonio', status, 'shipping'); setIsMontonioConnectOpen(false) }} />}
     </div>}
 
@@ -1009,7 +1106,7 @@ export default function DemoApp() {
       try { await persistStore(false, {}, 'payments'); setScreen('payments') }
       catch (error) { setAuthError(error instanceof Error ? error.message : 'Müüja andmete salvestamine ebaõnnestus.') }
     }}>
-      <span className="setup-kicker">Kes kliendile müüb?</span><h1>Lisa müüja andmed</h1>
+      <span className="setup-kicker">Kes kliendile müüb?</span><h1>Sinu ettevõte</h1>
       <label>Registrikood<input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={registryCode} onChange={(event) => {
         const nextRegistryCode = event.target.value.replace(/\D/g, '').slice(0, 8)
         if (nextRegistryCode !== registryCode) {
@@ -1033,7 +1130,6 @@ export default function DemoApp() {
       <label>Ettevõtte nimi<input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
       <label>Ettevõtte aadress<input required value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label>
       <label>Klientide kontakt-e-post<input required type="email" value={businessEmail} onChange={(event) => setBusinessEmail(event.target.value)} placeholder="tere@minupood.ee" /></label>
-      <div className="setup-business__terms"><span>✓</span><div><strong>Müügitingimuste põhi on valmis</strong><p>Poeruum lisab 14-päevase taganemisõiguse, tagasimakse ja tagastuskulude standardtingimused. Saad neid hiljem muuta.</p></div></div>
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
       <button className="setup-next" type="submit">Jätka maksetega <span>→</span></button>
     </form>}

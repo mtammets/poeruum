@@ -204,7 +204,7 @@ button, a, summary { touch-action: manipulation; }
 .auth-card > span { color: #879087; font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .auth-card h1 { margin: 0 0 .4rem; font-family: Manrope, sans-serif; font-size: 2rem; letter-spacing: -.04em; }
 .auth-card > p { margin: 0 0 1.8rem; color: #778078; }
-.auth-card form, .setup-form { display: grid; gap: 1.15rem; }
+.auth-card form, .setup-form { display: grid; min-width: 0; gap: 1.15rem; }
 .auth-card label, .setup-form label { display: grid; gap: .45rem; color: #39463e; font-size: .78rem; font-weight: 700; }
 .auth-card input, .setup-form input, .setup-form textarea { width: 100%; padding: .9rem 1rem; border: 1px solid #d7dbd2; border-radius: .7rem; outline: none; background: #fbfcf9; color: var(--demo-ink); }
 .auth-card input:focus, .setup-form input:focus, .setup-form textarea:focus { border-color: var(--demo-green); box-shadow: 0 0 0 3px #265f4312; }
@@ -273,7 +273,7 @@ button, a, summary { touch-action: manipulation; }
 .setup-progress .is-current::before { background: var(--demo-green); }
 .setup-progress .is-current i { width: 1.35rem; height: 1.35rem; border: .3rem solid var(--demo-green); background: var(--demo-lime); box-shadow: 0 0 0 .28rem #f1f1e9; }
 .setup-progress .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.setup-card { width: min(92%, 43rem); margin: auto; padding: clamp(1.5rem, 4vw, 3rem); border: 1px solid #d9dcd4; border-radius: 1.35rem; background: #fff; box-shadow: 0 18px 55px #3340360c; }
+.setup-card { width: min(92%, 43rem); min-width: 0; margin: auto; padding: clamp(1.5rem, 4vw, 3rem); border: 1px solid #d9dcd4; border-radius: 1.35rem; background: #fff; box-shadow: 0 18px 55px #3340360c; }
 .setup-form > h1 { margin: .25rem 0 0; font-family: Manrope, sans-serif; font-size: clamp(1.9rem, 4vw, 2.65rem); line-height: 1.08; letter-spacing: -.05em; }
 .setup-form > p { margin: -.55rem 0 .5rem; color: #7a837c; line-height: 1.55; }
 .setup-form > label { position: relative; }
@@ -364,6 +364,24 @@ button, a, summary { touch-action: manipulation; }
 .setup-fee-note > span { display: grid; width: 1.35rem; height: 1.35rem; place-items: center; border-radius: 50%; background: #e3ead0; color: var(--demo-green); font-size: .68rem; font-weight: 900; }
 .setup-fee-note p { margin: 0; color: #778078; font-size: .68rem; line-height: 1.45; }
 .setup-fee-note strong { color: #455149; }
+
+.stripe-embedded { display: grid; width: 100%; min-width: 0; max-width: 100%; border: 1px solid #dfe3db; border-radius: 1rem; background: #fff; box-shadow: 0 16px 38px #17231c12; }
+.stripe-embedded > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem; border-bottom: 1px solid #e7eae5; background: #f8faf7; }
+.stripe-embedded > header > div { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.stripe-embedded > header .provider-logo { display: grid; flex: 0 0 auto; width: 4rem; height: 2.5rem; place-items: center; border: 1px solid #e3e4df; border-radius: .65rem; background: #fff; }
+.stripe-embedded > header > div > span { display: grid; gap: .08rem; min-width: 0; }
+.stripe-embedded > header strong { color: var(--demo-ink); font-size: .82rem; line-height: 1.25; }
+.stripe-embedded > header small { color: #788179; font-size: .62rem; line-height: 1.35; }
+.stripe-embedded > header > button { display: grid; flex: 0 0 auto; width: 2rem; height: 2rem; padding: 0; place-items: center; border: 0; border-radius: 50%; background: #e9ede7; color: #5f6b63; font: inherit; font-size: 1.2rem; }
+.stripe-embedded__trust { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .65rem; margin: .8rem .8rem 0; padding: .75rem; border: 1px solid #cfe0d5; border-radius: .75rem; background: #f2f8f3; }
+.stripe-embedded__trust > span { display: grid; width: 1.65rem; height: 1.65rem; place-items: center; border-radius: 50%; background: var(--demo-green); color: #fff; font-size: .72rem; font-weight: 900; }
+.stripe-embedded__trust > div { display: grid; gap: .08rem; min-width: 0; }
+.stripe-embedded__trust strong { color: #173b29; font-size: .72rem; line-height: 1.25; }
+.stripe-embedded__trust small { color: #5f7065; font-size: .58rem; line-height: 1.4; }
+.stripe-embedded__trust em { padding: .25rem .42rem; border-radius: 999px; background: #e2edd9; color: #436138; font-size: .48rem; font-style: normal; font-weight: 900; letter-spacing: .06em; }
+.stripe-embedded > [data-stripe-connect-js-wrapper] { box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; min-height: 32rem; }
+.stripe-embedded stripe-connect-account-onboarding { display: block; box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
+.setup-form > .add-product-error { max-width: 100%; overflow-wrap: anywhere; color: #8d463d; }
 
 .stripe-connect-overlay { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: 1rem; overflow-y: auto; background: #10161cbd; font-family: "DM Sans", sans-serif; backdrop-filter: blur(10px); }
 .stripe-connect { width: min(100%, 32rem); max-height: calc(100dvh - 2rem); overflow-y: auto; border-radius: 1.2rem; background: #fff; color: #202124; box-shadow: 0 28px 90px #07101866; scrollbar-width: none; }
@@ -790,6 +808,10 @@ button, a, summary { touch-action: manipulation; }
   .auth-card { margin: 0 auto; padding: 1.4rem; }
   .setup-progress-wrap { width: min(82%, 32rem); margin: .65rem auto 1.2rem; }
   .setup-card { padding: 1.25rem; }
+  .setup-card:has(.stripe-embedded) { width: calc(100% - .5rem); padding-inline: .5rem; }
+  .stripe-embedded { width: 100%; max-width: 100%; margin-inline: 0; }
+  .stripe-embedded__trust { grid-template-columns: auto minmax(0, 1fr); }
+  .stripe-embedded__trust em { grid-column: 2; justify-self: start; }
   .theme-grid { grid-template-columns: 1fr; }
   .theme-choice { display: grid; grid-template-columns: 7rem 1fr; align-items: center; }
   .theme-choice > div { grid-row: span 3; height: 8rem; }

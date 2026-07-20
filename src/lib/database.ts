@@ -9,6 +9,12 @@ export type StoreRecord = {
   is_published: boolean
   payment_provider: 'stripe' | 'montonio'
   payment_status: 'idle' | 'connected' | 'pending'
+  stripe_account_id: string | null
+  stripe_account_charges_enabled: boolean
+  stripe_account_payouts_enabled: boolean
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  stripe_subscription_status: string | null
   pricing_plan: 'flexible' | 'fixed'
   trial_started_at: string | null
   shipping: string[]
@@ -79,6 +85,19 @@ export async function updateStore(storeId: string, input: Partial<Omit<StoreReco
   const { data, error } = await requireSupabase().from('stores').update(input).eq('id', storeId).select().single()
   throwIfError(error)
   return data as StoreRecord
+}
+
+export async function invokeStripeConnect(action: 'start' | 'status') {
+  const { data, error } = await requireSupabase().functions.invoke('stripe-connect', { body: { action } })
+  if (error) {
+    const context = 'context' in error ? error.context : null
+    const details = context instanceof Response
+      ? await context.clone().json().catch(() => null) as { error?: string } | null
+      : null
+    throw new Error(details?.error || error.message)
+  }
+  if (data?.error) throw new Error(String(data.error))
+  return data as { clientSecret?: string; status?: StoreRecord['payment_status']; chargesEnabled?: boolean; payoutsEnabled?: boolean }
 }
 
 export async function listProducts(storeId: string) {
