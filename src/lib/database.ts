@@ -33,8 +33,29 @@ const throwIfError = (error: { message: string } | null) => {
   if (error) throw new Error(error.message)
 }
 
+// crypto.randomUUID is unavailable in older Safari versions and on non-secure
+// LAN origins (http://192.168... / http://172.16...). getRandomValues remains
+// available there, so image uploads still get collision-resistant names.
+const createRandomId = () => {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
+  const bytes = new Uint8Array(16)
+  globalThis.crypto?.getRandomValues?.(bytes)
+  if (bytes.some(Boolean)) return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
 export async function getMyStore() {
-  const { data, error } = await requireSupabase().from('stores').select('*').order('created_at').limit(1).maybeSingle()
+  const client = requireSupabase()
+  const { data: userData, error: userError } = await client.auth.getUser()
+  throwIfError(userError)
+  if (!userData.user) return null
+  const { data, error } = await client
+    .from('stores')
+    .select('*')
+    .eq('owner_id', userData.user.id)
+    .order('created_at')
+    .limit(1)
+    .maybeSingle()
   throwIfError(error)
   return data as StoreRecord | null
 }
@@ -71,6 +92,7 @@ const productFromRow = (row: Record<string, unknown>): Product => ({
   alt: String(row.alt ?? row.name), description: row.description as string | undefined,
   price: row.price == null ? undefined : Number(row.price), salePrice: row.sale_price == null ? undefined : Number(row.sale_price),
   objectPosition: row.object_position as string | undefined, slug: row.slug as string | undefined,
+  imageTransforms: row.image_transforms as Product['imageTransforms'],
   seoTitle: row.seo_title as string | undefined, searchVisible: Boolean(row.search_visible),
   stock: row.stock == null ? undefined : Number(row.stock), oneOfAKind: Boolean(row.one_of_a_kind),
   options: row.options as Product['options'],
@@ -80,12 +102,16 @@ const productToRow = (storeId: string, product: Product) => ({
   id: product.id, store_id: storeId, name: product.name, image_url: product.image, gallery: product.gallery ?? [product.image],
   alt: product.alt, description: product.description ?? '', price: product.price ?? null, sale_price: product.salePrice ?? null,
   object_position: product.objectPosition ?? null, slug: product.slug ?? null, seo_title: product.seoTitle ?? null,
+  image_transforms: product.imageTransforms ?? {},
   search_visible: product.searchVisible ?? true, stock: product.stock ?? null, one_of_a_kind: product.oneOfAKind ?? false,
   options: product.options ?? [],
 })
 
 export async function saveProduct(storeId: string, product: Product) {
   const { data, error } = await requireSupabase().from('products').upsert(productToRow(storeId, product)).select().single()
+  if (error?.message.toLowerCase().includes('row-level security')) {
+    throw new Error('Sul puudub selle poe muutmise õigus. Logi uuesti sisse ja proovi uuesti.')
+  }
   throwIfError(error)
   return productFromRow(data as Record<string, unknown>)
 }
@@ -95,12 +121,44 @@ export async function removeProduct(productId: string) {
   throwIfError(error)
 }
 
-export async function uploadImages(storeId: string, files: File[]) {
+export type ImageUploadPhase = 'preparing' | 'uploading'
+
+const optimizeImageForUpload = async (file: File) => {
+  const needsFormatConversion = /\.(?:heic|heif)$/i.test(file.name) || /image\/(?:heic|heif)/i.test(file.type)
+  if (!needsFormatConversion && file.size <= 2_500_000) return file
+  try {
+    const bitmap = await createImageBitmap(file)
+    const maximumSide = 2400
+    const ratio = Math.min(1, maximumSide / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * ratio))
+    canvas.height = Math.max(1, Math.round(bitmap.height * ratio))
+    const context = canvas.getContext('2d')
+    if (!context) { bitmap.close(); return file }
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', .86))
+    if (!blob) return file
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'tootepilt'
+    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: file.lastModified })
+  } catch {
+    // Safari can upload HEIC directly even if the browser cannot decode it via createImageBitmap.
+    return file
+  }
+}
+
+export async function uploadImages(storeId: string, files: File[], onPhase?: (index: number, phase: ImageUploadPhase) => void) {
   const client = requireSupabase()
-  return Promise.all(files.map(async (file) => {
+  return Promise.all(files.map(async (originalFile, index) => {
+    onPhase?.(index, 'preparing')
+    const file = await optimizeImageForUpload(originalFile)
     const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
-    const path = `${storeId}/${crypto.randomUUID()}.${extension}`
-    const { error } = await client.storage.from('product-images').upload(path, file, { contentType: file.type, upsert: false })
+    const path = `${storeId}/${createRandomId()}.${extension}`
+    const contentType = file.type || (extension === 'heic' ? 'image/heic' : extension === 'heif' ? 'image/heif' : `image/${extension === 'jpg' ? 'jpeg' : extension}`)
+    onPhase?.(index, 'uploading')
+    const { error } = await client.storage.from('product-images').upload(path, file, { contentType, upsert: false })
     throwIfError(error)
     return client.storage.from('product-images').getPublicUrl(path).data.publicUrl
   }))

@@ -1,3 +1,9 @@
+export type ProductImageTransform = {
+  x: number
+  y: number
+  scale: number
+}
+
 export type Product = {
   id: string
   name: string
@@ -8,6 +14,7 @@ export type Product = {
   price?: number
   salePrice?: number
   objectPosition?: string
+  imageTransforms?: Record<string, ProductImageTransform>
   slug?: string
   seoTitle?: string
   searchVisible?: boolean

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
-import { products, type Product } from './products'
-import { createOrder, listOrders, removeProduct, saveProduct, updateOrderStatus, updateStore, uploadImages } from './lib/database'
+import { products, type Product, type ProductImageTransform } from './products'
+import { createOrder, listOrders, listProducts, removeProduct, saveProduct, updateOrderStatus, updateStore, uploadImages, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 
 const getProductPrice = (product: Product) =>
@@ -11,6 +11,14 @@ const getProductPrice = (product: Product) =>
     : product.price ?? 0
 
 const formatEuro = (value: number) => `${value.toFixed(2).replace('.', ',')} €`
+export const DEFAULT_RETURNS_TEXT = 'Tarbijal on õigus e-poest ostetud kaubast 14 päeva jooksul pärast kauba kättesaamist taganeda. Taganemiseks saada müüja kontakt-e-postile ühemõtteline avaldus. Kauba tagastamise otsesed kulud kannab ostja, välja arvatud puudusega kauba korral. Raha tagastatakse 14 päeva jooksul pärast taganemisavalduse saamist; müüja võib tagasimaksega oodata, kuni kaup on tagastatud või ostja on esitanud tõendi selle saatmise kohta. Taganemisõigusele kehtivad seaduses sätestatud erandid.'
+const DEFAULT_IMAGE_TRANSFORM: ProductImageTransform = { x: 0, y: 0, scale: 1 }
+const clampImageScale = (scale: number) => Math.min(3, Math.max(1, scale))
+const clampImageOffset = (offset: number, scale: number) => {
+  const limit = scale <= 1 ? 0 : (scale - 1) * 50 / scale
+  return Math.min(limit, Math.max(-limit, offset))
+}
+const isImageFile = (file: File) => file.type.startsWith('image/') || /\.(?:heic|heif)$/i.test(file.name)
 
 const copyTextToClipboard = async (text: string) => {
   if (navigator.clipboard?.writeText) {
@@ -260,8 +268,21 @@ type BuyButtonSize = 'small' | 'medium' | 'large'
 type SaleBadgeStyle = 'quirky' | 'classic' | 'price' | 'elegant' | 'minimal'
 type AnnouncementSpeed = 'slow' | 'normal' | 'fast'
 type AnnouncementDirection = 'left' | 'right'
+type EditImageUpload = {
+  id: string
+  file: File
+  previewUrl: string
+  mode: 'add' | 'replace'
+  previousUrl?: string
+  phase: ImageUploadPhase | 'error'
+  slow: boolean
+  error?: string
+}
 export type PaymentProvider = 'stripe' | 'montonio'
-type SettingsSection = 'store' | 'appearance' | 'payments' | 'delivery' | 'business' | 'links' | 'notifications' | 'billing'
+type SettingsSection = 'store' | 'appearance' | 'payments' | 'delivery' | 'business' | 'links' | 'notifications' | 'billing' | 'account'
+type CustomDomainStatus = 'idle' | 'automatic' | 'dns' | 'verifying' | 'connected'
+type CustomDomainMode = 'choice' | 'buy' | 'connect'
+type DomainPurchaseStep = 'search' | 'checkout' | 'registering'
 const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string }> = [
   { id: 'store', label: 'Pood', description: 'Põhiandmed ja nähtavus' },
   { id: 'appearance', label: 'Kujundus', description: 'Logo, värvid ja stiil' },
@@ -271,7 +292,23 @@ const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description
   { id: 'links', label: 'Lingid', description: 'Kontakt ja sotsiaalmeedia' },
   { id: 'notifications', label: 'Teavitused', description: 'E-kirjad ja märguanded' },
   { id: 'billing', label: 'Plaan ja arved', description: 'Pakett, tasud ja arved' },
+  { id: 'account', label: 'Konto', description: 'Väljalogimine ja kustutamine' },
 ]
+
+function SettingsSectionIcon({ section }: { section: SettingsSection }) {
+  const paths: Record<SettingsSection, string> = {
+    store: 'M3 10 12 3l9 7v10H3V10Zm6 10v-6h6v6',
+    appearance: 'M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a2 2 0 0 1 0-4h5.5A3.5 3.5 0 0 0 21 9.5C21 5.9 17 3 12 3Z',
+    payments: 'M3 6h18v12H3V6Zm0 4h18M7 15h4',
+    delivery: 'M3 7h11v10H3V7Zm11 4h4l3 3v3h-7v-6ZM7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+    business: 'M4 21V7l8-4 8 4v14M8 10h2m4 0h2m-8 4h2m4 0h2m-5 7v-4h2v4',
+    links: 'M10 13a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7L11.2 6M14 11a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 1 0 5.7 5.7l1.6-1.5',
+    notifications: 'M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Zm-8 12h4',
+    billing: 'M5 3h14v18l-2-1.5L15 21l-3-1.5L9 21l-2-1.5L5 21V3Zm4 5h6m-6 4h6m-6 4h4',
+    account: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 9a7 7 0 0 0-14 0',
+  }
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[section]} /></svg>
+}
 type DeliverySettings = {
   parcelProviders: Record<ShippingProvider, { enabled: boolean; price: number }>
   courierEnabled: boolean
@@ -281,12 +318,20 @@ type DeliverySettings = {
   pickupAddress: string
 }
 
-export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Alusta 30 päeva tasuta' }: { onClose: () => void; onConfirm: (trialStartedAt: string) => void; confirmLabel?: string }) {
+export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Kinnita ja avalda' }: { onClose: () => void; onConfirm: (trialStartedAt: string) => void; confirmLabel?: string }) {
   const [isConfirming, setIsConfirming] = useState(false)
+  const [billingDragY, setBillingDragY] = useState(0)
+  const [isBillingDragging, setIsBillingDragging] = useState(false)
+  const [hasBillingDragged, setHasBillingDragged] = useState(false)
+  const billingDragStartRef = useRef<number | null>(null)
+  const billingTouchStartRef = useRef<number | null>(null)
+  const billingTouchCurrentRef = useRef(0)
+  const billingDragAreaRef = useRef<HTMLDivElement>(null)
+  const billingCloseTimerRef = useRef<number | null>(null)
   const trialStartsAt = new Date()
   const firstPaymentAt = new Date(trialStartsAt)
   firstPaymentAt.setDate(firstPaymentAt.getDate() + FIXED_PLAN_TRIAL_DAYS)
-  const firstPaymentLabel = firstPaymentAt.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
+  const firstPaymentLabel = firstPaymentAt.toLocaleDateString('et-EE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   const confirm = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -295,16 +340,119 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Alusta 30 
     window.setTimeout(() => onConfirm(new Date().toISOString()), 850)
   }
 
+  useEffect(() => () => {
+    if (billingCloseTimerRef.current !== null) window.clearTimeout(billingCloseTimerRef.current)
+  }, [])
+
+  useEffect(() => {
+    const handle = billingDragAreaRef.current
+    if (!handle) return
+    const startTouchDrag = (event: TouchEvent) => {
+      const touch = event.touches[0]
+      if (!touch) return
+      event.preventDefault()
+      billingTouchStartRef.current = touch.clientY
+      billingTouchCurrentRef.current = touch.clientY
+      setHasBillingDragged(true)
+      setIsBillingDragging(true)
+    }
+    const moveTouchDrag = (event: TouchEvent) => {
+      if (billingTouchStartRef.current === null) return
+      const touch = event.touches[0]
+      if (!touch) return
+      event.preventDefault()
+      billingTouchCurrentRef.current = touch.clientY
+      setBillingDragY(Math.max(0, touch.clientY - billingTouchStartRef.current))
+    }
+    const finishTouchDrag = (event: TouchEvent) => {
+      if (billingTouchStartRef.current === null) return
+      event.preventDefault()
+      const distance = Math.max(0, billingTouchCurrentRef.current - billingTouchStartRef.current)
+      billingTouchStartRef.current = null
+      setIsBillingDragging(false)
+      if (distance >= Math.min(120, window.innerHeight * .12)) {
+        setBillingDragY(window.innerHeight)
+        billingCloseTimerRef.current = window.setTimeout(onClose, 260)
+        return
+      }
+      setBillingDragY(0)
+    }
+    const cancelTouchDrag = (event: TouchEvent) => {
+      if (billingTouchStartRef.current === null) return
+      event.preventDefault()
+      billingTouchStartRef.current = null
+      setIsBillingDragging(false)
+      setBillingDragY(0)
+    }
+    const options: AddEventListenerOptions = { passive: false }
+    handle.addEventListener('touchstart', startTouchDrag, options)
+    handle.addEventListener('touchmove', moveTouchDrag, options)
+    handle.addEventListener('touchend', finishTouchDrag, options)
+    handle.addEventListener('touchcancel', cancelTouchDrag, options)
+    return () => {
+      handle.removeEventListener('touchstart', startTouchDrag)
+      handle.removeEventListener('touchmove', moveTouchDrag)
+      handle.removeEventListener('touchend', finishTouchDrag)
+      handle.removeEventListener('touchcancel', cancelTouchDrag)
+    }
+  }, [onClose])
+
+  const startBillingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!window.matchMedia('(max-width: 599px)').matches) return
+    if (event.pointerType === 'touch') return
+    billingDragStartRef.current = event.clientY
+    setHasBillingDragged(true)
+    setIsBillingDragging(true)
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const moveBillingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (billingDragStartRef.current === null) return
+    setBillingDragY(Math.max(0, event.clientY - billingDragStartRef.current))
+  }
+
+  const endBillingDrag = (event: React.PointerEvent<HTMLDivElement>, cancelled = false) => {
+    if (billingDragStartRef.current === null) return
+    const distance = Math.max(0, event.clientY - billingDragStartRef.current)
+    billingDragStartRef.current = null
+    setIsBillingDragging(false)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    if (!cancelled && distance >= Math.min(120, window.innerHeight * .12)) {
+      setBillingDragY(window.innerHeight)
+      billingCloseTimerRef.current = window.setTimeout(onClose, 260)
+      return
+    }
+    setBillingDragY(0)
+  }
+
   return <div className="overlay login-overlay billing-card-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className="login-sheet billing-card-demo" role="dialog" aria-modal="true" aria-label="Poeruumi arvelduskaardi lisamine">
+    <section className={`login-sheet billing-card-demo${isBillingDragging ? ' is-dragging' : ''}${hasBillingDragged ? ' has-dragged' : ''}`} style={hasBillingDragged ? { transform: `translateY(${billingDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Poeruumi arvelduskaardi lisamine">
+      <div ref={billingDragAreaRef} className="billing-card-demo__drag-area" aria-hidden="true" onPointerDown={startBillingDrag} onPointerMove={moveBillingDrag} onPointerUp={(event) => endBillingDrag(event)} onPointerCancel={(event) => endBillingDrag(event, true)}><span className="billing-card-demo__handle" /></div>
       <button className="login-sheet__close" type="button" onClick={onClose} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-      <span className="login-sheet__eyebrow">KINDEL PAKETT</span>
-      <h2>Alusta 30 päeva tasuta</h2>
-      <p className="billing-card-demo__intro">Lisa arvelduskaart. Täna kaardilt raha ei võeta.</p>
+      <span className="login-sheet__eyebrow">KINDEL · 30 PÄEVA TASUTA</span>
+      <div className="billing-card-demo__title">
+        <span className="billing-card-demo__visual" aria-hidden="true">
+          <svg viewBox="0 0 64 48">
+            <rect className="billing-card-demo__visual-card" x="2" y="5" width="60" height="38" rx="9" />
+            <path className="billing-card-demo__visual-stripe" d="M3 15h58" />
+            <rect className="billing-card-demo__visual-chip" x="11" y="21" width="14" height="10" rx="2" />
+            <path className="billing-card-demo__visual-chip-line" d="M18 21v10M11 26h14" />
+            <g className="billing-card-demo__visual-contactless">
+              <path d="M43 23c3 2 3 6 0 8" />
+              <path d="M47 20c6 4 6 11 0 15" />
+              <path d="M51 17c9 6 9 15 0 21" />
+            </g>
+          </svg>
+        </span>
+        <h2>Lisa maksekaart</h2>
+      </div>
       <div className="billing-card-demo__summary">
-        <div><span>Täna tasuda</span><strong>0 €</strong></div>
-        <div><span>Esimene makse</span><strong>{firstPaymentLabel}</strong></div>
-        <div><span>Seejärel</span><strong>29 € / kuu + km</strong></div>
+        <div className="billing-card-demo__today"><span>Täna tasuda</span><strong>0 €</strong></div>
+        <div className="billing-card-demo__next-payment">
+          <i aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="14" rx="3" /><path d="M8 4v4M16 4v4M4 10h16" /></svg></i>
+          <span><small>Järgmine makse</small><strong>{firstPaymentLabel}</strong></span>
+          <b>29 € / kuu + km</b>
+        </div>
       </div>
       <form onSubmit={confirm}>
         <label>Kaardi number<div className="billing-card-demo__card-number"><input required inputMode="numeric" autoComplete="cc-number" defaultValue="4242 4242 4242 4242" pattern="[0-9 ]{19}" /><span>VISA</span></div></label>
@@ -313,10 +461,10 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Alusta 30 
           <label>CVC<input required inputMode="numeric" autoComplete="cc-csc" defaultValue="123" pattern="[0-9]{3,4}" /></label>
         </div>
         <label>Kaardi omaniku nimi<input required autoComplete="cc-name" defaultValue="Marek Tammets" /></label>
-        <label className="billing-card-demo__consent"><input required type="checkbox" defaultChecked /><span>Nõustun, et pärast tasuta prooviperioodi võetakse kaardilt 29 € + km kuus kuni paketi tühistamiseni.</span></label>
+        <label className="billing-card-demo__consent"><input required type="checkbox" defaultChecked /><span>Nõustun pärast prooviperioodi 29 € + km kuutasuga.</span></label>
         <button type="submit" disabled={isConfirming}>{isConfirming ? 'Kinnitan…' : confirmLabel}<span aria-hidden="true">{isConfirming ? '◌' : '→'}</span></button>
       </form>
-      <small className="billing-card-demo__note">🔒 Interaktiivne demo · kaardiandmeid ei salvestata ega saadeta</small>
+      <small className="billing-card-demo__note"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" /></svg><span>Kaardiandmeid ei salvestata</span></small>
     </section>
   </div>
 }
@@ -723,11 +871,16 @@ export type StorefrontProps = {
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
   onConnectPaymentProvider?: (provider: PaymentProvider) => void
+  onStoreChange?: (store: StoreRecord) => void
+  onAccountDeleted?: () => void
+  ownerEmail?: string
+  onOwnerLogin?: (email: string, password: string) => Promise<void>
+  onBackToSetup?: () => void
   onExit?: () => void
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'VEIDRAD ASJAD', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'VEIDRAD ASJAD', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isPublicDemo = Boolean(onExit && !merchantMode)
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
@@ -745,11 +898,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   const [selectedImages, setSelectedImages] = useState<Record<string, number>>({})
   const [selectedProductOptions, setSelectedProductOptions] = useState<Record<string, Record<string, string>>>({})
   const [isLoginOpen, setIsLoginOpen] = useState(false)
+  const [loginEmail, setLoginEmail] = useState(ownerEmail)
+  const [isOwnerLoginBusy, setIsOwnerLoginBusy] = useState(false)
+  const [loginRecoveryMessage, setLoginRecoveryMessage] = useState('')
   const [isLoggedIn, setIsLoggedIn] = useState(merchantMode)
   const [isCustomerPreview, setIsCustomerPreview] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSettingsHome, setIsSettingsHome] = useState(true)
   const [settingsSaveStatus, setSettingsSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [settingsHydrated, setSettingsHydrated] = useState(!storeId)
   const savedSettingsSnapshotRef = useRef('')
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(true)
@@ -771,6 +928,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   const [announcementColor, setAnnouncementColor] = useState('#111111')
   const [storeLogo, setStoreLogo] = useState<string | null>(() => storeSlug ? null : '/images/logo.png')
   const [editableStoreName, setEditableStoreName] = useState(storeName)
+  const [storeTagline, setStoreTagline] = useState('')
   const [storeDescription, setStoreDescription] = useState(() => storeSlug ? '' : 'Veidrad ja erilised esemed, mis muudavad argipäeva natuke põnevamaks.')
   const [storeAboutImage, setStoreAboutImage] = useState<string | null>(null)
   const [isStoreVisible, setIsStoreVisible] = useState(true)
@@ -798,7 +956,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   const [businessName, setBusinessName] = useState('')
   const [registryCode, setRegistryCode] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
-  const [returnsText, setReturnsText] = useState('Kauba saab tagastada 14 päeva jooksul alates kättesaamisest.')
+  const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
+  const [legalView, setLegalView] = useState<'seller' | 'terms' | null>(null)
   const [orderNotificationEmail, setOrderNotificationEmail] = useState('')
   const [billingEmail, setBillingEmail] = useState('')
   const [billingPlan, setBillingPlan] = useState<PricingPlan>(pricingPlan)
@@ -807,11 +966,38 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   const [sellerNotifications, setSellerNotifications] = useState(true)
   const [customerConfirmations, setCustomerConfirmations] = useState(true)
   const [customDomain, setCustomDomain] = useState('')
+  const [customDomainStatus, setCustomDomainStatus] = useState<CustomDomainStatus>('idle')
+  const [customDomainMode, setCustomDomainMode] = useState<CustomDomainMode>('choice')
+  const [customDomainError, setCustomDomainError] = useState('')
+  const [domainPurchaseStep, setDomainPurchaseStep] = useState<DomainPurchaseStep>('search')
+  const [domainSearchTerm, setDomainSearchTerm] = useState('')
+  const [domainSearchBase, setDomainSearchBase] = useState('')
+  const [selectedDomainPrice, setSelectedDomainPrice] = useState('14,90 €')
+  const [domainAutoRenew, setDomainAutoRenew] = useState(true)
+  const [domainTermsAccepted, setDomainTermsAccepted] = useState(false)
+  const domainVerificationTimerRef = useRef<number | null>(null)
   const [autoSwipeEnabled, setAutoSwipeEnabled] = useState(() => localStorage.getItem('autoSwipeEnabled') !== 'false')
   const [autoSwipeDelay, setAutoSwipeDelay] = useState(() => Number(localStorage.getItem('autoSwipeDelay')) || 30)
   const [autoSwipeSpeed, setAutoSwipeSpeed] = useState(() => Number(localStorage.getItem('autoSwipeSpeed')) || 10)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [passwordChangeError, setPasswordChangeError] = useState('')
+  const [accountEmail, setAccountEmail] = useState('')
+  const [isEmailChangeOpen, setIsEmailChangeOpen] = useState(false)
+  const [newAccountEmail, setNewAccountEmail] = useState('')
+  const [emailChangePassword, setEmailChangePassword] = useState('')
+  const [isChangingEmail, setIsChangingEmail] = useState(false)
+  const [emailChangeError, setEmailChangeError] = useState('')
+  const [isSessionActionBusy, setIsSessionActionBusy] = useState(false)
+  const [isAccountDeleteOpen, setIsAccountDeleteOpen] = useState(false)
+  const [accountDeleteConfirmation, setAccountDeleteConfirmation] = useState('')
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+  const [accountDeleteError, setAccountDeleteError] = useState('')
   const [showAddedToast, setShowAddedToast] = useState(false)
   const [showDeletedToast, setShowDeletedToast] = useState(false)
   const [showCopiedToast, setShowCopiedToast] = useState(false)
@@ -827,17 +1013,26 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   const editProductSalePriceRef = useRef<HTMLElement>(null)
   const editProductImageInputRef = useRef<HTMLInputElement>(null)
   const editProductImageModeRef = useRef<'add' | 'replace'>('add')
+  const imageGesturePointersRef = useRef(new Map<number, { x: number; y: number }>())
+  const imageGestureStartRef = useRef<{ centroid: { x: number; y: number }; distance: number; transform: ProductImageTransform } | null>(null)
+  const imageGestureLastTapRef = useRef(0)
+  const editImageTransformsRef = useRef<Record<string, ProductImageTransform>>({})
   const editSessionImageUrlsRef = useRef<Set<string>>(new Set())
   const committedEditImageUrlsRef = useRef<Set<string>>(new Set())
+  const editImageUploadTimersRef = useRef(new Map<string, number>())
   const [editProductImages, setEditProductImages] = useState<string[]>([])
+  const [editImageTransforms, setEditImageTransforms] = useState<Record<string, ProductImageTransform>>({})
+  const [editImageUploads, setEditImageUploads] = useState<EditImageUpload[]>([])
   const [editProductStock, setEditProductStock] = useState('')
   const [editProductOneOfAKind, setEditProductOneOfAKind] = useState(false)
   const [editProductOptionType, setEditProductOptionType] = useState<'none' | 'Suurus' | 'Värv'>('none')
   const [editProductOptionValues, setEditProductOptionValues] = useState('')
+  const [isCustomProductOptionOpen, setIsCustomProductOptionOpen] = useState(false)
+  const [customProductOption, setCustomProductOption] = useState('')
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [addProductStep, setAddProductStep] = useState<'source' | 'details'>('source')
   const [addProductImages, setAddProductImages] = useState<string[]>([])
-  const [imageUpload, setImageUpload] = useState<{ images: string[]; progress: number; phase: 'preparing' | 'uploading' | 'ready' } | null>(null)
+  const [imageUpload, setImageUpload] = useState<{ images: string[]; progress: number; phase: 'preparing' | 'uploading' | 'ready'; slow?: boolean } | null>(null)
   const [addProductName, setAddProductName] = useState('')
   const [addProductDescription, setAddProductDescription] = useState('')
   const [addProductPrice, setAddProductPrice] = useState('')
@@ -859,21 +1054,23 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [addedProducts, setAddedProducts] = useState<Product[]>([])
+  const [persistedProducts, setPersistedProducts] = useState<Product[]>(seedProducts)
   const [draftProductId, setDraftProductId] = useState<string | null>(null)
   const [deletedProductIds, setDeletedProductIds] = useState<string[]>([])
   const [productEdits, setProductEdits] = useState<Record<string, Partial<Product>>>({})
   const settingsSnapshot = JSON.stringify({
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
-    announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
+    announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeTagline, storeDescription, storeAboutImage,
     isStoreVisible, contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, returnsText, orderNotificationEmail,
-    billingEmail, billingPlan, sellerNotifications, customerConfirmations, customDomain,
+    billingEmail, billingPlan, sellerNotifications, customerConfirmations, customDomain, customDomainStatus, customDomainMode, selectedDomainPrice, domainAutoRenew,
     autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed,
   })
   const hasUnsavedSettings = isSettingsOpen && Boolean(savedSettingsSnapshotRef.current) && savedSettingsSnapshotRef.current !== settingsSnapshot
 
   useEffect(() => {
-    if (!storeId) return
+    if (!storeId) { setSettingsHydrated(true); return }
+    setSettingsHydrated(false)
     const value = initialSettings as Record<string, any>
     if (value.storeTheme) setStoreTheme(value.storeTheme)
     if (value.storeAccent) setStoreAccent(value.storeAccent)
@@ -888,6 +1085,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     if (value.announcementColor) setAnnouncementColor(value.announcementColor)
     if ('storeLogo' in value) setStoreLogo(value.storeLogo)
     if (value.editableStoreName) setEditableStoreName(value.editableStoreName)
+    if (value.storeTagline != null) setStoreTagline(value.storeTagline)
     if (value.storeDescription != null) setStoreDescription(value.storeDescription)
     if ('storeAboutImage' in value) setStoreAboutImage(value.storeAboutImage)
     if (typeof value.isStoreVisible === 'boolean') setIsStoreVisible(value.isStoreVisible)
@@ -908,9 +1106,35 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     if (typeof value.sellerNotifications === 'boolean') setSellerNotifications(value.sellerNotifications)
     if (typeof value.customerConfirmations === 'boolean') setCustomerConfirmations(value.customerConfirmations)
     if (value.customDomain != null) setCustomDomain(value.customDomain)
+    if (['idle', 'automatic', 'dns', 'verifying', 'connected'].includes(value.customDomainStatus)) {
+      const restoredDomainStatus = value.customDomainStatus === 'verifying' ? 'dns' : value.customDomainStatus
+      setCustomDomainStatus(restoredDomainStatus)
+      if (!['choice', 'buy', 'connect'].includes(value.customDomainMode) && restoredDomainStatus !== 'idle') setCustomDomainMode('connect')
+    }
+    if (['choice', 'buy', 'connect'].includes(value.customDomainMode)) setCustomDomainMode(value.customDomainMode)
+    if (value.selectedDomainPrice != null) setSelectedDomainPrice(value.selectedDomainPrice)
+    if (typeof value.domainAutoRenew === 'boolean') setDomainAutoRenew(value.domainAutoRenew)
     if (typeof value.autoSwipeEnabled === 'boolean') setAutoSwipeEnabled(value.autoSwipeEnabled)
     if (value.autoSwipeDelay) setAutoSwipeDelay(value.autoSwipeDelay)
     if (value.autoSwipeSpeed) setAutoSwipeSpeed(value.autoSwipeSpeed)
+    setSettingsHydrated(true)
+  }, [storeId, initialSettings])
+
+  useEffect(() => setPersistedProducts(seedProducts), [seedProducts])
+
+  useEffect(() => () => {
+    if (domainVerificationTimerRef.current) window.clearTimeout(domainVerificationTimerRef.current)
+  }, [])
+
+  useEffect(() => {
+    if (!storeId) return
+    let active = true
+    const refreshProducts = () => listProducts(storeId)
+      .then((nextProducts) => { if (active) setPersistedProducts(nextProducts) })
+      .catch((error) => { if (active) setAuthToast(error instanceof Error ? error.message : 'Toodete laadimine ebaõnnestus') })
+    refreshProducts()
+    window.addEventListener('focus', refreshProducts)
+    return () => { active = false; window.removeEventListener('focus', refreshProducts) }
   }, [storeId])
 
   useEffect(() => {
@@ -923,8 +1147,18 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   }, [storeId, merchantMode])
 
   useEffect(() => setActivePaymentProvider(paymentProvider), [paymentProvider])
+  useEffect(() => { editImageTransformsRef.current = editImageTransforms }, [editImageTransforms])
+  useEffect(() => {
+    if (ownerEmail && !loginEmail.trim()) setLoginEmail(ownerEmail)
+  }, [ownerEmail])
 
   useEffect(() => {
+    if (!merchantMode || !isSupabaseConfigured) return
+    requireSupabase().auth.getUser().then(({ data }) => setAccountEmail(data.user?.email ?? ''))
+  }, [merchantMode])
+
+  useEffect(() => {
+    if (!settingsHydrated) return
     if (!isSettingsOpen) {
       savedSettingsSnapshotRef.current = settingsSnapshot
       setSettingsSaveStatus('idle')
@@ -934,13 +1168,32 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
       savedSettingsSnapshotRef.current = settingsSnapshot
       return
     }
-  }, [isSettingsOpen])
+  }, [isSettingsOpen, settingsHydrated])
+
+  const persistSettings = async (snapshot: string) => {
+    if (!storeId) return
+    const enabledShipping = [
+      ...SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled),
+      ...(deliverySettings.courierEnabled ? ['courier'] : []),
+      ...(deliverySettings.pickupEnabled ? ['pickup'] : []),
+    ]
+    const savedStore = await updateStore(storeId, {
+      settings: JSON.parse(snapshot),
+      name: editableStoreName,
+      is_published: isStoreVisible,
+      payment_provider: activePaymentProvider,
+      pricing_plan: billingPlan,
+      trial_started_at: fixedPlanTrialStartedAt?.toISOString() ?? null,
+      shipping: enabledShipping,
+    })
+    onStoreChange?.(savedStore)
+  }
 
   const saveSettings = async () => {
     if (!hasUnsavedSettings || settingsSaveStatus === 'saving') return
     setSettingsSaveStatus('saving')
     try {
-      if (storeId) await updateStore(storeId, { settings: JSON.parse(settingsSnapshot), name: editableStoreName, is_published: isStoreVisible, payment_provider: activePaymentProvider })
+      await persistSettings(settingsSnapshot)
       savedSettingsSnapshotRef.current = settingsSnapshot
       setSettingsSaveStatus('saved')
     } catch (error) {
@@ -948,6 +1201,23 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
       setAuthToast(error instanceof Error ? error.message : 'Seadete salvestamine ebaõnnestus')
     }
   }
+
+  useEffect(() => {
+    if (!storeId || !merchantMode || !settingsHydrated) return
+    if (!savedSettingsSnapshotRef.current || savedSettingsSnapshotRef.current === settingsSnapshot) return
+    setSettingsSaveStatus('saving')
+    const snapshot = settingsSnapshot
+    const timeout = window.setTimeout(() => {
+      persistSettings(snapshot).then(() => {
+        savedSettingsSnapshotRef.current = snapshot
+        setSettingsSaveStatus('saved')
+      }).catch((error) => {
+        setSettingsSaveStatus('idle')
+        setAuthToast(error instanceof Error ? error.message : 'Automaatne salvestamine ebaõnnestus')
+      })
+    }, 700)
+    return () => window.clearTimeout(timeout)
+  }, [settingsSnapshot, settingsHydrated, storeId, merchantMode])
 
   useEffect(() => {
     if (settingsSaveStatus !== 'saved') return
@@ -1001,9 +1271,17 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   }, [isPublicDemo, onExit])
 
   const changeStoreLogo = async (file: File | undefined) => {
-    if (!file || !file.type.startsWith('image/')) return
+    if (!file || !isImageFile(file)) return
     if (storeId) {
-      try { setStoreLogo((await uploadImages(storeId, [file]))[0]); return }
+      try {
+        const uploadedUrl = (await uploadImages(storeId, [file]))[0]
+        const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeLogo: uploadedUrl })
+        setStoreLogo(uploadedUrl)
+        await persistSettings(snapshot)
+        savedSettingsSnapshotRef.current = snapshot
+        setSettingsSaveStatus('saved')
+        return
+      }
       catch (error) { setAuthToast(error instanceof Error ? error.message : 'Logo üleslaadimine ebaõnnestus'); return }
     }
     if (storeLogoObjectUrlRef.current) URL.revokeObjectURL(storeLogoObjectUrlRef.current)
@@ -1012,16 +1290,29 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     setStoreLogo(objectUrl)
   }
 
-  const removeStoreLogo = () => {
+  const removeStoreLogo = async () => {
     if (storeLogoObjectUrlRef.current) URL.revokeObjectURL(storeLogoObjectUrlRef.current)
     storeLogoObjectUrlRef.current = null
     setStoreLogo(null)
+    if (storeId) {
+      const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeLogo: null })
+      try { await persistSettings(snapshot); savedSettingsSnapshotRef.current = snapshot; setSettingsSaveStatus('saved') }
+      catch (error) { setAuthToast(error instanceof Error ? error.message : 'Logo eemaldamine ebaõnnestus') }
+    }
   }
 
   const changeStoreAboutImage = async (file: File | undefined) => {
-    if (!file || !file.type.startsWith('image/')) return
+    if (!file || !isImageFile(file)) return
     if (storeId) {
-      try { setStoreAboutImage((await uploadImages(storeId, [file]))[0]); return }
+      try {
+        const uploadedUrl = (await uploadImages(storeId, [file]))[0]
+        const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeAboutImage: uploadedUrl })
+        setStoreAboutImage(uploadedUrl)
+        await persistSettings(snapshot)
+        savedSettingsSnapshotRef.current = snapshot
+        setSettingsSaveStatus('saved')
+        return
+      }
       catch (error) { setAuthToast(error instanceof Error ? error.message : 'Pildi üleslaadimine ebaõnnestus'); return }
     }
     if (storeAboutImageObjectUrlRef.current) URL.revokeObjectURL(storeAboutImageObjectUrlRef.current)
@@ -1030,24 +1321,36 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     setStoreAboutImage(objectUrl)
   }
 
-  const removeStoreAboutImage = () => {
+  const removeStoreAboutImage = async () => {
     if (storeAboutImageObjectUrlRef.current) URL.revokeObjectURL(storeAboutImageObjectUrlRef.current)
     storeAboutImageObjectUrlRef.current = null
     setStoreAboutImage(null)
+    if (storeId) {
+      const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeAboutImage: null })
+      try { await persistSettings(snapshot); savedSettingsSnapshotRef.current = snapshot; setSettingsSaveStatus('saved') }
+      catch (error) { setAuthToast(error instanceof Error ? error.message : 'Pildi eemaldamine ebaõnnestus') }
+    }
   }
 
   const openEditProduct = () => {
     if (!activeProduct) return
     setEditProductImages([...(activeProduct.gallery ?? [activeProduct.image])])
+    setEditImageTransforms(activeProduct.imageTransforms ?? {})
     setEditProductStock(activeProduct.stock === undefined ? '' : String(activeProduct.stock))
     setEditProductOneOfAKind(Boolean(activeProduct.oneOfAKind))
     const option = activeProduct.options?.[0]
     setEditProductOptionType(option?.name === 'Suurus' || option?.name === 'Värv' ? option.name : 'none')
     setEditProductOptionValues(option?.values.join(', ') ?? '')
+    setIsCustomProductOptionOpen(false)
+    setCustomProductOption('')
     setIsEditOpen(true)
   }
 
   const closeEditProduct = () => {
+    if (editImageUploads.some((upload) => upload.phase !== 'error')) {
+      setAuthToast('Oota, kuni pilt on üles laaditud')
+      return
+    }
     if (draftProductId) {
       editProductImages.forEach((url) => {
         committedEditImageUrlsRef.current.delete(url)
@@ -1064,40 +1367,126 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     }
     editSessionImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     editSessionImageUrlsRef.current.clear()
+    editImageUploadTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    editImageUploadTimersRef.current.clear()
+    setEditImageUploads([])
     setEditProductImages([])
+    setEditImageTransforms({})
+    imageGesturePointersRef.current.clear()
+    imageGestureStartRef.current = null
     setEditProductStock('')
     setEditProductOneOfAKind(false)
     setEditProductOptionType('none')
     setEditProductOptionValues('')
+    setIsCustomProductOptionOpen(false)
+    setCustomProductOption('')
     setIsEditOpen(false)
   }
 
-  const chooseEditProductImages = async (files: FileList | null) => {
-    const imageFiles = Array.from(files ?? []).filter((file) => file.type.startsWith('image/'))
-    if (!imageFiles.length || !activeProduct) return
-    let urls: string[]
-    try { urls = storeId ? await uploadImages(storeId, imageFiles.slice(0, MAX_PRODUCT_IMAGES)) : imageFiles.map((file) => URL.createObjectURL(file)) }
-    catch (error) { setAuthToast(error instanceof Error ? error.message : 'Piltide üleslaadimine ebaõnnestus'); return }
-    if (editProductImageModeRef.current === 'replace') {
-      const objectUrl = urls[0]
-      editSessionImageUrlsRef.current.add(objectUrl)
-      setEditProductImages((current) => {
-        const next = [...current]
-        const index = Math.min(selectedImages[activeProduct.id] ?? 0, Math.max(0, next.length - 1))
-        const previous = next[index]
-        if (editSessionImageUrlsRef.current.has(previous)) {
-          URL.revokeObjectURL(previous)
-          editSessionImageUrlsRef.current.delete(previous)
-        }
-        next[index] = objectUrl
+  const toggleProductOptionValue = (value: string) => {
+    setEditProductOptionValues((current) => {
+      const values = current.split(',').map((item) => item.trim()).filter(Boolean)
+      const next = values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
+      return next.join(', ')
+    })
+  }
+
+  const addCustomProductOption = () => {
+    const value = customProductOption.trim()
+    if (!value) return
+    setEditProductOptionValues((current) => {
+      const values = current.split(',').map((item) => item.trim()).filter(Boolean)
+      return values.includes(value) ? current : [...values, value].join(', ')
+    })
+    setCustomProductOption('')
+    setIsCustomProductOptionOpen(false)
+  }
+
+  const updateEditImageUpload = (id: string, changes: Partial<EditImageUpload>) => {
+    setEditImageUploads((current) => current.map((upload) => upload.id === id ? { ...upload, ...changes } : upload))
+  }
+
+  const startEditImageUpload = async (upload: EditImageUpload) => {
+    if (!storeId) return
+    updateEditImageUpload(upload.id, { phase: 'preparing', slow: false, error: undefined })
+    const previousTimer = editImageUploadTimersRef.current.get(upload.id)
+    if (previousTimer) window.clearTimeout(previousTimer)
+    editImageUploadTimersRef.current.set(upload.id, window.setTimeout(() => updateEditImageUpload(upload.id, { slow: true }), 4500))
+    try {
+      const [uploadedUrl] = await uploadImages(storeId, [upload.file], (_index, phase) => updateEditImageUpload(upload.id, { phase }))
+      const transform = editImageTransformsRef.current[upload.previewUrl] ?? DEFAULT_IMAGE_TRANSFORM
+      setEditProductImages((current) => current.map((image) => image === upload.previewUrl ? uploadedUrl : image))
+      setEditImageTransforms((current) => {
+        const next = { ...current, [uploadedUrl]: transform }
+        delete next[upload.previewUrl]
+        if (upload.previousUrl) delete next[upload.previousUrl]
         return next
       })
+      editSessionImageUrlsRef.current.delete(upload.previewUrl)
+      URL.revokeObjectURL(upload.previewUrl)
+      setEditImageUploads((current) => current.filter((item) => item.id !== upload.id))
+    } catch (error) {
+      updateEditImageUpload(upload.id, { phase: 'error', slow: false, error: error instanceof Error ? error.message : 'Üleslaadimine ebaõnnestus' })
+    } finally {
+      const timer = editImageUploadTimersRef.current.get(upload.id)
+      if (timer) window.clearTimeout(timer)
+      editImageUploadTimersRef.current.delete(upload.id)
+    }
+  }
+
+  const dismissEditImageUpload = (upload: EditImageUpload) => {
+    setEditImageUploads((current) => current.filter((item) => item.id !== upload.id))
+    setEditProductImages((current) => upload.mode === 'replace' && upload.previousUrl
+      ? current.map((image) => image === upload.previewUrl ? upload.previousUrl! : image)
+      : current.filter((image) => image !== upload.previewUrl))
+    setEditImageTransforms((current) => {
+      const next = { ...current }
+      delete next[upload.previewUrl]
+      return next
+    })
+    editSessionImageUrlsRef.current.delete(upload.previewUrl)
+    URL.revokeObjectURL(upload.previewUrl)
+  }
+
+  const chooseEditProductImages = (files: FileList | null) => {
+    if (!activeProduct || editImageUploads.length) return
+    const mode = editProductImageModeRef.current
+    const available = mode === 'replace' ? 1 : Math.max(0, MAX_PRODUCT_IMAGES - editProductImages.length)
+    const imageFiles = Array.from(files ?? []).filter(isImageFile).slice(0, available)
+    if (!imageFiles.length) return
+    if (!storeId) {
+      const urls = imageFiles.map((file) => URL.createObjectURL(file))
+      urls.forEach((url) => editSessionImageUrlsRef.current.add(url))
+      if (mode === 'replace') {
+        const index = Math.min(selectedImages[activeProduct.id] ?? 0, Math.max(0, editProductImages.length - 1))
+        setEditProductImages((current) => current.map((image, imageIndex) => imageIndex === index ? urls[0] : image))
+      } else setEditProductImages((current) => [...current, ...urls])
       return
     }
-    const available = Math.max(0, MAX_PRODUCT_IMAGES - editProductImages.length)
-    const addedUrls = urls.slice(0, available)
-    addedUrls.forEach((url) => editSessionImageUrlsRef.current.add(url))
-    setEditProductImages((current) => [...current, ...addedUrls].slice(0, MAX_PRODUCT_IMAGES))
+
+    const selectedIndex = Math.min(selectedImages[activeProduct.id] ?? 0, Math.max(0, editProductImages.length - 1))
+    const uploads = imageFiles.map((file, index): EditImageUpload => {
+      const previewUrl = URL.createObjectURL(file)
+      editSessionImageUrlsRef.current.add(previewUrl)
+      return {
+        id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+        file,
+        previewUrl,
+        mode,
+        previousUrl: mode === 'replace' ? editProductImages[selectedIndex] : undefined,
+        phase: 'preparing',
+        slow: false,
+      }
+    })
+    setEditImageUploads((current) => [...current, ...uploads])
+    setEditImageTransforms((current) => ({ ...current, ...Object.fromEntries(uploads.map((upload) => [upload.previewUrl, DEFAULT_IMAGE_TRANSFORM])) }))
+    if (mode === 'replace') {
+      setEditProductImages((current) => current.map((image, index) => index === selectedIndex ? uploads[0].previewUrl : image))
+    } else {
+      setEditProductImages((current) => [...current, ...uploads.map((upload) => upload.previewUrl)])
+      setSelectedImages((current) => ({ ...current, [activeProduct.id]: editProductImages.length }))
+    }
+    uploads.forEach((upload) => { startEditImageUpload(upload) })
   }
 
   const removeEditProductImage = (index: number) => {
@@ -1109,6 +1498,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     }
     const next = editProductImages.filter((_, imageIndex) => imageIndex !== index)
     setEditProductImages(next)
+    setEditImageTransforms((current) => {
+      const nextTransforms = { ...current }
+      delete nextTransforms[removed]
+      return nextTransforms
+    })
     setSelectedImages((current) => ({ ...current, [activeProduct.id]: Math.max(0, Math.min(current[activeProduct.id] ?? 0, next.length - 1)) }))
   }
 
@@ -1130,30 +1524,26 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   }
 
   const chooseAddProductImages = async (files: FileList | null) => {
-    const imageFiles = Array.from(files ?? []).filter((file) => file.type.startsWith('image/')).slice(0, MAX_PRODUCT_IMAGES)
+    const imageFiles = Array.from(files ?? []).filter(isImageFile).slice(0, MAX_PRODUCT_IMAGES)
     if (!imageFiles.length) return
     addProductImages.forEach((image) => URL.revokeObjectURL(image))
-    let images: string[]
-    try { images = storeId ? await uploadImages(storeId, imageFiles) : imageFiles.map((file) => URL.createObjectURL(file)) }
-    catch (error) { setAuthToast(error instanceof Error ? error.message : 'Piltide üleslaadimine ebaõnnestus'); return }
-    const id = `product-${Date.now()}`
+    const previews = imageFiles.map((file) => URL.createObjectURL(file))
     setIsAddOpen(false)
     setAddProductStep('source')
     setAddProductImages([])
     setAddProductError('')
-    setImageUpload({ images, progress: 7, phase: 'preparing' })
-
-    const uploadSteps: Array<[number, number, 'preparing' | 'uploading' | 'ready']> = [
-      [180, 18, 'preparing'],
-      [380, 34, 'uploading'],
-      [610, 57, 'uploading'],
-      [840, 78, 'uploading'],
-      [1060, 92, 'uploading'],
-      [1240, 100, 'ready'],
-    ]
-    uploadSteps.forEach(([delay, progress, phase]) => window.setTimeout(() => setImageUpload((current) => current ? { ...current, progress, phase } : null), delay))
-
-    window.setTimeout(() => {
+    setImageUpload({ images: previews, progress: 18, phase: 'preparing' })
+    const slowTimer = window.setTimeout(() => setImageUpload((current) => current ? { ...current, slow: true } : null), 4500)
+    let images: string[]
+    try {
+      images = storeId
+        ? await uploadImages(storeId, imageFiles, (_index, phase) => setImageUpload((current) => current ? { ...current, phase, progress: phase === 'preparing' ? 18 : 62 } : null))
+        : previews
+      window.clearTimeout(slowTimer)
+      if (storeId) previews.forEach((preview) => URL.revokeObjectURL(preview))
+      setImageUpload({ images, progress: 100, phase: 'ready' })
+      await new Promise((resolve) => window.setTimeout(resolve, 350))
+      const id = `product-${Date.now()}`
       images.forEach((url) => committedEditImageUrlsRef.current.add(url))
       setAddedProducts((current) => [...current, {
         id,
@@ -1167,6 +1557,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
       setActiveIndex(displayProducts.length)
       setSelectedImages((current) => ({ ...current, [id]: 0 }))
       setEditProductImages(images)
+      setEditImageTransforms({})
       setEditProductStock('1')
       setEditProductOneOfAKind(true)
       setEditProductOptionType('none')
@@ -1174,7 +1565,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
       setDraftProductId(id)
       setImageUpload(null)
       setIsEditOpen(true)
-    }, 1600)
+    } catch (error) {
+      window.clearTimeout(slowTimer)
+      previews.forEach((preview) => URL.revokeObjectURL(preview))
+      setImageUpload(null)
+      setIsAddOpen(true)
+      setAddProductStep('source')
+      setAuthToast(error instanceof Error ? error.message : 'Piltide üleslaadimine ebaõnnestus')
+    }
   }
 
   const addCameraProductImage = (files: FileList | null) => {
@@ -1193,7 +1591,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   }
 
   activeIndexRef.current = activeIndex
-  const displayProducts = [...seedProducts, ...addedProducts]
+  const displayProducts = [...persistedProducts, ...addedProducts]
     .filter((product) => !deletedProductIds.includes(product.id))
     .map((product) => ({ ...product, ...(productEdits[product.id] ?? {}) }))
   const renderedProducts = displayProducts.length
@@ -1263,7 +1661,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   }, [displayProducts.length])
 
   useEffect(() => {
-    if (!isLoginOpen && !isEditOpen && !isAddOpen && !imageUpload && !isSearchOpen && !isDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isAboutOpen) return
+    if (!isLoginOpen && !isEditOpen && !isAddOpen && !imageUpload && !isSearchOpen && !isDeleteOpen && !isPasswordChangeOpen && !isEmailChangeOpen && !isAccountDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isAboutOpen && !legalView && !isBillingCardOpen) return
     // On phones the product details editor is a regular document page. Let the
     // browser own vertical scrolling instead of combining a fixed body with a
     // nested fixed scroller (an unreliable combination in iOS Safari).
@@ -1286,7 +1684,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
       document.body.style.overflow = previous.overflow
       window.scrollTo(0, scrollY)
     }
-  }, [isLoginOpen, isEditOpen, isAddOpen, Boolean(imageUpload), addProductStep, isSearchOpen, isDeleteOpen, isShareOpen, isSettingsOpen, isOrdersOpen, isAboutOpen])
+  }, [isLoginOpen, isEditOpen, isAddOpen, Boolean(imageUpload), addProductStep, isSearchOpen, isDeleteOpen, isPasswordChangeOpen, isEmailChangeOpen, isAccountDeleteOpen, isShareOpen, isSettingsOpen, isOrdersOpen, isAboutOpen, legalView, isBillingCardOpen])
 
   useEffect(() => {
     const isProductEditorOpen = isAddOpen && addProductStep === 'details'
@@ -1428,6 +1826,25 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     window.setTimeout(() => setAddedProductId((id) => id === product.id ? null : id), 1600)
   }
 
+  const openOwnerLogin = () => {
+    // A stale modal must never sit above the login dialog and capture taps.
+    setIsCartOpen(false)
+    setIsAboutOpen(false)
+    setIsSettingsOpen(false)
+    setIsOrdersOpen(false)
+    setIsAddOpen(false)
+    setIsEditOpen(false)
+    setIsDeleteOpen(false)
+    setIsPasswordChangeOpen(false)
+    setIsEmailChangeOpen(false)
+    setIsAccountDeleteOpen(false)
+    setIsShareOpen(false)
+    setIsSearchOpen(false)
+    setIsBillingCardOpen(false)
+    setLoginRecoveryMessage('')
+    setIsLoginOpen(true)
+  }
+
   const handleLogoTap = () => {
     if (isPublicDemo) return
     if (isLoggedIn) {
@@ -1438,7 +1855,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     if (logoTapTimerRef.current) window.clearTimeout(logoTapTimerRef.current)
     if (logoTapCountRef.current >= 3) {
       logoTapCountRef.current = 0
-      setIsLoginOpen(true)
+      openOwnerLogin()
       return
     }
     logoTapTimerRef.current = window.setTimeout(() => { logoTapCountRef.current = 0 }, 900)
@@ -1455,6 +1872,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   const activeProductCartQuantity = activeProduct ? cart.filter((item) => item.id === activeProduct.id).reduce((sum, item) => sum + item.quantity, 0) : 0
   const isActiveProductSoldOut = activeProductStockLimit <= 0
   const isActiveProductAtCartLimit = activeProductCartQuantity >= activeProductStockLimit
+  const editOptionValues = editProductOptionValues.split(',').map((value) => value.trim()).filter(Boolean)
+  const editOptionPresets = editProductOptionType === 'Suurus' ? ['XS', 'S', 'M', 'L', 'XL'] : ['Must', 'Valge', 'Sinine', 'Roheline', 'Punane']
+  const editCustomOptionValues = editOptionValues.filter((value) => !editOptionPresets.includes(value))
+  const editColorSwatches: Record<string, string> = { Must: '#242424', Valge: '#f5f2e9', Sinine: '#6caef0', Roheline: '#70bd8d', Punane: '#ed766f' }
   const getDisplayedProductImage = (product: Product) => {
     if (isEditOpen && activeProduct?.id === product.id) {
       return editProductImages[Math.min(selectedImages[product.id] ?? 0, Math.max(0, editProductImages.length - 1))] ?? EMPTY_PRODUCT_IMAGE
@@ -1463,8 +1884,93 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     return images[Math.min(selectedImages[product.id] ?? 0, images.length - 1)]
   }
 
+  const getDisplayedImageTransform = (product: Product) => {
+    const image = getDisplayedProductImage(product)
+    return isEditOpen && activeProduct?.id === product.id
+      ? editImageTransforms[image] ?? DEFAULT_IMAGE_TRANSFORM
+      : product.imageTransforms?.[image] ?? DEFAULT_IMAGE_TRANSFORM
+  }
+
+  const activeEditImage = activeProduct && isEditOpen ? getDisplayedProductImage(activeProduct) : null
+  const activeEditImageTransform = activeEditImage ? editImageTransforms[activeEditImage] ?? DEFAULT_IMAGE_TRANSFORM : DEFAULT_IMAGE_TRANSFORM
+  const setActiveEditImageTransform = (transform: ProductImageTransform) => {
+    if (!activeEditImage) return
+    const normalized = {
+      scale: clampImageScale(transform.scale),
+      x: clampImageOffset(transform.x, clampImageScale(transform.scale)),
+      y: clampImageOffset(transform.y, clampImageScale(transform.scale)),
+    }
+    setEditImageTransforms((current) => ({ ...current, [activeEditImage]: normalized }))
+  }
+
+  const getGestureGeometry = () => {
+    const points = [...imageGesturePointersRef.current.values()]
+    if (!points.length) return null
+    const centroid = {
+      x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+      y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+    }
+    const distance = points.length > 1 ? Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) : 0
+    return { centroid, distance }
+  }
+
+  const beginImageGesture = () => {
+    const geometry = getGestureGeometry()
+    if (!geometry || !activeEditImage) { imageGestureStartRef.current = null; return }
+    imageGestureStartRef.current = {
+      ...geometry,
+      transform: editImageTransformsRef.current[activeEditImage] ?? DEFAULT_IMAGE_TRANSFORM,
+    }
+  }
+
+  const handleImagePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'touch') event.preventDefault()
+    const now = Date.now()
+    if (event.pointerType === 'touch' && imageGesturePointersRef.current.size === 0 && now - imageGestureLastTapRef.current < 280) {
+      imageGestureLastTapRef.current = 0
+      setActiveEditImageTransform(activeEditImageTransform.scale > 1.05 ? DEFAULT_IMAGE_TRANSFORM : { x: 0, y: 0, scale: 2 })
+      return
+    }
+    imageGestureLastTapRef.current = now
+    if (event.pointerType !== 'touch') event.currentTarget.setPointerCapture(event.pointerId)
+    imageGesturePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    beginImageGesture()
+  }
+
+  const handleImagePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!imageGesturePointersRef.current.has(event.pointerId) || !imageGestureStartRef.current) return
+    if (event.pointerType === 'touch' && imageGesturePointersRef.current.size < 2) return
+    event.preventDefault()
+    imageGesturePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    const geometry = getGestureGeometry()
+    if (!geometry) return
+    const start = imageGestureStartRef.current
+    const rect = event.currentTarget.getBoundingClientRect()
+    const scale = clampImageScale(start.distance > 0 && geometry.distance > 0 ? start.transform.scale * geometry.distance / start.distance : start.transform.scale)
+    setActiveEditImageTransform({
+      scale,
+      x: start.transform.x + (geometry.centroid.x - start.centroid.x) / Math.max(rect.width, 1) * 100,
+      y: start.transform.y + (geometry.centroid.y - start.centroid.y) / Math.max(rect.height, 1) * 100,
+    })
+  }
+
+  const endImagePointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    imageGesturePointersRef.current.delete(event.pointerId)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    beginImageGesture()
+  }
+
+  const handleImageWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setActiveEditImageTransform({ ...activeEditImageTransform, scale: activeEditImageTransform.scale + (event.deltaY < 0 ? .12 : -.12) })
+  }
+
   const saveEditedProduct = async () => {
     if (!activeProduct) return
+    if (editImageUploads.length) {
+      setAuthToast(editImageUploads.some((upload) => upload.phase === 'error') ? 'Paranda ebaõnnestunud pildi üleslaadimine' : 'Oota, kuni pildid on üles laaditud')
+      return
+    }
     const name = editProductNameRef.current?.textContent?.trim() ?? ''
     const description = editProductDescriptionRef.current?.textContent?.trim() ?? ''
     const parsePrice = (value: string | null | undefined) => {
@@ -1499,15 +2005,30 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
       salePrice,
       image: editProductImages[0] ?? activeProduct.image,
       gallery: editProductImages.length ? editProductImages : (activeProduct.gallery ?? [activeProduct.image]),
+      imageTransforms: Object.fromEntries(editProductImages.flatMap((image) => editImageTransforms[image] ? [[image, editImageTransforms[image]]] : [])),
       slug: activeProduct.slug || createUrlSlug(name),
       stock: editProductOneOfAKind ? 1 : stock,
       oneOfAKind: editProductOneOfAKind,
       options: editProductOptionType !== 'none' && optionValues.length ? [{ name: editProductOptionType, values: optionValues }] : [],
     }
     const saved = { ...activeProduct, ...changes }
-    try { if (storeId) await saveProduct(storeId, saved) }
+    let persisted = saved
+    try { if (storeId) persisted = await saveProduct(storeId, saved) }
     catch (error) { setAuthToast(error instanceof Error ? error.message : 'Toote salvestamine ebaõnnestus'); return }
-    setProductEdits((current) => ({ ...current, [activeProduct.id]: changes }))
+    if (storeId) {
+      setPersistedProducts((current) => {
+        const exists = current.some((product) => product.id === persisted.id)
+        return exists ? current.map((product) => product.id === persisted.id ? persisted : product) : [...current, persisted]
+      })
+      setAddedProducts((current) => current.filter((product) => product.id !== persisted.id))
+      setProductEdits((current) => {
+        const next = { ...current }
+        delete next[persisted.id]
+        return next
+      })
+    } else {
+      setProductEdits((current) => ({ ...current, [activeProduct.id]: changes }))
+    }
     editSessionImageUrlsRef.current.forEach((url) => committedEditImageUrlsRef.current.add(url))
     editSessionImageUrlsRef.current.clear()
     if (draftProductId === activeProduct.id) {
@@ -1523,7 +2044,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   }
 
   useEffect(() => {
-    if (!isEditOpen) return
+    // Existing products enter edit mode without forcing iOS to open the
+    // keyboard and resize the page. A new draft still starts in the name field.
+    if (!isEditOpen || !activeProduct || draftProductId !== activeProduct.id) return
     const frame = window.requestAnimationFrame(() => {
       const nameField = editProductNameRef.current
       if (!nameField) return
@@ -1536,7 +2059,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
       selection?.addRange(range)
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [isEditOpen, activeProduct?.id])
+  }, [isEditOpen, activeProduct?.id, draftProductId])
 
   const buyNow = () => {
     if (!activeProduct || isActiveProductSoldOut) return
@@ -1545,12 +2068,152 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     setIsCartOpen(true)
   }
 
-  const logOut = async () => {
-    if (isSupabaseConfigured) await requireSupabase().auth.signOut()
+  const showStoreAsCustomer = () => {
     setIsLoggedIn(false)
     setIsCustomerPreview(false)
     setIsLoginOpen(false)
-    setAuthToast('Välja logitud')
+    setIsCartOpen(false)
+    setIsAboutOpen(false)
+    setIsSettingsOpen(false)
+    setIsOrdersOpen(false)
+    setIsAddOpen(false)
+    setIsEditOpen(false)
+    setIsDeleteOpen(false)
+    setIsPasswordChangeOpen(false)
+    setIsEmailChangeOpen(false)
+    setIsAccountDeleteOpen(false)
+    setIsShareOpen(false)
+    setIsSearchOpen(false)
+    setIsBillingCardOpen(false)
+  }
+
+  const logOut = async () => {
+    if (isSupabaseConfigured) await requireSupabase().auth.signOut({ scope: 'local' })
+    showStoreAsCustomer()
+  }
+
+  const requestLoginPasswordReset = async () => {
+    setLoginRecoveryMessage('')
+    if (!loginEmail.trim()) { setAuthToast('Sisesta esmalt e-posti aadress'); return }
+    try {
+      if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
+      const { error } = await requireSupabase().auth.resetPasswordForEmail(loginEmail.trim(), { redirectTo: window.location.origin })
+      if (error) throw error
+      setLoginRecoveryMessage('Taastamislink on saadetud sinu e-postile.')
+    } catch (error) {
+      setAuthToast(error instanceof Error ? error.message : 'Taastamislingi saatmine ebaõnnestus')
+    }
+  }
+
+  const logOutOtherSessions = async () => {
+    if (!isSupabaseConfigured || isSessionActionBusy) return
+    setIsSessionActionBusy(true)
+    const { error } = await requireSupabase().auth.signOut({ scope: 'others' })
+    setIsSessionActionBusy(false)
+    setAuthToast(error ? error.message : 'Teised seadmed on välja logitud')
+  }
+
+  const logOutEverywhere = async () => {
+    if (!isSupabaseConfigured || isSessionActionBusy) return
+    setIsSessionActionBusy(true)
+    await requireSupabase().auth.signOut({ scope: 'global' })
+    setIsSessionActionBusy(false)
+    showStoreAsCustomer()
+  }
+
+  const openAccountDeletion = () => {
+    setAccountDeleteConfirmation('')
+    setAccountDeleteError('')
+    setIsAccountDeleteOpen(true)
+  }
+
+  const openPasswordChange = () => {
+    setCurrentPassword('')
+    setNewPassword('')
+    setNewPasswordConfirmation('')
+    setPasswordChangeError('')
+    setIsPasswordChangeOpen(true)
+  }
+
+  const openEmailChange = () => {
+    setNewAccountEmail('')
+    setEmailChangePassword('')
+    setEmailChangeError('')
+    setIsEmailChangeOpen(true)
+  }
+
+  const changeEmail = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isChangingEmail) return
+    const nextEmail = newAccountEmail.trim().toLowerCase()
+    if (!nextEmail || nextEmail === accountEmail.toLowerCase()) { setEmailChangeError('Sisesta praegusest erinev e-posti aadress.'); return }
+    setIsChangingEmail(true)
+    setEmailChangeError('')
+    try {
+      if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
+      const supabase = requireSupabase()
+      const { error: verificationError } = await supabase.auth.signInWithPassword({ email: accountEmail, password: emailChangePassword })
+      if (verificationError) throw new Error('Praegune parool ei ole õige.')
+      const { error: updateError } = await supabase.auth.updateUser({ email: nextEmail }, { emailRedirectTo: window.location.origin })
+      if (updateError) throw updateError
+      setIsEmailChangeOpen(false)
+      setAuthToast('Kinnituskiri on saadetud uuele e-postile')
+    } catch (error) {
+      setEmailChangeError(error instanceof Error ? error.message : 'E-posti muutmine ebaõnnestus.')
+    } finally {
+      setIsChangingEmail(false)
+    }
+  }
+
+  const changePassword = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isChangingPassword) return
+    if (newPassword.length < 8) { setPasswordChangeError('Uus parool peab olema vähemalt 8 tähemärki pikk.'); return }
+    if (newPassword !== newPasswordConfirmation) { setPasswordChangeError('Uued paroolid ei ühti.'); return }
+    if (currentPassword === newPassword) { setPasswordChangeError('Uus parool peab erinema praegusest paroolist.'); return }
+    setIsChangingPassword(true)
+    setPasswordChangeError('')
+    try {
+      if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
+      const supabase = requireSupabase()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user?.email) throw new Error('Sessioon on aegunud. Logi uuesti sisse.')
+      const { error: verificationError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword })
+      if (verificationError) throw new Error('Praegune parool ei ole õige.')
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+      if (updateError) throw updateError
+      setIsPasswordChangeOpen(false)
+      setCurrentPassword('')
+      setNewPassword('')
+      setNewPasswordConfirmation('')
+      setAuthToast('Parool on muudetud')
+    } catch (error) {
+      setPasswordChangeError(error instanceof Error ? error.message : 'Parooli muutmine ebaõnnestus.')
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
+
+  const deleteAccount = async () => {
+    if (accountDeleteConfirmation !== 'KUSTUTA' || isDeletingAccount) return
+    setIsDeletingAccount(true)
+    setAccountDeleteError('')
+    try {
+      if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
+      const { error } = await requireSupabase().functions.invoke('delete-account', {
+        body: { confirmation: accountDeleteConfirmation },
+      })
+      if (error) throw error
+      await requireSupabase().auth.signOut({ scope: 'local' })
+      setIsAccountDeleteOpen(false)
+      setIsSettingsOpen(false)
+      setIsLoggedIn(false)
+      onAccountDeleted?.()
+    } catch (error) {
+      setAccountDeleteError(error instanceof Error ? error.message : 'Konto kustutamine ebaõnnestus.')
+    } finally {
+      setIsDeletingAccount(false)
+    }
   }
 
   const shareActiveProduct = async () => {
@@ -1574,10 +2237,113 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   }
 
   const storePublicUrl = `${storeSlug || createUrlSlug(editableStoreName) || 'minu-pood'}.poeruum.ee`
+  const customDomainParts = customDomain.split('.').filter(Boolean)
+  const customDomainHost = customDomainParts.length > 2 ? customDomainParts.slice(0, -2).join('.') : '@'
+  const domainVerificationValue = `poeruum-verification=pr_${createUrlSlug(editableStoreName) || 'minu-pood'}`
   const copyStoreUrl = async () => {
     const url = `https://${storePublicUrl}`
     await copyTextToClipboard(url)
     setShowCopiedToast(true)
+  }
+
+  const normalizeCustomDomain = (value: string) => value.trim().toLocaleLowerCase('et')
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .replace(/\.$/, '')
+
+  const startCustomDomainConnection = () => {
+    const domain = normalizeCustomDomain(customDomain)
+    if (!/^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)) {
+      setCustomDomainError('Sisesta kehtiv domeen, näiteks www.sinupood.ee.')
+      return
+    }
+    if (domain.endsWith('.poeruum.ee')) {
+      setCustomDomainError('Poeruumi aadress on sul juba olemas. Siia lisa enda domeen.')
+      return
+    }
+    setCustomDomain(domain)
+    setCustomDomainError('')
+    setCustomDomainStatus('automatic')
+  }
+
+  const verifyCustomDomain = () => {
+    if (domainVerificationTimerRef.current) window.clearTimeout(domainVerificationTimerRef.current)
+    setCustomDomainStatus('verifying')
+    domainVerificationTimerRef.current = window.setTimeout(() => {
+      setCustomDomainStatus('connected')
+      domainVerificationTimerRef.current = null
+    }, 1800)
+  }
+
+  const resetCustomDomain = (clearDomain = false) => {
+    if (domainVerificationTimerRef.current) window.clearTimeout(domainVerificationTimerRef.current)
+    domainVerificationTimerRef.current = null
+    setCustomDomainStatus('idle')
+    setCustomDomainError('')
+    if (clearDomain) {
+      setCustomDomain('')
+      setCustomDomainMode('choice')
+      setDomainPurchaseStep('search')
+      setDomainSearchBase('')
+      setDomainSearchTerm('')
+    }
+  }
+
+  const copyDomainRecord = async (value: string) => {
+    await copyTextToClipboard(value)
+    setShowCopiedToast(true)
+  }
+
+  const openDomainMode = (mode: Exclude<CustomDomainMode, 'choice'>) => {
+    resetCustomDomain(false)
+    setCustomDomainMode(mode)
+    setCustomDomainError('')
+    if (mode === 'buy') {
+      setDomainPurchaseStep('search')
+      setDomainSearchTerm(createUrlSlug(editableStoreName))
+      setDomainSearchBase('')
+    }
+  }
+
+  const returnToDomainChoice = () => {
+    resetCustomDomain(false)
+    setCustomDomainMode('choice')
+    setDomainPurchaseStep('search')
+    setDomainSearchBase('')
+    setDomainTermsAccepted(false)
+  }
+
+  const searchDomains = () => {
+    const base = createUrlSlug(domainSearchTerm.replace(/\.(ee|com|eu)$/i, ''))
+    if (base.length < 2) {
+      setCustomDomainError('Sisesta vähemalt kaks tähemärki.')
+      return
+    }
+    setDomainSearchTerm(base)
+    setDomainSearchBase(base)
+    setCustomDomainError('')
+  }
+
+  const selectDomainToBuy = (domain: string, price: string) => {
+    setCustomDomain(domain)
+    setSelectedDomainPrice(price)
+    setDomainTermsAccepted(false)
+    setCustomDomainError('')
+    setDomainPurchaseStep('checkout')
+  }
+
+  const registerDomain = () => {
+    if (!domainTermsAccepted) {
+      setCustomDomainError('Registreerimiseks nõustu domeenitingimustega.')
+      return
+    }
+    if (domainVerificationTimerRef.current) window.clearTimeout(domainVerificationTimerRef.current)
+    setCustomDomainError('')
+    setDomainPurchaseStep('registering')
+    domainVerificationTimerRef.current = window.setTimeout(() => {
+      setCustomDomainStatus('connected')
+      domainVerificationTimerRef.current = null
+    }, 2200)
   }
 
   const endShareDrag = (clientY: number) => {
@@ -1592,6 +2358,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     if (!activeProduct) return
     try { if (storeId) await removeProduct(activeProduct.id) }
     catch (error) { setAuthToast(error instanceof Error ? error.message : 'Toote kustutamine ebaõnnestus'); return }
+    setPersistedProducts((current) => current.filter((product) => product.id !== activeProduct.id))
+    setAddedProducts((current) => current.filter((product) => product.id !== activeProduct.id))
     setDeletedProductIds((ids) => [...ids, activeProduct.id])
     setCart((items) => items.filter((item) => item.id !== activeProduct.id))
     setActiveIndex(0)
@@ -1610,7 +2378,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     `${product.name} ${product.description ?? ''}`.toLocaleLowerCase('et').includes(searchQuery.trim().toLocaleLowerCase('et')),
   )
   const storeInitial = editableStoreName.trim().charAt(0).toLocaleUpperCase('et') || 'P'
-  const contactLine = [contactEmail, contactPhone].filter(Boolean).join(' · ') || 'Valmistatud hoolega Eestis'
+  const contactLine = [contactEmail, contactPhone].filter(Boolean).join(' · ')
+  const sellerDetailsComplete = Boolean(businessName.trim() && /^\d{8}$/.test(registryCode.trim()) && businessAddress.trim() && contactEmail.trim())
   const newOrderCount = orders.filter((order) => order.status === 'new').length
   const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   const normalizedOrderSearch = orderSearch.trim().toLocaleLowerCase('et')
@@ -1618,6 +2387,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     ? sortedOrders.filter((order) => `${order.id} ${order.customerName} ${order.customerEmail} ${order.delivery} ${order.items.map((item) => item.name).join(' ')}`.toLocaleLowerCase('et').includes(normalizedOrderSearch))
     : sortedOrders
   const now = new Date()
+  const domainRenewalDate = new Date(now)
+  domainRenewalDate.setFullYear(domainRenewalDate.getFullYear() + 1)
+  const domainRenewalLabel = domainRenewalDate.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
   const currentMonthOrders = orders.filter((order) => {
     const createdAt = new Date(order.createdAt)
     return createdAt.getFullYear() === now.getFullYear() && createdAt.getMonth() === now.getMonth()
@@ -1644,12 +2416,30 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     { id: 'payments', label: 'Maksed ühendatud', done: paymentsReady, section: 'payments' as const },
     { id: 'delivery', label: 'Tarneviis valitud', done: SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) || deliverySettings.courierEnabled || deliverySettings.pickupEnabled, section: 'delivery' as const },
     { id: 'product', label: 'Esimene toode lisatud', done: displayProducts.length > 0, section: null },
-    { id: 'business', label: 'Müüja andmed', done: Boolean(businessName.trim() && registryCode.trim()), section: 'business' as const },
+    { id: 'business', label: 'Müüja andmed', done: sellerDetailsComplete, section: 'business' as const },
     { id: 'visible', label: 'Pood avalikustatud', done: isStoreVisible, section: 'store' as const },
   ]
   const completedSetupSteps = setupChecklist.filter((item) => item.done).length
   const setupProgress = Math.round(completedSetupSteps / setupChecklist.length * 100)
   const activeSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === settingsSection) ?? SETTINGS_SECTIONS[0]
+  const settingsSectionStatus = (section: SettingsSection) => {
+    if (section === 'store') return isStoreVisible ? 'Avalik' : 'Peidetud'
+    if (section === 'appearance') return storeTheme === 'midnight' ? 'Tume' : storeTheme === 'paper' ? 'Hele' : 'Värviline'
+    if (section === 'payments') return paymentsReady ? 'Ühendatud' : 'Seadista'
+    if (section === 'delivery') {
+      const count = SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled).length
+        + Number(deliverySettings.courierEnabled) + Number(deliverySettings.pickupEnabled)
+      return `${count} ${count === 1 ? 'viis' : 'viisi'}`
+    }
+    if (section === 'business') return sellerDetailsComplete ? 'Lisatud' : 'Pooleli'
+    if (section === 'links') {
+      const count = [instagramUrl, facebookUrl, tiktokUrl].filter((url) => url.trim()).length
+      return count ? `${count} ${count === 1 ? 'link' : 'linki'}` : 'Lisa lingid'
+    }
+    if (section === 'notifications') return `${Number(sellerNotifications) + Number(customerConfirmations)} aktiivset`
+    if (section === 'billing') return billingPlan === 'fixed' ? 'Kindel' : 'Paindlik'
+    return null
+  }
 
   const openSetupItem = (item: (typeof setupChecklist)[number]) => {
     setIsSetupChecklistOpen(false)
@@ -1681,7 +2471,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
     window.requestAnimationFrame(() => field.scrollIntoView({ block: 'center', behavior: 'smooth' }))
   }
 
-  const saveNewProduct = () => {
+  const saveNewProduct = async () => {
     if (addProductSubmitLockRef.current) return
     const name = addProductName.trim()
     const price = Number(addProductPrice)
@@ -1707,8 +2497,18 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
       seoTitle: addProductSeoTitle.trim() || undefined,
       searchVisible: isAddProductSearchVisible,
     }
-    if (storeId) saveProduct(storeId, product).catch((error) => setAuthToast(error instanceof Error ? error.message : 'Toote salvestamine ebaõnnestus'))
-    setAddedProducts((current) => [...current, product])
+    try {
+      if (storeId) {
+        const persisted = await saveProduct(storeId, product)
+        setPersistedProducts((current) => [...current, persisted])
+      } else {
+        setAddedProducts((current) => [...current, product])
+      }
+    } catch (error) {
+      addProductSubmitLockRef.current = false
+      setAddProductError(error instanceof Error ? error.message : 'Toote salvestamine ebaõnnestus')
+      return
+    }
     setActiveIndex(displayProducts.length)
     setIsAddOpen(false)
     setAddProductStep('source')
@@ -1733,7 +2533,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   </div>
 
   return (
-    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-demo={onExit && !merchantMode ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
+    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-demo={onExit && !merchantMode ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
       <input ref={desktopGalleryInputRef} className="source-file-input" type="file" accept="image/*" multiple onChange={(event) => { chooseAddProductImages(event.target.files); event.target.value = '' }} />
       <section className="story-stage">
         {onExit && !merchantMode && <div className="demo-preview-bar">
@@ -1763,7 +2563,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
             </button>
             <strong>{editableStoreName.toLocaleUpperCase('et')}</strong>
           </div>
-          <div className="header-actions">
+          {!isEditOpen && <div className="header-actions">
             <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi tooteid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
             {isAdminMode ? <button className="logout-button" onClick={logOut} aria-label="Logi välja">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14 8l4 4-4 4m4-4H9" /></svg>
@@ -1771,10 +2571,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></svg>
               <span>{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
             </button>}
-          </div>
+          </div>}
         </header>
 
-        {announcementEnabled && announcementText.trim() && <div className="announcement-bar" aria-label={announcementText}>
+        {announcementEnabled && announcementText.trim() && !isEditOpen && <div className="announcement-bar" aria-label={announcementText}>
           {announcementLink.trim()
             ? <a href={normalizeExternalUrl(announcementLink)} target="_blank" rel="noreferrer">{announcementTrack}</a>
             : <div>{announcementTrack}</div>}
@@ -1783,7 +2583,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
         <div className="story-track" ref={trackRef}>
           {renderedProducts.map((product, index) => (
             <article className="story-slide" key={`${product.id}-${index}`}>
-              <img src={getDisplayedProductImage(product)} alt={product.alt} style={{ objectPosition: product.objectPosition }} loading={Math.abs(index - (activeIndex + 1)) <= 1 ? 'eager' : 'lazy'} decoding={Math.abs(index - (activeIndex + 1)) <= 1 ? 'sync' : 'async'} />
+              <img src={getDisplayedProductImage(product)} alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product).x}%, ${getDisplayedImageTransform(product).y}%, 0) scale(${getDisplayedImageTransform(product).scale})`, transformOrigin: 'center' }} loading={Math.abs(index - (activeIndex + 1)) <= 1 ? 'eager' : 'lazy'} decoding={Math.abs(index - (activeIndex + 1)) <= 1 ? 'sync' : 'async'} />
               <div className="story-shade" />
             </article>
           ))}
@@ -1793,7 +2593,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
           {!isAdminMode && <header className="empty-storefront__header">
             <div className="empty-storefront__identity"><span>{storeInitial}</span><div><strong>{editableStoreName}</strong><button type="button" onClick={copyStoreUrl} aria-label={`Kopeeri poe aadress ${storePublicUrl}`}>{storePublicUrl}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div></div>
           </header>}
-          {isAdminMode && <button className="empty-storefront__settings" type="button" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label="Seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 8.5 7L6.1 6 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5 6.1 18l2.4-1a7 7 0 0 0 1.9 1l.3 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z"/></svg></button>}
+          {isAdminMode && <>
+            {onBackToSetup && <button className="empty-storefront__back" type="button" onClick={onBackToSetup} aria-label="Tagasi poe seadistusviisardisse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h11"/></svg></button>}
+            <button className="empty-storefront__settings" type="button" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label="Seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 8.5 7L6.1 6 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5 6.1 18l2.4-1a7 7 0 0 0 1.9 1l.3 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z"/></svg></button>
+          </>}
           {isAdminMode ? <div className="empty-storefront__content">
             <section className="empty-storefront__intro">
               <span><i>✓</i> Pood on aktiivne</span>
@@ -1813,21 +2616,29 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
               <span className="empty-storefront__product-copy"><small>{isProductDropActive ? 'FOTOD VALMIS' : 'JÄRGMINE SAMM'}</small><strong>{isProductDropActive ? 'Lase fotod lahti' : 'Alusta lisamist'}</strong><em className="empty-storefront__drop-copy">Vali arvutist või lohista fotod siia</em></span>
               <svg className="empty-storefront__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
             </button>
-          </div> : <div className="empty-storefront__customer"><h1>Pood avaneb peagi.</h1><p>Esimesed tooted on juba teel.</p>{!isCustomerPreview && <button className="empty-storefront__owner-login" type="button" onClick={() => setIsLoginOpen(true)}>Poe omanik? Logi sisse</button>}</div>}
+          </div> : <div className="empty-storefront__customer"><h1>Pood avaneb peagi.</h1><p>Esimesed tooted on juba teel.</p>{!isCustomerPreview && <button className="empty-storefront__owner-login" type="button" onClick={openOwnerLogin}>Poe omanik? Logi sisse</button>}</div>}
         </div>}
 
         {activeProduct && isEditOpen && <div className="product-image-editor">
+          {editImageUploads.length > 0 && <div className={`product-image-editor__upload-status${editImageUploads.some((upload) => upload.phase === 'error') ? ' is-error' : ''}`} role="status" aria-live="polite">
+            {editImageUploads.some((upload) => upload.phase === 'error') ? <span>!</span> : <i />}
+            <div><strong>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Pildi üleslaadimine ebaõnnestus' : editImageUploads.some((upload) => upload.phase === 'preparing') ? 'Valmistan fotot ette…' : 'Laen pilti üles…'}</strong><small>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Proovi pisipildi juures uuesti.' : editImageUploads.some((upload) => upload.slow) ? 'Foto on suur, läheb veel veidi.' : 'Võid oodata — aken jääb avatuks.'}</small></div>
+          </div>}
+          <div className="product-image-editor__gesture-area" aria-label="Tootepildi paigutamine" onPointerDown={handleImagePointerDown} onPointerMove={handleImagePointerMove} onPointerUp={endImagePointer} onPointerCancel={endImagePointer} onWheel={handleImageWheel} onDoubleClick={() => setActiveEditImageTransform(activeEditImageTransform.scale > 1.05 ? DEFAULT_IMAGE_TRANSFORM : { x: 0, y: 0, scale: 2 })} />
           <div className="product-image-editor__tray">
-            {editProductImages.map((image, index) => <div className={(selectedImages[activeProduct.id] ?? 0) === index ? 'is-active' : ''} key={`${image}-${index}`}>
+            {editProductImages.map((image, index) => {
+              const upload = editImageUploads.find((item) => item.previewUrl === image)
+              return <div className={`${(selectedImages[activeProduct.id] ?? 0) === index ? 'is-active' : ''}${upload ? ` is-upload-${upload.phase}` : ''}`} key={`${image}-${index}`}>
               <button type="button" onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))} aria-label={`Vali pilt ${index + 1}`}><img src={image} alt="" /></button>
-              <button className="product-image-editor__remove" type="button" title="Eemalda pilt" aria-label={`Eemalda pilt ${index + 1}`} onClick={() => removeEditProductImage(index)}>×</button>
-              {(selectedImages[activeProduct.id] ?? 0) === index && <button className="product-image-editor__replace" type="button" title="Vaheta valitud pilt" aria-label="Vaheta valitud pilt" onClick={() => { editProductImageModeRef.current = 'replace'; editProductImageInputRef.current?.click() }}>
+              {upload && <span className="product-image-editor__thumbnail-status">{upload.phase === 'error' ? '!' : <i />}</span>}
+              {upload?.phase === 'error' ? <><button className="product-image-editor__retry" type="button" onClick={() => startEditImageUpload(upload)}>Proovi uuesti</button><button className="product-image-editor__remove" type="button" aria-label="Eemalda ebaõnnestunud pilt" onClick={() => dismissEditImageUpload(upload)}>×</button></> : !upload && <button className="product-image-editor__remove" type="button" title="Eemalda pilt" aria-label={`Eemalda pilt ${index + 1}`} onClick={() => removeEditProductImage(index)}>×</button>}
+              {!upload && (selectedImages[activeProduct.id] ?? 0) === index && <button className="product-image-editor__replace" type="button" title="Vaheta valitud pilt" aria-label="Vaheta valitud pilt" onClick={() => { editProductImageModeRef.current = 'replace'; editProductImageInputRef.current?.click() }}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M18.2 16.4A7 7 0 1 1 19.5 9L20 12"/></svg>
               </button>}
-            </div>)}
-            {editProductImages.length < MAX_PRODUCT_IMAGES && <button className="product-image-editor__add" type="button" title="Lisa pilt" aria-label="Lisa pilt" onClick={() => { editProductImageModeRef.current = 'add'; editProductImageInputRef.current?.click() }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>}
+            </div>})}
+            {editProductImages.length < MAX_PRODUCT_IMAGES && <button className="product-image-editor__add" type="button" title="Lisa pilt" aria-label="Lisa pilt" disabled={editImageUploads.length > 0} onClick={() => { editProductImageModeRef.current = 'add'; editProductImageInputRef.current?.click() }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>}
           </div>
-          <input ref={editProductImageInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={(event) => { chooseEditProductImages(event.target.files); event.target.value = '' }} />
+          <input ref={editProductImageInputRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(event) => { chooseEditProductImages(event.target.files); event.target.value = '' }} />
         </div>}
 
         {activeProduct && !isEditOpen && (activeProduct.gallery?.length ?? 1) > 1 && (
@@ -1901,11 +2712,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
             onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}
           >{activeProduct.name}</h1>
           <div className="product-heading-actions">
-            <button className="share-product" onClick={shareActiveProduct} tabIndex={isEditOpen ? -1 : 0} aria-label="Jaga toodet"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></svg></button>
+            <button className="share-product" disabled={isEditOpen} onClick={shareActiveProduct} tabIndex={isEditOpen ? -1 : 0} aria-label={isEditOpen ? 'Jaga toodet pärast muudatuste salvestamist' : 'Jaga toodet'}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></svg></button>
             {isAdminMode && <div className="admin-actions">
               {isEditOpen ? <>
                 <button onClick={closeEditProduct} tabIndex={-1} aria-label="Loobu muudatustest" title="Loobu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-                <button className="save-product-edit" onClick={saveEditedProduct} tabIndex={-1} aria-label="Salvesta muudatused" title="Salvesta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>
+                <button className="save-product-edit" disabled={editImageUploads.length > 0} onClick={saveEditedProduct} tabIndex={-1} aria-label="Salvesta muudatused" title="Salvesta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>
               </> : <>
                 <button onClick={openEditProduct} aria-label="Muuda toodet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Zm9-9 4 4" /></svg></button>
                 <button onClick={() => setIsDeleteOpen(true)} aria-label="Kustuta toode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
@@ -1940,16 +2751,18 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
             </>}
           </div>
         </div>
-        {isEditOpen && <div className="product-inventory-editor">
-          <div className="product-inventory-editor__heading"><span>Laoseis ja valikud</span><small>Ostjale kuvatav saadavus</small></div>
-          <label className="product-inventory-editor__unique">
-            <input type="checkbox" checked={editProductOneOfAKind} onChange={(event) => { setEditProductOneOfAKind(event.target.checked); if (event.target.checked) setEditProductStock('1') }} />
-            <i aria-hidden="true" />
-            <span><strong>Ainult üks eksemplar</strong><small>Kogus on alati piiratud ühega</small></span>
-          </label>
-          <label>Laoseis<input type="number" inputMode="numeric" min="0" step="1" disabled={editProductOneOfAKind} value={editProductStock} onChange={(event) => setEditProductStock(event.target.value)} placeholder="Piiramata" /></label>
-          <label>Valiku tüüp<select value={editProductOptionType} onChange={(event) => setEditProductOptionType(event.target.value as 'none' | 'Suurus' | 'Värv')}><option value="none">Valikuid pole</option><option value="Suurus">Suurus</option><option value="Värv">Värv</option></select></label>
-          {editProductOptionType !== 'none' && <label>Valikud<input value={editProductOptionValues} onChange={(event) => setEditProductOptionValues(event.target.value)} placeholder={editProductOptionType === 'Suurus' ? 'Väike, Keskmine, Suur' : 'Must, Valge, Roheline'} /><small>Eralda valikud komaga.</small></label>}
+        {isEditOpen && <div className="product-inventory-editor product-inventory-editor--compact">
+          <div className="product-inventory-editor__compact-top">
+            <label className={editProductOneOfAKind ? 'is-active' : ''}><span><strong>Unikaalne</strong><small>Ainult 1 tk</small></span><input type="checkbox" checked={editProductOneOfAKind} onChange={(event) => { setEditProductOneOfAKind(event.target.checked); if (event.target.checked) setEditProductStock('1') }} /><i aria-hidden="true"><b /></i></label>
+            <div className={editProductOneOfAKind ? 'is-disabled' : ''}><span><strong>Laoseis</strong><small>{editProductOneOfAKind ? '1 tk' : editProductStock === '' ? 'Piiramata' : `${editProductStock} tk`}</small></span><div className="product-inventory-editor__stepper"><button type="button" disabled={editProductOneOfAKind || Number(editProductStock || 0) <= 0} onClick={() => setEditProductStock(String(Math.max(0, Number(editProductStock || 0) - 1)))} aria-label="Vähenda laoseisu">−</button><input type="number" aria-label="Laoseis" inputMode="numeric" min="0" step="1" disabled={editProductOneOfAKind} value={editProductStock} onChange={(event) => setEditProductStock(event.target.value)} placeholder="∞" /><button type="button" disabled={editProductOneOfAKind} onClick={() => setEditProductStock(String(Number(editProductStock || 0) + 1))} aria-label="Suurenda laoseisu">+</button></div></div>
+          </div>
+          <div className="product-inventory-editor__compact-type"><span>Valikud</span><div role="radiogroup" aria-label="Valiku tüüp">{(['none', 'Suurus', 'Värv'] as const).map((type) => <button className={editProductOptionType === type ? 'is-selected' : ''} data-option-type={type} type="button" role="radio" aria-checked={editProductOptionType === type} onClick={() => { if (editProductOptionType !== type) setEditProductOptionValues(''); setEditProductOptionType(type); setIsCustomProductOptionOpen(false) }} key={type}>{type === 'none' ? 'Puuduvad' : type}</button>)}</div></div>
+          {editProductOptionType !== 'none' && <div className={`product-inventory-editor__presets is-${editProductOptionType.toLowerCase()}`}>
+            {editOptionPresets.map((value) => <button className={editOptionValues.includes(value) ? 'is-selected' : ''} type="button" aria-pressed={editOptionValues.includes(value)} onClick={() => toggleProductOptionValue(value)} key={value}>{editProductOptionType === 'Värv' && <i style={{ background: editColorSwatches[value] }} />}{value}</button>)}
+            {editCustomOptionValues.map((value) => <button className="is-selected is-custom" type="button" aria-label={`Eemalda valik ${value}`} onClick={() => toggleProductOptionValue(value)} key={value}>{value}<span aria-hidden="true">×</span></button>)}
+            <button className="is-add" type="button" onClick={() => setIsCustomProductOptionOpen((open) => !open)}>+ Muu</button>
+            {isCustomProductOptionOpen && <div><input autoFocus value={customProductOption} onChange={(event) => setCustomProductOption(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addCustomProductOption() } }} placeholder="Lisa valik" /><button type="button" onClick={addCustomProductOption} aria-label="Lisa valik">+</button></div>}
+          </div>}
         </div>}
         {!isEditOpen && activeProduct.options?.map((option) => <fieldset className="product-option" key={option.name}>
           <legend><span>{option.name}</span><small>{activeProductSelections[option.name]}</small></legend>
@@ -1966,13 +2779,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
           <span><strong>{isActiveProductSoldOut ? 'Välja müüdud' : activeProduct.oneOfAKind ? 'Ainueksemplar' : activeProduct.stock === 1 ? 'Viimane eksemplar' : 'Laos olemas'}</strong><small>{isActiveProductSoldOut ? 'Hetkel pole tellitav' : 'Saadame 1–2 tööpäevaga'}</small></span>
         </div>}
         <button
-          disabled={!isEditOpen && isActiveProductSoldOut}
+          disabled={isEditOpen ? editImageUploads.length > 0 : isActiveProductSoldOut || Boolean(storeSlug && !sellerDetailsComplete)}
           className={`product-details__buy${isEditOpen ? ' is-publish' : `${isActiveProductInCart ? ' is-in-cart' : ''}${addedProductId === activeProduct.id ? ' is-added' : ''}${isActiveProductSoldOut ? ' is-sold-out' : ''}`}`}
           onClick={() => {
             if (isEditOpen) {
               saveEditedProduct()
               return
             }
+            if (storeSlug && !sellerDetailsComplete) return
             if (isActiveProductInCart) {
               setCartStep('cart')
               setIsCartOpen(true)
@@ -1981,7 +2795,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
             addToCart(activeProduct)
           }}
         >
-          {isEditOpen ? <span>Salvesta ja avalda</span> : isActiveProductSoldOut ? <span>Välja müüdud</span> : isActiveProductInCart ? (
+          {isEditOpen ? <span>Salvesta ja avalda</span> : storeSlug && !sellerDetailsComplete ? <span>Müük pole veel avatud</span> : isActiveProductSoldOut ? <span>Välja müüdud</span> : isActiveProductInCart ? (
             <span>Ostukorvis · {activeProductCartItem?.quantity} tk</span>
           ) : isActiveProductAtCartLimit ? <span>Saadaval kogus on ostukorvis</span> : <span>Lisa ostukorvi</span>}
         </button>
@@ -1997,7 +2811,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
             {(storeAboutImage || storeDescription.trim().length > 110) && <button type="button" onClick={() => setIsAboutOpen(true)}>Vaata tutvustust →</button>}</div>
           </div>}
           <div className="site-footer__top">
-            {storeSlug ? <div className="site-footer__address"><strong>{editableStoreName}</strong><small>{contactLine}</small></div> : <a className="site-footer__address" href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">
+            {storeSlug ? <div className="site-footer__address"><strong>{editableStoreName}</strong>{storeTagline.trim() && <small>{storeTagline.trim()}</small>}{contactLine && <small>{contactLine}</small>}</div> : <a className="site-footer__address" href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">
               <strong>Mavi Stuudio</strong><small>Paldiski mnt 25, Tallinn</small>
             </a>}
             {(instagramUrl.trim() || facebookUrl.trim() || tiktokUrl.trim()) && <div className="social-links" aria-label="Sotsiaalmeedia">
@@ -2012,11 +2826,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
               </a>}
             </div>}
           </div>
+          {storeSlug && <nav className="site-footer__legal" aria-label="Poe õiguslik teave">
+            <button type="button" onClick={() => setLegalView('seller')}>Müüja andmed</button>
+            <button type="button" onClick={() => setLegalView('terms')}>Müügitingimused</button>
+          </nav>}
           <div className="site-footer__bottom">
             <span>© 2026 {editableStoreName}</span>
             <div className="site-footer__meta">
               {storeSlug ? <span>{storeSlug}.poeruum.ee</span> : <a href="https://veidradasjad.ee">veidradasjad.ee</a>}
-              {!isLoggedIn && !isCustomerPreview && <><i aria-hidden="true" /><button type="button" onClick={() => setIsLoginOpen(true)} aria-label="Poe omanikule: ava poe halduse sisselogimine">Poe haldus →</button></>}
+              {!isLoggedIn && !isCustomerPreview && <><i aria-hidden="true" /><button type="button" onClick={openOwnerLogin} aria-label="Poe omanikule: ava poe halduse sisselogimine">Poe haldus →</button></>}
             </div>
           </div>
         </footer>
@@ -2030,6 +2848,26 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
           <h2>{editableStoreName}</h2>
           {storeDescription.trim() && <p>{storeDescription}</p>}
           {contactLine && <small>{contactLine}</small>}
+        </section>
+      </div>}
+
+      {legalView && <div className="overlay login-overlay store-about-overlay" onMouseDown={(event) => event.target === event.currentTarget && setLegalView(null)}>
+        <section className="login-sheet store-about-sheet store-legal-sheet" role="dialog" aria-modal="true" aria-label={legalView === 'seller' ? 'Müüja andmed' : 'Müügitingimused'}>
+          <button className="login-sheet__close" type="button" onClick={() => setLegalView(null)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <span>{legalView === 'seller' ? 'KELLELT SA OSTAD' : 'OSTUINFO'}</span>
+          <h2>{legalView === 'seller' ? 'Müüja andmed' : 'Müügitingimused'}</h2>
+          {legalView === 'seller' ? <dl>
+            <div><dt>Ettevõte</dt><dd>{businessName || editableStoreName}</dd></div>
+            {registryCode && <div><dt>Registrikood</dt><dd>{registryCode} · Eesti äriregister</dd></div>}
+            {businessAddress && <div><dt>Aadress</dt><dd>{businessAddress}</dd></div>}
+            {contactEmail && <div><dt>E-post</dt><dd><a href={`mailto:${contactEmail}`}>{contactEmail}</a></dd></div>}
+            {contactPhone && <div><dt>Telefon</dt><dd><a href={`tel:${contactPhone.replace(/\s/g, '')}`}>{contactPhone}</a></dd></div>}
+          </dl> : <div className="store-legal-sheet__terms">
+            <section><h3>Taganemine ja tagastamine</h3><p>{returnsText || DEFAULT_RETURNS_TEXT}</p></section>
+            <section><h3>Tarne ja maksmine</h3><p>Tarneviis, selle hind ja eeldatav kättesaamine kuvatakse ostukorvis enne tellimuse kinnitamist. Makseviisid kuvatakse kassas.</p></section>
+            <section><h3>Pretensioonid</h3><p>Kaubaga seotud küsimuse või pretensiooni korral võta ühendust aadressil {contactEmail || 'poe kontakt-e-post'}. Tarbijal on õigus pöörduda vaidluse lahendamiseks Tarbijavaidluste komisjoni.</p></section>
+            <button type="button" onClick={() => setLegalView('seller')}>Vaata müüja andmeid →</button>
+          </div>}
         </section>
       </div>}
 
@@ -2078,7 +2916,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
           </div>
           {isSettingsHome ? <div className="settings-home">
             <p>Vali, mida soovid muuta.</p>
-            <div>{SETTINGS_SECTIONS.map((section) => <button type="button" onClick={() => { setSettingsSection(section.id); setIsSettingsHome(false) }} key={section.id}><span><strong>{section.label}</strong><small>{section.description}</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>)}</div>
+            <div>{SETTINGS_SECTIONS.map((section) => {
+              const status = settingsSectionStatus(section.id)
+              return <button type="button" data-section={section.id} onClick={() => { setSettingsSection(section.id); setIsSettingsHome(false) }} key={section.id}>
+                <span className="settings-home__icon"><SettingsSectionIcon section={section.id} /></span>
+                <span className="settings-home__copy"><strong>{section.label}</strong><small>{section.description}</small></span>
+                {status && <em>{status}</em>}
+                <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+              </button>
+            })}</div>
           </div> : null}
           {settingsSection === 'store' && <div className="settings-panel" role="tabpanel">
             <header><span>POE SEADED</span><p>Halda poe nähtavust ja põhiandmeid.</p></header>
@@ -2095,9 +2941,18 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
                 </button>)}
               </div>}
             </div>}
-            <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : 'Poodi näed praegu ainult sina'}</small></span><input type="checkbox" checked={isStoreVisible} onChange={(event) => setIsStoreVisible(event.target.checked)} /><i /></label>
+            <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} onChange={(event) => {
+              if (event.target.checked && !sellerDetailsComplete) {
+                setAuthToast('Enne poe avaldamist lisa täielikud müüja andmed')
+                setSettingsSection('business')
+                setIsSettingsHome(false)
+                return
+              }
+              setIsStoreVisible(event.target.checked)
+            }} /><i /></label>
             <div className="settings-fields">
               <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
+              <label>Poe slogan<input value={storeTagline} maxLength={100} onChange={(event) => setStoreTagline(event.target.value)} placeholder="Lühike lause sinu poe kohta" /><small className="settings-field-note">Valikuline · kuvatakse poe nime all jaluses · {storeTagline.length}/100</small></label>
               <label>Poe tutvustus<textarea ref={storeDescriptionInputRef} rows={4} maxLength={600} value={storeDescription} onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu pood pakub ja miks see eriline on." /><small className="settings-field-note">Kuvatakse ostjale poe jaluses · {storeDescription.length}/600</small></label>
               <div className="settings-about-image">
                 <span className="settings-section-label">Tutvustuse pilt <small>valikuline</small></span>
@@ -2113,7 +2968,98 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
                 <small>Demos pilti serverisse ei salvestata.</small>
               </div>
               <div><label>Kontakt-e-post<input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="tere@minupood.ee" /></label><label>Telefon<input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+372 5555 5555" /></label></div>
-              <label>Oma domeen<input value={customDomain} onChange={(event) => setCustomDomain(event.target.value)} placeholder={`${storeSlug || 'minupood'}.poeruum.ee`} /><small className="settings-field-note">Oma domeeni ühendamine lisandub pärast DNS-i kontrolli.</small></label>
+              <div className="settings-store-address">
+                <span><small>Poe aadress</small><strong>{storePublicUrl}</strong></span>
+                <button type="button" onClick={copyStoreUrl} aria-label={`Kopeeri poe aadress ${storePublicUrl}`}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Kopeeri</button>
+              </div>
+              <div className="settings-domain-flow" data-status={customDomainStatus}>
+                <div className="settings-domain-flow__heading">
+                  <span><strong>Oma domeen</strong><small>Leia uus aadress või ühenda juba olemasolev domeen.</small></span>
+                  {customDomainStatus !== 'idle' && <b>{customDomainStatus === 'automatic' ? 'Automaatne ühendus' : customDomainStatus === 'dns' ? 'DNS seadistamine' : customDomainStatus === 'verifying' ? 'Kontrollin' : 'Ühendatud'}</b>}
+                </div>
+                {customDomainMode === 'choice' && customDomainStatus !== 'connected' && <div className="settings-domain-choice">
+                  <button type="button" className="is-primary" onClick={() => openDomainMode('buy')}>
+                    <span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></span>
+                    <strong>Leia ja osta uus domeen</strong><small>Kontrolli saadavust, osta ja ühenda automaatselt.</small><b>Soovitatud</b><i>→</i>
+                  </button>
+                  <button type="button" onClick={() => openDomainMode('connect')}>
+                    <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7L11.2 6M14 11a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 1 0 5.7 5.7l1.6-1.5"/></svg></span>
+                    <strong>Mul on domeen olemas</strong><small>Proovi automaatset ühendamist või seadista DNS käsitsi.</small><i>→</i>
+                  </button>
+                </div>}
+
+                {customDomainMode === 'buy' && customDomainStatus !== 'connected' && <div className="settings-domain-purchase">
+                  {domainPurchaseStep === 'search' && <>
+                    <button className="settings-domain-back" type="button" onClick={returnToDomainChoice}>← Kõik valikud</button>
+                    <div className="settings-domain-purchase__hero"><span>1</span><div><strong>Leia oma poele nimi</strong><small>Kontrollime kohe, millised aadressid on saadaval.</small></div></div>
+                    <div className="settings-domain-search"><input value={domainSearchTerm} onChange={(event) => { setDomainSearchTerm(event.target.value); setDomainSearchBase(''); setCustomDomainError('') }} onKeyDown={(event) => event.key === 'Enter' && searchDomains()} placeholder="sinupood" autoCapitalize="none" autoCorrect="off" spellCheck={false} /><button type="button" onClick={searchDomains}>Otsi</button></div>
+                    {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
+                    {domainSearchBase && <div className="settings-domain-results">
+                      {[
+                        [`${domainSearchBase}.ee`, '14,90 €', 'Eesti klientidele tuttav'],
+                        [`${domainSearchBase}.com`, '16,90 €', 'Rahvusvaheline valik'],
+                        [`${domainSearchBase}pood.ee`, '14,90 €', 'Selge ja kirjeldav'],
+                      ].map(([domain, price, note], index) => <button type="button" className={index === 0 ? 'is-recommended' : ''} onClick={() => selectDomainToBuy(domain, price)} key={domain}>
+                        <span><strong>{domain}</strong><small>{note}</small></span><em>Saadaval</em><b>{price}<small>/ aasta</small></b><i>Vali →</i>
+                      </button>)}
+                    </div>}
+                    <small className="settings-domain-demo-label">Frontend-demo · saadavus ja hinnad on näidised.</small>
+                  </>}
+
+                  {domainPurchaseStep === 'checkout' && <>
+                    <button className="settings-domain-back" type="button" onClick={() => { setDomainPurchaseStep('search'); setCustomDomainError('') }}>← Tagasi otsingusse</button>
+                    <div className="settings-domain-purchase__hero"><span>2</span><div><strong>Kinnita registreerimine</strong><small>Domeen registreeritakse sinu või sinu ettevõtte nimele.</small></div></div>
+                    <div className="settings-domain-order"><span><small>Valitud domeen</small><strong>{customDomain}</strong></span><b>{selectedDomainPrice}<small>/ aasta</small></b></div>
+                    <div className="settings-domain-owner"><span><small>Registreerija</small><strong>{businessName.trim() || editableStoreName}</strong></span><span><small>Kontakt</small><strong>{contactEmail.trim() || accountEmail || 'Lisa kontakt-e-post poe seadetesse'}</strong></span><button type="button" onClick={() => setSettingsSection('business')}>Muuda andmeid</button></div>
+                    <div className="settings-domain-payment"><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg></span><div><small>Makseviis</small><strong>Turvaline kaardimakse</strong></div><b>{selectedDomainPrice}</b></div>
+                    <label className="settings-domain-renew"><input type="checkbox" checked={domainAutoRenew} onChange={(event) => setDomainAutoRenew(event.target.checked)} /><i /><span><strong>Uuenda domeeni automaatselt</strong><small>Teavitame sind enne järgmist aastamakset.</small></span></label>
+                    <label className="settings-domain-consent"><input type="checkbox" checked={domainTermsAccepted} onChange={(event) => { setDomainTermsAccepted(event.target.checked); setCustomDomainError('') }} /><i /><span>Nõustun domeeni registreerimise tingimustega ja kinnitan, et omanikuandmed on õiged.</span></label>
+                    {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
+                    <button className="settings-domain-buy-button" type="button" onClick={registerDomain}>Maksa {selectedDomainPrice} ja registreeri <span>→</span></button>
+                    <small className="settings-domain-demo-label">Frontend-demo · makset ei tehta ja domeeni päriselt ei registreerita.</small>
+                  </>}
+
+                  {domainPurchaseStep === 'registering' && <div className="settings-domain-registering" role="status"><i /><strong>Registreerime domeeni…</strong><p>{customDomain}</p><div><span className="is-done">✓ Omanikuandmed</span><span className="is-active">• Domeeni registreerimine</span><span>• DNS ja SSL</span></div><small>Frontend-demo lõpetab seadistuse automaatselt.</small></div>}
+                </div>}
+
+                {customDomainMode === 'connect' && customDomainStatus !== 'connected' && <div className="settings-domain-connect">
+                  {customDomainStatus === 'idle' && <div className="settings-domain-flow__start">
+                    <button className="settings-domain-back" type="button" onClick={returnToDomainChoice}>← Kõik valikud</button>
+                    <label>Sinu olemasolev domeen<input value={customDomain} onChange={(event) => { setCustomDomain(event.target.value); setCustomDomainError('') }} onKeyDown={(event) => event.key === 'Enter' && startCustomDomainConnection()} placeholder="www.sinupood.ee" autoCapitalize="none" autoCorrect="off" spellCheck={false} /></label>
+                    {customDomainError && <p role="alert">{customDomainError}</p>}
+                    <button type="button" onClick={startCustomDomainConnection}>Ühenda automaatselt <span>→</span></button>
+                    <small>Proovime esmalt ühendada domeenihalduriga ilma DNS-kirjeid käsitsi muutmata.</small>
+                  </div>}
+                  {customDomainStatus !== 'idle' && <div className="settings-domain-flow__steps" aria-label="Domeeni ühendamise edenemine">
+                    <span className="is-done"><i>1</i><small>Domeen</small></span>
+                    <span className={customDomainStatus === 'automatic' ? 'is-active' : 'is-done'}><i>2</i><small>Ühendus</small></span>
+                    <span className={customDomainStatus === 'verifying' ? 'is-active' : ''}><i>3</i><small>Valmis</small></span>
+                  </div>}
+                  {customDomainStatus === 'automatic' && <div className="settings-domain-automatic"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9M3 12h13m0 0-4-4m4 4-4 4"/></svg></span><div><strong>Ühenda domeenihalduriga</strong><p>Logi oma domeenihaldurisse sisse ja kinnita Poeruumi DNS-seaded. Tehnilisi kirjeid pole vaja muuta.</p></div><button type="button" onClick={verifyCustomDomain}>Ava ja kinnita <span>↗</span></button><button type="button" onClick={() => setCustomDomainStatus('dns')}>Seadista DNS käsitsi</button></div>}
+                  {customDomainStatus === 'dns' && <div className="settings-domain-flow__dns">
+                  <div className="settings-domain-flow__intro"><span>2</span><p><strong>Lisa domeenihalduris kaks DNS-kirjet</strong><small>Ava teenus, kust domeeni ostsid, ning kopeeri sinna allolevad väärtused.</small></p></div>
+                  <div className="settings-domain-record"><b>CNAME</b><span><small>Nimi / host</small><code>{customDomainHost}</code></span><span><small>Väärtus</small><code>domains.poeruum.ee</code></span><button type="button" onClick={() => copyDomainRecord('domains.poeruum.ee')} aria-label="Kopeeri CNAME-kirje väärtus"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>
+                  <div className="settings-domain-record"><b>TXT</b><span><small>Nimi / host</small><code>_poeruum</code></span><span><small>Väärtus</small><code>{domainVerificationValue}</code></span><button type="button" onClick={() => copyDomainRecord(domainVerificationValue)} aria-label="Kopeeri TXT-kirje väärtus"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>
+                  <p className="settings-domain-flow__notice"><span>i</span>DNS-i muudatuste levimine võib võtta mõnest minutist kuni 48 tunnini.</p>
+                    <div className="settings-domain-flow__actions"><button type="button" onClick={() => setCustomDomainStatus('automatic')}>Tagasi</button><button type="button" onClick={verifyCustomDomain}>Kontrolli ühendust <span>→</span></button></div>
+                  </div>}
+                  {customDomainStatus === 'verifying' && <div className="settings-domain-flow__checking" role="status"><i /><strong>Kontrollime ühendust…</strong><p>Vaatame, kas {customDomain} suunab õigesti Poeruumi.</p><small>Frontend-demo lõpetab kontrolli automaatselt.</small></div>}
+                </div>}
+
+                {customDomainStatus === 'connected' && <div className="settings-domain-flow__connected">
+                  <div className="settings-domain-connected__summary">
+                    <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span>
+                    <div><small>Ühendatud</small><strong>{customDomain}</strong><p>{customDomainMode === 'buy' ? 'Domeen on registreeritud sinu nimele.' : 'Domeen suunab turvaliselt sinu Poeruumi poodi.'}</p></div>
+                  </div>
+                  <a className="settings-domain-open" href={`https://${customDomain}`} target="_blank" rel="noreferrer">Ava pood <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-9 9"/><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a>
+                  {customDomainMode === 'buy' && <div className="settings-domain-managed">
+                    <div><small>Omanik</small><strong>{businessName.trim() || editableStoreName}</strong></div>
+                    <div className="settings-domain-renewal"><span><small>Automaatne uuendamine</small><strong>{domainAutoRenew ? `Järgmine makse ${selectedDomainPrice} · ${domainRenewalLabel}` : 'Automaatne uuendamine on väljas'}</strong></span><button type="button" role="switch" aria-checked={domainAutoRenew} onClick={() => setDomainAutoRenew((enabled) => !enabled)}><i /></button></div>
+                    <button type="button" onClick={() => setAuthToast('Domeenihaldus on frontend-demos näidisvaade')}>Halda domeeni</button>
+                  </div>}
+                  <button className="settings-domain-remove" type="button" onClick={() => resetCustomDomain(true)}>{customDomainMode === 'buy' ? 'Eemalda domeen poest' : 'Eemalda ühendus'}</button>
+                </div>}
+              </div>
             </div>
             <div className="settings-seo-status"><span>✓</span><div><strong>Google’iks valmis</strong><small>Tootelehed, otsinguandmed ja sitemap luuakse automaatselt.</small></div><b>Automaatne</b></div>
           </div>}
@@ -2237,11 +3183,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
           {settingsSection === 'business' && <div className="settings-panel" role="tabpanel">
             <header><span>ETTEVÕTE JA TINGIMUSED</span><p>Need andmed kuvatakse kliendile poe tingimustes.</p></header>
             <div className="settings-fields">
-              <label>Ettevõtte nimi<input value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
-              <div><label>Registrikood<input inputMode="numeric" value={registryCode} onChange={(event) => setRegistryCode(event.target.value)} placeholder="12345678" /></label><label>Ettevõtte aadress<input value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tallinn, Eesti" /></label></div>
+              <label>Ettevõtte nimi <small>kohustuslik</small><input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
+              <div><label>Registrikood <small>kohustuslik</small><input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={registryCode} onChange={(event) => setRegistryCode(event.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" /></label><label>Ettevõtte aadress <small>kohustuslik</small><input required value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label></div>
+              <label>Klientide kontakt-e-post <small>kohustuslik</small><input required type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="tere@minupood.ee" /></label>
               <label>Tagastustingimused<textarea rows={4} value={returnsText} onChange={(event) => setReturnsText(event.target.value)} /></label>
             </div>
-            <div className="settings-info-note"><span>i</span><p>Enne poe avalikustamist kontrolli, et müüja andmed ning tarne- ja tagastustingimused oleksid täielikud.</p></div>
+            <div className="settings-info-note"><span>i</span><p>Müüja nimi, 8-kohaline registrikood, aadress ja poe kontakt-e-post peavad olema enne avaldamist lisatud. Andmed kuvatakse ostjale poe jaluses.</p></div>
           </div>}
           {settingsSection === 'links' && <div className="settings-panel" role="tabpanel">
             <header><span>SOTSIAALMEEDIA</span><p>Lisa lingid, mis kuvatakse poe jaluses.</p></header>
@@ -2293,9 +3240,80 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
             <div className="settings-fields billing-fields"><label>Arvete e-post<input type="email" value={billingEmail} onChange={(event) => setBillingEmail(event.target.value)} placeholder={contactEmail || 'arved@minupood.ee'} /><small className="settings-field-note">Kuu kokkuvõte saadetakse järgmise kuu alguses.</small></label></div>
             <div className="settings-info-note"><span>i</span><p>{activePaymentProvider === 'stripe' ? 'Stripe’i' : 'Montonio'} makseteenuse tasud ei kuulu Poeruumi tasu sisse ja arvestatakse teenusepakkuja hinnakirja järgi.</p></div>
           </div>}
+          {settingsSection === 'account' && <div className="settings-panel account-panel" role="tabpanel">
+            <header><span>KONTO</span><p>Halda oma Poeruumi kontot ja sisselogimist.</p></header>
+            <div className="account-panel__action account-panel__action--email">
+              <span><strong>Sisselogimise e-post</strong><small>{accountEmail || 'Laadin e-posti…'}</small></span>
+              <button type="button" onClick={openEmailChange}>Muuda</button>
+            </div>
+            <div className="account-panel__action">
+              <span><strong>Muuda parooli</strong><small>Kinnitamiseks küsime sinu praegust parooli.</small></span>
+              <button type="button" onClick={openPasswordChange}>Muuda</button>
+            </div>
+            <div className="account-panel__action">
+              <span><strong>Logi sellest seadmest välja</strong><small>Teistes seadmetes jääd sisse logituks.</small></span>
+              <button type="button" onClick={logOut}>Logi välja</button>
+            </div>
+            <div className="account-sessions">
+              <span className="account-sessions__label">SESSIOONID</span>
+              <p>Kui kasutasid võõrast seadet või kahtlustad ligipääsu, lõpeta teised aktiivsed sessioonid.</p>
+              <div><button type="button" disabled={isSessionActionBusy} onClick={logOutOtherSessions}>Logi teistest seadmetest välja</button><button type="button" disabled={isSessionActionBusy} onClick={logOutEverywhere}>Logi kõikjalt välja</button></div>
+            </div>
+            <div className="account-danger-zone">
+              <span className="account-danger-zone__label">OHUTSOON</span>
+              <h3>Kustuta konto jäädavalt</h3>
+              <p>Kustutatakse sinu konto, poed, tooted, tellimused ja üles laaditud pildid. Seda toimingut ei saa tagasi võtta.</p>
+              <button type="button" onClick={openAccountDeletion}>Kustuta minu konto</button>
+            </div>
+          </div>}
         </section>
       </div>}
       {isBillingCardOpen && <BillingCardDemo onClose={() => setIsBillingCardOpen(false)} onConfirm={(trialStartedAt) => { setFixedPlanTrialStartedAt(new Date(trialStartedAt)); setBillingPlan('fixed'); setIsBillingCardOpen(false) }} />}
+      {isEmailChangeOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isChangingEmail && event.target === event.currentTarget && setIsEmailChangeOpen(false)}>
+        <section className="login-sheet password-change-sheet" role="dialog" aria-modal="true" aria-labelledby="email-change-title">
+          <button className="login-sheet__close" type="button" disabled={isChangingEmail} onClick={() => setIsEmailChangeOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <span className="login-sheet__eyebrow">SISSELOGIMISE E-POST</span>
+          <h2 id="email-change-title">Muuda e-posti</h2>
+          <p className="password-change-sheet__intro">Praegune aadress on <strong>{accountEmail}</strong>. Uus aadress hakkab kehtima pärast kinnitamist.</p>
+          <form onSubmit={changeEmail}>
+            <label>Uus e-posti aadress<input type="email" value={newAccountEmail} onChange={(event) => { setNewAccountEmail(event.target.value); setEmailChangeError('') }} autoComplete="email" required disabled={isChangingEmail} autoFocus /></label>
+            <label>Praegune parool<input type="password" value={emailChangePassword} onChange={(event) => { setEmailChangePassword(event.target.value); setEmailChangeError('') }} autoComplete="current-password" required disabled={isChangingEmail} /></label>
+            {emailChangeError && <p className="password-change-sheet__error" role="alert">{emailChangeError}</p>}
+            <button type="submit" disabled={isChangingEmail || !newAccountEmail.trim() || !emailChangePassword}>{isChangingEmail ? 'Saadan…' : 'Saada kinnituskiri'}</button>
+          </form>
+        </section>
+      </div>}
+      {isPasswordChangeOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isChangingPassword && event.target === event.currentTarget && setIsPasswordChangeOpen(false)}>
+        <section className="login-sheet password-change-sheet" role="dialog" aria-modal="true" aria-labelledby="password-change-title">
+          <button className="login-sheet__close" type="button" disabled={isChangingPassword} onClick={() => setIsPasswordChangeOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <span className="login-sheet__eyebrow">KONTO TURVALISUS</span>
+          <h2 id="password-change-title">Muuda parooli</h2>
+          <p className="password-change-sheet__intro">Sisesta praegune parool ja vali uus vähemalt 8 tähemärgi pikkune parool.</p>
+          <form onSubmit={changePassword}>
+            <label>Praegune parool<input type="password" value={currentPassword} onChange={(event) => { setCurrentPassword(event.target.value); setPasswordChangeError('') }} autoComplete="current-password" required disabled={isChangingPassword} /></label>
+            <label>Uus parool<input type="password" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={8} required disabled={isChangingPassword} /><small className="settings-field-note">Vähemalt 8 tähemärki</small></label>
+            <label>Korda uut parooli<input type="password" value={newPasswordConfirmation} onChange={(event) => { setNewPasswordConfirmation(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={8} required disabled={isChangingPassword} /></label>
+            {passwordChangeError && <p className="password-change-sheet__error" role="alert">{passwordChangeError}</p>}
+            <button type="submit" disabled={isChangingPassword || !currentPassword || newPassword.length < 8 || !newPasswordConfirmation}>{isChangingPassword ? 'Muudan…' : 'Muuda parool'}</button>
+          </form>
+        </section>
+      </div>}
+      {isAccountDeleteOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isDeletingAccount && event.target === event.currentTarget && setIsAccountDeleteOpen(false)}>
+        <section className="login-sheet delete-confirm account-delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="account-delete-title" aria-describedby="account-delete-description">
+          <div className="delete-confirm__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></div>
+          <span className="delete-confirm__eyebrow">KONTO KUSTUTAMINE</span>
+          <h2 id="account-delete-title">Kustuta konto jäädavalt?</h2>
+          <p id="account-delete-description">Koos kontoga kustutatakse kõik sinu poe andmed ja pildid. Seda toimingut ei saa tagasi võtta.</p>
+          <label className="account-delete-confirm__field">Kinnitamiseks kirjuta <strong>KUSTUTA</strong>
+            <input value={accountDeleteConfirmation} onChange={(event) => { setAccountDeleteConfirmation(event.target.value); setAccountDeleteError('') }} autoComplete="off" autoCapitalize="characters" disabled={isDeletingAccount} placeholder="KUSTUTA" />
+          </label>
+          {accountDeleteError && <p className="account-delete-confirm__error" role="alert">{accountDeleteError}</p>}
+          <div className="delete-confirm__actions">
+            <button type="button" disabled={isDeletingAccount} onClick={() => setIsAccountDeleteOpen(false)}>Loobu</button>
+            <button type="button" disabled={accountDeleteConfirmation !== 'KUSTUTA' || isDeletingAccount} onClick={deleteAccount}>{isDeletingAccount ? 'Kustutan…' : 'Kustuta konto'}</button>
+          </div>
+        </section>
+      </div>}
       {activeProduct && isShareOpen && <div className="overlay share-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsShareOpen(false)}>
         <section className={`share-sheet${isShareDragging ? ' is-dragging' : ''}`} style={shareDragY ? { transform: `translateY(${shareDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Jaga toodet">
           <div
@@ -2343,7 +3361,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
         </section>
       </div>}
       {isLoginOpen && !isLoggedIn && (
-        <div className="overlay login-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsLoginOpen(false)}>
+        <div className="overlay login-overlay owner-login-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsLoginOpen(false)}>
           <section className="login-sheet" role="dialog" aria-modal="true" aria-label="Logi sisse">
             <button className="login-sheet__close" onClick={() => setIsLoginOpen(false)} aria-label="Sulge">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -2352,16 +3370,31 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
             <h2>Logi sisse</h2>
             <form onSubmit={async (event) => {
               event.preventDefault()
+              if (isOwnerLoginBusy) return
               const form = new FormData(event.currentTarget)
-              if (storeId && isSupabaseConfigured) {
-                const { error } = await requireSupabase().auth.signInWithPassword({ email: String(form.get('email')), password: String(form.get('password')) })
-                if (error) { setAuthToast(error.message); return }
+              const normalizedEmail = loginEmail.trim().toLowerCase()
+              const password = String(form.get('password') ?? '')
+              setIsOwnerLoginBusy(true)
+              try {
+                if (onOwnerLogin) await onOwnerLogin(normalizedEmail, password)
+                else if (storeId && isSupabaseConfigured) {
+                  const { error } = await requireSupabase().auth.signInWithPassword({ email: normalizedEmail, password })
+                  if (error) throw error
+                }
+                setLoginEmail(normalizedEmail)
+                setIsLoggedIn(true); setIsCustomerPreview(false); setIsLoginOpen(false); setAuthToast('Sisse logitud')
+              } catch (error) {
+                const message = error instanceof Error ? error.message : 'Sisselogimine ebaõnnestus'
+                setAuthToast(message === 'Invalid login credentials' ? 'E-post või parool ei ole õige' : message)
+              } finally {
+                setIsOwnerLoginBusy(false)
               }
-              setIsLoggedIn(true); setIsCustomerPreview(false); setIsLoginOpen(false); setAuthToast('Sisse logitud')
             }}>
-              <label>E-post<input name="email" type="email" autoComplete="username" required /></label>
+              <label>E-post<input name="email" type="email" value={loginEmail} onChange={(event) => { setLoginEmail(event.target.value); setLoginRecoveryMessage('') }} autoComplete="username" required /></label>
               <label>Parool<input name="password" type="password" autoComplete="current-password" required /></label>
-              <button type="submit">Logi sisse</button>
+              <button className="login-forgot-password" type="button" onClick={requestLoginPasswordReset}>Unustasid parooli?</button>
+              {loginRecoveryMessage && <p className="login-recovery-message" role="status">{loginRecoveryMessage}</p>}
+              <button type="submit" disabled={isOwnerLoginBusy}>{isOwnerLoginBusy ? 'Login sisse…' : 'Logi sisse'}</button>
             </form>
           </section>
         </div>
@@ -2379,10 +3412,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
           </div>
           <div className="image-upload-progress__copy">
             <small>{imageUpload.phase === 'preparing' ? 'VALMISTAN ETTE' : imageUpload.phase === 'uploading' ? 'LAEN PILTE' : 'VALMIS'}</small>
-            <strong>{imageUpload.phase === 'ready' ? 'Pildid on poes' : imageUpload.images.length === 1 ? 'Lisan tootepildi…' : `Lisan ${imageUpload.images.length} tootepilti…`}</strong>
+            <strong>{imageUpload.phase === 'ready' ? 'Pildid on poes' : imageUpload.slow ? 'Foto on suur, läheb veel veidi…' : imageUpload.images.length === 1 ? 'Lisan tootepildi…' : `Lisan ${imageUpload.images.length} tootepilti…`}</strong>
           </div>
           <div className="image-upload-progress__track" aria-label={`${imageUpload.progress}%`}><span style={{ width: `${imageUpload.progress}%` }}><i /></span></div>
-          <div className="image-upload-progress__meta"><span>{imageUpload.phase === 'ready' ? 'Kõik valmis' : `${imageUpload.progress}%`}</span><span>{imageUpload.images.length}/{MAX_PRODUCT_IMAGES} pilti</span></div>
+          <div className="image-upload-progress__meta"><span>{imageUpload.phase === 'ready' ? 'Kõik valmis' : imageUpload.phase === 'preparing' ? 'Töötlen fotot' : 'Üleslaadimine käib'}</span><span>{imageUpload.images.length}/{MAX_PRODUCT_IMAGES} pilti</span></div>
         </section>
       </div>}
       {isAddOpen && (
@@ -2431,7 +3464,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
                 <summary><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></span><div><strong>Google’i eelvaade</strong><small>Loodud automaatselt</small></div><b>Valmis</b><i /></summary>
                 <div className="product-seo__content">
                   <div className="product-seo__preview">
-                    <small>{customDomain || `${storeSlug || 'minupood'}.poeruum.ee`} › toode › {addProductSlug || 'toote-nimi'}</small>
+                    <small>{customDomainStatus === 'connected' ? customDomain : `${storeSlug || 'minupood'}.poeruum.ee`} › toode › {addProductSlug || 'toote-nimi'}</small>
                     <strong>{addProductSeoTitle || `${addProductName || 'Toote nimi'} – ${editableStoreName}`}</strong>
                     <p>{addProductDescription || 'Toote kirjeldus kuvatakse siin automaatselt.'}</p>
                   </div>

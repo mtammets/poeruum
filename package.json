@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "supabase:check": "node scripts/supabase-admin.mjs check",
     "supabase:link": "node scripts/supabase-admin.mjs link",
-    "supabase:deploy": "node scripts/supabase-admin.mjs deploy"
+    "supabase:deploy": "node scripts/supabase-admin.mjs deploy",
+    "supabase:functions:deploy": "node scripts/supabase-admin.mjs functions"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",

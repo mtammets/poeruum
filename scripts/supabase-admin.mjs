@@ -45,6 +45,10 @@ if (action === 'deploy') {
   run(['db', 'push', '--linked'])
   process.exit(0)
 }
+if (action === 'functions') {
+  run(['functions', 'deploy', 'delete-account', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  process.exit(0)
+}
 
 console.error(`Tundmatu tegevus: ${action}`)
 process.exit(1)
