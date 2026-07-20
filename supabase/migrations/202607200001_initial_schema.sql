@@ -73,6 +73,13 @@ alter table public.stores enable row level security;
 alter table public.products enable row level security;
 alter table public.orders enable row level security;
 
+grant usage on schema public to anon, authenticated;
+grant select on public.stores, public.products to anon;
+grant select, insert, update, delete on public.stores, public.products to authenticated;
+grant insert on public.orders to anon;
+grant select, insert, update on public.orders to authenticated;
+grant execute on function public.is_store_owner(uuid) to anon, authenticated;
+
 create policy "Published stores are public" on public.stores for select to anon, authenticated using (is_published or owner_id = (select auth.uid()));
 create policy "Owners create stores" on public.stores for insert to authenticated with check (owner_id = (select auth.uid()));
 create policy "Owners update stores" on public.stores for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));

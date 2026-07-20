@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "supabase:check": "node scripts/supabase-admin.mjs check",
+    "supabase:link": "node scripts/supabase-admin.mjs link",
+    "supabase:deploy": "node scripts/supabase-admin.mjs deploy"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",
@@ -17,5 +20,11 @@
     "react-dom": "^19.2.7",
     "typescript": "~6.0.2",
     "vite": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "dotenv": "^17.4.2",
+    "supabase": "^2.109.1",
+    "ws": "^8.21.1"
   }
 }
