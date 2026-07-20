@@ -950,7 +950,6 @@ export default function DemoApp() {
       catch (error) { setAuthError(error instanceof Error ? error.message : 'Müüja andmete salvestamine ebaõnnestus.') }
     }}>
       <span className="setup-kicker">Kes kliendile müüb?</span><h1>Lisa müüja andmed</h1>
-      <p>Neid andmeid näeb ostja poe jaluses ja müügitingimustes. Ilma nendeta ei saa poodi avaldada.</p>
       <label>Registrikood<input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={registryCode} onChange={(event) => setRegistryCode(event.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" /></label>
       <div className="setup-business__registry-note"><span>i</span><p>Pärisversioonis leiab Poeruum registrikoodi järgi ettevõtte nime ja aadressi automaatselt.</p></div>
       <label>Ettevõtte nimi<input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
