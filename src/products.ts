@@ -11,6 +11,12 @@ export type Product = {
   slug?: string
   seoTitle?: string
   searchVisible?: boolean
+  stock?: number
+  oneOfAKind?: boolean
+  options?: Array<{
+    name: string
+    values: string[]
+  }>
 }
 
 export const products: Product[] = [
@@ -22,6 +28,8 @@ export const products: Product[] = [
     alt: 'Klaasist mullipiip',
     description: 'Minimalistlik läbipaistvast klaasist mullipiip pika varrega.',
     price: 18,
+    stock: 1,
+    oneOfAKind: true,
     objectPosition: 'center 52%',
   },
   {
@@ -32,6 +40,8 @@ export const products: Product[] = [
     alt: 'Tume metalliktoonides kaktusekuju',
     description: 'Skulptuurne kaktus tumedas potis. Taim, mida ei pea kunagi kastma.',
     price: 32,
+    stock: 8,
+    options: [{ name: 'Värv', values: ['Grafiit', 'Roheline', 'Liiv'] }],
     objectPosition: 'center 55%',
   },
   {
@@ -42,6 +52,7 @@ export const products: Product[] = [
     alt: 'Kõrge käsitsi maalitud puidust kassikuju',
     description: 'Kõrge ja väärikas käsitsi maalitud puidust kassikuju.',
     price: 45,
+    stock: 0,
     objectPosition: 'center 48%',
   },
   {
@@ -52,6 +63,8 @@ export const products: Product[] = [
     alt: 'Valge ažuurne ornament alusel',
     description: 'Ažuurne valge lauakaunistus südame- ja lillemotiividega.',
     price: 28,
+    stock: 6,
+    options: [{ name: 'Suurus', values: ['Väike', 'Keskmine', 'Suur'] }],
     objectPosition: 'center 50%',
   },
   {
@@ -62,6 +75,7 @@ export const products: Product[] = [
     alt: 'Läikiv hõbedane pildiraam',
     description: 'Detailse mustriga läikiv metallraam erilisele portreele.',
     price: 22,
+    stock: 1,
     objectPosition: 'center 48%',
   },
   {
@@ -73,6 +87,8 @@ export const products: Product[] = [
     description: 'Kuldne dekoratiivtaldrik kolme ruumilise ingliga.',
     price: 36,
     salePrice: 29,
+    stock: 5,
+    options: [{ name: 'Värv', values: ['Kuldne', 'Hõbedane'] }],
     objectPosition: 'center 50%',
   },
   {
@@ -83,6 +99,8 @@ export const products: Product[] = [
     alt: 'Neli pika sangaga keraamilist pitsi',
     description: 'Neljane keraamiliste pika sangaga pitside komplekt humoorikate sõnumitega.',
     price: 34,
+    stock: 1,
+    oneOfAKind: true,
     objectPosition: 'center 50%',
   },
 ]

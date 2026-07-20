@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product } from './products'
+import { createOrder, listOrders, removeProduct, saveProduct, updateOrderStatus, updateStore, uploadImages } from './lib/database'
+import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 
 const getProductPrice = (product: Product) =>
   product.salePrice !== undefined && product.price !== undefined && product.salePrice < product.price
@@ -62,6 +64,22 @@ const selectEditableContents = (element: HTMLElement) => {
   })
 }
 
+const pastePlainText = (event: ReactClipboardEvent<HTMLElement>, singleLine = false) => {
+  event.preventDefault()
+  const clipboardText = event.clipboardData.getData('text/plain').replace(/\r\n?/g, '\n')
+  const text = singleLine ? clipboardText.replace(/\s+/g, ' ').trim() : clipboardText
+  const selection = window.getSelection()
+  if (!selection?.rangeCount) return
+  const range = selection.getRangeAt(0)
+  range.deleteContents()
+  const textNode = document.createTextNode(text)
+  range.insertNode(textNode)
+  range.setStartAfter(textNode)
+  range.collapse(true)
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
 const getReadableTextColor = (hex: string) => {
   const channels = hex.slice(1).match(/.{2}/g)?.map((channel) => Number.parseInt(channel, 16) / 255) ?? [1, 1, 1]
   const [red, green, blue] = channels.map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
@@ -78,7 +96,7 @@ type ParcelMachine = { provider: ShippingProvider; id: string; name: string; cit
 type AksAddress = { adr_id: string; aadresstekst: string; ipikkaadress: string; omavalitsus: string; asustusyksus: string; sihtnumber: string; liikVal: string }
 type DemoOrder = {
   id: string
-  items: Product[]
+  items: CartItem[]
   customerName: string
   customerEmail: string
   delivery: string
@@ -87,6 +105,28 @@ type DemoOrder = {
   createdAt: string
   status: 'new' | 'fulfilled' | 'refunded'
 }
+
+type CartItem = Product & {
+  cartKey: string
+  quantity: number
+  selectedOptions: Record<string, string>
+}
+
+const createCartKey = (productId: string, selectedOptions: Record<string, string>) =>
+  `${productId}:${Object.entries(selectedOptions).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join('|')}`
+
+const createCartItem = (product: Product, quantity = 1, selectedOptions: Record<string, string> = {}): CartItem => ({
+  ...product,
+  cartKey: createCartKey(product.id, selectedOptions),
+  quantity,
+  selectedOptions,
+})
+
+const getDefaultProductOptions = (product: Product) => Object.fromEntries(
+  (product.options ?? []).map((option) => [option.name, option.values[0] ?? '']),
+)
+
+const getProductStockLimit = (product: Product) => product.oneOfAKind ? 1 : product.stock ?? Number.POSITIVE_INFINITY
 
 const createDemoOrders = (): DemoOrder[] => {
   const createdAt = (daysAgo: number, hour: number) => {
@@ -99,7 +139,7 @@ const createDemoOrders = (): DemoOrder[] => {
   return [
     {
       id: 'PR-10714',
-      items: [products[0]],
+      items: [createCartItem(products[0])],
       customerName: 'Maris Põld',
       customerEmail: 'maris.pold@example.com',
       delivery: 'Omniva · Tallinna Kristiine keskuse pakiautomaat',
@@ -110,7 +150,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10712',
-      items: [products[4], products[3]],
+      items: [createCartItem(products[4]), createCartItem(products[3])],
       customerName: 'Rasmus Vaher',
       customerEmail: 'rasmus.vaher@example.com',
       delivery: 'Kuller · Narva mnt 7, Tallinn',
@@ -121,7 +161,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10709',
-      items: [products[1], products[0]],
+      items: [createCartItem(products[1], 1, { Värv: 'Grafiit' }), createCartItem(products[0])],
       customerName: 'Kadi Oja',
       customerEmail: 'kadi.oja@example.com',
       delivery: 'DPD · Tartu Kvartali pakiautomaat',
@@ -132,7 +172,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10703',
-      items: [products[6]],
+      items: [createCartItem(products[6])],
       customerName: 'Marten Ilves',
       customerEmail: 'marten.ilves@example.com',
       delivery: 'Tulen ise järele · Paldiski mnt 25, Tallinn',
@@ -143,7 +183,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10699',
-      items: [products[2], products[4]],
+      items: [createCartItem(products[2]), createCartItem(products[4])],
       customerName: 'Helena Sild',
       customerEmail: 'helena.sild@example.com',
       delivery: 'SmartPosti · Pärnu Kaubamajaka pakiautomaat',
@@ -154,7 +194,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10698',
-      items: [products[5], products[6]],
+      items: [createCartItem(products[5], 1, { Värv: 'Kuldne' }), createCartItem(products[6])],
       customerName: 'Liisa Kask',
       customerEmail: 'liisa.kask@example.com',
       delivery: 'SmartPosti · Tartu Lõunakeskuse pakiautomaat',
@@ -165,7 +205,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10691',
-      items: [products[2]],
+      items: [createCartItem(products[2])],
       customerName: 'Karl Tamm',
       customerEmail: 'karl.tamm@example.com',
       delivery: 'Omniva · Tallinna Viru Keskuse pakiautomaat',
@@ -176,7 +216,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10694',
-      items: [products[0], products[3], products[4]],
+      items: [createCartItem(products[0]), createCartItem(products[3], 1, { Suurus: 'Keskmine' }), createCartItem(products[4])],
       customerName: 'Triin Rebane',
       customerEmail: 'triin.rebane@example.com',
       delivery: 'Kuller · Rüütli 18, Pärnu',
@@ -187,7 +227,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10687',
-      items: [products[5]],
+      items: [createCartItem(products[5], 1, { Värv: 'Hõbedane' })],
       customerName: 'Sander Kivi',
       customerEmail: 'sander.kivi@example.com',
       delivery: 'Omniva · Viljandi Uku keskuse pakiautomaat',
@@ -198,7 +238,7 @@ const createDemoOrders = (): DemoOrder[] => {
     },
     {
       id: 'PR-10684',
-      items: [products[1]],
+      items: [createCartItem(products[1], 1, { Värv: 'Roheline' })],
       customerName: 'Anna Saar',
       customerEmail: 'anna.saar@example.com',
       delivery: 'DPD · Pärnu Kaubamajaka pakiautomaat',
@@ -213,6 +253,7 @@ const MAX_PRODUCT_IMAGES = 3
 const PLATFORM_FEE_RATE = 0.04
 const PLATFORM_FEE_CAP = 39
 const FIXED_PLAN_MONTHLY_FEE = 29
+const FIXED_PLAN_TRIAL_DAYS = 30
 export type PricingPlan = 'flexible' | 'fixed'
 type StoreTheme = 'midnight' | 'paper' | 'pop'
 type BuyButtonSize = 'small' | 'medium' | 'large'
@@ -238,6 +279,46 @@ type DeliverySettings = {
   courierPrice: number
   freeShippingFrom: number
   pickupAddress: string
+}
+
+export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Alusta 30 päeva tasuta' }: { onClose: () => void; onConfirm: (trialStartedAt: string) => void; confirmLabel?: string }) {
+  const [isConfirming, setIsConfirming] = useState(false)
+  const trialStartsAt = new Date()
+  const firstPaymentAt = new Date(trialStartsAt)
+  firstPaymentAt.setDate(firstPaymentAt.getDate() + FIXED_PLAN_TRIAL_DAYS)
+  const firstPaymentLabel = firstPaymentAt.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  const confirm = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isConfirming) return
+    setIsConfirming(true)
+    window.setTimeout(() => onConfirm(new Date().toISOString()), 850)
+  }
+
+  return <div className="overlay login-overlay billing-card-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section className="login-sheet billing-card-demo" role="dialog" aria-modal="true" aria-label="Poeruumi arvelduskaardi lisamine">
+      <button className="login-sheet__close" type="button" onClick={onClose} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+      <span className="login-sheet__eyebrow">KINDEL PAKETT</span>
+      <h2>Alusta 30 päeva tasuta</h2>
+      <p className="billing-card-demo__intro">Lisa arvelduskaart. Täna kaardilt raha ei võeta.</p>
+      <div className="billing-card-demo__summary">
+        <div><span>Täna tasuda</span><strong>0 €</strong></div>
+        <div><span>Esimene makse</span><strong>{firstPaymentLabel}</strong></div>
+        <div><span>Seejärel</span><strong>29 € / kuu + km</strong></div>
+      </div>
+      <form onSubmit={confirm}>
+        <label>Kaardi number<div className="billing-card-demo__card-number"><input required inputMode="numeric" autoComplete="cc-number" defaultValue="4242 4242 4242 4242" pattern="[0-9 ]{19}" /><span>VISA</span></div></label>
+        <div className="billing-card-demo__row">
+          <label>Kehtib kuni<input required inputMode="numeric" autoComplete="cc-exp" defaultValue="12/30" pattern="[0-9]{2}/[0-9]{2}" /></label>
+          <label>CVC<input required inputMode="numeric" autoComplete="cc-csc" defaultValue="123" pattern="[0-9]{3,4}" /></label>
+        </div>
+        <label>Kaardi omaniku nimi<input required autoComplete="cc-name" defaultValue="Marek Tammets" /></label>
+        <label className="billing-card-demo__consent"><input required type="checkbox" defaultChecked /><span>Nõustun, et pärast tasuta prooviperioodi võetakse kaardilt 29 € + km kuus kuni paketi tühistamiseni.</span></label>
+        <button type="submit" disabled={isConfirming}>{isConfirming ? 'Kinnitan…' : confirmLabel}<span aria-hidden="true">{isConfirming ? '◌' : '→'}</span></button>
+      </form>
+      <small className="billing-card-demo__note">🔒 Interaktiivne demo · kaardiandmeid ei salvestata ega saadeta</small>
+    </section>
+  </div>
 }
 
 const SHIPPING_PROVIDERS: ShippingProvider[] = ['omniva', 'dpd', 'smartposti']
@@ -296,7 +377,7 @@ const findParcelMachines = (machines: ParcelMachine[], query: string) => {
     .slice(0, 8)
 }
 
-function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySettings, onRemove, onComplete, onClose }: { items: Product[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; onRemove: (index: number) => void; onComplete: (order: DemoOrder) => void; onClose: () => void }) {
+function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySettings, onRemove, onQuantityChange, onComplete, onClose }: { items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onComplete: (order: DemoOrder) => void; onClose: () => void }) {
   const checkoutRef = useRef<HTMLElement>(null)
   const [step, setStep] = useState<'cart' | 'checkout' | 'success'>(initialStep)
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'card'>('bank')
@@ -319,7 +400,7 @@ function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySett
   const [selectedCourierAddressId, setSelectedCourierAddressId] = useState('')
   const [isPaying, setIsPaying] = useState(false)
   const [completedOrder, setCompletedOrder] = useState<{ id: string; total: number } | null>(null)
-  const itemTotal = items.reduce((sum, item) => sum + getProductPrice(item), 0)
+  const itemTotal = items.reduce((sum, item) => sum + getProductPrice(item) * item.quantity, 0)
   const selectedParcelMachine = parcelMachines.find((machine) => machine.id === selectedParcelId)
   const defaultParcelPrice = enabledParcelProviders.length
     ? Math.min(...enabledParcelProviders.map((provider) => deliverySettings.parcelProviders[provider].price))
@@ -460,11 +541,20 @@ function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySett
         </div> : items.length === 0 ? <p className="cart-empty">Ostukorv on tühi.</p> : <>
           {step === 'cart' ? <>
             <div className="cart-items">
-              {items.map((item, index) => (
-                <div className="cart-item" key={item.id}>
+              {items.map((item) => (
+                <div className="cart-item" key={item.cartKey}>
                   <img src={item.image} alt={item.alt} />
-                  <div className="cart-item__copy"><strong>{item.name}</strong><span>{getProductPrice(item)} €</span></div>
-                  <button className="cart-item__remove" onClick={() => onRemove(index)} aria-label="Eemalda ostukorvist">
+                  <div className="cart-item__copy">
+                    <strong>{item.name}</strong>
+                    {Object.keys(item.selectedOptions).length > 0 && <small>{Object.entries(item.selectedOptions).map(([name, value]) => `${name}: ${value}`).join(' · ')}</small>}
+                    <span>{formatEuro(getProductPrice(item) * item.quantity)}</span>
+                    <div className="cart-item__quantity" role="group" aria-label={`${item.name} kogus`}>
+                      <button type="button" onClick={() => onQuantityChange(item.cartKey, item.quantity - 1)} aria-label="Vähenda kogust">−</button>
+                      <output aria-live="polite">{item.quantity}</output>
+                      <button type="button" disabled={items.filter((candidate) => candidate.id === item.id).reduce((sum, candidate) => sum + candidate.quantity, 0) >= getProductStockLimit(item)} onClick={() => onQuantityChange(item.cartKey, item.quantity + 1)} aria-label="Suurenda kogust">+</button>
+                    </div>
+                  </div>
+                  <button className="cart-item__remove" onClick={() => onRemove(item.cartKey)} aria-label="Eemalda ostukorvist">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
                   </button>
                 </div>
@@ -601,9 +691,9 @@ function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySett
             </fieldset>}
             <div className="checkout-summary">
               {items.map((item) => (
-                <div className="summary-item" key={item.id}>
-                  <span>{item.name}</span>
-                  <span>{getProductPrice(item).toFixed(2).replace('.', ',')} €</span>
+                <div className="summary-item" key={item.cartKey}>
+                  <span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? ` · ${Object.values(item.selectedOptions).join(', ')}` : ''}</span>
+                  <span>{formatEuro(getProductPrice(item) * item.quantity)}</span>
                 </div>
               ))}
               <div><span>Tarne</span><span>{deliveryPrice.toFixed(2).replace('.', ',')} €</span></div>
@@ -621,6 +711,7 @@ function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySett
 }
 
 export type StorefrontProps = {
+  storeId?: string
   seedProducts?: Product[]
   storeName?: string
   storeSlug?: string
@@ -630,11 +721,13 @@ export type StorefrontProps = {
   initialShipping?: string[]
   merchantMode?: boolean
   pricingPlan?: PricingPlan
+  fixedPlanTrialStartedAt?: string | null
   onConnectPaymentProvider?: (provider: PaymentProvider) => void
   onExit?: () => void
+  initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', onConnectPaymentProvider, onExit }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'VEIDRAD ASJAD', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isPublicDemo = Boolean(onExit && !merchantMode)
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
@@ -644,12 +737,13 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
   const storeDescriptionInputRef = useRef<HTMLTextAreaElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [cart, setCart] = useState<Product[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [cartStep, setCartStep] = useState<'cart' | 'checkout'>('cart')
   const [addedProductId, setAddedProductId] = useState<string | null>(null)
   const [isScreensaverActive, setIsScreensaverActive] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Record<string, number>>({})
+  const [selectedProductOptions, setSelectedProductOptions] = useState<Record<string, Record<string, string>>>({})
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(merchantMode)
   const [isCustomerPreview, setIsCustomerPreview] = useState(false)
@@ -661,7 +755,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(true)
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('store')
   const [isOrdersOpen, setIsOrdersOpen] = useState(false)
-  const [orders, setOrders] = useState<DemoOrder[]>(() => merchantMode ? createDemoOrders() : [])
+  const [orders, setOrders] = useState<DemoOrder[]>(() => merchantMode && !storeId ? createDemoOrders() : [])
   const [orderLayout, setOrderLayout] = useState<'grid' | 'list'>('grid')
   const [orderSearch, setOrderSearch] = useState('')
   const [storeTheme, setStoreTheme] = useState<StoreTheme>(theme)
@@ -708,6 +802,8 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const [orderNotificationEmail, setOrderNotificationEmail] = useState('')
   const [billingEmail, setBillingEmail] = useState('')
   const [billingPlan, setBillingPlan] = useState<PricingPlan>(pricingPlan)
+  const [fixedPlanTrialStartedAt, setFixedPlanTrialStartedAt] = useState<Date | null>(() => pricingPlan === 'fixed' ? new Date(initialFixedPlanTrialStartedAt ?? Date.now()) : null)
+  const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
   const [sellerNotifications, setSellerNotifications] = useState(true)
   const [customerConfirmations, setCustomerConfirmations] = useState(true)
   const [customDomain, setCustomDomain] = useState('')
@@ -734,6 +830,10 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const editSessionImageUrlsRef = useRef<Set<string>>(new Set())
   const committedEditImageUrlsRef = useRef<Set<string>>(new Set())
   const [editProductImages, setEditProductImages] = useState<string[]>([])
+  const [editProductStock, setEditProductStock] = useState('')
+  const [editProductOneOfAKind, setEditProductOneOfAKind] = useState(false)
+  const [editProductOptionType, setEditProductOptionType] = useState<'none' | 'Suurus' | 'Värv'>('none')
+  const [editProductOptionValues, setEditProductOptionValues] = useState('')
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [addProductStep, setAddProductStep] = useState<'source' | 'details'>('source')
   const [addProductImages, setAddProductImages] = useState<string[]>([])
@@ -772,6 +872,56 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   })
   const hasUnsavedSettings = isSettingsOpen && Boolean(savedSettingsSnapshotRef.current) && savedSettingsSnapshotRef.current !== settingsSnapshot
 
+  useEffect(() => {
+    if (!storeId) return
+    const value = initialSettings as Record<string, any>
+    if (value.storeTheme) setStoreTheme(value.storeTheme)
+    if (value.storeAccent) setStoreAccent(value.storeAccent)
+    if (value.buyButtonSize) setBuyButtonSize(value.buyButtonSize)
+    if (value.saleBadgeStyle) setSaleBadgeStyle(value.saleBadgeStyle)
+    if (typeof value.announcementEnabled === 'boolean') setAnnouncementEnabled(value.announcementEnabled)
+    if (value.announcementText != null) setAnnouncementText(value.announcementText)
+    if (value.announcementLink != null) setAnnouncementLink(value.announcementLink)
+    if (value.announcementSpeed) setAnnouncementSpeed(value.announcementSpeed)
+    if (value.announcementDirection) setAnnouncementDirection(value.announcementDirection)
+    if (value.announcementBackground) setAnnouncementBackground(value.announcementBackground)
+    if (value.announcementColor) setAnnouncementColor(value.announcementColor)
+    if ('storeLogo' in value) setStoreLogo(value.storeLogo)
+    if (value.editableStoreName) setEditableStoreName(value.editableStoreName)
+    if (value.storeDescription != null) setStoreDescription(value.storeDescription)
+    if ('storeAboutImage' in value) setStoreAboutImage(value.storeAboutImage)
+    if (typeof value.isStoreVisible === 'boolean') setIsStoreVisible(value.isStoreVisible)
+    if (value.contactEmail != null) setContactEmail(value.contactEmail)
+    if (value.contactPhone != null) setContactPhone(value.contactPhone)
+    if (value.instagramUrl != null) setInstagramUrl(value.instagramUrl)
+    if (value.facebookUrl != null) setFacebookUrl(value.facebookUrl)
+    if (value.tiktokUrl != null) setTiktokUrl(value.tiktokUrl)
+    if (value.activePaymentProvider) setActivePaymentProvider(value.activePaymentProvider)
+    if (value.deliverySettings) setDeliverySettings(value.deliverySettings)
+    if (value.businessName != null) setBusinessName(value.businessName)
+    if (value.registryCode != null) setRegistryCode(value.registryCode)
+    if (value.businessAddress != null) setBusinessAddress(value.businessAddress)
+    if (value.returnsText != null) setReturnsText(value.returnsText)
+    if (value.orderNotificationEmail != null) setOrderNotificationEmail(value.orderNotificationEmail)
+    if (value.billingEmail != null) setBillingEmail(value.billingEmail)
+    if (value.billingPlan) setBillingPlan(value.billingPlan)
+    if (typeof value.sellerNotifications === 'boolean') setSellerNotifications(value.sellerNotifications)
+    if (typeof value.customerConfirmations === 'boolean') setCustomerConfirmations(value.customerConfirmations)
+    if (value.customDomain != null) setCustomDomain(value.customDomain)
+    if (typeof value.autoSwipeEnabled === 'boolean') setAutoSwipeEnabled(value.autoSwipeEnabled)
+    if (value.autoSwipeDelay) setAutoSwipeDelay(value.autoSwipeDelay)
+    if (value.autoSwipeSpeed) setAutoSwipeSpeed(value.autoSwipeSpeed)
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId || !merchantMode) return
+    listOrders(storeId).then((rows) => setOrders(rows.map((row) => ({
+      id: row.order_number, items: row.items as CartItem[], customerName: row.customer_name,
+      customerEmail: row.customer_email, delivery: row.delivery, productSubtotal: Number(row.product_subtotal),
+      total: Number(row.total), createdAt: row.created_at, status: row.status,
+    })))).catch((error) => setAuthToast(error instanceof Error ? error.message : 'Tellimuste laadimine ebaõnnestus'))
+  }, [storeId, merchantMode])
+
   useEffect(() => setActivePaymentProvider(paymentProvider), [paymentProvider])
 
   useEffect(() => {
@@ -786,13 +936,17 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     }
   }, [isSettingsOpen])
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
     if (!hasUnsavedSettings || settingsSaveStatus === 'saving') return
     setSettingsSaveStatus('saving')
-    window.setTimeout(() => {
+    try {
+      if (storeId) await updateStore(storeId, { settings: JSON.parse(settingsSnapshot), name: editableStoreName, is_published: isStoreVisible, payment_provider: activePaymentProvider })
       savedSettingsSnapshotRef.current = settingsSnapshot
       setSettingsSaveStatus('saved')
-    }, 500)
+    } catch (error) {
+      setSettingsSaveStatus('idle')
+      setAuthToast(error instanceof Error ? error.message : 'Seadete salvestamine ebaõnnestus')
+    }
   }
 
   useEffect(() => {
@@ -846,8 +1000,12 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     return () => window.removeEventListener('keydown', exitDemoOnEscape)
   }, [isPublicDemo, onExit])
 
-  const changeStoreLogo = (file: File | undefined) => {
+  const changeStoreLogo = async (file: File | undefined) => {
     if (!file || !file.type.startsWith('image/')) return
+    if (storeId) {
+      try { setStoreLogo((await uploadImages(storeId, [file]))[0]); return }
+      catch (error) { setAuthToast(error instanceof Error ? error.message : 'Logo üleslaadimine ebaõnnestus'); return }
+    }
     if (storeLogoObjectUrlRef.current) URL.revokeObjectURL(storeLogoObjectUrlRef.current)
     const objectUrl = URL.createObjectURL(file)
     storeLogoObjectUrlRef.current = objectUrl
@@ -860,8 +1018,12 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     setStoreLogo(null)
   }
 
-  const changeStoreAboutImage = (file: File | undefined) => {
+  const changeStoreAboutImage = async (file: File | undefined) => {
     if (!file || !file.type.startsWith('image/')) return
+    if (storeId) {
+      try { setStoreAboutImage((await uploadImages(storeId, [file]))[0]); return }
+      catch (error) { setAuthToast(error instanceof Error ? error.message : 'Pildi üleslaadimine ebaõnnestus'); return }
+    }
     if (storeAboutImageObjectUrlRef.current) URL.revokeObjectURL(storeAboutImageObjectUrlRef.current)
     const objectUrl = URL.createObjectURL(file)
     storeAboutImageObjectUrlRef.current = objectUrl
@@ -877,6 +1039,11 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const openEditProduct = () => {
     if (!activeProduct) return
     setEditProductImages([...(activeProduct.gallery ?? [activeProduct.image])])
+    setEditProductStock(activeProduct.stock === undefined ? '' : String(activeProduct.stock))
+    setEditProductOneOfAKind(Boolean(activeProduct.oneOfAKind))
+    const option = activeProduct.options?.[0]
+    setEditProductOptionType(option?.name === 'Suurus' || option?.name === 'Värv' ? option.name : 'none')
+    setEditProductOptionValues(option?.values.join(', ') ?? '')
     setIsEditOpen(true)
   }
 
@@ -898,15 +1065,21 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     editSessionImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     editSessionImageUrlsRef.current.clear()
     setEditProductImages([])
+    setEditProductStock('')
+    setEditProductOneOfAKind(false)
+    setEditProductOptionType('none')
+    setEditProductOptionValues('')
     setIsEditOpen(false)
   }
 
-  const chooseEditProductImages = (files: FileList | null) => {
+  const chooseEditProductImages = async (files: FileList | null) => {
     const imageFiles = Array.from(files ?? []).filter((file) => file.type.startsWith('image/'))
     if (!imageFiles.length || !activeProduct) return
+    let urls: string[]
+    try { urls = storeId ? await uploadImages(storeId, imageFiles.slice(0, MAX_PRODUCT_IMAGES)) : imageFiles.map((file) => URL.createObjectURL(file)) }
+    catch (error) { setAuthToast(error instanceof Error ? error.message : 'Piltide üleslaadimine ebaõnnestus'); return }
     if (editProductImageModeRef.current === 'replace') {
-      const file = imageFiles[0]
-      const objectUrl = URL.createObjectURL(file)
+      const objectUrl = urls[0]
       editSessionImageUrlsRef.current.add(objectUrl)
       setEditProductImages((current) => {
         const next = [...current]
@@ -922,9 +1095,9 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
       return
     }
     const available = Math.max(0, MAX_PRODUCT_IMAGES - editProductImages.length)
-    const urls = imageFiles.slice(0, available).map((file) => URL.createObjectURL(file))
-    urls.forEach((url) => editSessionImageUrlsRef.current.add(url))
-    setEditProductImages((current) => [...current, ...urls].slice(0, MAX_PRODUCT_IMAGES))
+    const addedUrls = urls.slice(0, available)
+    addedUrls.forEach((url) => editSessionImageUrlsRef.current.add(url))
+    setEditProductImages((current) => [...current, ...addedUrls].slice(0, MAX_PRODUCT_IMAGES))
   }
 
   const removeEditProductImage = (index: number) => {
@@ -956,11 +1129,13 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     setIsAddAiGenerating(false)
   }
 
-  const chooseAddProductImages = (files: FileList | null) => {
+  const chooseAddProductImages = async (files: FileList | null) => {
     const imageFiles = Array.from(files ?? []).filter((file) => file.type.startsWith('image/')).slice(0, MAX_PRODUCT_IMAGES)
     if (!imageFiles.length) return
     addProductImages.forEach((image) => URL.revokeObjectURL(image))
-    const images = imageFiles.map((file) => URL.createObjectURL(file))
+    let images: string[]
+    try { images = storeId ? await uploadImages(storeId, imageFiles) : imageFiles.map((file) => URL.createObjectURL(file)) }
+    catch (error) { setAuthToast(error instanceof Error ? error.message : 'Piltide üleslaadimine ebaõnnestus'); return }
     const id = `product-${Date.now()}`
     setIsAddOpen(false)
     setAddProductStep('source')
@@ -992,6 +1167,10 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
       setActiveIndex(displayProducts.length)
       setSelectedImages((current) => ({ ...current, [id]: 0 }))
       setEditProductImages(images)
+      setEditProductStock('1')
+      setEditProductOneOfAKind(true)
+      setEditProductOptionType('none')
+      setEditProductOptionValues('')
       setDraftProductId(id)
       setImageUpload(null)
       setIsEditOpen(true)
@@ -1225,8 +1404,24 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     track?.scrollTo({ left: (index + 1) * track.clientWidth, behavior: 'smooth' })
   }
 
+  const getSelectionsForProduct = (product: Product) => ({
+    ...getDefaultProductOptions(product),
+    ...(selectedProductOptions[product.id] ?? {}),
+  })
+
   const addToCart = (product: Product) => {
-    setCart((items) => items.some((item) => item.id === product.id) ? items : [...items, product])
+    const stockLimit = getProductStockLimit(product)
+    if (stockLimit <= 0) return
+    const selections = getSelectionsForProduct(product)
+    const cartKey = createCartKey(product.id, selections)
+    setCart((items) => {
+      const productQuantity = items.filter((item) => item.id === product.id).reduce((sum, item) => sum + item.quantity, 0)
+      if (productQuantity >= stockLimit) return items
+      const existing = items.find((item) => item.cartKey === cartKey)
+      return existing
+        ? items.map((item) => item.cartKey === cartKey ? { ...item, quantity: item.quantity + 1 } : item)
+        : [...items, createCartItem(product, 1, selections)]
+    })
     setAddedProductId(product.id)
     setCartStep('cart')
     setIsCartOpen(true)
@@ -1252,7 +1447,14 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   const activeProduct = displayProducts[activeIndex]
   const activeProductHasSale = activeProduct !== undefined && activeProduct.salePrice !== undefined && activeProduct.price !== undefined && activeProduct.salePrice < activeProduct.price
   const activeProductDiscount = activeProductHasSale ? Math.round((1 - activeProduct.salePrice! / activeProduct.price!) * 100) : 0
-  const isActiveProductInCart = activeProduct !== undefined && cart.some((item) => item.id === activeProduct.id)
+  const activeProductSelections = activeProduct ? getSelectionsForProduct(activeProduct) : {}
+  const activeProductCartKey = activeProduct ? createCartKey(activeProduct.id, activeProductSelections) : ''
+  const activeProductCartItem = cart.find((item) => item.cartKey === activeProductCartKey)
+  const isActiveProductInCart = Boolean(activeProductCartItem)
+  const activeProductStockLimit = activeProduct ? getProductStockLimit(activeProduct) : 0
+  const activeProductCartQuantity = activeProduct ? cart.filter((item) => item.id === activeProduct.id).reduce((sum, item) => sum + item.quantity, 0) : 0
+  const isActiveProductSoldOut = activeProductStockLimit <= 0
+  const isActiveProductAtCartLimit = activeProductCartQuantity >= activeProductStockLimit
   const getDisplayedProductImage = (product: Product) => {
     if (isEditOpen && activeProduct?.id === product.id) {
       return editProductImages[Math.min(selectedImages[product.id] ?? 0, Math.max(0, editProductImages.length - 1))] ?? EMPTY_PRODUCT_IMAGE
@@ -1261,7 +1463,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     return images[Math.min(selectedImages[product.id] ?? 0, images.length - 1)]
   }
 
-  const saveEditedProduct = () => {
+  const saveEditedProduct = async () => {
     if (!activeProduct) return
     const name = editProductNameRef.current?.textContent?.trim() ?? ''
     const description = editProductDescriptionRef.current?.textContent?.trim() ?? ''
@@ -1284,7 +1486,13 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
       setAuthToast('Lisa vähemalt üks tootepilt')
       return
     }
-    setProductEdits((current) => ({ ...current, [activeProduct.id]: {
+    const stock = editProductStock.trim() === '' ? undefined : Number(editProductStock)
+    if (stock !== undefined && (!Number.isInteger(stock) || stock < 0)) {
+      setAuthToast('Laoseis peab olema positiivne täisarv või 0')
+      return
+    }
+    const optionValues = editProductOptionValues.split(',').map((value) => value.trim()).filter(Boolean)
+    const changes: Partial<Product> = {
       name,
       description,
       price,
@@ -1292,7 +1500,14 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
       image: editProductImages[0] ?? activeProduct.image,
       gallery: editProductImages.length ? editProductImages : (activeProduct.gallery ?? [activeProduct.image]),
       slug: activeProduct.slug || createUrlSlug(name),
-    } }))
+      stock: editProductOneOfAKind ? 1 : stock,
+      oneOfAKind: editProductOneOfAKind,
+      options: editProductOptionType !== 'none' && optionValues.length ? [{ name: editProductOptionType, values: optionValues }] : [],
+    }
+    const saved = { ...activeProduct, ...changes }
+    try { if (storeId) await saveProduct(storeId, saved) }
+    catch (error) { setAuthToast(error instanceof Error ? error.message : 'Toote salvestamine ebaõnnestus'); return }
+    setProductEdits((current) => ({ ...current, [activeProduct.id]: changes }))
     editSessionImageUrlsRef.current.forEach((url) => committedEditImageUrlsRef.current.add(url))
     editSessionImageUrlsRef.current.clear()
     if (draftProductId === activeProduct.id) {
@@ -1300,6 +1515,10 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
       setShowAddedToast(true)
     }
     setEditProductImages([])
+    setEditProductStock('')
+    setEditProductOneOfAKind(false)
+    setEditProductOptionType('none')
+    setEditProductOptionValues('')
     setIsEditOpen(false)
   }
 
@@ -1320,13 +1539,14 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
   }, [isEditOpen, activeProduct?.id])
 
   const buyNow = () => {
-    if (!activeProduct) return
-    setCart((items) => items.some((item) => item.id === activeProduct.id) ? items : [...items, activeProduct])
+    if (!activeProduct || isActiveProductSoldOut) return
+    addToCart(activeProduct)
     setCartStep('checkout')
     setIsCartOpen(true)
   }
 
-  const logOut = () => {
+  const logOut = async () => {
+    if (isSupabaseConfigured) await requireSupabase().auth.signOut()
     setIsLoggedIn(false)
     setIsCustomerPreview(false)
     setIsLoginOpen(false)
@@ -1368,13 +1588,22 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     shareDragStartRef.current = null
   }
 
-  const deleteActiveProduct = () => {
+  const deleteActiveProduct = async () => {
     if (!activeProduct) return
+    try { if (storeId) await removeProduct(activeProduct.id) }
+    catch (error) { setAuthToast(error instanceof Error ? error.message : 'Toote kustutamine ebaõnnestus'); return }
     setDeletedProductIds((ids) => [...ids, activeProduct.id])
     setCart((items) => items.filter((item) => item.id !== activeProduct.id))
     setActiveIndex(0)
     setIsDeleteOpen(false)
     setShowDeletedToast(true)
+  }
+
+  const changeOrderStatus = async (orderNumber: string, status: DemoOrder['status']) => {
+    try {
+      if (storeId) await updateOrderStatus(storeId, orderNumber, status)
+      setOrders((current) => current.map((item) => item.id === orderNumber ? { ...item, status } : item))
+    } catch (error) { setAuthToast(error instanceof Error ? error.message : 'Tellimuse uuendamine ebaõnnestus') }
   }
 
   const searchResults = displayProducts.filter((product) =>
@@ -1394,10 +1623,22 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
     return createdAt.getFullYear() === now.getFullYear() && createdAt.getMonth() === now.getMonth()
   })
   const monthlyProductSales = currentMonthOrders.reduce((sum, order) => order.status === 'refunded' ? sum : sum + order.productSubtotal, 0)
-  const monthlyPlatformFee = billingPlan === 'fixed' ? FIXED_PLAN_MONTHLY_FEE : Math.min(monthlyProductSales * PLATFORM_FEE_RATE, PLATFORM_FEE_CAP)
+  const fixedPlanTrialEndsAt = fixedPlanTrialStartedAt ? new Date(fixedPlanTrialStartedAt) : null
+  fixedPlanTrialEndsAt?.setDate(fixedPlanTrialEndsAt.getDate() + FIXED_PLAN_TRIAL_DAYS)
+  const isFixedPlanTrialActive = billingPlan === 'fixed' && Boolean(fixedPlanTrialEndsAt && now < fixedPlanTrialEndsAt)
+  const fixedPlanTrialDaysLeft = fixedPlanTrialEndsAt ? Math.max(0, Math.ceil((fixedPlanTrialEndsAt.getTime() - now.getTime()) / 86_400_000)) : 0
+  const fixedPlanTrialEndLabel = fixedPlanTrialEndsAt?.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
+  const monthlyPlatformFee = billingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : FIXED_PLAN_MONTHLY_FEE : Math.min(monthlyProductSales * PLATFORM_FEE_RATE, PLATFORM_FEE_CAP)
   const remainingPlatformFee = billingPlan === 'fixed' ? 0 : Math.max(0, PLATFORM_FEE_CAP - monthlyPlatformFee)
-  const platformFeeProgress = billingPlan === 'fixed' ? 100 : Math.min(100, monthlyPlatformFee / PLATFORM_FEE_CAP * 100)
+  const platformFeeProgress = billingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, monthlyPlatformFee / PLATFORM_FEE_CAP * 100)
   const billingMonth = now.toLocaleDateString('et-EE', { month: 'long', year: 'numeric' })
+  const selectBillingPlan = (plan: PricingPlan) => {
+    if (plan === 'fixed' && !fixedPlanTrialStartedAt) {
+      setIsBillingCardOpen(true)
+      return
+    }
+    setBillingPlan(plan)
+  }
   const setupChecklist = [
     { id: 'store', label: 'Poe põhiandmed', done: Boolean(editableStoreName.trim()), section: 'store' as const },
     { id: 'payments', label: 'Maksed ühendatud', done: paymentsReady, section: 'payments' as const },
@@ -1466,6 +1707,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
       seoTitle: addProductSeoTitle.trim() || undefined,
       searchVisible: isAddProductSearchVisible,
     }
+    if (storeId) saveProduct(storeId, product).catch((error) => setAuthToast(error instanceof Error ? error.message : 'Toote salvestamine ebaõnnestus'))
     setAddedProducts((current) => [...current, product])
     setActiveIndex(displayProducts.length)
     setIsAddOpen(false)
@@ -1525,9 +1767,9 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
             <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi tooteid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
             {isAdminMode ? <button className="logout-button" onClick={logOut} aria-label="Logi välja">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14 8l4 4-4 4m4-4H9" /></svg>
-            </button> : <button className={`cart-button${addedProductId ? ' is-bumping' : ''}`} onClick={() => { setCartStep('cart'); setIsCartOpen(true) }} aria-label={`Ostukorv, ${cart.length} toodet`}>
+            </button> : <button className={`cart-button${addedProductId ? ' is-bumping' : ''}`} onClick={() => { setCartStep('cart'); setIsCartOpen(true) }} aria-label={`Ostukorv, ${cart.reduce((sum, item) => sum + item.quantity, 0)} toodet`}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></svg>
-              <span>{cart.length}</span>
+              <span>{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
             </button>}
           </div>
         </header>
@@ -1609,8 +1851,9 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           {saleBadgeStyle === 'elegant' && <span className="sale-badge__elegant" aria-hidden="true">Eripakkumine</span>}
           {saleBadgeStyle === 'minimal' && <span className="sale-badge__minimal" aria-hidden="true">Soodus · −{activeProductDiscount}%</span>}
         </div>}
-        {activeProduct && <button className={`buy-now${activeProductHasSale ? ' has-sale' : ''}${activeProductHasSale && saleBadgeStyle === 'price' ? ' has-inline-sale-price' : ''}`} onClick={buyNow}>
-          <span>{activeProductHasSale ? 'Osta kohe' : 'Osta'}</span>
+        {activeProduct && isActiveProductSoldOut && <div className="story-stock-badge is-sold-out">Välja müüdud</div>}
+        {activeProduct && <button disabled={isActiveProductSoldOut} className={`buy-now${activeProductHasSale ? ' has-sale' : ''}${activeProductHasSale && saleBadgeStyle === 'price' ? ' has-inline-sale-price' : ''}${isActiveProductSoldOut ? ' is-sold-out' : ''}`} onClick={buyNow}>
+          <span>{isActiveProductSoldOut ? 'Välja müüdud' : activeProductHasSale ? 'Osta kohe' : 'Osta'}</span>
           <strong>{activeProductHasSale && saleBadgeStyle === 'price' ? <><s>{activeProduct.price} €</s><span>{activeProduct.salePrice} €</span></> : `${getProductPrice(activeProduct)} €`}</strong>
         </button>}
 
@@ -1654,6 +1897,7 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
             aria-label={isEditOpen ? 'Toote nimi' : undefined}
             data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Lisa toote nimi' : undefined}
             spellCheck={isEditOpen}
+            onPaste={(event) => pastePlainText(event, true)}
             onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}
           >{activeProduct.name}</h1>
           <div className="product-heading-actions">
@@ -1681,22 +1925,49 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
             data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Lisa toote kirjeldus' : undefined}
             spellCheck={isEditOpen}
             onFocus={(event) => selectEditableContents(event.currentTarget)}
+            onPaste={pastePlainText}
           >{activeProduct.description || (activeProduct.id === draftProductId ? '' : '—')}</p>
         </div>
         <div className="product-price">
           <span>Hind</span>
           <div className="price-value">
             {activeProductHasSale ? <>
-              <del key={isEditOpen ? 'editing-price' : 'viewing-price'} ref={isEditOpen ? (node) => { editProductPriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote tavahind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.price} €</del>
-              <strong key={isEditOpen ? 'editing-sale-price' : 'viewing-sale-price'} ref={isEditOpen ? (node) => { editProductSalePriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote soodushind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.salePrice} €</strong>
+              <del key={isEditOpen ? 'editing-price' : 'viewing-price'} ref={isEditOpen ? (node) => { editProductPriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote tavahind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onPaste={(event) => pastePlainText(event, true)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.price} €</del>
+              <strong key={isEditOpen ? 'editing-sale-price' : 'viewing-sale-price'} ref={isEditOpen ? (node) => { editProductSalePriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote soodushind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onPaste={(event) => pastePlainText(event, true)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.salePrice} €</strong>
             </> : <>
-              <strong key={isEditOpen ? 'editing-price' : 'viewing-price'} ref={isEditOpen ? (node) => { editProductPriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote hind' : undefined} data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Lisa hind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.price !== undefined ? `${activeProduct.price} €` : activeProduct.id === draftProductId ? '' : '—'}</strong>
-              {isEditOpen && <strong className="editable-sale-price" ref={(node) => { editProductSalePriceRef.current = node }} contentEditable suppressContentEditableWarning role="textbox" aria-label="Toote soodushind" data-placeholder="Lisa soodushind" onFocus={(event) => selectEditableContents(event.currentTarget)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()} />}
+              <strong key={isEditOpen ? 'editing-price' : 'viewing-price'} ref={isEditOpen ? (node) => { editProductPriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote hind' : undefined} data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Lisa hind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onPaste={(event) => pastePlainText(event, true)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.price !== undefined ? `${activeProduct.price} €` : activeProduct.id === draftProductId ? '' : '—'}</strong>
+              {isEditOpen && <strong className="editable-sale-price" ref={(node) => { editProductSalePriceRef.current = node }} contentEditable suppressContentEditableWarning role="textbox" aria-label="Toote soodushind" data-placeholder="Lisa soodushind" onFocus={(event) => selectEditableContents(event.currentTarget)} onPaste={(event) => pastePlainText(event, true)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()} />}
             </>}
           </div>
         </div>
+        {isEditOpen && <div className="product-inventory-editor">
+          <div className="product-inventory-editor__heading"><span>Laoseis ja valikud</span><small>Ostjale kuvatav saadavus</small></div>
+          <label className="product-inventory-editor__unique">
+            <input type="checkbox" checked={editProductOneOfAKind} onChange={(event) => { setEditProductOneOfAKind(event.target.checked); if (event.target.checked) setEditProductStock('1') }} />
+            <i aria-hidden="true" />
+            <span><strong>Ainult üks eksemplar</strong><small>Kogus on alati piiratud ühega</small></span>
+          </label>
+          <label>Laoseis<input type="number" inputMode="numeric" min="0" step="1" disabled={editProductOneOfAKind} value={editProductStock} onChange={(event) => setEditProductStock(event.target.value)} placeholder="Piiramata" /></label>
+          <label>Valiku tüüp<select value={editProductOptionType} onChange={(event) => setEditProductOptionType(event.target.value as 'none' | 'Suurus' | 'Värv')}><option value="none">Valikuid pole</option><option value="Suurus">Suurus</option><option value="Värv">Värv</option></select></label>
+          {editProductOptionType !== 'none' && <label>Valikud<input value={editProductOptionValues} onChange={(event) => setEditProductOptionValues(event.target.value)} placeholder={editProductOptionType === 'Suurus' ? 'Väike, Keskmine, Suur' : 'Must, Valge, Roheline'} /><small>Eralda valikud komaga.</small></label>}
+        </div>}
+        {!isEditOpen && activeProduct.options?.map((option) => <fieldset className="product-option" key={option.name}>
+          <legend><span>{option.name}</span><small>{activeProductSelections[option.name]}</small></legend>
+          <div>{option.values.map((value) => <button
+            type="button"
+            className={activeProductSelections[option.name] === value ? 'is-selected' : ''}
+            aria-pressed={activeProductSelections[option.name] === value}
+            onClick={() => setSelectedProductOptions((current) => ({ ...current, [activeProduct.id]: { ...getDefaultProductOptions(activeProduct), ...(current[activeProduct.id] ?? {}), [option.name]: value } }))}
+            key={value}
+          >{value}</button>)}</div>
+        </fieldset>)}
+        {!isEditOpen && (activeProduct.oneOfAKind || activeProduct.stock !== undefined) && <div className={`product-availability${isActiveProductSoldOut ? ' is-sold-out' : activeProduct.oneOfAKind || activeProduct.stock === 1 ? ' is-last' : ' is-available'}`}>
+          <i aria-hidden="true" />
+          <span><strong>{isActiveProductSoldOut ? 'Välja müüdud' : activeProduct.oneOfAKind ? 'Ainueksemplar' : activeProduct.stock === 1 ? 'Viimane eksemplar' : 'Laos olemas'}</strong><small>{isActiveProductSoldOut ? 'Hetkel pole tellitav' : 'Saadame 1–2 tööpäevaga'}</small></span>
+        </div>}
         <button
-          className={`product-details__buy${isEditOpen ? ' is-publish' : `${isActiveProductInCart ? ' is-in-cart' : ''}${addedProductId === activeProduct.id ? ' is-added' : ''}`}`}
+          disabled={!isEditOpen && isActiveProductSoldOut}
+          className={`product-details__buy${isEditOpen ? ' is-publish' : `${isActiveProductInCart ? ' is-in-cart' : ''}${addedProductId === activeProduct.id ? ' is-added' : ''}${isActiveProductSoldOut ? ' is-sold-out' : ''}`}`}
           onClick={() => {
             if (isEditOpen) {
               saveEditedProduct()
@@ -1710,9 +1981,9 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
             addToCart(activeProduct)
           }}
         >
-          {isEditOpen ? <span>Salvesta ja avalda</span> : isActiveProductInCart ? (
-            <span>Ostukorvis</span>
-          ) : <span>Lisa ostukorvi</span>}
+          {isEditOpen ? <span>Salvesta ja avalda</span> : isActiveProductSoldOut ? <span>Välja müüdud</span> : isActiveProductInCart ? (
+            <span>Ostukorvis · {activeProductCartItem?.quantity} tk</span>
+          ) : isActiveProductAtCartLimit ? <span>Saadaval kogus on ostukorvis</span> : <span>Lisa ostukorvi</span>}
         </button>
         <footer className="site-footer">
           {isAdminMode && !storeDescription.trim() && <button className="store-description-missing" type="button" onClick={openStoreDescriptionSettings}>
@@ -1762,7 +2033,16 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
         </section>
       </div>}
 
-      {isCartOpen && <Cart items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} onRemove={(index) => setCart((items) => items.filter((_, itemIndex) => itemIndex !== index))} onComplete={(order) => { setOrders((current) => [order, ...current]); setCart([]) }} onClose={() => setIsCartOpen(false)} />}
+      {isCartOpen && <Cart items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
+        const target = items.find((item) => item.cartKey === cartKey)
+        if (!target || quantity <= 0) return items.filter((item) => item.cartKey !== cartKey)
+        const otherQuantity = items.filter((item) => item.id === target.id && item.cartKey !== cartKey).reduce((sum, item) => sum + item.quantity, 0)
+        const allowedQuantity = Math.max(1, Math.min(quantity, getProductStockLimit(target) - otherQuantity))
+        return items.map((item) => item.cartKey === cartKey ? { ...item, quantity: allowedQuantity } : item)
+      })} onComplete={(order) => {
+        setOrders((current) => [order, ...current]); setCart([])
+        if (storeId) createOrder(storeId, order).catch((error) => setAuthToast(error instanceof Error ? error.message : 'Tellimuse salvestamine ebaõnnestus'))
+      }} onClose={() => setIsCartOpen(false)} />}
       {isOrdersOpen && <div className="overlay login-overlay orders-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsOrdersOpen(false)}>
         <section className="login-sheet orders-sheet" role="dialog" aria-modal="true" aria-label="Tellimused">
           <button className="login-sheet__close" onClick={() => setIsOrdersOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
@@ -1780,8 +2060,8 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           {orders.length ? <div className={`order-list${orderLayout === 'list' ? ' is-list' : ''}`}>{visibleOrders.length ? visibleOrders.map((order) => <article className={order.status === 'new' ? 'is-new' : order.status === 'refunded' ? 'is-refunded' : ''} key={order.id}>
             <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'new' ? 'Uus' : order.status === 'refunded' ? 'Tagastatud' : 'Täidetud'}</span></header>
             <div className="order-customer"><strong>{order.customerName}</strong><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a><small>{order.delivery}</small></div>
-            <ul>{order.items.map((item) => <li key={item.id}><img src={item.image} alt="" /><span>{item.name}</span><strong>{getProductPrice(item).toFixed(2).replace('.', ',')} €</strong></li>)}</ul>
-            <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'new' ? <button type="button" onClick={() => setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status: 'fulfilled' } : item))}>Märgi täidetuks</button> : order.status === 'fulfilled' ? <button className="order-refund" type="button" onClick={() => setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status: 'refunded' } : item))}>Märgi tagastatuks</button> : <small>Poeruumi tasu krediteeritud</small>}</footer>
+            <ul>{order.items.map((item) => <li key={item.cartKey}><img src={item.image} alt="" /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
+            <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'new' ? <button type="button" onClick={() => changeOrderStatus(order.id, 'fulfilled')}>Märgi täidetuks</button> : order.status === 'fulfilled' ? <button className="order-refund" type="button" onClick={() => changeOrderStatus(order.id, 'refunded')}>Märgi tagastatuks</button> : <small>Poeruumi tasu krediteeritud</small>}</footer>
           </article>) : <div className="orders-no-results"><span>⌕</span><h3>Tellimusi ei leitud</h3><p>Proovi tellimuse numbrit, kliendi nime või toodet.</p><button type="button" onClick={() => setOrderSearch('')}>Tühjenda otsing</button></div>}</div> : <div className="orders-empty"><span>□</span><h3>Tellimusi veel pole</h3><p>Uued ostud ilmuvad siia automaatselt.</p></div>}
         </section>
       </div>}
@@ -1992,29 +2272,30 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
           {settingsSection === 'billing' && <div className="settings-panel billing-panel" role="tabpanel">
             <header><span>ARVELDUS</span><p>Vali müügimahule sobiv pakett. Vahetada saad igal ajal.</p></header>
             <div className="billing-plan-options" role="radiogroup" aria-label="Poeruumi pakett">
-              <button type="button" className={billingPlan === 'flexible' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'flexible'} onClick={() => setBillingPlan('flexible')}>
+              <button type="button" className={billingPlan === 'flexible' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'flexible'} onClick={() => selectBillingPlan('flexible')}>
                 <span>PAINDLIK</span><strong>0 € <small>/ kuu</small></strong><p>4% toodete müügilt</p><em>Kuni 39 € kuus + km</em><b>{billingPlan === 'flexible' ? '✓ Valitud' : 'Vali pakett'}</b>
               </button>
-              <button type="button" className={billingPlan === 'fixed' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'fixed'} onClick={() => setBillingPlan('fixed')}>
-                <span>KINDEL</span><strong>29 € <small>/ kuu + km</small></strong><p>0% Poeruumi müügitasu</p><em>Kasulik alates 725 € kuumüügist</em><b>{billingPlan === 'fixed' ? '✓ Valitud' : 'Vali pakett'}</b>
+              <button type="button" className={billingPlan === 'fixed' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'fixed'} onClick={() => selectBillingPlan('fixed')}>
+                <span>KINDEL · 30 PÄEVA TASUTA</span><strong>29 € <small>/ kuu + km</small></strong><p>0% Poeruumi müügitasu</p><em>Esimesed 30 päeva tasuta</em><b>{billingPlan === 'fixed' ? '✓ Valitud' : 'Alusta tasuta'}</b>
               </button>
             </div>
             <div className="billing-current">
               <header><span>{billingMonth}</span><strong>{formatEuro(monthlyPlatformFee)}</strong></header>
               <div className="billing-current__progress"><i style={{ width: `${platformFeeProgress}%` }} /></div>
-              <div><span>Toodete müük <strong>{formatEuro(monthlyProductSales)}</strong></span><span>{billingPlan === 'fixed' ? '0% müügitasu' : remainingPlatformFee > 0 ? `Kuulaeni ${formatEuro(remainingPlatformFee)}` : 'Hinnalagi täis'}</span></div>
-              <small>{billingPlan === 'fixed' ? 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
+              <div><span>Toodete müük <strong>{formatEuro(monthlyProductSales)}</strong></span><span>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `${fixedPlanTrialDaysLeft} päeva tasuta` : '0% müügitasu' : remainingPlatformFee > 0 ? `Kuulaeni ${formatEuro(remainingPlatformFee)}` : 'Hinnalagi täis'}</span></div>
+              <small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel 29 € kuus + km.` : 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
             </div>
             <div className="billing-rules">
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg></span><p><strong>{billingPlan === 'fixed' ? 'Müügilt 0% Poeruumile' : 'Tarne ei kuulu arvestusse'}</strong><small>{billingPlan === 'fixed' ? 'Müügimahu kasv ei suurenda kuutasu.' : '4% arvutatakse ainult toodete summalt.'}</small></p></div>
-              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8H4V4"/><path d="M4.5 8a8 8 0 1 1-.1 7"/></svg></span><p><strong>{billingPlan === 'fixed' ? 'Paketti saad vahetada' : 'Tagastuse tasu krediteeritakse'}</strong><small>{billingPlan === 'fixed' ? 'Uus valik hakkab kehtima järgmisest arvelduskuust.' : 'Tagastatud toodete müük vähendatakse arvestusest.'}</small></p></div>
-              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? 'Kindel kulu iga kuu' : 'Pärast 39 € müüd tasuta'}</strong><small>{billingPlan === 'fixed' ? 'Poeruumi kuutasu on alati 29 € + km.' : 'Kuu hinnalagi kaitseb sinu kasvu.'}</small></p></div>
+              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8H4V4"/><path d="M4.5 8a8 8 0 1 1-.1 7"/></svg></span><p><strong>{billingPlan === 'fixed' ? 'Paketti saad vahetada' : 'Tagastuse tasu krediteeritakse'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Prooviperiood algas Kindla paketi esmakordsel valimisel.' : 'Uus valik hakkab kehtima järgmisest arvelduskuust.' : 'Tagastatud toodete müük vähendatakse arvestusest.'}</small></p></div>
+              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : 'Pärast 39 € müüd tasuta'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Pärast prooviperioodi on kuutasu 29 € + km.' : 'Poeruumi kuutasu on 29 € + km.' : 'Kuu hinnalagi kaitseb sinu kasvu.'}</small></p></div>
             </div>
             <div className="settings-fields billing-fields"><label>Arvete e-post<input type="email" value={billingEmail} onChange={(event) => setBillingEmail(event.target.value)} placeholder={contactEmail || 'arved@minupood.ee'} /><small className="settings-field-note">Kuu kokkuvõte saadetakse järgmise kuu alguses.</small></label></div>
             <div className="settings-info-note"><span>i</span><p>{activePaymentProvider === 'stripe' ? 'Stripe’i' : 'Montonio'} makseteenuse tasud ei kuulu Poeruumi tasu sisse ja arvestatakse teenusepakkuja hinnakirja järgi.</p></div>
           </div>}
         </section>
       </div>}
+      {isBillingCardOpen && <BillingCardDemo onClose={() => setIsBillingCardOpen(false)} onConfirm={(trialStartedAt) => { setFixedPlanTrialStartedAt(new Date(trialStartedAt)); setBillingPlan('fixed'); setIsBillingCardOpen(false) }} />}
       {activeProduct && isShareOpen && <div className="overlay share-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsShareOpen(false)}>
         <section className={`share-sheet${isShareDragging ? ' is-dragging' : ''}`} style={shareDragY ? { transform: `translateY(${shareDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Jaga toodet">
           <div
@@ -2069,9 +2350,17 @@ export function Storefront({ seedProducts = products, storeName = 'VEIDRAD ASJAD
             </button>
             <span className="login-sheet__eyebrow">POE OMANIKULE</span>
             <h2>Logi sisse</h2>
-            <form onSubmit={(event) => { event.preventDefault(); setIsLoggedIn(true); setIsCustomerPreview(false); setIsLoginOpen(false); setAuthToast('Sisse logitud') }}>
-              <label>E-post<input type="email" autoComplete="username" /></label>
-              <label>Parool<input type="password" autoComplete="current-password" /></label>
+            <form onSubmit={async (event) => {
+              event.preventDefault()
+              const form = new FormData(event.currentTarget)
+              if (storeId && isSupabaseConfigured) {
+                const { error } = await requireSupabase().auth.signInWithPassword({ email: String(form.get('email')), password: String(form.get('password')) })
+                if (error) { setAuthToast(error.message); return }
+              }
+              setIsLoggedIn(true); setIsCustomerPreview(false); setIsLoginOpen(false); setAuthToast('Sisse logitud')
+            }}>
+              <label>E-post<input name="email" type="email" autoComplete="username" required /></label>
+              <label>Parool<input name="password" type="password" autoComplete="current-password" required /></label>
               <button type="submit">Logi sisse</button>
             </form>
           </section>

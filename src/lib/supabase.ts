@@ -1,0 +1,18 @@
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim()
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
+
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
+
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    })
+  : null
+
+export const requireSupabase = () => {
+  if (!supabase) throw new Error('Supabase ei ole seadistatud. Lisa VITE_SUPABASE_URL ja VITE_SUPABASE_PUBLISHABLE_KEY .env faili.')
+  return supabase
+}
+

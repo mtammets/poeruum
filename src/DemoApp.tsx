@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Storefront, type PaymentProvider, type PricingPlan } from './App'
+import { BillingCardDemo, Storefront, type PaymentProvider, type PricingPlan } from './App'
+import { createStore, getMyStore, getStoreBySlug, listProducts, updateStore, type StoreRecord } from './lib/database'
+import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import type { Product } from './products'
 
 type Screen = 'landing' | 'login' | 'account' | 'store' | 'payments' | 'shipping' | 'publish' | 'storefront' | 'sample'
 
@@ -64,7 +67,7 @@ function SetupShell({ screen, children, onBack }: { screen: Screen; children: Re
     <FlowHeader onBack={onBack} />
     <SetupProgress screen={screen} />
     <section className="setup-card">{children}</section>
-    <p className="demo-disclaimer">Interaktiivne demo · andmeid ei salvestata serverisse</p>
+    <p className="demo-disclaimer">Poe seadistus salvestatakse turvaliselt.</p>
   </main>
 }
 
@@ -191,6 +194,7 @@ export default function DemoApp() {
   const [slug, setSlug] = useState('')
   const [payment, setPayment] = useState<'stripe' | 'montonio'>('stripe')
   const [pricingPlan, setPricingPlan] = useState<PricingPlan>('flexible')
+  const [fixedPlanTrialStartedAt, setFixedPlanTrialStartedAt] = useState<string | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'connected' | 'pending'>('idle')
   const [isStripeConnectOpen, setIsStripeConnectOpen] = useState(false)
   const [isMontonioConnectOpen, setIsMontonioConnectOpen] = useState(false)
@@ -198,10 +202,96 @@ export default function DemoApp() {
   const mobileNavRef = useRef<HTMLDivElement>(null)
   const [shipping, setShipping] = useState<string[]>(['omniva', 'pickup'])
   const [isPublishing, setIsPublishing] = useState(false)
+  const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
   const [phoneSlideIndex, setPhoneSlideIndex] = useState(1)
   const [isPhoneSwipeAnimated, setIsPhoneSwipeAnimated] = useState(true)
   const [isPhoneDetailsOpen, setIsPhoneDetailsOpen] = useState(false)
+  const [store, setStore] = useState<StoreRecord | null>(null)
+  const [storedProducts, setStoredProducts] = useState<Product[]>([])
+  const [authError, setAuthError] = useState('')
+  const [isAuthBusy, setIsAuthBusy] = useState(false)
+  const [publicStore, setPublicStore] = useState<StoreRecord | null>(null)
+  const [publicProducts, setPublicProducts] = useState<Product[]>([])
   const phoneProductIndex = (phoneSlideIndex - 1 + phonePreviewProducts.length) % phonePreviewProducts.length
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    const pathSlug = window.location.pathname.match(/^\/p\/([^/]+)\/?$/)?.[1]
+    const requestedSlug = pathSlug || new URLSearchParams(window.location.search).get('store')
+    if (!requestedSlug) return
+    getStoreBySlug(decodeURIComponent(requestedSlug)).then(async (found) => {
+      if (!found) return
+      setPublicStore(found)
+      setPublicProducts(await listProducts(found.id))
+    }).catch((error) => setAuthError(error instanceof Error ? error.message : 'Poe laadimine ebaõnnestus.'))
+  }, [])
+
+  const applyStore = async (nextStore: StoreRecord) => {
+    setStore(nextStore)
+    setStoreName(nextStore.name)
+    setSlug(nextStore.slug)
+    setPayment(nextStore.payment_provider)
+    setPaymentStatus(nextStore.payment_status)
+    setPricingPlan(nextStore.pricing_plan)
+    setFixedPlanTrialStartedAt(nextStore.trial_started_at)
+    setShipping(nextStore.shipping)
+    setStoredProducts(await listProducts(nextStore.id))
+  }
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    let active = true
+    const restore = async () => {
+      const { data } = await requireSupabase().auth.getSession()
+      if (!data.session || !active) return
+      setEmail(data.session.user.email ?? '')
+      const existing = await getMyStore()
+      if (existing && active) { await applyStore(existing); setScreen('storefront') }
+    }
+    restore().catch((error) => active && setAuthError(error instanceof Error ? error.message : 'Andmete laadimine ebaõnnestus.'))
+    const { data } = requireSupabase().auth.onAuthStateChange((_event, session) => {
+      if (!session && active) { setStore(null); setStoredProducts([]) }
+    })
+    return () => { active = false; data.subscription.unsubscribe() }
+  }, [])
+
+  const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsAuthBusy(true); setAuthError('')
+    try {
+      if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
+      const form = new FormData(event.currentTarget)
+      const { error } = await requireSupabase().auth.signInWithPassword({ email, password: String(form.get('password') ?? '') })
+      if (error) throw error
+      const existing = await getMyStore()
+      if (existing) { await applyStore(existing); setScreen('storefront') } else setScreen('store')
+    } catch (error) { setAuthError(error instanceof Error ? error.message : 'Sisselogimine ebaõnnestus.') }
+    finally { setIsAuthBusy(false) }
+  }
+
+  const signUp = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsAuthBusy(true); setAuthError('')
+    try {
+      if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
+      const form = new FormData(event.currentTarget)
+      const { data, error } = await requireSupabase().auth.signUp({ email, password: String(form.get('password') ?? '') })
+      if (error) throw error
+      if (!data.session) throw new Error('Konto on loodud. Kinnita e-posti aadress ja logi seejärel sisse.')
+      setScreen('store')
+    } catch (error) { setAuthError(error instanceof Error ? error.message : 'Konto loomine ebaõnnestus.') }
+    finally { setIsAuthBusy(false) }
+  }
+
+  const persistStore = async (published = false, overrides: Partial<StoreRecord> = {}) => {
+    const payload = {
+      name: storeName.trim(), slug: slug || slugify(storeName), payment_provider: payment, payment_status: paymentStatus,
+      pricing_plan: pricingPlan, trial_started_at: fixedPlanTrialStartedAt, shipping, is_published: published, ...overrides,
+    }
+    const saved = store ? await updateStore(store.id, payload) : await createStore(payload)
+    setStore(saved)
+    return saved
+  }
 
   const resetSetupScrollAfterKeyboard = () => {
     if (!storeName.trim()) return
@@ -279,9 +369,11 @@ export default function DemoApp() {
     setSlug('')
     setPayment('stripe')
     setPricingPlan('flexible')
+    setFixedPlanTrialStartedAt(null)
     setPaymentStatus('idle')
     setIsStripeConnectOpen(false)
     setIsMontonioConnectOpen(false)
+    setIsBillingCardOpen(false)
     setShipping(['omniva', 'pickup'])
   }
 
@@ -289,10 +381,36 @@ export default function DemoApp() {
     login: 'landing', account: 'landing', store: 'account', payments: 'store', shipping: 'payments', publish: 'shipping',
   }
   const phoneProduct = phonePreviewProducts[phoneProductIndex]
+  const selectPricingPlan = (plan: PricingPlan) => {
+    setPricingPlan(plan)
+  }
+  const publishStore = async () => {
+    if (pricingPlan === 'fixed' && !fixedPlanTrialStartedAt) {
+      setIsBillingCardOpen(true)
+      return
+    }
+    setIsPublishing(true); setAuthError('')
+    try { await persistStore(true); setScreen('storefront') }
+    catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe avaldamine ebaõnnestus.') }
+    finally { setIsPublishing(false) }
+  }
 
+  if (publicStore) return <Storefront
+    key={publicStore.id}
+    storeId={publicStore.id}
+    initialSettings={publicStore.settings}
+    seedProducts={publicProducts}
+    storeName={publicStore.name}
+    storeSlug={publicStore.slug}
+    paymentProvider={publicStore.payment_provider}
+    paymentsReady={publicStore.payment_status === 'connected'}
+    initialShipping={publicStore.shipping}
+    pricingPlan={publicStore.pricing_plan}
+    fixedPlanTrialStartedAt={publicStore.trial_started_at}
+  />
   if (screen === 'sample') return <Storefront key="sample-storefront" onExit={() => setScreen('landing')} />
   if (screen === 'storefront') return <>
-    <Storefront key="merchant-storefront" seedProducts={[]} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} merchantMode onConnectPaymentProvider={(provider: PaymentProvider) => provider === 'stripe' ? setIsStripeConnectOpen(true) : setIsMontonioConnectOpen(true)} onExit={resetDemo} />
+    <Storefront key="merchant-storefront" storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode onConnectPaymentProvider={(provider: PaymentProvider) => provider === 'stripe' ? setIsStripeConnectOpen(true) : setIsMontonioConnectOpen(true)} onExit={resetDemo} />
     {isStripeConnectOpen && <StripeConnectDemo email={email} onClose={() => setIsStripeConnectOpen(false)} onComplete={() => { setPayment('stripe'); setPaymentStatus('connected'); setIsStripeConnectOpen(false) }} />}
     {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { setPayment('montonio'); setPaymentStatus(status); setIsMontonioConnectOpen(false) }} />}
   </>
@@ -323,7 +441,7 @@ export default function DemoApp() {
         <h1>Sinu e-pood.<br /><em>10 minutiga.</em></h1>
         <p>Tee pilt, lisa hind ja vajuta „Avalda”. Kõige muu eest hoolitseme meie.</p>
         <button onClick={() => setScreen('account')}>Alusta tasuta <span>→</span></button>
-        <small>Kaks paketti: 0 € kuutasu + müügitasu või 29 € kuus + km ilma müügitasuta</small>
+        <small>Kaks paketti: 0 € kuutasu + müügitasu või 30 päeva tasuta, seejärel 29 € kuus + km</small>
       </div>
       <div className="demo-phone-stage">
       <div className={`demo-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
@@ -370,14 +488,14 @@ export default function DemoApp() {
           <div className="demo-pricing__rate"><strong>0 €</strong><p>kuus<br />+ 4% müügilt</p></div>
           <dl><div><dt>Müüki pole</dt><dd>0 €</dd></div><div><dt>Poeruumi müügitasu</dt><dd>4%</dd></div><div className="is-cap"><dt>Maksimum kuus</dt><dd>39 € + km</dd></div></dl>
           <small>Sobib alustamiseks ja ebaregulaarse müügiga poele.</small>
-          <button onClick={() => { setPricingPlan('flexible'); setScreen('account') }}>Vali Paindlik <span>→</span></button>
+          <button onClick={() => { selectPricingPlan('flexible'); setScreen('account') }}>Vali Paindlik <span>→</span></button>
         </article>
         <article className="demo-pricing__card">
-          <span>KINDEL</span>
+          <span>KINDEL <b>30 PÄEVA TASUTA</b></span>
           <div className="demo-pricing__rate"><strong>29 €</strong><p>kuus + km<br />0% müügilt</p></div>
           <dl><div><dt>Poeruumi müügitasu</dt><dd>0%</dd></div><div><dt>Kindel kuutasu</dt><dd>29 € + km</dd></div><div className="is-cap"><dt>Kasulik alates</dt><dd>725 € müügist</dd></div></dl>
-          <small>Sobib aktiivsele müüjale, kes soovib ette teada täpset kulu.</small>
-          <button onClick={() => { setPricingPlan('fixed'); setScreen('account') }}>Vali Kindel <span>→</span></button>
+          <small>Esimesed 30 päeva tasuta, seejärel 29 € kuus + km.</small>
+          <button onClick={() => { selectPricingPlan('fixed'); setScreen('account') }}>Alusta tasuta <span>→</span></button>
         </article>
       </div>
       <p className="demo-pricing__note">Paketti saad iga kuu vahetada. Makseteenuse pakkuja tasud lisanduvad eraldi.</p>
@@ -407,7 +525,7 @@ export default function DemoApp() {
         <h2>KKK</h2>
       </header>
       <div className="demo-faq__list">
-        <details open><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Paindlik pakett maksab 0 € kuus ja 4% toodete müügilt, maksimaalselt 39 € kuus + km. Kindel pakett maksab 29 € kuus + km ning Poeruumi müügitasu on 0%.</p></details>
+        <details open><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Paindlik pakett maksab 0 € kuus ja 4% toodete müügilt, maksimaalselt 39 € kuus + km. Kindel pakett on esimesed 30 päeva tasuta, seejärel 29 € kuus + km ning Poeruumi müügitasu on 0%.</p></details>
         <details><summary>Kas saan kogu poe telefonis valmis teha?<span>+</span></summary><p>Jah. Telefonis saad pildistada tooted, lisada hinnad ja kirjeldused, kujundada poe, ühendada maksed ja tarne ning poe avaldada.</p></details>
         <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Saad ühendada Stripe’i või Montonio. Nii saad pakkuda pangalinke, kaardimakseid ning teenusepakkujast sõltuvalt Apple Pay ja Google Pay makseid.</p></details>
         <details><summary>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Toetatud on Omniva, DPD ja SmartPosti pakiautomaadid, kuller ning ise järele tulemine. Tarneviisid ja hinnad valid ise.</p></details>
@@ -435,13 +553,14 @@ export default function DemoApp() {
         </aside>
         <section className="auth-card auth-card--login">
           <h1>Logi sisse</h1><p>Tagasi oma poe haldusesse.</p>
-          <form onSubmit={(event) => { event.preventDefault(); setScreen(storeName.trim() ? (paymentStatus === 'idle' ? 'payments' : 'shipping') : 'store') }}>
+          <form onSubmit={signIn}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sina@ettevote.ee" autoComplete="username" autoFocus /></label>
-            <label>Parool<input required type="password" minLength={6} placeholder="Sinu parool" autoComplete="current-password" /></label>
-            <button type="submit">Jätka oma poega <span>→</span></button>
+            <label>Parool<input required name="password" type="password" minLength={6} placeholder="Sinu parool" autoComplete="current-password" /></label>
+            {authError && <p className="add-product-error" role="alert">{authError}</p>}
+            <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Login sisse…' : 'Jätka oma poega'} <span>→</span></button>
           </form>
           <div className="auth-switch"><span>Pole veel kontot?</span><button type="button" onClick={() => setScreen('account')}>Loo pood</button></div>
-          <small>Demo ei saada andmeid serverisse.</small>
+          <small>Turvaline sisselogimine Supabase Authiga.</small>
         </section>
       </div>
     </div>
@@ -465,18 +584,19 @@ export default function DemoApp() {
         </aside>
         <section className="auth-card">
           <h1>Loo konto</h1><p>Valmis vähem kui minutiga.</p>
-          <form onSubmit={(event) => { event.preventDefault(); setScreen('store') }}>
+          <form onSubmit={signUp}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sina@ettevote.ee" autoFocus /></label>
-            <label>Parool<input required type="password" minLength={6} placeholder="Vähemalt 6 tähemärki" /></label>
+            <label>Parool<input required name="password" type="password" minLength={6} placeholder="Vähemalt 6 tähemärki" /></label>
             <label className="auth-consent">
               <input required type="checkbox" />
               <span className="auth-checkbox" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 2.8 2.8 6.2-6.2" /></svg></span>
               <span>Nõustun kasutustingimuste ja privaatsuspoliitikaga</span>
             </label>
-            <button type="submit">Loo konto ja jätka <span>→</span></button>
+            {authError && <p className="add-product-error" role="alert">{authError}</p>}
+            <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Loon kontot…' : 'Loo konto ja jätka'} <span>→</span></button>
           </form>
           <div className="auth-switch"><span>Konto juba olemas?</span><button type="button" onClick={() => setScreen('login')}>Logi sisse</button></div>
-          <small>Demo ei saada andmeid serverisse.</small>
+          <small>Konto luuakse Supabase Authis.</small>
         </section>
       </div>
     </div>
@@ -485,7 +605,7 @@ export default function DemoApp() {
   const onBack = () => setScreen(backMap[screen] ?? 'landing')
 
   return <SetupShell screen={screen} onBack={onBack}>
-    {screen === 'store' && <form className="setup-form" onSubmit={(event) => { event.preventDefault(); setScreen('payments') }}>
+    {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { await persistStore(false); setScreen('payments') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
       <span className="setup-kicker">Alustame põhilisest</span><h1>Mis on sinu poe nimi?</h1><p>Seda näevad sinu kliendid poe päises ja otsingutulemustes.</p>
       <label>Poe nimi<input
         required
@@ -502,6 +622,7 @@ export default function DemoApp() {
         placeholder="Näiteks Mareki Käsitöö"
       /></label>
       <div className="domain-preview"><span>Sinu poe aadress</span><strong>{slug || 'minu-pood'}.poeruum.ee</strong><small>Aadressi saad hiljem muuta või lisada oma domeeni.</small></div>
+      {authError && <p className="add-product-error" role="alert">{authError}</p>}
       <button className="setup-next" type="submit">Jätka maksetega <span>→</span></button>
     </form>}
 
@@ -517,8 +638,8 @@ export default function DemoApp() {
       {paymentStatus === 'idle' ? <button className={`connect-provider connect-provider--${payment}`} onClick={() => payment === 'stripe' ? setIsStripeConnectOpen(true) : setIsMontonioConnectOpen(true)}>
         <span className="connect-provider__identity"><i className={`provider-logo provider-logo--${payment}`}><img src={payment === 'stripe' ? '/images/stripe-wordmark.svg' : '/images/montonio-wordmark.svg'} alt="" /></i><span><strong>Ühenda {payment === 'stripe' ? 'Stripe' : 'Montonio'}</strong><small>{payment === 'stripe' ? 'Turvaline demoühendus · umbes 2 minutit' : 'Olemasolev konto või uus taotlus'}</small></span></span><b>→</b>
       </button> : <div className={`connected-provider${paymentStatus === 'pending' ? ' is-pending' : ''}`}><span>{paymentStatus === 'pending' ? '…' : '✓'}</span><div><strong>{paymentStatus === 'pending' ? 'Montonio taotlus on kontrollimisel' : payment === 'stripe' ? 'Kaardimaksed on valmis' : 'Montonio maksed on valmis'}</strong><small>{paymentStatus === 'pending' ? 'Kontroll võtab tavaliselt 1–2 tööpäeva. Päris maksed aktiveeruvad pärast kinnitamist.' : payment === 'stripe' ? 'Stripe kannab müügitulu otse sinu väljamaksekontole.' : 'Pangamaksed ja konto staatus on Poeruumiga sünkroonitud.'}</small></div></div>}
-      <div className="setup-fee-note"><span>i</span><p><strong>Makseteenus ja Poeruum on eraldi.</strong> {payment === 'stripe' ? 'Stripe’i' : 'Montonio'} tasud lähevad teenusepakkujale. Sinu valitud {pricingPlan === 'flexible' ? 'Paindlik pakett maksab 0 € kuus ja 4% toodete müügilt' : 'Kindel pakett maksab 29 € kuus + km ning Poeruumi müügitasu on 0%'}.</p></div>
-      <button className="setup-next" disabled={paymentStatus === 'idle'} onClick={() => setScreen('shipping')}>Jätka tarnega <span>→</span></button>
+      <div className="setup-fee-note"><span>i</span><p><strong>Makseteenus ja Poeruum on eraldi.</strong> {payment === 'stripe' ? 'Stripe’i' : 'Montonio'} tasud lähevad teenusepakkujale. Sinu valitud {pricingPlan === 'flexible' ? 'Paindlik pakett maksab 0 € kuus ja 4% toodete müügilt' : 'Kindel pakett on esimesed 30 päeva tasuta, seejärel 29 € kuus + km ning Poeruumi müügitasu on 0%'}.</p></div>
+      <button className="setup-next" disabled={paymentStatus === 'idle'} onClick={async () => { try { await persistStore(false); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>
       {isStripeConnectOpen && <StripeConnectDemo email={email} onClose={() => setIsStripeConnectOpen(false)} onComplete={() => { setPaymentStatus('connected'); setIsStripeConnectOpen(false) }} />}
       {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { setPaymentStatus(status); setIsMontonioConnectOpen(false) }} />}
     </div>}
@@ -530,7 +651,7 @@ export default function DemoApp() {
         ['smartposti', 'https://images.ctfassets.net/dvxpcmq06s7e/5LDF7M5UltxLRSteji1IIj/66fc61b81e453d12d154fcaceec04e42/Logo_SmartPosti.png', 'SmartPosti pakiautomaat'],
         ['pickup', '', 'Tulen ise järele'],
       ].map(([id, logo, name]) => <label key={id}><span className={`shipping-brand shipping-brand--${id}`}>{logo ? <img src={logo} alt="" loading="eager" decoding="async" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" /><circle cx="12" cy="10" r="2.2" /></svg>}</span><div><strong>{name}</strong></div><input type="checkbox" checked={shipping.includes(id)} onChange={() => setShipping((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} /><i /></label>)}</div>
-      <button className="setup-next" disabled={!shipping.length} onClick={() => setScreen('publish')}>Jätka avaldamisega <span>→</span></button>
+      <button className="setup-next" disabled={!shipping.length} onClick={async () => { try { await persistStore(false); setScreen('publish') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka avaldamisega <span>→</span></button>
     </div>}
 
     {screen === 'publish' && <div className="setup-form publish-step"><div className="publish-ready"><span className="publish-ready__logo" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="1" y="1" width="38" height="38" rx="11" /><path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z" /><path d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18" /><path d="M15.5 22.2h9" /></svg></span><strong>Sinu Poeruum<br />on valmis.</strong></div>
@@ -546,21 +667,27 @@ export default function DemoApp() {
         </div>
       </section>
       <div className="publish-plan-picker" role="radiogroup" aria-label="Vali Poeruumi pakett">
-        <button type="button" role="radio" aria-checked={pricingPlan === 'flexible'} className={pricingPlan === 'flexible' ? 'is-selected' : ''} onClick={() => setPricingPlan('flexible')}>
+        <button type="button" role="radio" aria-checked={pricingPlan === 'flexible'} className={pricingPlan === 'flexible' ? 'is-selected' : ''} onClick={() => selectPricingPlan('flexible')}>
           <span className="publish-plan-name">Paindlik<i aria-hidden="true" /></span>
           <strong className="publish-plan-price">0 € <small>/ kuu</small></strong>
           <em>4% müügilt<br />kuni 39 € kuus</em>
           <b>{pricingPlan === 'flexible' ? 'Valitud' : 'Vali pakett'}<span aria-hidden="true">{pricingPlan === 'flexible' ? '✓' : '→'}</span></b>
         </button>
-        <button type="button" role="radio" aria-checked={pricingPlan === 'fixed'} className={pricingPlan === 'fixed' ? 'is-selected' : ''} onClick={() => setPricingPlan('fixed')}>
-          <span className="publish-plan-name">Kindel<i aria-hidden="true" /></span>
+        <button type="button" role="radio" aria-checked={pricingPlan === 'fixed'} className={pricingPlan === 'fixed' ? 'is-selected' : ''} onClick={() => selectPricingPlan('fixed')}>
+          <span className="publish-plan-name">Kindel · 30 päeva tasuta<i aria-hidden="true" /></span>
           <strong className="publish-plan-price">29 € <small>/ kuu + km</small></strong>
-          <em>0% Poeruumi<br />müügitasu</em>
-          <b>{pricingPlan === 'fixed' ? 'Valitud' : 'Vali pakett'}<span aria-hidden="true">{pricingPlan === 'fixed' ? '✓' : '→'}</span></b>
+          <em>Seejärel 29 € / kuu + km<br />0% Poeruumi müügitasu</em>
+          <b>{pricingPlan === 'fixed' ? '30 päeva tasuta' : 'Alusta tasuta'}<span aria-hidden="true">{pricingPlan === 'fixed' ? '✓' : '→'}</span></b>
         </button>
       </div>
       <small className="publish-fee-note">Paketti saad hiljem muuta · Maksetasud lisanduvad</small>
-      <button className="publish-button" disabled={isPublishing} onClick={() => { setIsPublishing(true); window.setTimeout(() => { setIsPublishing(false); setScreen('storefront') }, 1100) }}>{isPublishing ? 'Avaldan poodi…' : pricingPlan === 'flexible' ? 'Avalda pood tasuta' : 'Avalda pood'} <span>{isPublishing ? '◌' : '→'}</span></button><small className="publish-note">Avaldamisega nõustud kasutustingimustega.</small>
+      <button className="publish-button" disabled={isPublishing} onClick={publishStore}>{isPublishing ? 'Avaldan poodi…' : pricingPlan === 'flexible' ? 'Avalda pood tasuta' : 'Alusta 30 päeva tasuta ja avalda'} <span>{isPublishing ? '◌' : '→'}</span></button><small className="publish-note">Avaldamisega nõustud kasutustingimustega.</small>
     </div>}
+    {isBillingCardOpen && <BillingCardDemo confirmLabel="Kinnita ja avalda pood" onClose={() => setIsBillingCardOpen(false)} onConfirm={async (trialStartedAt) => {
+      setFixedPlanTrialStartedAt(trialStartedAt); setIsBillingCardOpen(false); setIsPublishing(true)
+      try { await persistStore(true, { trial_started_at: trialStartedAt, pricing_plan: 'fixed' }); setScreen('storefront') }
+      catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe avaldamine ebaõnnestus.') }
+      finally { setIsPublishing(false) }
+    }} />}
   </SetupShell>
 }
