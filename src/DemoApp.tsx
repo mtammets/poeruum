@@ -6,6 +6,19 @@ import type { Product } from './products'
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
 type OnboardingStep = 'business' | 'payments' | 'shipping' | 'publish' | 'complete'
+type RegistryLookupStatus = 'idle' | 'loading' | 'found' | 'not-found' | 'error'
+
+type RegistryCompany = {
+  reg_code: number | string
+  name: string
+  legal_address: string
+  status: string
+}
+
+type RegistryLookupResponse = {
+  status?: string
+  data?: RegistryCompany[]
+}
 
 const onboardingSteps = new Set<OnboardingStep>(['business', 'payments', 'shipping', 'publish', 'complete'])
 
@@ -253,6 +266,9 @@ export default function DemoApp() {
   const [businessName, setBusinessName] = useState('')
   const [registryCode, setRegistryCode] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
+  const [registryLookupStatus, setRegistryLookupStatus] = useState<RegistryLookupStatus>('idle')
+  const [registryLookupCompanyName, setRegistryLookupCompanyName] = useState('')
+  const [registryLookupAttempt, setRegistryLookupAttempt] = useState(0)
   const [businessEmail, setBusinessEmail] = useState('')
   const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
   const [isPublishing, setIsPublishing] = useState(false)
@@ -275,6 +291,50 @@ export default function DemoApp() {
   useEffect(() => {
     if (email && !businessEmail) setBusinessEmail(email)
   }, [email, businessEmail])
+
+  useEffect(() => {
+    if (screen !== 'business' || !/^\d{8}$/.test(registryCode)) {
+      setRegistryLookupStatus('idle')
+      setRegistryLookupCompanyName('')
+      return
+    }
+
+    // Do not overwrite seller details restored from an existing saved store.
+    if (businessName.trim() && businessAddress.trim()) return
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setRegistryLookupStatus('loading')
+      setRegistryLookupCompanyName('')
+      try {
+        const response = await fetch(`https://ariregister.rik.ee/est/api/autocomplete?q=${encodeURIComponent(registryCode)}`, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        })
+        if (!response.ok) throw new Error(`Äriregistri päring ebaõnnestus (${response.status}).`)
+
+        const result = await response.json() as RegistryLookupResponse
+        const company = result.data?.find((item) => String(item.reg_code) === registryCode && item.status === 'R')
+        if (!company) {
+          setRegistryLookupStatus('not-found')
+          return
+        }
+
+        setBusinessName(company.name)
+        setBusinessAddress(company.legal_address)
+        setRegistryLookupCompanyName(company.name)
+        setRegistryLookupStatus('found')
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setRegistryLookupStatus('error')
+      }
+    }, 250)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [registryCode, registryLookupAttempt, screen])
 
   useEffect(() => {
     if (confirmationResendCooldown <= 0) return
@@ -950,8 +1010,26 @@ export default function DemoApp() {
       catch (error) { setAuthError(error instanceof Error ? error.message : 'Müüja andmete salvestamine ebaõnnestus.') }
     }}>
       <span className="setup-kicker">Kes kliendile müüb?</span><h1>Lisa müüja andmed</h1>
-      <label>Registrikood<input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={registryCode} onChange={(event) => setRegistryCode(event.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" /></label>
-      <div className="setup-business__registry-note"><span>i</span><p>Pärisversioonis leiab Poeruum registrikoodi järgi ettevõtte nime ja aadressi automaatselt.</p></div>
+      <label>Registrikood<input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={registryCode} onChange={(event) => {
+        const nextRegistryCode = event.target.value.replace(/\D/g, '').slice(0, 8)
+        if (nextRegistryCode !== registryCode) {
+          setBusinessName('')
+          setBusinessAddress('')
+          setRegistryLookupStatus('idle')
+          setRegistryLookupCompanyName('')
+        }
+        setRegistryCode(nextRegistryCode)
+      }} placeholder="12345678" /></label>
+      {registryLookupStatus !== 'idle' && <div className={`setup-business__registry-note is-${registryLookupStatus}`} role={registryLookupStatus === 'not-found' || registryLookupStatus === 'error' ? 'alert' : 'status'} aria-live="polite">
+        <span>{registryLookupStatus === 'found' ? '✓' : registryLookupStatus === 'loading' ? '…' : '!'}</span>
+        <p>{registryLookupStatus === 'loading'
+          ? 'Otsin ettevõtet Äriregistrist…'
+          : registryLookupStatus === 'found'
+            ? `Ettevõte leitud: ${registryLookupCompanyName}`
+            : registryLookupStatus === 'not-found'
+              ? 'Sellise registrikoodiga aktiivset ettevõtet ei leitud.'
+              : <>Äriregistri päring ebaõnnestus. <button type="button" onClick={() => setRegistryLookupAttempt((attempt) => attempt + 1)}>Proovi uuesti</button></>}</p>
+      </div>}
       <label>Ettevõtte nimi<input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
       <label>Ettevõtte aadress<input required value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label>
       <label>Klientide kontakt-e-post<input required type="email" value={businessEmail} onChange={(event) => setBusinessEmail(event.target.value)} placeholder="tere@minupood.ee" /></label>
