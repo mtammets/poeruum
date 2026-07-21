@@ -227,7 +227,7 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
 
   if (!connectInstance) return null
   return <section className="stripe-embedded" aria-label="Stripe’i konto seadistamine">
-    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div></header>
+    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" onClick={onClose}>Sulge</button></aside></header>
     <div className={`stripe-embedded__component is-${loadPhase}`}>
       {loadPhase !== 'ready' && <div className={`stripe-preparing${loadPhase === 'error' ? ' is-error' : ''}`} aria-live="polite">
         {loadPhase === 'error' ? <>
@@ -236,8 +236,9 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
           <p>Ühendus Stripe’iga katkes. Mine tagasi ja proovi uuesti.</p>
           <button type="button" onClick={onClose}>Tagasi makseviiside juurde</button>
         </> : <>
-          <span className="stripe-preparing__loader" aria-hidden="true"><i /><i /><i /></span>
-          <h2>Stripe’i vorm avaneb…</h2>
+          <span className="stripe-preparing__loader" aria-hidden="true"><i /></span>
+          <h2>{loadPhase === 'connecting' ? 'Ühendame Stripe’iga' : 'Avame Stripe’i vormi'}</h2>
+          <p>Hetk palun…</p>
         </>}
       </div>}
       <ConnectComponentsProvider connectInstance={connectInstance}>
@@ -1097,13 +1098,7 @@ export default function DemoApp() {
     </div>
   </main>
 
-  const onBack = () => {
-    if (screen === 'payments' && isStripeOnboardingOpen) {
-      void finishStripeEmbeddedOnboarding()
-      return
-    }
-    setScreen(backMap[screen] ?? 'landing')
-  }
+  const onBack = () => setScreen(backMap[screen] ?? 'landing')
   const paymentNeedsAction = paymentStatus === 'idle' || (payment === 'stripe' && paymentStatus === 'pending')
   const paymentCanContinue = paymentStatus === 'connected' || (payment === 'montonio' && paymentStatus === 'pending')
 
