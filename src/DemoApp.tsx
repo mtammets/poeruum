@@ -206,12 +206,7 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
 
   if (!connectInstance) return null
   return <section className="stripe-embedded" aria-label="Stripe’i konto seadistamine">
-    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Aktiveeri maksete vastuvõtt</strong><small>Stripe Connect · turvaline seadistamine</small></span></div><button type="button" onClick={onClose} aria-label="Sulge Stripe’i seadistamine">×</button></header>
-    <div className="stripe-embedded__trust">
-      <span aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg></span>
-      <div><strong>Turvaline Stripe Connect</strong><small>Andmed sisestad otse Stripe’i ametlikku vormi.</small></div>
-      {isStripeTestMode && <em>TESTKESKKOND</em>}
-    </div>
+    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" onClick={onClose} aria-label="Sulge Stripe’i seadistamine">×</button></aside></header>
     <div className={`stripe-embedded__component is-${loadPhase}`}>
       {loadPhase !== 'ready' && <div className={`stripe-preparing${loadPhase === 'error' ? ' is-error' : ''}`} aria-live="polite">
         {loadPhase === 'error' ? <>
@@ -220,15 +215,9 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
           <p>Ühendus Stripe’iga katkes. Mine tagasi ja proovi uuesti.</p>
           <button type="button" onClick={onClose}>Tagasi makseviiside juurde</button>
         </> : <>
-          <span className="stripe-preparing__loader" aria-hidden="true"><i /><svg viewBox="0 0 24 24"><rect x="6" y="10" width="12" height="9" rx="2.5" /><path d="M9 10V7a3 3 0 0 1 6 0v3" /></svg></span>
-          <small>{loadPhase === 'connecting' ? 'TURVALISE ÜHENDUSE LOOMINE' : 'STRIPE’I VORMI LAADIMINE'}</small>
-          <h2>{loadPhase === 'connecting' ? 'Ühendame sinu poe Stripe’iga' : 'Valmistame vormi ette'}</h2>
-          <p>Kontrollime konto seadistust ja avame turvalise vormi. See võtab tavaliselt mõne hetke.</p>
-          <div className="stripe-preparing__steps" aria-hidden="true">
-            <span className="is-done"><i>✓</i><b>Poe andmed</b></span>
-            <span className="is-active"><i /><b>Turvaline ühendus</b></span>
-            <span><i /><b>Stripe’i vorm</b></span>
-          </div>
+          <span className="stripe-preparing__loader" aria-hidden="true"><i /></span>
+          <h2>{loadPhase === 'connecting' ? 'Ühendame Stripe’iga' : 'Avame Stripe’i vormi'}</h2>
+          <p>Hetk palun…</p>
         </>}
       </div>}
       <ConnectComponentsProvider connectInstance={connectInstance}>
