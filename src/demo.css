@@ -341,17 +341,6 @@ button, a, summary { touch-action: manipulation; }
 .provider-list strong em { padding: .2rem .4rem; border-radius: 999px; background: #e8f1d5; color: #52652a; font-size: .55rem; font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
 .provider-list small, .connected-provider small { color: #879088; }
 .provider-list b { color: var(--demo-green); }
-.connect-provider { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; padding: .85rem .9rem; border: 0; border-radius: .85rem; color: #fff; text-align: left; box-shadow: 0 12px 28px #17231c1f; transition: transform 160ms ease, box-shadow 160ms ease; }
-.connect-provider:active { transform: scale(.985); box-shadow: 0 7px 18px #17231c24; }
-.connect-provider--stripe { background: #635bff; }
-.connect-provider--montonio { background: #176b4a; }
-.connect-provider__identity { display: flex; align-items: center; gap: .75rem; min-width: 0; }
-.connect-provider__identity > i { display: grid; flex: 0 0 auto; width: 4.5rem; height: 2.8rem; place-items: center; border-radius: .7rem; background: #fff; color: #fff; font-style: normal; font-weight: 900; }
-.connect-provider__identity > .provider-logo--montonio { background: #173b31; }
-.connect-provider__identity > span { display: grid; gap: .12rem; min-width: 0; }
-.connect-provider__identity strong { font-size: .88rem; }
-.connect-provider__identity small { color: #ffffffe0; font-size: .64rem; font-weight: 500; }
-.connect-provider > b { display: grid; flex: 0 0 auto; width: 2.1rem; height: 2.1rem; place-items: center; border-radius: 50%; background: #ffffff1f; color: #fff; font-size: 1.1rem; }
 .connected-provider { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); align-items: center; gap: .8rem; width: 100%; padding: .9rem; border: 1px solid #d8e8dc; border-radius: .8rem; background: #edf5ee; }
 .connected-provider > span { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: 50%; background: var(--demo-green); color: #fff; font-size: 1rem; font-weight: 900; line-height: 1; }
 .connected-provider div { display: grid; min-width: 0; gap: .18rem; }
@@ -359,10 +348,14 @@ button, a, summary { touch-action: manipulation; }
 .connected-provider small { color: #758078; font-size: .7rem; line-height: 1.4; }
 .connected-provider.is-pending { border-color: #e4dcc2; background: #fbf8ec; }
 .connected-provider.is-pending > span { background: #e8dba8; color: #635523; }
-.setup-fee-note { display: grid; grid-template-columns: auto 1fr; gap: .65rem; padding: .8rem; border: 1px solid #dfe3d8; border-radius: .75rem; background: #f6f8f2; text-align: left; }
-.setup-fee-note > span { display: grid; width: 1.35rem; height: 1.35rem; place-items: center; border-radius: 50%; background: #e3ead0; color: var(--demo-green); font-size: .68rem; font-weight: 900; }
-.setup-fee-note p { margin: 0; color: #778078; font-size: .68rem; line-height: 1.45; }
-.setup-fee-note strong { color: #455149; }
+.payment-setup-action { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 3.6rem; padding: .85rem 1rem; border: 0; border-radius: .85rem; color: #fff; font: inherit; text-align: left; box-shadow: 0 12px 28px #17231c18; transition: transform 160ms ease, box-shadow 160ms ease; }
+.payment-setup-action.is-stripe { background: #635bff; }
+.payment-setup-action.is-montonio { background: #176b4a; }
+.payment-setup-action:active { box-shadow: 0 7px 18px #17231c20; transform: scale(.985); }
+.payment-setup-action:disabled { opacity: .62; cursor: wait; }
+.payment-setup-action strong { font-size: .85rem; }
+.payment-setup-action span { font-size: 1.1rem; }
+.setup-fee-summary { margin: -.2rem 0 0; color: #7b857e; font-size: .63rem; line-height: 1.45; text-align: center; }
 
 .stripe-embedded { display: grid; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; border: 1px solid #dfe3db; border-radius: 1rem; background: #fff; box-shadow: 0 18px 44px #17231c14; }
 .stripe-embedded > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem; border-bottom: 1px solid #e7eae5; background: #fbfcfa; }

@@ -1100,6 +1100,8 @@ export default function DemoApp() {
   </main>
 
   const onBack = () => setScreen(backMap[screen] ?? 'landing')
+  const paymentNeedsAction = paymentStatus === 'idle' || (payment === 'stripe' && paymentStatus === 'pending')
+  const paymentCanContinue = paymentStatus === 'connected' || (payment === 'montonio' && paymentStatus === 'pending')
 
   return <SetupShell screen={screen} onBack={onBack}>
     {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { await persistStore(false, {}, 'business'); setScreen('business') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
@@ -1142,16 +1144,12 @@ export default function DemoApp() {
         onExit={() => void finishStripeEmbeddedOnboarding()}
         onClose={() => void finishStripeEmbeddedOnboarding()}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
-      /> : <>{paymentStatus === 'idle' ? <button className={`connect-provider connect-provider--${payment}`} disabled={isStripeConnecting && payment === 'stripe'} onClick={() => payment === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)}>
-        <span className="connect-provider__identity"><i className={`provider-logo provider-logo--${payment}`}><img src={payment === 'stripe' ? '/images/stripe-wordmark.svg' : '/images/montonio-wordmark.svg'} alt="" /></i><span><strong>{isStripeConnecting && payment === 'stripe' ? 'Avan Stripe’i…' : `Ühenda ${payment === 'stripe' ? 'Stripe' : 'Montonio'}`}</strong><small>{payment === 'stripe' ? 'Turvaline Stripe’i ühendus · umbes 2 minutit' : 'Olemasolev konto või uus taotlus'}</small></span></span><b>→</b>
-      </button> : <div className={`connected-provider${paymentStatus === 'pending' ? ' is-pending' : ''}`}><span>{paymentStatus === 'pending' ? '…' : '✓'}</span><div><strong>{paymentStatus === 'pending' ? payment === 'stripe' ? 'Stripe’i konto seadistamine on pooleli' : 'Montonio taotlus on kontrollimisel' : payment === 'stripe' ? 'Kaardimaksed on valmis' : 'Montonio maksed on valmis'}</strong><small>{paymentStatus === 'pending' ? payment === 'stripe' ? 'Jätka Stripe’i seadistamist, et aktiveerida maksed ja väljamaksed.' : 'Kontroll võtab tavaliselt 1–2 tööpäeva. Päris maksed aktiveeruvad pärast kinnitamist.' : payment === 'stripe' ? 'Stripe kannab müügitulu otse sinu väljamaksekontole.' : 'Pangamaksed ja konto staatus on Poeruumiga sünkroonitud.'}</small></div></div>}
-      {payment === 'stripe' && paymentStatus === 'pending' && <button className="connect-provider connect-provider--stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect()}>
-        <span className="connect-provider__identity"><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>{isStripeConnecting ? 'Avan Stripe’i…' : 'Jätka Stripe’i seadistamist'}</strong><small>Turvaline vorm avaneb siin samal lehel</small></span></span><b>→</b>
-      </button>}</>}
-      {!isStripeOnboardingOpen && <div className="setup-fee-note"><span>i</span><p><strong>Makseteenuse tasud lähevad {payment === 'stripe' ? 'Stripe’ile' : 'Montoniole'}.</strong> Poeruumi {pricingPlan === 'flexible' ? 'Paindlik pakett maksab 0 € kuus + 4% müügilt' : 'Kindel pakett on esimesed 30 päeva tasuta, seejärel 29 € kuus + km ning müügitasu on 0%'}.</p></div>}
-      {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
+      /> : <>{paymentNeedsAction ? <button className={`payment-setup-action is-${payment}`} disabled={isStripeConnecting && payment === 'stripe'} onClick={() => payment === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)}>
+        <strong>{isStripeConnecting && payment === 'stripe' ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : `Seadista ${payment === 'stripe' ? 'Stripe' : 'Montonio'}`}</strong><span>→</span>
+      </button> : <div className={`connected-provider${paymentStatus === 'pending' ? ' is-pending' : ''}`}><span>{paymentStatus === 'pending' ? '…' : '✓'}</span><div><strong>{paymentStatus === 'pending' ? 'Montonio taotlus on kontrollimisel' : 'Maksed on valmis'}</strong></div></div>}</>}
+      {!isStripeOnboardingOpen && <p className="setup-fee-summary">{payment === 'stripe' ? 'Stripe’i' : 'Montonio'} teenustasu · Poeruum {pricingPlan === 'flexible' ? '0 € kuus + 4% müügilt' : '30 päeva tasuta, seejärel 29 € kuus + km'}</p>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
-      {!isStripeOnboardingOpen && <button className="setup-next" disabled={paymentStatus === 'idle'} onClick={async () => { try { await persistStore(false, {}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
+      {!isStripeOnboardingOpen && paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore(false, {}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
       {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} businessName={businessName} registryCode={registryCode} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { void completePaymentConnection('montonio', status, 'shipping'); setIsMontonioConnectOpen(false) }} />}
     </div>}
 
