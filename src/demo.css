@@ -380,8 +380,9 @@ button, a, summary { touch-action: manipulation; }
 .stripe-embedded__trust strong { color: #294336; font-size: .68rem; line-height: 1.25; }
 .stripe-embedded__trust small { color: #738078; font-size: .56rem; line-height: 1.4; }
 .stripe-embedded__trust em { padding: .25rem .42rem; border-radius: 999px; background: #e2edd9; color: #436138; font-size: .48rem; font-style: normal; font-weight: 900; letter-spacing: .06em; }
-.stripe-embedded__component { position: relative; display: grid; width: 100%; min-width: 0; transition: min-height 240ms ease; }
+.stripe-embedded__component { position: relative; display: grid; width: 100%; min-width: 0; transition: min-height 240ms ease, padding 240ms ease; }
 .stripe-embedded__component:not(.is-ready) { min-height: 27rem; }
+.stripe-embedded__component.is-ready { padding: .65rem clamp(.8rem, 2.5vw, 1.15rem) 1.15rem; }
 .stripe-embedded__component > [data-stripe-connect-js-wrapper] { box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
 .stripe-embedded stripe-connect-account-onboarding { display: block; box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
 .stripe-preparing { position: absolute; z-index: 3; inset: 0; display: grid; align-content: center; justify-items: center; padding: 2.2rem 1.5rem; background: linear-gradient(180deg, #fff 0%, #fbfcfa 100%); color: var(--demo-ink); text-align: center; }
@@ -844,6 +845,7 @@ button, a, summary { touch-action: manipulation; }
   .stripe-embedded__trust { grid-template-columns: auto minmax(0, 1fr); }
   .stripe-embedded__trust em { grid-column: 2; justify-self: start; }
   .stripe-embedded__component:not(.is-ready) { min-height: 25rem; }
+  .stripe-embedded__component.is-ready { padding: .5rem .72rem 1rem; }
   .stripe-preparing { padding: 1.8rem 1rem; }
   .stripe-preparing h2 { font-size: 1.2rem; }
   .stripe-preparing__steps { margin-top: 1.7rem; }
