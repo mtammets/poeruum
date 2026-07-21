@@ -369,6 +369,7 @@ button, a, summary { touch-action: manipulation; }
 .stripe-embedded > header > aside > button > i { width: .62rem; height: .62rem; border: 1.5px solid #c7cec8; border-top-color: #526058; border-radius: 50%; animation: stripe-loader-spin .75s linear infinite; }
 .stripe-embedded__component { position: relative; display: grid; width: 100%; min-width: 0; transition: min-height 240ms ease, padding 240ms ease; }
 .stripe-embedded__component:not(.is-ready) { min-height: 22rem; }
+.stripe-embedded__component.is-completing { min-height: 22rem; }
 .stripe-embedded__component.is-ready { padding: .65rem clamp(.8rem, 2.5vw, 1.15rem) 1.15rem; }
 .stripe-embedded__component > [data-stripe-connect-js-wrapper] { box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
 .stripe-embedded stripe-connect-account-onboarding { display: block; box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
@@ -380,6 +381,10 @@ button, a, summary { touch-action: manipulation; }
 .stripe-preparing.is-error { background: #fff; }
 .stripe-preparing__error { display: grid; width: 3.3rem; height: 3.3rem; margin-bottom: .7rem; place-items: center; border-radius: 50%; background: #fff0ed; color: #a34338; font-size: 1.35rem; font-weight: 850; }
 .stripe-preparing.is-error > button { margin-top: 1.25rem; padding: .75rem 1rem; border: 0; border-radius: .7rem; background: var(--demo-green); color: #fff; font: inherit; font-size: .68rem; font-weight: 800; }
+.stripe-completing { position: absolute; z-index: 5; inset: 0; display: grid; align-content: center; justify-items: center; padding: 2rem 1.25rem; background: #fff; color: var(--demo-ink); text-align: center; }
+.stripe-completing > span { width: 2.5rem; height: 2.5rem; margin-bottom: 1.15rem; border: 2px solid #dce4da; border-top-color: var(--demo-green); border-radius: 50%; animation: stripe-loader-spin .9s linear infinite; }
+.stripe-completing h2 { margin: 0 0 .45rem; font-family: Manrope, sans-serif; font-size: 1.2rem; line-height: 1.2; letter-spacing: -.035em; }
+.stripe-completing p { margin: 0; color: #727c75; font-size: .68rem; }
 @keyframes stripe-loader-spin { to { transform: rotate(360deg); } }
 .setup-form > .add-product-error { max-width: 100%; overflow-wrap: anywhere; color: #8d463d; }
 

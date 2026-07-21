@@ -162,9 +162,10 @@ function SetupShell({ screen, children, onBack }: { screen: Screen; children: Re
   </main>
 }
 
-function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => void; onClose: () => Promise<void>; onError: (message: string) => void }) {
+function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => Promise<void>; onClose: () => Promise<void>; onError: (message: string) => void }) {
   const [loadPhase, setLoadPhase] = useState<'connecting' | 'loading' | 'ready' | 'error'>('connecting')
   const [isClosing, setIsClosing] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
   const [renderAttempt, setRenderAttempt] = useState(0)
   const [connectInstance] = useState(() => stripePublishableKey ? loadConnectAndInitialize({
     publishableKey: stripePublishableKey,
@@ -243,10 +244,27 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
     setRenderAttempt((attempt) => attempt + 1)
   }
 
+  const completeStripeForm = async () => {
+    if (isCompleting) return
+    setIsCompleting(true)
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
+    try {
+      await onExit()
+    } finally {
+      setIsCompleting(false)
+    }
+  }
+
   if (!connectInstance) return null
   return <section className="stripe-embedded" aria-label="Stripe’i konto seadistamine">
     <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
-    <div className={`stripe-embedded__component is-${loadPhase}`}>
+    <div className={`stripe-embedded__component is-${loadPhase}${isCompleting ? ' is-completing' : ''}`}>
+      {isCompleting && <div className="stripe-completing" role="status" aria-live="polite">
+        <span aria-hidden="true" />
+        <h2>Kontrollime maksete valmisolekut</h2>
+        <p>Stripe salvestas andmed. Hetk palun…</p>
+      </div>}
       {loadPhase !== 'ready' && <div className={`stripe-preparing${loadPhase === 'error' ? ' is-error' : ''}`} aria-live="polite">
         {loadPhase === 'error' ? <>
           <span className="stripe-preparing__error" aria-hidden="true">!</span>
@@ -263,7 +281,7 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
         <ConnectAccountOnboarding
           key={renderAttempt}
           collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
-          onExit={onExit}
+          onExit={() => void completeStripeForm()}
           onLoaderStart={() => setLoadPhase((current) => current === 'connecting' ? 'loading' : current)}
           onStepChange={() => {
             onError('')
@@ -1162,7 +1180,7 @@ export default function DemoApp() {
         </button>
       </div></>}
       {payment === 'stripe' && isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
-        onExit={() => void finishStripeEmbeddedOnboarding()}
+        onExit={finishStripeEmbeddedOnboarding}
         onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
       /> : <>{paymentNeedsAction ? <button className={`payment-setup-action is-${payment}`} disabled={isStripeConnecting && payment === 'stripe'} onClick={() => payment === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)}>
