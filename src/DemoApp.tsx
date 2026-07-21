@@ -159,7 +159,6 @@ function SetupShell({ screen, children, onBack }: { screen: Screen; children: Re
     <FlowHeader onBack={onBack} />
     <SetupProgress screen={screen} />
     <section className="setup-card">{children}</section>
-    <p className="demo-disclaimer">Poe seadistus salvestatakse turvaliselt.</p>
   </main>
 }
 
@@ -1147,7 +1146,6 @@ export default function DemoApp() {
       /> : <>{paymentNeedsAction ? <button className={`payment-setup-action is-${payment}`} disabled={isStripeConnecting && payment === 'stripe'} onClick={() => payment === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)}>
         <strong>{isStripeConnecting && payment === 'stripe' ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : `Seadista ${payment === 'stripe' ? 'Stripe' : 'Montonio'}`}</strong><span>→</span>
       </button> : <div className={`connected-provider${paymentStatus === 'pending' ? ' is-pending' : ''}`}><span>{paymentStatus === 'pending' ? '…' : '✓'}</span><div><strong>{paymentStatus === 'pending' ? 'Montonio taotlus on kontrollimisel' : 'Maksed on valmis'}</strong></div></div>}</>}
-      {!isStripeOnboardingOpen && <p className="setup-fee-summary">{payment === 'stripe' ? 'Stripe’i' : 'Montonio'} teenustasu · Poeruum {pricingPlan === 'flexible' ? '0 € kuus + 4% müügilt' : '30 päeva tasuta, seejärel 29 € kuus + km'}</p>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
       {!isStripeOnboardingOpen && paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore(false, {}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
       {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} businessName={businessName} registryCode={registryCode} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { void completePaymentConnection('montonio', status, 'shipping'); setIsMontonioConnectOpen(false) }} />}

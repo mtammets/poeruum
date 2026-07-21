@@ -301,7 +301,6 @@ button, a, summary { touch-action: manipulation; }
 .domain-preview small { color: #949c95; }
 .setup-next { margin-top: .4rem; }
 .setup-next:disabled, .publish-button:disabled { opacity: .48; cursor: not-allowed; }
-.demo-disclaimer { margin: 1rem auto 0; color: #929991; font-size: .68rem; text-align: center; }
 
 .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
 .theme-choice { padding: .45rem; border: 2px solid transparent; border-radius: .9rem; background: #f3f4ef; color: var(--demo-ink); text-align: left; }
@@ -355,7 +354,6 @@ button, a, summary { touch-action: manipulation; }
 .payment-setup-action:disabled { opacity: .62; cursor: wait; }
 .payment-setup-action strong { font-size: .85rem; }
 .payment-setup-action span { font-size: 1.1rem; }
-.setup-fee-summary { margin: -.2rem 0 0; color: #7b857e; font-size: .63rem; line-height: 1.45; text-align: center; }
 
 .stripe-embedded { display: grid; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; border: 1px solid #dfe3db; border-radius: 1rem; background: #fff; box-shadow: 0 18px 44px #17231c14; }
 .stripe-embedded > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem; border-bottom: 1px solid #e7eae5; background: #fbfcfa; }
