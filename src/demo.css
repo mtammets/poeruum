@@ -7,20 +7,19 @@
   --demo-lime: var(--poeruum-accent);
   --demo-cream: #f4f2e9;
   --demo-line: #dcded5;
-}
-
-html {
-  width: 100%;
-  overflow-x: hidden;
   background: var(--demo-cream);
+  color-scheme: light;
 }
 
+html,
 body,
 #root {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  min-height: 100%;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
   background: var(--demo-cream);
 }
 
