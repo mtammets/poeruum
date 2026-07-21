@@ -25,6 +25,8 @@ type RegistryLookupResponse = {
 const onboardingSteps = new Set<OnboardingStep>(['business', 'payments', 'shipping', 'publish', 'complete'])
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
 const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
+const isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
 const getStoreDestination = (store: StoreRecord): Screen => {
   if (store.is_published) return 'storefront'
@@ -168,8 +170,10 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
         buttonPaddingY: '10px',
         inputFieldPaddingX: '10px',
         inputFieldPaddingY: '10px',
-        fontSizeBase: '13px',
-        bodyMdFontSize: '13px',
+        // iOS Safari zooms focused inputs below 16px and doesn't reliably
+        // restore the visual viewport after the keyboard closes.
+        fontSizeBase: '16px',
+        bodyMdFontSize: isIOSWebKit ? '16px' : '13px',
         bodySmFontSize: '12px',
         headingXlFontSize: '22px',
         headingLgFontSize: '18px',
