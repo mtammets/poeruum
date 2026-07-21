@@ -28,6 +28,26 @@ const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
 const isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
+const restoreIOSViewportScale = () => {
+  if (!isIOSWebKit) return
+  if ((window.visualViewport?.scale ?? 1) <= 1.01) return
+  const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
+  if (!viewportMeta) return
+
+  const focusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  focusedElement?.blur()
+  const baseContent = viewportMeta.content
+    .replace(/,?\s*(?:maximum-scale|user-scalable)\s*=\s*[^,]+/gi, '')
+    .replace(/,{2,}/g, ',')
+    .replace(/^,|,$/g, '')
+  viewportMeta.content = `${baseContent}, maximum-scale=1.0, user-scalable=no`
+
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    viewportMeta.content = baseContent
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }))
+}
+
 const getStoreDestination = (store: StoreRecord): Screen => {
   if (store.is_published) return 'storefront'
 
@@ -708,7 +728,8 @@ export default function DemoApp() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-  }, [screen])
+    if (!isStripeOnboardingOpen) restoreIOSViewportScale()
+  }, [screen, isStripeOnboardingOpen])
 
   useEffect(() => {
     if (!isMobileNavOpen) return
