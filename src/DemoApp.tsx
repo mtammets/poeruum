@@ -1123,7 +1123,7 @@ export default function DemoApp() {
           <footer><span>1</span><p><strong>Konto</strong><small>Esimene samm viiest</small></p></footer>
         </aside>
         <section className="auth-card">
-          <h1>Loo konto</h1><p>Valmis vähem kui minutiga.</p>
+          <h1>Loo konto</h1>
           <form onSubmit={signUp}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sina@ettevote.ee" autoFocus /></label>
             <label>Parool<input required name="password" type="password" minLength={6} placeholder="Vähemalt 6 tähemärki" /></label>
