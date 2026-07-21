@@ -190,10 +190,8 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
         buttonPaddingY: '10px',
         inputFieldPaddingX: '10px',
         inputFieldPaddingY: '10px',
-        // iOS Safari zooms focused inputs below 16px and doesn't reliably
-        // restore the visual viewport after the keyboard closes.
-        fontSizeBase: '16px',
-        bodyMdFontSize: isIOSWebKit ? '16px' : '13px',
+        fontSizeBase: '13px',
+        bodyMdFontSize: '13px',
         bodySmFontSize: '12px',
         headingXlFontSize: '22px',
         headingLgFontSize: '18px',
@@ -730,6 +728,26 @@ export default function DemoApp() {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     if (!isStripeOnboardingOpen) restoreIOSViewportScale()
   }, [screen, isStripeOnboardingOpen])
+
+  useEffect(() => {
+    if (!isIOSWebKit || !isStripeOnboardingOpen) return
+    const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
+    if (!viewportMeta) return
+
+    const previousContent = viewportMeta.content
+    const baseContent = previousContent
+      .replace(/,?\s*(?:maximum-scale|user-scalable)\s*=\s*[^,]+/gi, '')
+      .replace(/,{2,}/g, ',')
+      .replace(/^,|,$/g, '')
+    // Stripe's embedded fields live outside our CSS boundary, so their font
+    // size can't be corrected with the app's normal 16px input rule.
+    viewportMeta.content = `${baseContent}, maximum-scale=1.0, user-scalable=no`
+
+    return () => {
+      viewportMeta.content = previousContent
+      window.requestAnimationFrame(restoreIOSViewportScale)
+    }
+  }, [isStripeOnboardingOpen])
 
   useEffect(() => {
     if (!isMobileNavOpen) return
