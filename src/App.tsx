@@ -880,7 +880,7 @@ export type StorefrontProps = {
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'VEIDRAD ASJAD', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isPublicDemo = Boolean(onExit && !merchantMode)
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
@@ -926,16 +926,16 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
   const [announcementDirection, setAnnouncementDirection] = useState<AnnouncementDirection>('left')
   const [announcementBackground, setAnnouncementBackground] = useState('#e5f25a')
   const [announcementColor, setAnnouncementColor] = useState('#111111')
-  const [storeLogo, setStoreLogo] = useState<string | null>(() => storeSlug ? null : '/images/logo.png')
+  const [storeLogo, setStoreLogo] = useState<string | null>(null)
   const [editableStoreName, setEditableStoreName] = useState(storeName)
   const [storeTagline, setStoreTagline] = useState('')
-  const [storeDescription, setStoreDescription] = useState(() => storeSlug ? '' : 'Veidrad ja erilised esemed, mis muudavad argipäeva natuke põnevamaks.')
+  const [storeDescription, setStoreDescription] = useState(() => storeSlug ? '' : 'Hoolikalt valitud esemed, mis muudavad argipäeva natuke põnevamaks.')
   const [storeAboutImage, setStoreAboutImage] = useState<string | null>(null)
   const [isStoreVisible, setIsStoreVisible] = useState(true)
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
-  const [instagramUrl, setInstagramUrl] = useState(() => storeSlug ? 'https://www.instagram.com/mtammets' : 'https://www.instagram.com/veidradasjad/')
-  const [facebookUrl, setFacebookUrl] = useState(() => storeSlug ? 'https://www.facebook.com/mtammets' : 'https://www.facebook.com/profile.php?id=61580779397203')
+  const [instagramUrl, setInstagramUrl] = useState('')
+  const [facebookUrl, setFacebookUrl] = useState('')
   const [tiktokUrl, setTiktokUrl] = useState('')
   const [activePaymentProvider, setActivePaymentProvider] = useState<PaymentProvider>(paymentProvider)
   const [deliverySettings, setDeliverySettings] = useState<DeliverySettings>(() => {
@@ -2833,7 +2833,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'VEID
           <div className="site-footer__bottom">
             <span>© 2026 {editableStoreName}</span>
             <div className="site-footer__meta">
-              {storeSlug ? <span>{storeSlug}.poeruum.ee</span> : <a href="https://veidradasjad.ee">veidradasjad.ee</a>}
+              {storeSlug ? <span>{storeSlug}.poeruum.ee</span> : <a href="https://poeruum.ee">poeruum.ee</a>}
               {!isLoggedIn && !isCustomerPreview && <><i aria-hidden="true" /><button type="button" onClick={openOwnerLogin} aria-label="Poe omanikule: ava poe halduse sisselogimine">Poe haldus →</button></>}
             </div>
           </div>

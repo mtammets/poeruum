@@ -1,7 +1,7 @@
 import AppKit
 import CoreGraphics
 
-let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Veidrad_Asjad_e-poe_pakkumine.pdf"
+let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Poeruum_e-poe_pakkumine.pdf"
 let page = CGRect(x: 0, y: 0, width: 595, height: 842)
 var mediaBox = page
 guard let ctx = CGContext(URL(fileURLWithPath: out) as CFURL, mediaBox: &mediaBox, nil) else { fatalError("PDF") }
@@ -40,7 +40,7 @@ ctx.setFillColor(acid.cgColor); ctx.fill(CGRect(x: 0, y: 0, width: 10, height: p
 text("PAKKUMINE", margin, 48, 180, 9, .bold)
 text("12.07.2026", 455, 48, 92, 8, .medium, muted)
 rule(70)
-text("Veidrad Asjad e-pood", margin, 103, 350, 25, .bold, ink, 0)
+text("Poeruum e-pood", margin, 103, 350, 25, .bold, ink, 0)
 text("Klient: [kliendi nimi / ettevõte]", margin, 145, 270, 8.5, .medium, muted)
 text("Teostaja: [nimi / ettevõte]", 322, 145, 225, 8.5, .medium, muted)
 

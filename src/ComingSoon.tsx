@@ -33,8 +33,8 @@ export default function ComingSoon() {
         <div className="coming-soon__shade" />
         <div className="coming-soon__progress"><i /><i /><i /></div>
         <div className="coming-soon__shop">
-          <span>VA</span>
-          <strong>VEIDRAD ASJAD</strong>
+          <span>P</span>
+          <strong>POERUUM</strong>
         </div>
         <button type="button" tabIndex={-1} aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M7 9V7a5 5 0 0 1 10 0v2M5 9h14l-1 11H6L5 9Z" /></svg>
