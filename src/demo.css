@@ -820,7 +820,7 @@ button, a, summary { touch-action: manipulation; }
   .stripe-embedded > header { padding: .75rem; }
   .stripe-embedded > header .provider-logo { width: 3.5rem; }
   .stripe-embedded__component:not(.is-ready) { min-height: 20rem; }
-  .stripe-embedded__component.is-ready { padding: .5rem .72rem 1rem; }
+  .stripe-embedded__component.is-ready { padding: .45rem .45rem .9rem; }
   .stripe-preparing { padding: 1.8rem 1rem; }
   .stripe-preparing h2 { font-size: 1.2rem; }
   .theme-grid { grid-template-columns: 1fr; }
