@@ -133,9 +133,8 @@ const phonePreviewProducts = [
   { name: 'Inglitega taldrik', description: 'Kuldne dekoratiivtaldrik kolme ruumilise ingliga.', price: 29, images: ['/images/demo/taldrik_1.jpg'] },
 ]
 
-export function Brand() {
-  return <div className="demo-brand" aria-label="Poeruum">
-    <span className="demo-brand__mark" aria-hidden="true">
+export function BrandMark({ className = '' }: { className?: string }) {
+  return <span className={`demo-brand__mark${className ? ` ${className}` : ''}`} aria-hidden="true">
       <svg viewBox="0 0 40 40">
         <rect x="1" y="1" width="38" height="38" rx="11" />
         <path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z" />
@@ -143,6 +142,11 @@ export function Brand() {
         <path d="M15.5 22.2h9" />
       </svg>
     </span>
+}
+
+export function Brand() {
+  return <div className="demo-brand" aria-label="Poeruum">
+    <BrandMark />
     <strong>Poe<span>ruum</span></strong>
   </div>
 }

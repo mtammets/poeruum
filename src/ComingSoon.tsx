@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
-import { Brand } from './DemoApp'
+import { Brand, BrandMark } from './DemoApp'
 import './coming-soon.css'
 
 const showcaseProducts = [
-  { name: 'Kaktusekuju', price: '32 €', image: '/images/demo/kaktus_1.jpg' },
-  { name: 'Puidust kass', price: '45 €', image: '/images/demo/kass_1.jpg' },
-  { name: 'Inglitega taldrik', price: '29 €', image: '/images/demo/taldrik_1.jpg' },
+  { name: 'Lamp Sammal', price: '79 €', image: '/images/demo/lamp_sammal.webp' },
+  { name: 'Vaas Laine', price: '49 €', image: '/images/demo/vaas_laine.webp' },
+  { name: 'Alus Täpe', price: '39 €', image: '/images/demo/alus_tape.webp' },
 ]
 
 export default function ComingSoon() {
@@ -33,7 +33,7 @@ export default function ComingSoon() {
         <div className="coming-soon__shade" />
         <div className="coming-soon__progress"><i /><i /><i /></div>
         <div className="coming-soon__shop">
-          <span>P</span>
+          <BrandMark className="coming-soon__shop-mark" />
           <strong>POERUUM</strong>
         </div>
         <button type="button" tabIndex={-1} aria-hidden="true">

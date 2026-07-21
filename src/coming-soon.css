@@ -79,7 +79,7 @@
 .coming-soon__progress i { height: .12rem; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.35); }
 .coming-soon__progress i:first-child::after { display: block; width: 100%; height: 100%; border-radius: inherit; background: #fff; content: ''; transform-origin: left; animation: cs-progress 5s linear infinite; }
 .coming-soon__shop { position: absolute; top: 1.35rem; left: .9rem; display: flex; align-items: center; gap: .42rem; }
-.coming-soon__shop > span { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border-radius: 50%; background: var(--cs-lime); color: #111713; font-size: .55rem; font-weight: 900; }
+.coming-soon__shop .coming-soon__shop-mark { width: 1.8rem; height: 1.8rem; filter: drop-shadow(0 2px 7px rgba(0, 0, 0, .28)); }
 .coming-soon__shop strong { font-size: .48rem; letter-spacing: .1em; text-shadow: 0 1px 8px #000; }
 .coming-soon__product > button { position: absolute; top: 2.95rem; right: .9rem; display: grid; width: 2rem; height: 2rem; padding: 0; place-items: center; border: 1px solid rgba(255,255,255,.45); border-radius: 50%; background: rgba(0,0,0,.4); color: #fff; backdrop-filter: blur(8px); }
 .coming-soon__product > button svg { width: .85rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
