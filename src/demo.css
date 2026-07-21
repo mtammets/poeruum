@@ -363,8 +363,10 @@ button, a, summary { touch-action: manipulation; }
 .stripe-embedded > header strong { color: var(--demo-ink); font-size: .82rem; line-height: 1.25; }
 .stripe-embedded > header small { color: #788179; font-size: .62rem; line-height: 1.35; }
 .stripe-embedded > header > aside { display: flex; flex: 0 0 auto; align-items: center; }
-.stripe-embedded > header > aside > button { padding: .5rem .65rem; border: 1px solid #dfe4dd; border-radius: .6rem; background: #fff; color: #667168; font: inherit; font-size: .58rem; font-weight: 750; }
+.stripe-embedded > header > aside > button { display: flex; min-width: 3.35rem; align-items: center; justify-content: center; gap: .35rem; padding: .5rem .65rem; border: 1px solid #dfe4dd; border-radius: .6rem; background: #fff; color: #667168; font: inherit; font-size: .58rem; font-weight: 750; }
 .stripe-embedded > header > aside > button:active { background: #edf0eb; color: #24362b; }
+.stripe-embedded > header > aside > button:disabled { cursor: wait; opacity: .68; }
+.stripe-embedded > header > aside > button > i { width: .62rem; height: .62rem; border: 1.5px solid #c7cec8; border-top-color: #526058; border-radius: 50%; animation: stripe-loader-spin .75s linear infinite; }
 .stripe-embedded__component { position: relative; display: grid; width: 100%; min-width: 0; transition: min-height 240ms ease, padding 240ms ease; }
 .stripe-embedded__component:not(.is-ready) { min-height: 22rem; }
 .stripe-embedded__component.is-ready { padding: .65rem clamp(.8rem, 2.5vw, 1.15rem) 1.15rem; }

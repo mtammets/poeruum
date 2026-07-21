@@ -162,8 +162,9 @@ function SetupShell({ screen, children, onBack }: { screen: Screen; children: Re
   </main>
 }
 
-function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => void; onClose: () => void; onError: (message: string) => void }) {
+function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => void; onClose: () => Promise<void>; onError: (message: string) => void }) {
   const [loadPhase, setLoadPhase] = useState<'connecting' | 'loading' | 'ready' | 'error'>('connecting')
+  const [isClosing, setIsClosing] = useState(false)
   const [connectInstance] = useState(() => stripePublishableKey ? loadConnectAndInitialize({
     publishableKey: stripePublishableKey,
     locale: 'et-EE',
@@ -225,16 +226,26 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
     return () => window.clearTimeout(fallback)
   }, [loadPhase])
 
+  const closeStripeForm = async () => {
+    if (isClosing) return
+    setIsClosing(true)
+    try {
+      await onClose()
+    } finally {
+      setIsClosing(false)
+    }
+  }
+
   if (!connectInstance) return null
   return <section className="stripe-embedded" aria-label="Stripe’i konto seadistamine">
-    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" onClick={onClose}>Sulge</button></aside></header>
+    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
     <div className={`stripe-embedded__component is-${loadPhase}`}>
       {loadPhase !== 'ready' && <div className={`stripe-preparing${loadPhase === 'error' ? ' is-error' : ''}`} aria-live="polite">
         {loadPhase === 'error' ? <>
           <span className="stripe-preparing__error" aria-hidden="true">!</span>
           <h2>Vormi ei õnnestunud avada</h2>
           <p>Ühendus Stripe’iga katkes. Mine tagasi ja proovi uuesti.</p>
-          <button type="button" onClick={onClose}>Tagasi makseviiside juurde</button>
+          <button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing ? 'Sulgen…' : 'Tagasi makseviiside juurde'}</button>
         </> : <>
           <span className="stripe-preparing__loader" aria-hidden="true"><i /></span>
           <h2>{loadPhase === 'connecting' ? 'Ühendame Stripe’iga' : 'Avame Stripe’i vormi'}</h2>
@@ -1141,7 +1152,7 @@ export default function DemoApp() {
       </div></>}
       {payment === 'stripe' && isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
         onExit={() => void finishStripeEmbeddedOnboarding()}
-        onClose={() => void finishStripeEmbeddedOnboarding()}
+        onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
       /> : <>{paymentNeedsAction ? <button className={`payment-setup-action is-${payment}`} disabled={isStripeConnecting && payment === 'stripe'} onClick={() => payment === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)}>
         <strong>{isStripeConnecting && payment === 'stripe' ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : `Seadista ${payment === 'stripe' ? 'Stripe' : 'Montonio'}`}</strong><span>→</span>
