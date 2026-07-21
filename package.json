@@ -10,7 +10,8 @@
     "supabase:check": "node scripts/supabase-admin.mjs check",
     "supabase:link": "node scripts/supabase-admin.mjs link",
     "supabase:deploy": "node scripts/supabase-admin.mjs deploy",
-    "supabase:functions:deploy": "node scripts/supabase-admin.mjs functions"
+    "supabase:functions:deploy": "node scripts/supabase-admin.mjs functions",
+    "supabase:set-admin": "node scripts/set-admin.mjs"
   },
   "dependencies": {
     "@stripe/connect-js": "^3.4.6",

@@ -521,7 +521,13 @@ export default function DemoApp() {
     const restore = async () => {
       const { data } = await requireSupabase().auth.getSession()
       if (!data.session || !active || recoveryMode) return
-      setEmail(data.session.user.email ?? '')
+      const { data: refreshedData } = await requireSupabase().auth.refreshSession()
+      const currentSession = refreshedData.session ?? data.session
+      if (currentSession.user.app_metadata?.role === 'admin' && !window.location.pathname.startsWith('/p/')) {
+        window.location.replace('/admin')
+        return
+      }
+      setEmail(currentSession.user.email ?? '')
       const existing = await getMyStore()
       if (!existing || !active) return
 
@@ -571,6 +577,10 @@ export default function DemoApp() {
     try {
       const form = new FormData(event.currentTarget)
       const existing = await authenticateOwner(email, String(form.get('password') ?? ''))
+      if (existing === 'admin') {
+        window.location.assign('/admin')
+        return
+      }
       if (existing) await openOwnedStore(existing)
       else setScreen('store')
     } catch (error) {
@@ -609,14 +619,19 @@ export default function DemoApp() {
   const authenticateOwner = async (loginEmail: string, password: string) => {
     if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
     const normalizedEmail = loginEmail.trim().toLowerCase()
-    const { error } = await requireSupabase().auth.signInWithPassword({ email: normalizedEmail, password })
+    const { data, error } = await requireSupabase().auth.signInWithPassword({ email: normalizedEmail, password })
     if (error) throw error
     setEmail(normalizedEmail)
+    if (data.user.app_metadata?.role === 'admin') return 'admin' as const
     return getMyStore()
   }
 
   const signInFromStore = async (loginEmail: string, password: string) => {
     const existing = await authenticateOwner(loginEmail, password)
+    if (existing === 'admin') {
+      window.location.assign('/admin')
+      return
+    }
     if (existing) {
       await openOwnedStore(existing)
       setPublicStore(null)
