@@ -112,7 +112,8 @@
 .admin-user-row.is-complete:hover { background: linear-gradient(90deg, #e8f5eb 0%, #f2f9f2 58%, #f9fbf7 100%); }
 .admin-user-row.is-complete .admin-user-row__identity > span { background: #dceee0; color: #246541; }
 .admin-user-row__identity { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .7rem; min-width: 0; }
-.admin-user-row__identity > span { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border-radius: .65rem; background: #edf0e8; color: #31553f; font-size: .7rem; font-weight: 850; }
+.admin-user-row__identity > span { position: relative; display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border-radius: .65rem; background: #edf0e8; color: #31553f; font-size: .7rem; font-weight: 850; }
+.admin-user-row__identity > span.is-online::after { position: absolute; right: -.12rem; bottom: -.12rem; width: .52rem; height: .52rem; border: .13rem solid #fff; border-radius: 50%; background: #35a961; box-shadow: 0 0 0 .08rem #35a96126; content: ''; }
 .admin-user-row__identity > div { display: grid; gap: .18rem; min-width: 0; }
 .admin-user-row__identity strong, .admin-user-row__identity a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-user-row__identity strong { font-size: .7rem; }
@@ -139,6 +140,7 @@
 .admin-status.is-empty { background: #f0f1ee; color: #7d8680; }
 .admin-user-row__activity { display: grid; gap: .22rem; }
 .admin-user-row__activity strong { color: #506057; font-size: .61rem; font-weight: 700; }
+.admin-user-row__activity strong.is-online { color: #23804b; }
 .admin-user-row__activity small { color: #929a95; font-size: .53rem; }
 .admin-table__empty { display: grid; min-height: 12rem; align-content: center; justify-items: center; gap: .4rem; color: #8e9791; text-align: center; }
 .admin-table__empty > span { font-size: 1.5rem; }

@@ -202,6 +202,7 @@ export default function AdminApp() {
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [rows, setRows] = useState<AdminUserRow[]>([])
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<UserFilter>('all')
@@ -252,6 +253,12 @@ export default function AdminApp() {
     setRevenueError('')
   }
 
+  const loadOnlineUsers = async () => {
+    const { data, error: queryError } = await requireSupabase().rpc('admin_online_users')
+    if (queryError) return
+    setOnlineUserIds(new Set((data ?? []).map((row: { user_id: string }) => row.user_id)))
+  }
+
   const loadDashboard = async ({ silent = false, refreshAuth = true }: { silent?: boolean; refreshAuth?: boolean } = {}) => {
     if (!silent) setIsLoading(true)
     setError('')
@@ -296,7 +303,23 @@ export default function AdminApp() {
 
   useEffect(() => {
     if (session) void loadDashboard()
-    else { setRows([]); setRevenue(emptyRevenueDashboard) }
+    else { setRows([]); setRevenue(emptyRevenueDashboard); setOnlineUserIds(new Set()) }
+  }, [session?.user.id])
+
+  useEffect(() => {
+    if (!session) return
+    const client = requireSupabase()
+    void loadOnlineUsers()
+    const channel = client.channel(`admin-online-${session.user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_presence_sessions' }, () => {
+        void loadOnlineUsers()
+      })
+      .subscribe()
+    const expiryRefresh = window.setInterval(() => { void loadOnlineUsers() }, 30_000)
+    return () => {
+      window.clearInterval(expiryRefresh)
+      void client.removeChannel(channel)
+    }
   }, [session?.user.id])
 
   useEffect(() => {
@@ -347,13 +370,14 @@ export default function AdminApp() {
         const newestFirst = new Date(right.user_created_at).getTime() - new Date(left.user_created_at).getTime()
         if (sort === 'newest') return newestFirst
         if (sort === 'oldest') return -newestFirst
+        const onlineDifference = Number(onlineUserIds.has(right.user_id)) - Number(onlineUserIds.has(left.user_id))
         const recentActivityFirst = new Date(right.last_activity_at ?? right.user_created_at).getTime()
           - new Date(left.last_activity_at ?? left.user_created_at).getTime()
-        if (sort === 'active') return recentActivityFirst || newestFirst
+        if (sort === 'active') return onlineDifference || recentActivityFirst || newestFirst
         if (sort === 'progress') return setupPercent(right) - setupPercent(left) || recentActivityFirst
         return setupPercent(left) - setupPercent(right) || newestFirst
       })
-  }, [rows, filter, search, sort])
+  }, [rows, filter, search, sort, onlineUserIds])
 
   if (!authReady) return <main className="admin-loading"><span /><p>Avan administraatori töölauda…</p></main>
   if (!isSupabaseConfigured) return <main className="admin-auth"><section className="admin-auth__card"><span>SEADISTUS PUUDUB</span><h1>Supabase pole ühendatud</h1><p>Lisa lokaalsesse <code>.env</code> faili Supabase’i võtmed ja laadi leht uuesti.</p><a href="/">Tagasi Poeruumi</a></section></main>
@@ -436,14 +460,15 @@ export default function AdminApp() {
             <div className="admin-table__head"><span>Kasutaja</span><span>Liitus</span><span>Seadistus</span><span>Staatus</span><span>Viimane tegevus</span></div>
             {isLoading && !rows.length ? <div className="admin-table__empty"><span className="admin-table__loader" /><strong>Laadin kasutajaid…</strong></div> : visibleRows.length ? visibleRows.map((row) => {
               const percent = setupPercent(row)
+              const isOnline = onlineUserIds.has(row.user_id)
               const status = percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : null
               const statusClass = percent === 100 ? 'complete' : percent === 0 ? 'empty' : 'stalled'
               return <article className={`admin-user-row${percent === 100 ? ' is-complete' : ''}`} key={row.user_id}>
-                <div className="admin-user-row__identity"><span>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><strong>{row.store_name || 'Poodi pole loodud'}</strong><a href={`mailto:${row.email}`}>{row.email}</a></div></div>
+                <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><strong>{row.store_name || 'Poodi pole loodud'}</strong><a href={`mailto:${row.email}`}>{row.email}</a></div></div>
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
                 <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
-                <div className="admin-user-row__activity"><strong>{formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
+                <div className="admin-user-row__activity"><strong className={isOnline ? 'is-online' : undefined}>{isOnline ? 'Online' : formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
               </article>
             }) : <div className="admin-table__empty"><span>⌕</span><strong>Kasutajaid ei leitud</strong><p>Muuda otsingut või vali teine filter.</p></div>}
           </div>

@@ -363,6 +363,7 @@ function MontonioConnectDemo({ storeName, businessName, registryCode, onClose, o
 export default function DemoApp() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [email, setEmail] = useState('')
+  const [onlineUserId, setOnlineUserId] = useState<string | null>(null)
   const [storeName, setStoreName] = useState('')
   const [slug, setSlug] = useState('')
   const [payment, setPayment] = useState<'stripe' | 'montonio'>('stripe')
@@ -406,6 +407,33 @@ export default function DemoApp() {
     if (screen !== 'business' || !email) return
     setBusinessEmail((currentEmail) => currentEmail || email)
   }, [screen, email])
+
+  useEffect(() => {
+    if (!onlineUserId || !isSupabaseConfigured) return
+    const client = requireSupabase()
+    const presenceSessionId = crypto.randomUUID()
+    let active = true
+    const touchPresence = () => {
+      if (active) void client.rpc('touch_user_presence', { target_session_id: presenceSessionId })
+    }
+    const leavePresence = () => {
+      void client.rpc('leave_user_presence', { target_session_id: presenceSessionId })
+    }
+    touchPresence()
+    const heartbeat = window.setInterval(touchPresence, 30_000)
+    const handleVisibility = () => { if (document.visibilityState === 'visible') touchPresence() }
+    window.addEventListener('online', touchPresence)
+    window.addEventListener('pagehide', leavePresence)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      active = false
+      window.clearInterval(heartbeat)
+      window.removeEventListener('online', touchPresence)
+      window.removeEventListener('pagehide', leavePresence)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      leavePresence()
+    }
+  }, [onlineUserId])
 
   useEffect(() => {
     if (screen !== 'business' || !/^\d{8}$/.test(registryCode)) {
@@ -545,6 +573,7 @@ export default function DemoApp() {
         window.location.replace('/admin')
         return
       }
+      setOnlineUserId(currentSession.user.app_metadata?.role === 'admin' ? null : currentSession.user.id)
       setEmail(currentSession.user.email ?? '')
       let existing = await getMyStore()
       if (!existing || !active) return
@@ -595,6 +624,7 @@ export default function DemoApp() {
       }
     }
     const { data } = requireSupabase().auth.onAuthStateChange((event, session) => {
+      setOnlineUserId(session?.user.app_metadata?.role === 'admin' ? null : session?.user.id ?? null)
       if (event === 'PASSWORD_RECOVERY' && active) {
         recoveryMode = true
         setEmail(session?.user.email ?? '')
