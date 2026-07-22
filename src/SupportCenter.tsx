@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { BrandMark } from './DemoApp'
@@ -57,6 +57,8 @@ function SupportIcon({ name }: { name: SupportIconName }) {
 export default function SupportCenter() {
   const [user, setUser] = useState<User | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [view, setView] = useState<'list' | 'new' | 'thread'>('list')
   const [conversations, setConversations] = useState<SupportConversation[]>([])
   const [selected, setSelected] = useState<SupportConversation | null>(null)
@@ -81,6 +83,35 @@ export default function SupportCenter() {
     })
     return () => { active = false; data.subscription.unsubscribe() }
   }, [])
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeSupport()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [isOpen])
+
+  const openSupport = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    setIsClosing(false)
+    setIsOpen(true)
+  }
+
+  const closeSupport = () => {
+    if (isClosing) return
+    setIsClosing(true)
+    closeTimer.current = setTimeout(() => {
+      setIsOpen(false)
+      setIsClosing(false)
+      closeTimer.current = null
+    }, 190)
+  }
 
   const loadConversations = async () => {
     if (!user) return
@@ -194,16 +225,15 @@ export default function SupportCenter() {
   const unread = conversations.filter((item) => item.user_read_at === null).length
 
   return <>
-    <button className="support-launcher" type="button" onClick={() => setIsOpen(true)} aria-label="Ava Poeruumi klienditugi">
+    <button className="support-launcher" type="button" onClick={openSupport} aria-label="Ava Poeruumi klienditugi" aria-expanded={isOpen}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3v-13Z"/><path d="M9 9h6M9 12h4"/></svg>
       <span>Abi</span>{unread > 0 && <b>{unread}</b>}
     </button>
-    {isOpen && <div className="support-modal" role="dialog" aria-modal="true" aria-label="Poeruumi klienditugi">
-      <button className="support-modal__backdrop" type="button" onClick={() => setIsOpen(false)} aria-label="Sulge klienditugi" />
+    {isOpen && <div className={`support-modal${isClosing ? ' is-closing' : ''}`} role="dialog" aria-label="Poeruumi klienditugi">
       <section className={`support-panel is-${view}`}>
         <header>
           <div>{view !== 'list' ? <button type="button" onClick={() => { setView('list'); setSelected(null); setError(''); setNotice('') }} aria-label="Tagasi vestluste juurde"><SupportIcon name="back" /></button> : <BrandMark className="support-panel__logo" />}<span><strong>Poeruumi tugi</strong><small><i /> Oleme siin, et aidata</small></span></div>
-          <button type="button" onClick={() => setIsOpen(false)} aria-label="Sulge"><SupportIcon name="close" /></button>
+          <button type="button" onClick={closeSupport} aria-label="Sulge"><SupportIcon name="close" /></button>
         </header>
 
         {view === 'list' && <div className="support-panel__content">
