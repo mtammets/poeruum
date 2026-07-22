@@ -426,11 +426,11 @@ export default function AdminApp() {
               const percent = setupPercent(row)
               const status = percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : null
               const statusClass = percent === 100 ? 'complete' : percent === 0 ? 'empty' : 'stalled'
-              return <article className="admin-user-row" key={row.user_id}>
+              return <article className={`admin-user-row${percent === 100 ? ' is-complete' : ''}`} key={row.user_id}>
                 <div className="admin-user-row__identity"><span>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><strong>{row.store_name || 'Poodi pole loodud'}</strong><a href={`mailto:${row.email}`}>{row.email}</a></div></div>
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
-                <div>{status && <span className={`admin-status is-${statusClass}`}><i />{status}</span>}{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
+                <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
                 <div className="admin-user-row__activity"><strong>{formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
               </article>
             }) : <div className="admin-table__empty"><span>⌕</span><strong>Kasutajaid ei leitud</strong><p>Muuda otsingut või vali teine filter.</p></div>}
