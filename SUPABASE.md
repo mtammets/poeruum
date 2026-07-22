@@ -23,3 +23,32 @@ Administraatori töölaud avaneb aadressil `/admin`. Ligipääs kontrollitakse s
 4. Kui kasutaja oli juba sisse logitud, logi välja ja uuesti sisse, et uus JWT sisaldaks admini rolli.
 
 Admini roll eemaldatakse Supabase Auth Admin API kaudu, muutes kasutaja `app_metadata.role` väärtust. Ära paiguta admini rolli `user_metadata` alla, sest kasutaja saab seda ise muuta.
+
+## Stripe’i päris maksed ja reaalaja tulu
+
+Poe Stripe’i ostud kasutavad destination charge’i. Toodete summa pealt arvutatud Paindliku paketi teenustasu läheb Stripe’i `application_fee_amount` väljale; tarne ei kuulu tasu sisse. Kindla paketi kuutasu kasutab Stripe Billingu korduvat Price’i ja eraldi 24% Tax Rate’i.
+
+1. Loo Stripe’is korduv kuine Price netohinnaga 29 € ja lisa selle ID `.env` faili muutujasse `STRIPE_FIXED_PLAN_PRICE_ID`.
+2. Loo enne tootmisse minekut Stripe’is Eesti 24% Tax Rate ja lisa ID muutujasse `STRIPE_FIXED_PLAN_TAX_RATE_ID`. Lokaalses testis on see valikuline; tootmises ei tohi seda tühjaks jätta.
+3. Sea `APP_URL` avalikule HTTPS-aadressile.
+4. Laadi Edge Functionite serverisaladused Supabase’i: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_FIXED_PLAN_PRICE_ID`, `STRIPE_FIXED_PLAN_TAX_RATE_ID` ja `APP_URL`.
+5. Rakenda andmebaas `npm run supabase:deploy` ning funktsioonid `npm run supabase:functions:deploy`.
+
+Stripe’i platvormikonto webhook peab saatma `stripe-webhook` funktsioonile järgmised sündmused:
+
+- `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+- `checkout.session.async_payment_failed`
+- `checkout.session.expired`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.paid`
+- `invoice.payment_failed`
+- `application_fee.created`
+- `application_fee.refunded`
+
+Connecti webhook peab saatma `stripe-connect-webhook` funktsioonile connected account sündmused `account.updated` ja `account.application.deauthorized`.
+
+Admini reaalaja tulukaart loeb ainult allkirjastatud webhook’ist tabelisse `revenue_events` jõudnud sündmusi. Brauser ega kaupmees ei saa tulukandeid ise lisada. Supabase Realtime’i publikatsioon lisatakse migratsiooniga automaatselt; tulutabelit saavad lugeda ainult kasutajad, kelle JWT `app_metadata.role` on `admin`.
+
+Tagastus tuleb algatada Poeruumi tellimuse vaatest. Server saadab Stripe’ile korraga `reverse_transfer=true` ja `refund_application_fee=true`, mistõttu kaupmehele kantud summa ning Poeruumi 4% tasu pööratakse koos tagasi. Tagastatud teenustasu ilmub adminis negatiivse tulukandena.

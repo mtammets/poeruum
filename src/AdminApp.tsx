@@ -30,17 +30,47 @@ type AdminUserRow = {
 type SetupStep = {
   key: keyof Pick<AdminUserRow, 'has_store_details' | 'has_payments' | 'has_delivery' | 'has_product' | 'has_business_details' | 'has_published'>
   label: string
+  nextLabel: string
 }
 
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 
+type RevenueEvent = {
+  id: string
+  kind: 'subscription' | 'transaction_fee' | 'transaction_fee_refund'
+  amount_cents: number
+  currency: string
+  description: string
+  occurred_at: string
+  store_id: string | null
+  store_name: string
+}
+
+type RevenueDashboard = {
+  month_total_cents: number
+  today_total_cents: number
+  subscription_total_cents: number
+  transaction_fee_total_cents: number
+  refund_total_cents: number
+  recent_events: RevenueEvent[]
+}
+
+const emptyRevenueDashboard: RevenueDashboard = {
+  month_total_cents: 0,
+  today_total_cents: 0,
+  subscription_total_cents: 0,
+  transaction_fee_total_cents: 0,
+  refund_total_cents: 0,
+  recent_events: [],
+}
+
 const setupSteps: SetupStep[] = [
-  { key: 'has_store_details', label: 'Poe põhiandmed' },
-  { key: 'has_payments', label: 'Maksed ühendatud' },
-  { key: 'has_delivery', label: 'Tarneviis valitud' },
-  { key: 'has_product', label: 'Esimene toode lisatud' },
-  { key: 'has_business_details', label: 'Müüja andmed' },
-  { key: 'has_published', label: 'Pood avalikustatud' },
+  { key: 'has_store_details', label: 'Poe põhiandmed', nextLabel: 'poe põhiandmete lisamine' },
+  { key: 'has_payments', label: 'Maksed ühendatud', nextLabel: 'maksete ühendamine' },
+  { key: 'has_delivery', label: 'Tarneviis valitud', nextLabel: 'tarneviisi valimine' },
+  { key: 'has_product', label: 'Esimene toode lisatud', nextLabel: 'esimese toote lisamine' },
+  { key: 'has_business_details', label: 'Müüja andmed', nextLabel: 'müüja andmete lisamine' },
+  { key: 'has_published', label: 'Pood avalikustatud', nextLabel: 'poe avalikustamine' },
 ]
 
 const filters: Array<{ id: UserFilter; label: string }> = [
@@ -58,6 +88,10 @@ const formatDate = (value: string | null) => value
   ? new Intl.DateTimeFormat('et-EE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value))
   : '—'
 
+const formatMoney = (cents: number, currency = 'eur') => new Intl.NumberFormat('et-EE', {
+  style: 'currency', currency: currency.toUpperCase(), minimumFractionDigits: 2,
+}).format(cents / 100)
+
 const formatRelativeTime = (value: string | null) => {
   if (!value) return 'Pole aktiivne olnud'
   const elapsed = Date.now() - new Date(value).getTime()
@@ -72,7 +106,7 @@ const formatRelativeTime = (value: string | null) => {
   return formatDate(value)
 }
 
-const getNextStep = (row: AdminUserRow) => setupSteps.find((step) => !row[step.key])?.label ?? 'Pood on valmis'
+const getNextStep = (row: AdminUserRow) => setupSteps.find((step) => !row[step.key])?.nextLabel ?? 'pood on valmis'
 
 const isStalled = (row: AdminUserRow) => {
   if (setupPercent(row) === 100) return false
@@ -80,7 +114,7 @@ const isStalled = (row: AdminUserRow) => {
   return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
-type AdminIconName = 'home' | 'users' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search'
+type AdminIconName = 'home' | 'users' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
@@ -92,6 +126,7 @@ function AdminIcon({ name }: { name: AdminIconName }) {
     arrow: <><path d="M7 17 17 7M9 7h8v8" /></>,
     alert: <><path d="M12 7v6" /><path d="M12 17h.01" /><circle cx="12" cy="12" r="9" /></>,
     search: <><circle cx="10.5" cy="10.5" r="5.5" /><path d="m15 15 4.5 4.5" /></>,
+    revenue: <><circle cx="12" cy="12" r="8" /><path d="M15 8.5c-.7-.5-1.5-.7-2.4-.7-1.6 0-2.7.7-2.7 1.8 0 2.8 5.4 1.3 5.4 4.2 0 1.1-1.1 2-2.8 2-.9 0-1.9-.3-2.7-.8M12.5 6v12" /></>,
   }
   return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
 }
@@ -132,12 +167,21 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
 function ProgressBar({ row }: { row: AdminUserRow }) {
   const completed = setupCount(row)
   const percent = setupPercent(row)
-  return <div className="admin-progress">
-    <div className="admin-progress__meta"><strong>{percent}%</strong><span>{completed}/{setupSteps.length} sammu</span></div>
-    <div className="admin-progress__segments" role="progressbar" aria-label={`Poe seadistus ${percent}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
-      {setupSteps.map((step) => <i className={row[step.key] ? 'is-done' : ''} title={`${step.label}: ${row[step.key] ? 'tehtud' : 'tegemata'}`} key={step.key} />)}
+  const progressState = percent === 100
+    ? 'is-complete'
+    : percent === 0
+      ? 'is-not-started'
+      : percent <= 33
+        ? 'is-early'
+        : percent <= 66
+          ? 'is-midway'
+          : 'is-nearly-complete'
+  return <div className={`admin-progress ${progressState}`}>
+    <div className="admin-progress__meta"><strong>{percent}%</strong><span>{completed} tehtud · {setupSteps.length - completed} teha</span></div>
+    <div className="admin-progress__track" role="progressbar" aria-label="Poe seadistuse edenemine" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${completed} sammu ${setupSteps.length}-st tehtud`}>
+      <span style={{ width: `${percent}%` }} />
     </div>
-    <small>{percent === 100 ? 'Kõik sammud tehtud' : `Järgmine: ${getNextStep(row)}`}</small>
+    <small>{percent === 100 ? 'Kõik sammud tehtud' : `Järgmine samm: ${getNextStep(row)}`}</small>
   </div>
 }
 
@@ -149,6 +193,27 @@ export default function AdminApp() {
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<UserFilter>('all')
   const [search, setSearch] = useState('')
+  const [revenue, setRevenue] = useState<RevenueDashboard>(emptyRevenueDashboard)
+  const [revenueError, setRevenueError] = useState('')
+  const [liveRevenueEventId, setLiveRevenueEventId] = useState<string | null>(null)
+
+  const loadRevenue = async () => {
+    const { data, error: queryError } = await requireSupabase().rpc('admin_revenue_dashboard')
+    if (queryError) {
+      setRevenueError('Tulude andmeid ei õnnestunud laadida. Rakenda tulude migratsioon.')
+      return
+    }
+    const result = Array.isArray(data) ? data[0] : data
+    setRevenue({
+      month_total_cents: Number(result?.month_total_cents ?? 0),
+      today_total_cents: Number(result?.today_total_cents ?? 0),
+      subscription_total_cents: Number(result?.subscription_total_cents ?? 0),
+      transaction_fee_total_cents: Number(result?.transaction_fee_total_cents ?? 0),
+      refund_total_cents: Number(result?.refund_total_cents ?? 0),
+      recent_events: Array.isArray(result?.recent_events) ? result.recent_events.map((event: RevenueEvent) => ({ ...event, amount_cents: Number(event.amount_cents) })) : [],
+    })
+    setRevenueError('')
+  }
 
   const loadDashboard = async () => {
     setIsLoading(true)
@@ -156,6 +221,7 @@ export default function AdminApp() {
     // Refresh the JWT so a newly assigned server-side admin role is available
     // without requiring the user to manually clear their existing session.
     await requireSupabase().auth.refreshSession()
+    void loadRevenue()
     const { data, error: queryError } = await requireSupabase().rpc('admin_dashboard_users')
     if (queryError) {
       const forbidden = queryError.code === '42501' || queryError.message.toLowerCase().includes('admin access')
@@ -193,7 +259,21 @@ export default function AdminApp() {
 
   useEffect(() => {
     if (session) void loadDashboard()
-    else setRows([])
+    else { setRows([]); setRevenue(emptyRevenueDashboard) }
+  }, [session?.user.id])
+
+  useEffect(() => {
+    if (!session) return
+    const client = requireSupabase()
+    const channel = client.channel(`admin-revenue-${session.user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'revenue_events' }, (payload) => {
+        const eventId = typeof payload.new.id === 'string' ? payload.new.id : null
+        setLiveRevenueEventId(eventId)
+        void loadRevenue()
+        window.setTimeout(() => setLiveRevenueEventId((current) => current === eventId ? null : current), 3200)
+      })
+      .subscribe()
+    return () => { void client.removeChannel(channel) }
   }, [session?.user.id])
 
   const visibleRows = useMemo(() => {
@@ -236,6 +316,28 @@ export default function AdminApp() {
       {error && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
+        <section className={`admin-revenue${liveRevenueEventId ? ' is-live-update' : ''}`} aria-label="Poeruumi tulu">
+          <div className="admin-revenue__summary">
+            <header><span><AdminIcon name="revenue" /></span><div><small>SELLE KUU TEENUSTASUD</small><strong>{formatMoney(revenue.month_total_cents)}</strong></div><b><i /> REAALAJAS</b></header>
+            <div className="admin-revenue__today"><span>Täna</span><strong>{formatMoney(revenue.today_total_cents)}</strong></div>
+            <dl>
+              <div><dt>Kuutasud</dt><dd>{formatMoney(revenue.subscription_total_cents)}</dd></div>
+              <div><dt>4% müügitasud</dt><dd>{formatMoney(revenue.transaction_fee_total_cents)}</dd></div>
+              <div><dt>Tagastused</dt><dd>{formatMoney(revenue.refund_total_cents)}</dd></div>
+            </dl>
+          </div>
+          <div className="admin-revenue__activity">
+            <header><div><strong>Viimased laekumised</strong><small>Enne Stripe’i maksetöötluse tasusid</small></div>{liveRevenueEventId && <span>Uus laekumine</span>}</header>
+            {revenueError ? <p className="admin-revenue__empty is-error">{revenueError}</p> : revenue.recent_events.length ? <div className="admin-revenue__events">
+              {revenue.recent_events.slice(0, 4).map((event) => <article className={event.id === liveRevenueEventId ? 'is-new' : ''} key={event.id}>
+                <i className={event.amount_cents < 0 ? 'is-refund' : event.kind === 'subscription' ? 'is-subscription' : ''}>{event.amount_cents < 0 ? '↩' : event.kind === 'subscription' ? 'K' : '%'}</i>
+                <span><strong>{event.description}</strong><small>{event.store_name} · {formatRelativeTime(event.occurred_at)}</small></span>
+                <b>{event.amount_cents > 0 ? '+' : ''}{formatMoney(event.amount_cents, event.currency)}</b>
+              </article>)}
+            </div> : <p className="admin-revenue__empty">Esimene kinnitatud kuutasu või müügitasu ilmub siia automaatselt.</p>}
+          </div>
+        </section>
+
         <section className="admin-kpis" aria-label="Kokkuvõte">
           <article><span>KÕIK KASUTAJAD</span><strong>{rows.length}</strong><small>Poeruumi kontot</small><i className="is-neutral"><AdminIcon name="users" /></i></article>
           <article><span>VALMIS POED</span><strong>{completedCount}</strong><small>{rows.length ? `${Math.round(completedCount / rows.length * 100)}% kasutajatest` : 'Andmed puuduvad'}</small><i className="is-positive"><AdminIcon name="check" /></i></article>
@@ -263,12 +365,13 @@ export default function AdminApp() {
             <div className="admin-table__head"><span>Kasutaja</span><span>Liitus</span><span>Seadistus</span><span>Staatus</span><span>Viimane tegevus</span></div>
             {isLoading && !rows.length ? <div className="admin-table__empty"><span className="admin-table__loader" /><strong>Laadin kasutajaid…</strong></div> : visibleRows.length ? visibleRows.map((row) => {
               const percent = setupPercent(row)
-              const status = percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : 'Pooleli'
+              const status = percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : null
+              const statusClass = percent === 100 ? 'complete' : percent === 0 ? 'empty' : 'stalled'
               return <article className="admin-user-row" key={row.user_id}>
                 <div className="admin-user-row__identity"><span>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><strong>{row.store_name || 'Poodi pole loodud'}</strong><a href={`mailto:${row.email}`}>{row.email}</a></div></div>
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
-                <div><span className={`admin-status is-${percent === 100 ? 'complete' : percent === 0 ? 'empty' : isStalled(row) ? 'stalled' : 'progress'}`}><i />{status}</span>{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
+                <div>{status && <span className={`admin-status is-${statusClass}`}><i />{status}</span>}{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
                 <div className="admin-user-row__activity"><strong>{formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
               </article>
             }) : <div className="admin-table__empty"><span>⌕</span><strong>Kasutajaid ei leitud</strong><p>Muuda otsingut või vali teine filter.</p></div>}

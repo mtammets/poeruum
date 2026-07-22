@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageTransform } from './products'
-import { createOrder, listOrders, listProducts, removeProduct, saveProduct, updateOrderStatus, updateStore, uploadImages, type ImageUploadPhase, type StoreRecord } from './lib/database'
+import { cancelStripeBilling, createOrder, listOrders, listProducts, refundStripeOrder, removeProduct, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 
 const getProductPrice = (product: Product) =>
@@ -318,8 +318,9 @@ type DeliverySettings = {
   pickupAddress: string
 }
 
-export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Kinnita ja avalda' }: { onClose: () => void; onConfirm: (trialStartedAt: string) => void; confirmLabel?: string }) {
+export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Jätka Stripe’is' }: { onClose: () => void; onConfirm: () => Promise<void>; confirmLabel?: string }) {
   const [isConfirming, setIsConfirming] = useState(false)
+  const [confirmError, setConfirmError] = useState('')
   const [billingDragY, setBillingDragY] = useState(0)
   const [isBillingDragging, setIsBillingDragging] = useState(false)
   const [hasBillingDragged, setHasBillingDragged] = useState(false)
@@ -333,11 +334,13 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Kinnita ja
   firstPaymentAt.setDate(firstPaymentAt.getDate() + FIXED_PLAN_TRIAL_DAYS)
   const firstPaymentLabel = firstPaymentAt.toLocaleDateString('et-EE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-  const confirm = (event: React.FormEvent<HTMLFormElement>) => {
+  const confirm = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (isConfirming) return
     setIsConfirming(true)
-    window.setTimeout(() => onConfirm(new Date().toISOString()), 850)
+    setConfirmError('')
+    try { await onConfirm() }
+    catch (error) { setConfirmError(error instanceof Error ? error.message : 'Stripe’i arvelduse avamine ebaõnnestus.'); setIsConfirming(false) }
   }
 
   useEffect(() => () => {
@@ -426,7 +429,7 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Kinnita ja
   }
 
   return <div className="overlay login-overlay billing-card-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className={`login-sheet billing-card-demo${isBillingDragging ? ' is-dragging' : ''}${hasBillingDragged ? ' has-dragged' : ''}`} style={hasBillingDragged ? { transform: `translateY(${billingDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Poeruumi arvelduskaardi lisamine">
+    <section className={`login-sheet billing-card-demo${isBillingDragging ? ' is-dragging' : ''}${hasBillingDragged ? ' has-dragged' : ''}`} style={hasBillingDragged ? { transform: `translateY(${billingDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Poeruumi Kindla paketi aktiveerimine">
       <div ref={billingDragAreaRef} className="billing-card-demo__drag-area" aria-hidden="true" onPointerDown={startBillingDrag} onPointerMove={moveBillingDrag} onPointerUp={(event) => endBillingDrag(event)} onPointerCancel={(event) => endBillingDrag(event, true)}><span className="billing-card-demo__handle" /></div>
       <button className="login-sheet__close" type="button" onClick={onClose} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
       <span className="login-sheet__eyebrow">KINDEL · 30 PÄEVA TASUTA</span>
@@ -444,7 +447,7 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Kinnita ja
             </g>
           </svg>
         </span>
-        <h2>Lisa maksekaart</h2>
+        <h2>Aktiveeri Kindel pakett</h2>
       </div>
       <div className="billing-card-demo__summary">
         <div className="billing-card-demo__today"><span>Täna tasuda</span><strong>0 €</strong></div>
@@ -455,16 +458,11 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Kinnita ja
         </div>
       </div>
       <form onSubmit={confirm}>
-        <label>Kaardi number<div className="billing-card-demo__card-number"><input required inputMode="numeric" autoComplete="cc-number" defaultValue="4242 4242 4242 4242" pattern="[0-9 ]{19}" /><span>VISA</span></div></label>
-        <div className="billing-card-demo__row">
-          <label>Kehtib kuni<input required inputMode="numeric" autoComplete="cc-exp" defaultValue="12/30" pattern="[0-9]{2}/[0-9]{2}" /></label>
-          <label>CVC<input required inputMode="numeric" autoComplete="cc-csc" defaultValue="123" pattern="[0-9]{3,4}" /></label>
-        </div>
-        <label>Kaardi omaniku nimi<input required autoComplete="cc-name" defaultValue="Marek Tammets" /></label>
         <label className="billing-card-demo__consent"><input required type="checkbox" defaultChecked /><span>Nõustun pärast prooviperioodi 29 € + km kuutasuga.</span></label>
+        {confirmError && <p className="add-product-error" role="alert">{confirmError}</p>}
         <button type="submit" disabled={isConfirming}>{isConfirming ? 'Kinnitan…' : confirmLabel}<span aria-hidden="true">{isConfirming ? '◌' : '→'}</span></button>
       </form>
-      <small className="billing-card-demo__note"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" /></svg><span>Kaardiandmeid ei salvestata</span></small>
+      <small className="billing-card-demo__note"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" /></svg><span>Kaardiandmed sisestad turvaliselt Stripe’is</span></small>
     </section>
   </div>
 }
@@ -525,7 +523,7 @@ const findParcelMachines = (machines: ParcelMachine[], query: string) => {
     .slice(0, 8)
 }
 
-function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySettings, onRemove, onQuantityChange, onComplete, onClose }: { items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onComplete: (order: DemoOrder) => void; onClose: () => void }) {
+function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, onRemove, onQuantityChange, onComplete, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onComplete: (order: DemoOrder) => void; onClose: () => void }) {
   const checkoutRef = useRef<HTMLElement>(null)
   const [step, setStep] = useState<'cart' | 'checkout' | 'success'>(initialStep)
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'card'>('bank')
@@ -547,6 +545,7 @@ function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySett
   const [isCourierAddressOpen, setIsCourierAddressOpen] = useState(false)
   const [selectedCourierAddressId, setSelectedCourierAddressId] = useState('')
   const [isPaying, setIsPaying] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
   const [completedOrder, setCompletedOrder] = useState<{ id: string; total: number } | null>(null)
   const itemTotal = items.reduce((sum, item) => sum + getProductPrice(item) * item.quantity, 0)
   const selectedParcelMachine = parcelMachines.find((machine) => machine.id === selectedParcelId)
@@ -646,12 +645,30 @@ function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySett
     window.setTimeout(revealField, 420)
   }
 
-  const completeCheckout = (event: React.FormEvent<HTMLFormElement>) => {
+  const completeCheckout = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (isPaying) return
     const data = new FormData(event.currentTarget)
     const id = `PR-${String(Date.now()).slice(-5)}`
-    const deliveryLabel = delivery === 'parcel' ? parcelQuery : delivery === 'courier' ? courierAddress : 'Tulen ise järele'
+    const deliveryLabel = delivery === 'parcel' ? parcelQuery : delivery === 'courier' ? [courierAddress, courierCity, courierPostalCode].filter(Boolean).join(', ') : 'Tulen ise järele'
+    if (paymentProvider === 'stripe') {
+      if (!storeId) { setPaymentError('Päris makse jaoks peab pood olema serverisse salvestatud.'); return }
+      setIsPaying(true)
+      setPaymentError('')
+      try {
+        const url = await startStripeStoreCheckout({
+          storeId,
+          items: items.map((item) => ({ id: item.id, quantity: item.quantity, selectedOptions: item.selectedOptions })),
+          customer: { name: String(data.get('customerName')), email: String(data.get('customerEmail')), phone: String(data.get('customerPhone')) },
+          delivery: { type: delivery, provider: selectedParcelMachine?.provider, label: deliveryLabel },
+        })
+        window.location.assign(url)
+      } catch (error) {
+        setPaymentError(error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.')
+        setIsPaying(false)
+      }
+      return
+    }
     const order: DemoOrder = {
       id,
       items: [...items],
@@ -791,21 +808,9 @@ function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySett
             </fieldset>
             {!paymentsReady ? <div className="payment-pending"><span>…</span><div><strong>Maksed aktiveerimisel</strong><small>Montonio kontrollib poe andmeid. Ostjad saavad maksta pärast konto kinnitamist.</small></div></div> : paymentProvider === 'stripe' ? <fieldset className="payment stripe-payment">
               <legend>Makseviis</legend>
-              <div className="stripe-wallets">
-                <button type="button"><span></span> Pay</button>
-                <button type="button"><b>G</b> Pay</button>
-              </div>
-              <div className="stripe-divider"><span>või maksa kaardiga</span></div>
               <div className="stripe-payment__card">
-                <div className="stripe-secure"><span>⌁</span><strong>Turvaline kaardimakse</strong><small>Stripe</small></div>
-                <label>Kaardi number
-                  <div className="stripe-card-number"><input required inputMode="numeric" autoComplete="cc-number" placeholder="1234 5678 9012 3456" /><span>VISA&nbsp;&nbsp;●●</span></div>
-                </label>
-                <div className="stripe-card-row">
-                  <label>Kehtiv kuni<input required inputMode="numeric" autoComplete="cc-exp" placeholder="KK / AA" /></label>
-                  <label>CVC<input required inputMode="numeric" autoComplete="cc-csc" placeholder="123" /></label>
-                </div>
-                <small>Kaardiandmeid töötleb turvaliselt Stripe. Poeruum neid ei näe ega salvesta.</small>
+                <div className="stripe-secure"><span>⌁</span><strong>Turvaline makse Stripe’is</strong><small>Kaart · Apple Pay · Google Pay</small></div>
+                <small>Pärast tellimuse kinnitamist avaneb Stripe’i turvaline makseleht. Poeruum ei näe ega salvesta sinu kaardiandmeid.</small>
               </div>
             </fieldset> : <fieldset className="payment">
               <legend>Makseviis</legend>
@@ -849,6 +854,7 @@ function Cart({ items, initialStep, paymentProvider, paymentsReady, deliverySett
               <div className="vat-row"><span>sh käibemaks 24%</span><span>{vatAmount.toFixed(2).replace('.', ',')} €</span></div>
               <small>Hinnad sisaldavad käibemaksu.</small>
             </div>
+            {paymentError && <p className="add-product-error" role="alert">{paymentError}</p>}
             <button className="pay" type="submit" disabled={isPaying || !paymentsReady}>{!paymentsReady ? 'Maksed aktiveerimisel' : isPaying ? 'Töötlen makset…' : paymentProvider === 'stripe' ? `Maksa ${orderTotal.toFixed(2).replace('.', ',')} €` : 'Maksa'}</button>
             <button className="checkout-back" type="button" onClick={() => setStep('cart')}>Tagasi ostukorvi</button>
           </form>}
@@ -1728,6 +1734,17 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }, [authToast])
 
   useEffect(() => {
+    const checkoutResult = new URLSearchParams(window.location.search).get('checkout')
+    if (!checkoutResult) return
+    setAuthToast(checkoutResult === 'success' ? 'Makse õnnestus. Tellimus on kinnitatud.' : 'Makse katkestati. Ostukorvi eest tasu ei võetud.')
+    if (checkoutResult === 'success') setCart([])
+    const cleanUrl = new URL(window.location.href)
+    cleanUrl.searchParams.delete('checkout')
+    cleanUrl.searchParams.delete('session_id')
+    window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
+  }, [])
+
+  useEffect(() => {
     if (!autoSwipeEnabled || isEditOpen) {
       setIsScreensaverActive(false)
       return
@@ -2369,7 +2386,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   const changeOrderStatus = async (orderNumber: string, status: DemoOrder['status']) => {
     try {
-      if (storeId) await updateOrderStatus(storeId, orderNumber, status)
+      if (storeId && status === 'refunded' && activePaymentProvider === 'stripe') await refundStripeOrder(storeId, orderNumber)
+      else if (storeId) await updateOrderStatus(storeId, orderNumber, status)
       setOrders((current) => current.map((item) => item.id === orderNumber ? { ...item, status } : item))
     } catch (error) { setAuthToast(error instanceof Error ? error.message : 'Tellimuse uuendamine ebaõnnestus') }
   }
@@ -2404,9 +2422,19 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const remainingPlatformFee = billingPlan === 'fixed' ? 0 : Math.max(0, PLATFORM_FEE_CAP - monthlyPlatformFee)
   const platformFeeProgress = billingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, monthlyPlatformFee / PLATFORM_FEE_CAP * 100)
   const billingMonth = now.toLocaleDateString('et-EE', { month: 'long', year: 'numeric' })
-  const selectBillingPlan = (plan: PricingPlan) => {
-    if (plan === 'fixed' && !fixedPlanTrialStartedAt) {
+  const selectBillingPlan = async (plan: PricingPlan) => {
+    if (plan === 'fixed' && billingPlan !== 'fixed') {
       setIsBillingCardOpen(true)
+      return
+    }
+    if (plan === 'flexible' && billingPlan === 'fixed' && storeId) {
+      try {
+        const result = await cancelStripeBilling()
+        if (result.effectiveImmediately) setBillingPlan('flexible')
+        setAuthToast(result.effectiveImmediately
+          ? 'Paindlik pakett on aktiivne.'
+          : `Paindlik pakett rakendub ${result.cancelAt ? new Date(result.cancelAt).toLocaleDateString('et-EE') : 'praeguse arveldusperioodi lõpus'}.`)
+      } catch (error) { setAuthToast(error instanceof Error ? error.message : 'Paketi muutmine ebaõnnestus') }
       return
     }
     setBillingPlan(plan)
@@ -2871,7 +2899,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         </section>
       </div>}
 
-      {isCartOpen && <Cart items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
+      {isCartOpen && <Cart storeId={storeId} items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
         const target = items.find((item) => item.cartKey === cartKey)
         if (!target || quantity <= 0) return items.filter((item) => item.cartKey !== cartKey)
         const otherQuantity = items.filter((item) => item.id === target.id && item.cartKey !== cartKey).reduce((sum, item) => sum + item.quantity, 0)
@@ -2885,7 +2913,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         <section className="login-sheet orders-sheet" role="dialog" aria-modal="true" aria-label="Tellimused">
           <button className="login-sheet__close" onClick={() => setIsOrdersOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
           <div className="orders-heading">
-            <span>TELLIMUSED</span><h2>{newOrderCount ? newOrderCount === 1 ? '1 uus tellimus' : `${newOrderCount} uut tellimust` : 'Kõik on tehtud'}</h2><p>Siin näed demopoele tehtud oste. Uuemad on alati ees.</p>
+            <span>TELLIMUSED</span><h2>{newOrderCount ? newOrderCount === 1 ? '1 uus tellimus' : `${newOrderCount} uut tellimust` : 'Kõik on tehtud'}</h2><p>Siin näed sinu poele tehtud oste. Uuemad on alati ees.</p>
             <label className="orders-search">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
               <input type="text" inputMode="search" value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Otsi tellimusi" aria-label="Otsi tellimuse, kliendi või toote järgi" />
@@ -3268,7 +3296,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </div>}
         </section>
       </div>}
-      {isBillingCardOpen && <BillingCardDemo onClose={() => setIsBillingCardOpen(false)} onConfirm={(trialStartedAt) => { setFixedPlanTrialStartedAt(new Date(trialStartedAt)); setBillingPlan('fixed'); setIsBillingCardOpen(false) }} />}
+      {isBillingCardOpen && <BillingCardDemo onClose={() => setIsBillingCardOpen(false)} onConfirm={async () => { const url = await startStripeBillingCheckout(); window.location.assign(url) }} />}
       {isEmailChangeOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isChangingEmail && event.target === event.currentTarget && setIsEmailChangeOpen(false)}>
         <section className="login-sheet password-change-sheet" role="dialog" aria-modal="true" aria-labelledby="email-change-title">
           <button className="login-sheet__close" type="button" disabled={isChangingEmail} onClick={() => setIsEmailChangeOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>

@@ -13,6 +13,18 @@ verify_jwt = false
 [functions.stripe-connect]
 verify_jwt = true
 
+[functions.stripe-store-checkout]
+verify_jwt = false
+
+[functions.stripe-billing-checkout]
+verify_jwt = true
+
+[functions.stripe-refund-order]
+verify_jwt = true
+
+[functions.stripe-billing-cancel]
+verify_jwt = true
+
 [api]
 enabled = true
 # Port to use for the API URL.

@@ -50,6 +50,10 @@ if (action === 'functions') {
   run(['functions', 'deploy', 'stripe-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'stripe-connect-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'stripe-connect', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'stripe-store-checkout', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'stripe-billing-checkout', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'stripe-refund-order', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'stripe-billing-cancel', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   process.exit(0)
 }
 

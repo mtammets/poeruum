@@ -1,0 +1,195 @@
+import { createClient } from 'npm:@supabase/supabase-js@2'
+import Stripe from 'npm:stripe@^22'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+})
+
+const requiredEnv = (name: string) => {
+  const value = Deno.env.get(name)?.trim()
+  if (!value) throw new Error(`Puudub ${name}.`)
+  return value
+}
+
+type CheckoutItem = { id: string; quantity: number; selectedOptions?: Record<string, string> }
+type DeliveryInput = { type: 'parcel' | 'courier' | 'pickup'; provider?: 'omniva' | 'dpd' | 'smartposti'; label: string }
+type CheckoutBody = {
+  storeId?: string
+  returnUrl?: string
+  items?: CheckoutItem[]
+  customer?: { name?: string; email?: string; phone?: string }
+  delivery?: DeliveryInput
+}
+
+const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
+const moneyToCents = (value: unknown) => Math.max(0, Math.round(Number(value ?? 0) * 100))
+const returnBase = (configured: string, requested: string | undefined, testMode: boolean) => {
+  try {
+    if (!requested) return configured
+    const url = new URL(requested)
+    const isPrivateTestHost = testMode && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+      || /^10\./.test(url.hostname) || /^192\.168\./.test(url.hostname)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname))
+    return url.origin === new URL(configured).origin || isPrivateTestHost ? url.origin : configured
+  } catch { return configured }
+}
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+
+  try {
+    const body = await request.json() as CheckoutBody
+    const storeId = String(body.storeId ?? '')
+    const requestedItems = Array.isArray(body.items) ? body.items.slice(0, 50) : []
+    const email = String(body.customer?.email ?? '').trim().toLowerCase()
+    const customerName = String(body.customer?.name ?? '').trim()
+    const customerPhone = String(body.customer?.phone ?? '').trim()
+    if (!storeId || !requestedItems.length || !email || !customerName || !body.delivery) {
+      return json({ error: 'Tellimuse andmed on puudulikud.' }, 400)
+    }
+
+    const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+    const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
+    const stripe = new Stripe(stripeSecretKey)
+    const { data: store, error: storeError } = await admin.from('stores').select('*').eq('id', storeId).eq('is_published', true).maybeSingle()
+    if (storeError) throw storeError
+    if (!store) return json({ error: 'Poodi ei leitud või see pole avalik.' }, 404)
+    if (store.payment_provider !== 'stripe' || store.payment_status !== 'connected' || !store.stripe_account_id) {
+      return json({ error: 'Selle poe Stripe’i maksed pole veel aktiivsed.' }, 409)
+    }
+
+    const uniqueProductIds = [...new Set(requestedItems.map((item) => String(item.id)))]
+    const { data: products, error: productsError } = await admin.from('products').select('*').eq('store_id', storeId).in('id', uniqueProductIds)
+    if (productsError) throw productsError
+    const productsById = new Map((products ?? []).map((product) => [String(product.id), product]))
+    const orderItems: Record<string, unknown>[] = []
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = []
+    let productSubtotalCents = 0
+
+    for (const requested of requestedItems) {
+      const product = productsById.get(String(requested.id))
+      const quantity = Math.max(1, Math.min(99, Math.floor(Number(requested.quantity))))
+      if (!product || !Number.isFinite(quantity)) return json({ error: 'Üks tellitud toode pole enam saadaval.' }, 409)
+      const stockLimit = product.one_of_a_kind ? 1 : product.stock == null ? 99 : Number(product.stock)
+      if (quantity > stockLimit) return json({ error: `${product.name}: soovitud kogus pole saadaval.` }, 409)
+      const regularPrice = Number(product.price ?? 0)
+      const salePrice = product.sale_price == null ? null : Number(product.sale_price)
+      const unitAmount = moneyToCents(salePrice != null && salePrice < regularPrice ? salePrice : regularPrice)
+      if (!unitAmount) return json({ error: `${product.name}: toote hind pole korrektne.` }, 409)
+      const requestedOptions = asRecord(requested.selectedOptions)
+      const selectedOptions: Record<string, string> = {}
+      const optionDefinitions = Array.isArray(product.options) ? product.options : []
+      for (const definitionValue of optionDefinitions) {
+        const definition = asRecord(definitionValue)
+        const optionName = String(definition.name ?? '')
+        const allowedValues = Array.isArray(definition.values) ? definition.values.map(String) : []
+        const selectedValue = String(requestedOptions[optionName] ?? '')
+        if (!optionName || !allowedValues.includes(selectedValue)) return json({ error: `${product.name}: toote valik pole korrektne.` }, 409)
+        selectedOptions[optionName] = selectedValue
+      }
+      const optionText = Object.entries(selectedOptions).map(([name, value]) => `${name}: ${String(value)}`).join(', ')
+      productSubtotalCents += unitAmount * quantity
+      lineItems.push({
+        quantity,
+        price_data: {
+          currency: 'eur',
+          unit_amount: unitAmount,
+          product_data: { name: String(product.name), description: optionText || undefined, metadata: { product_id: String(product.id) } },
+        },
+      })
+      orderItems.push({
+        id: String(product.id), name: String(product.name), image: String(product.image_url), gallery: product.gallery,
+        alt: String(product.alt ?? product.name), description: String(product.description ?? ''), price: regularPrice,
+        salePrice: salePrice ?? undefined, quantity, selectedOptions, cartKey: `${product.id}:${optionText}`,
+      })
+    }
+
+    const settings = asRecord(store.settings)
+    const deliverySettings = asRecord(settings.deliverySettings)
+    const parcelProviders = asRecord(deliverySettings.parcelProviders)
+    let deliveryCents = 0
+    if (body.delivery.type === 'parcel') {
+      const provider = String(body.delivery.provider ?? '')
+      const providerSettings = asRecord(parcelProviders[provider])
+      if (!provider || providerSettings.enabled !== true) return json({ error: 'Valitud pakiautomaadi tarne pole enam saadaval.' }, 409)
+      deliveryCents = moneyToCents(providerSettings.price)
+    } else if (body.delivery.type === 'courier') {
+      if (deliverySettings.courierEnabled !== true) return json({ error: 'Kullerteenus pole enam saadaval.' }, 409)
+      deliveryCents = moneyToCents(deliverySettings.courierPrice)
+    } else if (body.delivery.type === 'pickup') {
+      if (deliverySettings.pickupEnabled !== true) return json({ error: 'Järeletulemine pole enam saadaval.' }, 409)
+    }
+    const freeShippingFromCents = moneyToCents(deliverySettings.freeShippingFrom)
+    if (freeShippingFromCents > 0 && productSubtotalCents >= freeShippingFromCents) deliveryCents = 0
+    if (deliveryCents > 0) lineItems.push({
+      quantity: 1,
+      price_data: { currency: 'eur', unit_amount: deliveryCents, product_data: { name: 'Tarne', description: body.delivery.label } },
+    })
+
+    let applicationFeeCents = 0
+    if (store.pricing_plan === 'flexible') {
+      const monthStart = new Date()
+      monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0)
+      const { data: fees, error: feeError } = await admin.from('revenue_events').select('amount_cents,kind')
+        .eq('store_id', storeId).gte('occurred_at', monthStart.toISOString()).in('kind', ['transaction_fee', 'transaction_fee_refund'])
+      if (feeError) throw feeError
+      const collectedThisMonth = (fees ?? []).reduce((sum, fee) => sum + Number(fee.amount_cents), 0)
+      applicationFeeCents = Math.min(Math.round(productSubtotalCents * 0.04), Math.max(0, 3900 - collectedThisMonth))
+    }
+
+    const orderNumber = `PR-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`
+    const totalCents = productSubtotalCents + deliveryCents
+    const { data: order, error: orderError } = await admin.from('orders').insert({
+      store_id: storeId,
+      order_number: orderNumber,
+      items: orderItems,
+      customer_name: customerName,
+      customer_email: email,
+      delivery: body.delivery.label,
+      product_subtotal: productSubtotalCents / 100,
+      total: totalCents / 100,
+      payment_status: 'pending',
+    }).select('id').single()
+    if (orderError) throw orderError
+
+    const appUrl = returnBase(requiredEnv('APP_URL').replace(/\/$/, ''), body.returnUrl, stripeSecretKey.includes('_test_'))
+    const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
+      on_behalf_of: store.stripe_account_id,
+      transfer_data: { destination: store.stripe_account_id },
+      metadata: { store_id: storeId, order_id: order.id, order_number: orderNumber },
+    }
+    if (applicationFeeCents > 0) paymentIntentData.application_fee_amount = applicationFeeCents
+
+    let session: Stripe.Checkout.Session
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        customer_email: email,
+        client_reference_id: storeId,
+        line_items: lineItems,
+        success_url: `${appUrl}/p/${encodeURIComponent(store.slug)}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${appUrl}/p/${encodeURIComponent(store.slug)}?checkout=cancelled`,
+        metadata: { store_id: storeId, order_id: order.id, order_number: orderNumber, customer_phone: customerPhone },
+        payment_intent_data: paymentIntentData,
+      })
+    } catch (error) {
+      await admin.from('orders').update({ payment_status: 'failed' }).eq('id', order.id)
+      throw error
+    }
+    await admin.from('orders').update({ stripe_checkout_session_id: session.id }).eq('id', order.id)
+    if (!session.url) throw new Error('Stripe ei tagastanud makselehe aadressi.')
+    return json({ url: session.url })
+  } catch (error) {
+    console.error('Stripe poe makse algatamine ebaõnnestus.', error)
+    return json({ error: error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.' }, 500)
+  }
+})

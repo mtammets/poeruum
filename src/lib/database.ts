@@ -100,6 +100,58 @@ export async function invokeStripeConnect(action: 'start' | 'status') {
   return data as { clientSecret?: string; status?: StoreRecord['payment_status']; chargesEnabled?: boolean; payoutsEnabled?: boolean }
 }
 
+const invokeCheckoutFunction = async (name: string, body?: Record<string, unknown>) => {
+  const { data, error } = await requireSupabase().functions.invoke(name, { body: body ?? {} })
+  if (error) {
+    const context = 'context' in error ? error.context : null
+    const details = context instanceof Response
+      ? await context.clone().json().catch(() => null) as { error?: string } | null
+      : null
+    throw new Error(details?.error || error.message)
+  }
+  if (data?.error) throw new Error(String(data.error))
+  if (!data?.url) throw new Error('Makselehe aadress puudub.')
+  return String(data.url)
+}
+
+export async function startStripeStoreCheckout(input: {
+  storeId: string
+  items: Array<{ id: string; quantity: number; selectedOptions: Record<string, string> }>
+  customer: { name: string; email: string; phone: string }
+  delivery: { type: 'parcel' | 'courier' | 'pickup'; provider?: 'omniva' | 'dpd' | 'smartposti'; label: string }
+}) {
+  return invokeCheckoutFunction('stripe-store-checkout', { ...input, returnUrl: window.location.origin })
+}
+
+export async function startStripeBillingCheckout() {
+  return invokeCheckoutFunction('stripe-billing-checkout', { returnUrl: window.location.origin })
+}
+
+export async function refundStripeOrder(storeId: string, orderNumber: string) {
+  const { data, error } = await requireSupabase().functions.invoke('stripe-refund-order', { body: { storeId, orderNumber } })
+  if (error) {
+    const context = 'context' in error ? error.context : null
+    const details = context instanceof Response
+      ? await context.clone().json().catch(() => null) as { error?: string } | null
+      : null
+    throw new Error(details?.error || error.message)
+  }
+  if (data?.error) throw new Error(String(data.error))
+}
+
+export async function cancelStripeBilling() {
+  const { data, error } = await requireSupabase().functions.invoke('stripe-billing-cancel', { body: {} })
+  if (error) {
+    const context = 'context' in error ? error.context : null
+    const details = context instanceof Response
+      ? await context.clone().json().catch(() => null) as { error?: string } | null
+      : null
+    throw new Error(details?.error || error.message)
+  }
+  if (data?.error) throw new Error(String(data.error))
+  return data as { effectiveImmediately: boolean; cancelAt?: string | null }
+}
+
 export async function listProducts(storeId: string) {
   const { data, error } = await requireSupabase().from('products').select('*').eq('store_id', storeId).order('sort_order').order('created_at')
   throwIfError(error)
@@ -184,7 +236,7 @@ export async function uploadImages(storeId: string, files: File[], onPhase?: (in
 }
 
 export async function listOrders(storeId: string) {
-  const { data, error } = await requireSupabase().from('orders').select('*').eq('store_id', storeId).order('created_at', { ascending: false })
+  const { data, error } = await requireSupabase().from('orders').select('*').eq('store_id', storeId).in('payment_status', ['unpaid', 'paid', 'refunded']).order('created_at', { ascending: false })
   throwIfError(error)
   return (data ?? []) as OrderRecord[]
 }

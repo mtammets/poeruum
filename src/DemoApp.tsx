@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { loadConnectAndInitialize } from '@stripe/connect-js'
 import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
 import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PaymentProvider, type PricingPlan } from './App'
-import { createStore, getMyStore, getStoreBySlug, invokeStripeConnect, listProducts, updateStore, type StoreRecord } from './lib/database'
+import { createStore, getMyStore, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import type { Product } from './products'
 
@@ -401,8 +401,9 @@ export default function DemoApp() {
   const phoneProductIndex = (phoneSlideIndex - 1 + phonePreviewProducts.length) % phonePreviewProducts.length
 
   useEffect(() => {
-    if (email && !businessEmail) setBusinessEmail(email)
-  }, [email, businessEmail])
+    if (screen !== 'business' || !email) return
+    setBusinessEmail((currentEmail) => currentEmail || email)
+  }, [screen, email])
 
   useEffect(() => {
     if (screen !== 'business' || !/^\d{8}$/.test(registryCode)) {
@@ -528,10 +529,31 @@ export default function DemoApp() {
         return
       }
       setEmail(currentSession.user.email ?? '')
-      const existing = await getMyStore()
+      let existing = await getMyStore()
       if (!existing || !active) return
 
-      const stripeConnectResult = new URLSearchParams(window.location.search).get('stripe_connect')
+      const urlParams = new URLSearchParams(window.location.search)
+      const billingResult = urlParams.get('billing')
+      if (billingResult) {
+        if (billingResult === 'success') {
+          for (let attempt = 0; attempt < 10 && !existing.stripe_subscription_id; attempt += 1) {
+            await new Promise((resolve) => window.setTimeout(resolve, 500))
+            existing = await getMyStore() ?? existing
+          }
+          setAuthNotice(existing.stripe_subscription_id
+            ? 'Kindel pakett ja 30-päevane prooviperiood on aktiveeritud.'
+            : 'Stripe kinnitas valiku. Paketi olek uueneb mõne hetke pärast.')
+        } else {
+          setAuthNotice('Kindla paketi aktiveerimine katkestati. Sinu senine pakett jäi kehtima.')
+        }
+        const cleanUrl = new URL(window.location.href)
+        cleanUrl.searchParams.delete('billing')
+        window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
+        await openOwnedStore(existing)
+        return
+      }
+
+      const stripeConnectResult = urlParams.get('stripe_connect')
       if (!stripeConnectResult) {
         await openOwnedStore(existing)
         return
@@ -590,6 +612,15 @@ export default function DemoApp() {
       } else setAuthError(getLocalizedAuthError(error, 'Sisselogimine ebaõnnestus.'))
     }
     finally { setIsAuthBusy(false) }
+  }
+
+  const restoreLoginScrollAfterKeyboard = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (event.relatedTarget || !window.matchMedia('(max-width: 700px)').matches) return
+    window.setTimeout(() => {
+      const activeElement = document.activeElement
+      if (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement || activeElement instanceof HTMLSelectElement) return
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 250)
   }
 
   const resendConfirmation = async () => {
@@ -898,7 +929,7 @@ export default function DemoApp() {
       setScreen('business')
       return
     }
-    if (pricingPlan === 'fixed' && !fixedPlanTrialStartedAt) {
+    if (pricingPlan === 'fixed' && !['active', 'trialing'].includes(String(store?.stripe_subscription_status))) {
       setIsBillingCardOpen(true)
       return
     }
@@ -994,7 +1025,6 @@ export default function DemoApp() {
         <span className="demo-eyebrow">Kaks lihtsat valikut</span>
         <h2>Vali, kuidas<br />maksad.</h2>
         <p>Alusta ilma kuutasuta või vali kindel kuukulu. Mõlemas paketis saad kasutada kõiki Poeruumi põhivõimalusi.</p>
-        <ul><li><i>✓</i><span>Piiramatult tooteid ja tellimusi</span></li><li><i>✓</i><span>Oma domeen ning makse- ja tarneintegratsioonid hinnas</span></li><li><i>✓</i><span>Poeruumi tasu ei arvestata tarne ega tagastatud müügi pealt</span></li></ul>
       </div>
       <div className="demo-pricing__plans">
         <article className="demo-pricing__card is-featured">
@@ -1012,7 +1042,7 @@ export default function DemoApp() {
           <button onClick={() => { selectPricingPlan('fixed'); setScreen('account') }}>Alusta tasuta <span>→</span></button>
         </article>
       </div>
-      <p className="demo-pricing__note">Paketti saad iga kuu vahetada. Makseteenuse pakkuja tasud lisanduvad eraldi.</p>
+      <p className="demo-pricing__note">Paketti saad hiljem mugavalt vahetada. Paketi hind ei sisalda maksete töötlemise tasusid.</p>
     </section>
     <section className="demo-testimonials" aria-labelledby="testimonials-title">
       <header>
@@ -1044,7 +1074,7 @@ export default function DemoApp() {
         <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Saad ühendada Stripe’i või Montonio. Nii saad pakkuda pangalinke, kaardimakseid ning teenusepakkujast sõltuvalt Apple Pay ja Google Pay makseid.</p></details>
         <details><summary>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Toetatud on Omniva, DPD ja SmartPosti pakiautomaadid, kuller ning ise järele tulemine. Tarneviisid ja hinnad valid ise.</p></details>
         <details><summary>Kas saan kasutada oma domeeni ja kujundust?<span>+</span></summary><p>Jah. Võid kasutada Poeruumi aadressi või ühendada oma domeeni. Poe välimuse jaoks saad valida kujunduse, aktsentvärvi, logo ja ostunupu suuruse.</p></details>
-        <details><summary>Kas saan paketti vahetada?<span>+</span></summary><p>Jah. Paketti saad vahetada iga kuu ja pikaajalist kohustust ei ole. Paindliku paketiga ei ole müügita kuul Poeruumi tasu.</p></details>
+        <details><summary>Kas saan paketti vahetada?<span>+</span></summary><p>Jah. Paketti saad hiljem mugavalt vahetada. Paindliku paketiga ei ole müügita kuul Poeruumi tasu.</p></details>
       </div>
     </section>
     <footer className="demo-footer">
@@ -1068,8 +1098,8 @@ export default function DemoApp() {
         <section className="auth-card auth-card--login">
           <h1>Logi sisse</h1><p>Tagasi oma poe haldusesse.</p>
           <form onSubmit={signIn}>
-            <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false); setConfirmationResendCooldown(0); setIsConfirmationRateLimited(false) }} placeholder="sina@ettevote.ee" autoComplete="username" autoFocus /></label>
-            <label>Parool<input required name="password" type="password" minLength={6} placeholder="Sinu parool" autoComplete="current-password" /></label>
+            <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false); setConfirmationResendCooldown(0); setIsConfirmationRateLimited(false) }} onBlur={restoreLoginScrollAfterKeyboard} placeholder="sina@ettevote.ee" autoComplete="username" enterKeyHint="next" autoFocus /></label>
+            <label>Parool<input required name="password" type="password" minLength={6} placeholder="Sinu parool" autoComplete="current-password" enterKeyHint="done" onBlur={restoreLoginScrollAfterKeyboard} /></label>
             <button className="auth-password-link" type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setScreen('forgot-password') }}>Unustasid parooli?</button>
             {needsEmailConfirmation && <div className="auth-confirmation-prompt" role="alert">
               <span><strong>{authError || 'Kinnita e-posti aadress'}</strong><small>{isConfirmationRateLimited ? 'Kasuta kõige uuemat saabunud kirja või proovi umbes tunni pärast uuesti.' : 'Kasuta kõige uuemat kirja, mille Poeruum sulle saatis.'}</small></span>
@@ -1078,11 +1108,11 @@ export default function DemoApp() {
               </button>
             </div>}
             {authError && !needsEmailConfirmation && <p className="add-product-error" role="alert">{authError}</p>}
-            {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
+            {authNotice && !needsEmailConfirmation && <p className="auth-notice" role="status">{authNotice}</p>}
             <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Login sisse…' : 'Jätka oma poega'} <span>→</span></button>
           </form>
           <div className="auth-switch"><span>Pole veel kontot?</span><button type="button" onClick={() => setScreen('account')}>Loo pood</button></div>
-          <small>Turvaline sisselogimine Supabase Authiga.</small>
+          <small>Turvaline sisselogimine. Sinu andmed on kaitstud.</small>
         </section>
       </div>
     </div>
@@ -1334,11 +1364,10 @@ export default function DemoApp() {
         <small className="publish-note">{pricingPlan === 'fixed' && <><span className="publish-trial-copy">Prooviperiood algab avaldamisel.</span><span className="publish-note-separator" aria-hidden="true"> · </span></>}Avaldamisega nõustud <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a>.</small>
       </div>
     </div>}
-    {isBillingCardOpen && <BillingCardDemo confirmLabel="Kinnita ja avalda" onClose={() => setIsBillingCardOpen(false)} onConfirm={async (trialStartedAt) => {
-      setFixedPlanTrialStartedAt(trialStartedAt); setIsBillingCardOpen(false); setIsPublishing(true)
-      try { await persistStore(true, { trial_started_at: trialStartedAt, pricing_plan: 'fixed' }); setScreen('storefront') }
-      catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe avaldamine ebaõnnestus.') }
-      finally { setIsPublishing(false) }
+    {isBillingCardOpen && <BillingCardDemo confirmLabel="Jätka Stripe’is" onClose={() => setIsBillingCardOpen(false)} onConfirm={async () => {
+      await persistStore(false, { pricing_plan: store?.pricing_plan ?? 'flexible' })
+      const url = await startStripeBillingCheckout()
+      window.location.assign(url)
     }} />}
   </SetupShell>
 }
