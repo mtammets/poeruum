@@ -364,6 +364,7 @@ export default function DemoApp() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [email, setEmail] = useState('')
   const [onlineUserId, setOnlineUserId] = useState<string | null>(null)
+  const onlinePresenceSessionIdRef = useRef(crypto.randomUUID())
   const [storeName, setStoreName] = useState('')
   const [slug, setSlug] = useState('')
   const [payment, setPayment] = useState<'stripe' | 'montonio'>('stripe')
@@ -411,13 +412,13 @@ export default function DemoApp() {
   useEffect(() => {
     if (!onlineUserId || !isSupabaseConfigured) return
     const client = requireSupabase()
-    const presenceSessionId = crypto.randomUUID()
+    const presenceSessionId = onlinePresenceSessionIdRef.current
     let active = true
     const touchPresence = () => {
-      if (active) void client.rpc('touch_user_presence', { target_session_id: presenceSessionId })
+      if (active) void client.rpc('touch_user_presence', { target_session_id: presenceSessionId }).then(() => undefined)
     }
     const leavePresence = () => {
-      void client.rpc('leave_user_presence', { target_session_id: presenceSessionId })
+      void client.rpc('leave_user_presence', { target_session_id: presenceSessionId }).then(() => undefined)
     }
     touchPresence()
     const heartbeat = window.setInterval(touchPresence, 30_000)
@@ -624,7 +625,11 @@ export default function DemoApp() {
       }
     }
     const { data } = requireSupabase().auth.onAuthStateChange((event, session) => {
-      setOnlineUserId(session?.user.app_metadata?.role === 'admin' ? null : session?.user.id ?? null)
+      // `restore` owns the initial session. Ignoring INITIAL_SESSION here avoids
+      // a late empty callback clearing a user who just signed in through the UI.
+      if (event !== 'INITIAL_SESSION') {
+        setOnlineUserId(session?.user.app_metadata?.role === 'admin' ? null : session?.user.id ?? null)
+      }
       if (event === 'PASSWORD_RECOVERY' && active) {
         recoveryMode = true
         setEmail(session?.user.email ?? '')
@@ -700,7 +705,12 @@ export default function DemoApp() {
     const { data, error } = await requireSupabase().auth.signInWithPassword({ email: normalizedEmail, password })
     if (error) throw error
     setEmail(normalizedEmail)
-    if (data.user.app_metadata?.role === 'admin') return 'admin' as const
+    if (data.user.app_metadata?.role === 'admin') {
+      setOnlineUserId(null)
+      return 'admin' as const
+    }
+    setOnlineUserId(data.user.id)
+    void requireSupabase().rpc('touch_user_presence', { target_session_id: onlinePresenceSessionIdRef.current }).then(() => undefined)
     return getMyStore()
   }
 
