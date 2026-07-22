@@ -195,10 +195,16 @@ Deno.serve(async (request) => {
     const storefrontPath = returnsToStoreSubdomain ? '' : `/p/${encodeURIComponent(store.slug)}`
     const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
       on_behalf_of: store.stripe_account_id,
-      transfer_data: { destination: store.stripe_account_id },
-      metadata: { store_id: storeId, order_id: order.id, order_number: order.order_number, stripe_mode: stripeMode },
+      transfer_group: `order_${order.id}`,
+      metadata: {
+        store_id: storeId,
+        order_id: order.id,
+        order_number: order.order_number,
+        stripe_mode: stripeMode,
+        platform_fee_cents: String(applicationFeeCents),
+        seller_account_id: store.stripe_account_id,
+      },
     }
-    if (applicationFeeCents > 0) paymentIntentData.application_fee_amount = applicationFeeCents
 
     let session: Stripe.Checkout.Session
     try {
@@ -210,7 +216,15 @@ Deno.serve(async (request) => {
         success_url: `${appUrl}${storefrontPath}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}${storefrontPath}?checkout=cancelled`,
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-        metadata: { store_id: storeId, order_id: order.id, order_number: order.order_number, customer_phone: customerPhone, stripe_mode: stripeMode },
+        metadata: {
+          store_id: storeId,
+          order_id: order.id,
+          order_number: order.order_number,
+          customer_phone: customerPhone,
+          stripe_mode: stripeMode,
+          platform_fee_cents: String(applicationFeeCents),
+          seller_account_id: store.stripe_account_id,
+        },
         payment_intent_data: paymentIntentData,
       }, { idempotencyKey: `poeruum-checkout-${storeId}-${checkoutRequestId}` })
     } catch (error) {

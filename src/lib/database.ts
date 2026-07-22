@@ -35,6 +35,9 @@ export type OrderRecord = {
   total: number
   status: 'new' | 'fulfilled' | 'refunded'
   created_at: string
+  stripe_processing_fee_cents: number
+  stripe_platform_fee_cents: number
+  stripe_seller_net_cents: number
 }
 
 const throwIfError = (error: { message: string } | null) => {

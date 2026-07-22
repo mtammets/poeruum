@@ -129,6 +129,9 @@ type DemoOrder = {
   total: number
   createdAt: string
   status: 'new' | 'fulfilled' | 'refunded'
+  stripeProcessingFee?: number
+  stripePlatformFee?: number
+  stripeSellerNet?: number
 }
 
 type CartItem = Product & {
@@ -1177,6 +1180,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       id: row.order_number, items: row.items as CartItem[], customerName: row.customer_name,
       customerEmail: row.customer_email, delivery: row.delivery, productSubtotal: Number(row.product_subtotal),
       total: Number(row.total), createdAt: row.created_at, status: row.status,
+      stripeProcessingFee: Number(row.stripe_processing_fee_cents) / 100,
+      stripePlatformFee: Number(row.stripe_platform_fee_cents) / 100,
+      stripeSellerNet: Number(row.stripe_seller_net_cents) / 100,
     })))).catch((error) => setAuthToast(error instanceof Error ? error.message : 'Tellimuste laadimine ebaõnnestus'))
   }, [storeId, merchantMode])
 
@@ -3055,6 +3061,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'new' ? 'Uus' : order.status === 'refunded' ? 'Tagastatud' : 'Täidetud'}</span></header>
             <div className="order-customer"><strong>{order.customerName}</strong><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a><small>{order.delivery}</small></div>
             <ul>{order.items.map((item) => <li key={item.cartKey}><img {...getResponsiveImageProps(item, item.image, 'thumb')} sizes="4rem" alt="" /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
+            {Boolean(order.stripeSellerNet) && <dl className="order-settlement"><div><dt>Stripe’i maksetasu</dt><dd>−{formatEuro(order.stripeProcessingFee ?? 0)}</dd></div><div><dt>Poeruumi teenustasu</dt><dd>−{formatEuro(order.stripePlatformFee ?? 0)}</dd></div><div><dt>Sulle laekub</dt><dd>{formatEuro(order.stripeSellerNet ?? 0)}</dd></div></dl>}
             <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'new' ? <button type="button" onClick={() => changeOrderStatus(order.id, 'fulfilled')}>Märgi täidetuks</button> : order.status === 'fulfilled' ? <button className="order-refund" type="button" onClick={() => changeOrderStatus(order.id, 'refunded')}>Märgi tagastatuks</button> : <small>Poeruumi tasu krediteeritud</small>}</footer>
           </article>) : <div className="orders-no-results"><span>⌕</span><h3>Tellimusi ei leitud</h3><p>Proovi tellimuse numbrit, kliendi nime või toodet.</p><button type="button" onClick={() => setOrderSearch('')}>Tühjenda otsing</button></div>}</div> : <div className="orders-empty"><span>□</span><h3>Tellimusi veel pole</h3><p>Uued ostud ilmuvad siia automaatselt.</p></div>}
         </section>
@@ -3394,7 +3401,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : 'Pärast 39 € müüd tasuta'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Pärast prooviperioodi on kuutasu 29 € + km.' : 'Poeruumi kuutasu on 29 € + km.' : 'Kuu hinnalagi kaitseb sinu kasvu.'}</small></p></div>
             </div>
             <div className="settings-fields billing-fields"><label>Arvete e-post<input type="email" value={billingEmail} onChange={(event) => setBillingEmail(event.target.value)} placeholder={contactEmail || 'arved@minupood.ee'} /><small className="settings-field-note">Kuu kokkuvõte saadetakse järgmise kuu alguses.</small></label></div>
-            <div className="settings-info-note"><span>i</span><p>{activePaymentProvider === 'stripe' ? 'Stripe’i' : 'Montonio'} makseteenuse tasud ei kuulu Poeruumi tasu sisse ja arvestatakse teenusepakkuja hinnakirja järgi.</p></div>
+            <div className="settings-info-note"><span>i</span><p>{activePaymentProvider === 'stripe' ? 'Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.' : 'Montonio makseteenuse tasud ei kuulu Poeruumi tasu sisse ja arvestatakse teenusepakkuja hinnakirja järgi.'}</p></div>
           </div>}
           {settingsSection === 'account' && <div className="settings-panel account-panel" role="tabpanel">
             <header><span>KONTO</span><p>Halda oma Poeruumi kontot ja sisselogimist.</p></header>

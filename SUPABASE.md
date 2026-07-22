@@ -44,7 +44,7 @@ Poe Stripe’i ostud kasutavad destination charge’i. Toodete summa pealt arvut
 5. Laadi Edge Functionite serverisaladused Supabase’i: `STRIPE_MODE`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_FIXED_PLAN_PRICE_ID`, `STRIPE_FIXED_PLAN_TAX_RATE_ID` ja `APP_URL`.
 6. Rakenda andmebaas `npm run supabase:deploy` ning funktsioonid `npm run supabase:functions:deploy`.
 
-Checkout kasutab kliendi päringu ID-d, Stripe’i idempotentsusvõtit ja atomaarset 30-minutilist laoreservatsiooni. Stripe’i aegumise või makse ebaõnnestumise webhook vabastab kauba; asünkroonse pangamakse puhul hoitakse reservatsiooni lõpliku succeeded/failed sündmuseni.
+Checkout kasutab kliendi päringu ID-d, Stripe’i idempotentsusvõtit ja atomaarset 30-minutilist laoreservatsiooni. Stripe’i aegumise või makse ebaõnnestumise webhook vabastab kauba; asünkroonse pangamakse puhul hoitakse reservatsiooni lõpliku succeeded/failed sündmuseni. Õnnestunud makse järel loetakse Stripe’i tegelik töötlemistasu ja müüjale tehakse eraldi ülekanne summas `ostusumma − Stripe’i tasu − Poeruumi teenustasu`. Ostjale eraldi maksetasu ei lisata.
 
 Billingu brauseritest käivitub käsuga `npm run test:stripe-billing`, kui rakendus töötab aadressil `http://127.0.0.1:5173`. Test kasutab süsteemi Google Chrome’i, Stripe’i testkaarte ning ajutisi Supabase’i kasutajaid ja poode. See kontrollib edukat kaarti, 3D Secure’i, tagasilükatud kaarti, tagasisuunamist, päris webhooki, prooviperioodi, korduskaitset ja paketi lõpetamist ning koristab ajutised andmed.
 

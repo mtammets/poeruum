@@ -40,15 +40,39 @@ Deno.serve(async (request) => {
     const stripeMode = assertStripeMode(stripeSecretKey)
     assertStoredStripeMode(order.stripe_mode, stripeMode, 'Tellimuse makse')
     const stripe = new Stripe(stripeSecretKey)
+    const usesSeparateTransfer = typeof order.stripe_transfer_id === 'string' && order.stripe_transfer_id.length > 0
     const refund = await stripe.refunds.create({
       payment_intent: order.stripe_payment_intent_id,
-      reverse_transfer: true,
-      refund_application_fee: true,
+      ...(!usesSeparateTransfer ? { reverse_transfer: true, refund_application_fee: true } : {}),
       metadata: { store_id: store.id, order_id: order.id, order_number: order.order_number },
     }, { idempotencyKey: `poeruum-order-refund-${order.id}` })
     if (!['succeeded', 'pending'].includes(refund.status ?? '')) throw new Error('Stripe ei kinnitanud tagastust.')
+    if (usesSeparateTransfer) {
+      const transfer = await stripe.transfers.retrieve(order.stripe_transfer_id)
+      if (!transfer.reversed) {
+        await stripe.transfers.createReversal(order.stripe_transfer_id, {}, {
+          idempotencyKey: `poeruum-order-transfer-reversal-${order.id}`,
+        })
+      }
+    }
     const { error: updateError } = await admin.from('orders').update({ status: 'refunded', payment_status: 'refunded' }).eq('id', order.id)
     if (updateError) throw updateError
+    const platformFeeCents = Math.max(0, Number(order.stripe_platform_fee_cents ?? 0))
+    if (usesSeparateTransfer && platformFeeCents > 0) {
+      const { error: revenueError } = await admin.from('revenue_events').upsert({
+        provider: 'stripe',
+        provider_event_id: refund.id,
+        provider_object_id: refund.id,
+        store_id: store.id,
+        kind: 'transaction_fee_refund',
+        amount_cents: -platformFeeCents,
+        currency: refund.currency.toLowerCase(),
+        description: 'Tagastatud müügitasu',
+        occurred_at: new Date(refund.created * 1000).toISOString(),
+        metadata: { refund_id: refund.id, transfer_id: order.stripe_transfer_id },
+      }, { onConflict: 'provider,provider_event_id', ignoreDuplicates: true })
+      if (revenueError) throw revenueError
+    }
     return json({ refunded: true, status: refund.status })
   } catch (error) {
     console.error('Stripe’i tagastus ebaõnnestus.', error)

@@ -3317,6 +3317,10 @@
 .order-list ul { display: grid; gap: 0.55rem; margin: 0; padding: 0.75rem 0; border-top: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.1); list-style: none; }
 .order-list li { display: grid; grid-template-columns: 2.5rem 1fr auto; align-items: center; gap: 0.65rem; font-size: 0.72rem; }
 .order-list li img { width: 2.5rem; height: 2.5rem; border-radius: 0.45rem; object-fit: cover; }
+.order-settlement { display: grid; gap: .3rem; margin: .7rem 0 0; padding: .65rem .7rem; border-radius: .65rem; background: rgba(255, 255, 255, .045); }
+.order-settlement > div { display: flex; align-items: center; justify-content: space-between; gap: .8rem; color: rgba(255, 255, 255, .48); font-size: .62rem; }
+.order-settlement dt, .order-settlement dd { margin: 0; }
+.order-settlement > div:last-child { padding-top: .3rem; border-top: 1px solid rgba(255, 255, 255, .08); color: #e5f25a; font-weight: 850; }
 .order-list article > footer { padding-top: 0.85rem; }
 .order-list article > footer > strong { font-size: 1rem; }
 .order-list article > footer button { padding: 0.55rem 0.7rem; border: 0; border-radius: 0.6rem; background: #e5f25a; color: #101510; font: inherit; font-size: 0.68rem; font-weight: 900; }
