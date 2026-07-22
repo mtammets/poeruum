@@ -415,17 +415,6 @@ export default function AdminApp() {
           <article><span>VAJAVAD TÄHELEPANU</span><strong>{stalledCount}</strong><small>üle 7 päeva muutuseta</small><i className="is-danger"><AdminIcon name="alert" /></i></article>
         </section>
 
-        <section className="admin-setup-overview">
-          <header><div><h2>Seadistuse seis</h2></div><small>{unpublishedCount} alustatud poodi on veel avaldamata</small></header>
-          <div className="admin-setup-overview__bars">
-            {setupSteps.map((step) => {
-              const count = rows.filter((row) => row[step.key]).length
-              const percent = rows.length ? Math.round(count / rows.length * 100) : 0
-              return <div key={step.key}><span><strong>{step.label}</strong><small>{count} kasutajat</small></span><i><b style={{ width: `${percent}%` }} /></i><em>{percent}%</em></div>
-            })}
-          </div>
-        </section>
-
         <section className="admin-users" id="kasutajad">
           <header><div><h2>Seadistuse edenemine</h2><p>Kõige rohkem tähelepanu vajavad kasutajad on eespool.</p></div><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></header>
           <div className="admin-filters" role="group" aria-label="Filtreeri kasutajaid">
@@ -445,6 +434,17 @@ export default function AdminApp() {
                 <div className="admin-user-row__activity"><strong>{formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
               </article>
             }) : <div className="admin-table__empty"><span>⌕</span><strong>Kasutajaid ei leitud</strong><p>Muuda otsingut või vali teine filter.</p></div>}
+          </div>
+        </section>
+
+        <section className="admin-setup-overview">
+          <header><div><h2>Seadistuse seis</h2></div><small>{unpublishedCount} alustatud poodi on veel avaldamata</small></header>
+          <div className="admin-setup-overview__bars">
+            {setupSteps.map((step) => {
+              const count = rows.filter((row) => row[step.key]).length
+              const percent = rows.length ? Math.round(count / rows.length * 100) : 0
+              return <div key={step.key}><span><strong>{step.label}</strong><small>{count} kasutajat</small></span><i><b style={{ width: `${percent}%` }} /></i><em>{percent}%</em></div>
+            })}
           </div>
         </section>
       </>}
