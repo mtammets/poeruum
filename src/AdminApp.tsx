@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Brand } from './DemoApp'
+import { Storefront } from './App'
+import { getDemoStore, listProducts, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import type { Product } from './products'
 
 type AdminUserRow = {
   user_id: string
@@ -114,12 +117,13 @@ const isStalled = (row: AdminUserRow) => {
   return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
-type AdminIconName = 'home' | 'users' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
+type AdminIconName = 'home' | 'users' | 'store' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
     home: <><path d="M4 11.5 12 5l8 6.5" /><path d="M6.5 10.5V20h11v-9.5M10 20v-5h4v5" /></>,
     users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.4-3.5 2.2-5.3 5.5-5.3s5.1 1.8 5.5 5.3" /><circle cx="17" cy="9" r="2.2" /><path d="M15.5 14.2c3.1-.4 4.8 1.2 5 4" /></>,
+    store: <><path d="M4 9h16l-1-4H5L4 9Z"/><path d="M5 9v10h14V9M9 19v-5h6v5"/><path d="M4 9a3 3 0 0 0 5 2 3 3 0 0 0 6 0 3 3 0 0 0 5-2"/></>,
     logout: <><path d="M10 5H5v14h5M14 8l4 4-4 4M9 12h9" /></>,
     refresh: <><path d="M19 8a7.5 7.5 0 1 0 .3 7" /><path d="M19 4v4h-4" /></>,
     check: <path d="m6 12 4 4 8-9" />,
@@ -196,6 +200,28 @@ export default function AdminApp() {
   const [revenue, setRevenue] = useState<RevenueDashboard>(emptyRevenueDashboard)
   const [revenueError, setRevenueError] = useState('')
   const [liveRevenueEventId, setLiveRevenueEventId] = useState<string | null>(null)
+  const [demoStore, setDemoStore] = useState<StoreRecord | null>(null)
+  const [demoProducts, setDemoProducts] = useState<Product[]>([])
+  const [isDemoLoading, setIsDemoLoading] = useState(false)
+  const [demoError, setDemoError] = useState('')
+  const [isManagingDemo, setIsManagingDemo] = useState(false)
+
+  const openDemoManager = async () => {
+    setIsDemoLoading(true)
+    setDemoError('')
+    try {
+      const found = await getDemoStore()
+      if (!found) throw new Error('Näidispoodi ei leitud. Rakenda esmalt näidispoe migratsioon.')
+      const products = await listProducts(found.id)
+      setDemoStore(found)
+      setDemoProducts(products)
+      setIsManagingDemo(true)
+    } catch (loadError) {
+      setDemoError(loadError instanceof Error ? loadError.message : 'Näidispoodi ei õnnestunud avada.')
+    } finally {
+      setIsDemoLoading(false)
+    }
+  }
 
   const loadRevenue = async () => {
     const { data, error: queryError } = await requireSupabase().rpc('admin_revenue_dashboard')
@@ -295,6 +321,23 @@ export default function AdminApp() {
   if (!isSupabaseConfigured) return <main className="admin-auth"><section className="admin-auth__card"><span>SEADISTUS PUUDUB</span><h1>Supabase pole ühendatud</h1><p>Lisa lokaalsesse <code>.env</code> faili Supabase’i võtmed ja laadi leht uuesti.</p><a href="/">Tagasi Poeruumi</a></section></main>
   if (!session) return <AdminLogin onSignedIn={() => void loadDashboard()} />
 
+  if (isManagingDemo && demoStore) return <Storefront
+    key={`admin-demo-${demoStore.id}`}
+    storeId={demoStore.id}
+    initialSettings={demoStore.settings}
+    seedProducts={demoProducts}
+    storeName={demoStore.name}
+    storeSlug={demoStore.slug}
+    paymentProvider={demoStore.payment_provider}
+    paymentsReady={false}
+    initialShipping={demoStore.shipping}
+    pricingPlan={demoStore.pricing_plan}
+    merchantMode
+    adminDemoMode
+    onStoreChange={setDemoStore}
+    onExit={() => setIsManagingDemo(false)}
+  />
+
   const completedCount = rows.filter((row) => setupPercent(row) === 100).length
   const paymentMissingCount = rows.filter((row) => row.store_id && !row.has_payments).length
   const unpublishedCount = rows.filter((row) => setupPercent(row) > 0 && !row.has_published).length
@@ -305,6 +348,7 @@ export default function AdminApp() {
       <a href="/" aria-label="Poeruumi avaleht"><Brand /></a>
       <nav aria-label="Administraatori menüü">
         <a className="is-active" href="/admin" aria-current="page"><span><AdminIcon name="home" /></span>Ülevaade</a>
+        <button type="button" onClick={() => void openDemoManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
         <a href="#kasutajad"><span><AdminIcon name="users" /></span>Kasutajad</a>
       </nav>
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><button type="button" onClick={() => void requireSupabase().auth.signOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
@@ -336,6 +380,12 @@ export default function AdminApp() {
               </article>)}
             </div> : <p className="admin-revenue__empty">Esimene kinnitatud kuutasu või müügitasu ilmub siia automaatselt.</p>}
           </div>
+        </section>
+
+        <section className="admin-demo-store" aria-label="Näidispoe haldus">
+          <div><span><AdminIcon name="store" /></span><p><small>AVALIK NÄIDISPOOD</small><strong>Halda avalehel kuvatavat poodi</strong><em>Muuda tooteid, pilte, hindu ja poe kujundust samas vaates, mida kasutavad kaupmehed.</em></p></div>
+          <button type="button" disabled={isDemoLoading} onClick={() => void openDemoManager()}>{isDemoLoading ? 'Avan…' : 'Halda näidispoodi'}<AdminIcon name="arrow" /></button>
+          {demoError && <p className="admin-demo-store__error" role="alert">{demoError}</p>}
         </section>
 
         <section className="admin-kpis" aria-label="Kokkuvõte">

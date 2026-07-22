@@ -638,9 +638,12 @@ button, a, summary { touch-action: manipulation; }
   font-weight: 800;
   box-shadow: 0 .2rem .65rem rgba(16, 21, 16, .16);
   transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  pointer-events: auto;
 }
 .demo-preview-bar > button:hover { background: #263027; box-shadow: 0 .3rem .8rem rgba(16, 21, 16, .22); }
 .demo-preview-bar > button:active { transform: translateX(-2px); }
+.app-shell[data-inline-editing='true'] .story-stage .demo-preview-bar > button { pointer-events: auto; }
+.demo-preview-bar.is-exit-blocked > button { animation: demo-exit-blocked 420ms ease; }
 .demo-preview-bar > button:focus-visible { outline: 2px solid #101510; outline-offset: 2px; }
 .demo-preview-bar > button svg {
   width: 1.05rem;
@@ -669,6 +672,13 @@ button, a, summary { touch-action: manipulation; }
 .demo-preview-bar__exit-short { display: none; }
 .app-shell[data-demo="true"] .story-progress { top: calc(max(.85rem, env(safe-area-inset-top)) + 3.25rem); }
 .app-shell[data-demo="true"] .story-header { top: calc(max(.85rem, env(safe-area-inset-top)) + 4.15rem); }
+.app-shell[data-demo="true"] .admin-global-actions { top: calc(max(.85rem, env(safe-area-inset-top)) + 9.25rem); }
+
+@keyframes demo-exit-blocked {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(.32rem); }
+  60% { transform: translateX(-.2rem); }
+}
 
 @media (max-width: 480px) {
   .demo-preview-bar { min-height: calc(3rem + env(safe-area-inset-top)); }
@@ -679,6 +689,7 @@ button, a, summary { touch-action: manipulation; }
   .demo-preview-bar > div span, .demo-preview-bar > div i { display: none; }
   .app-shell[data-demo="true"] .story-progress { top: calc(max(.85rem, env(safe-area-inset-top)) + 3rem); }
   .app-shell[data-demo="true"] .story-header { top: calc(max(.85rem, env(safe-area-inset-top)) + 3.9rem); }
+  .app-shell[data-demo="true"] .admin-global-actions { top: calc(max(.85rem, env(safe-area-inset-top)) + 9rem); }
 }
 .app-shell[data-store-theme="paper"] { background: #e8deca; }
 .app-shell[data-store-theme="paper"] .product-details { background: #e8deca; color: #342d26; }

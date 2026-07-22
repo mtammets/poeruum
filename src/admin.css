@@ -3,10 +3,10 @@
 .admin-sidebar { position: sticky; top: 0; display: flex; flex-direction: column; height: 100svh; padding: 1.7rem 1.25rem 1.25rem; border-right: 1px solid #dde0d8; background: #fbfcf8; }
 .admin-sidebar > a { align-self: flex-start; color: inherit; text-decoration: none; }
 .admin-sidebar nav { display: grid; gap: .35rem; margin-top: 3rem; }
-.admin-sidebar nav a { display: flex; align-items: center; gap: .8rem; padding: .78rem .85rem; border-radius: .7rem; color: #69746c; font-size: .78rem; font-weight: 700; text-decoration: none; }
-.admin-sidebar nav a span { display: grid; width: 1.35rem; place-items: center; color: #8b948d; font-size: 1rem; }
+.admin-sidebar nav a, .admin-sidebar nav button { display: flex; align-items: center; gap: .8rem; padding: .78rem .85rem; border: 0; border-radius: .7rem; background: transparent; color: #69746c; font: inherit; font-size: .78rem; font-weight: 700; text-align: left; text-decoration: none; cursor: pointer; }
+.admin-sidebar nav a span, .admin-sidebar nav button span { display: grid; width: 1.35rem; place-items: center; color: #8b948d; font-size: 1rem; }
 .admin-sidebar nav svg, .admin-sidebar__account button svg, .admin-topbar button svg, .admin-kpis article > i svg, .admin-search svg { width: 1rem; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-.admin-sidebar nav a:hover { background: #f0f2ec; color: #27382e; }
+.admin-sidebar nav a:hover, .admin-sidebar nav button:hover { background: #f0f2ec; color: #27382e; }
 .admin-sidebar nav a.is-active { background: #e9eddf; color: #1e5238; }
 .admin-sidebar nav a.is-active span { color: #265f43; }
 .admin-sidebar__account { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .65rem; margin-top: auto; padding-top: 1rem; border-top: 1px solid #e1e4dc; }
@@ -62,6 +62,17 @@
 .admin-revenue__empty { display: grid; min-height: 8rem; margin: 0; place-items: center; color: #8c958f; font-size: .58rem; text-align: center; }
 .admin-revenue__empty.is-error { color: #9a4b40; }
 .admin-revenue.is-live-update { box-shadow: 0 0 0 3px #8db56b22, 0 12px 35px #24352a0a; }
+.admin-demo-store { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; margin-bottom: .85rem; padding: 1rem 1.15rem; border: 1px solid #d8ded3; border-radius: .9rem; background: #fff; box-shadow: 0 8px 24px #26352a08; }
+.admin-demo-store > div { display: flex; align-items: center; gap: .85rem; min-width: 0; }
+.admin-demo-store > div > span { display: grid; flex: 0 0 auto; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: .7rem; background: #e9eddf; color: #265f43; }
+.admin-demo-store svg { width: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.admin-demo-store p { display: grid; gap: .14rem; margin: 0; min-width: 0; }
+.admin-demo-store small { color: #718078; font-size: .52rem; font-weight: 850; letter-spacing: .11em; }
+.admin-demo-store strong { font-family: Manrope, sans-serif; font-size: .8rem; letter-spacing: -.02em; }
+.admin-demo-store em { overflow: hidden; color: #89928c; font-size: .56rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.admin-demo-store > button { display: flex; align-items: center; gap: .55rem; padding: .7rem .85rem; border: 0; border-radius: .65rem; background: #265f43; color: #fff; font: inherit; font-size: .62rem; font-weight: 800; cursor: pointer; }
+.admin-demo-store > button:disabled { opacity: .6; cursor: wait; }
+.admin-demo-store__error { grid-column: 1 / -1; color: #9a4b40; font-size: .58rem; }
 .admin-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; }
 .admin-kpis article { position: relative; display: grid; min-height: 9.25rem; align-content: space-between; padding: 1.15rem; overflow: hidden; border: 1px solid #e0e2dc; border-radius: .85rem; background: linear-gradient(145deg, #fff 0%, #fcfdf9 100%); box-shadow: 0 1px 0 #ffffff inset, 0 8px 24px #26352a08; }
 .admin-kpis article > span { color: #7d8780; font-size: .56rem; font-weight: 800; letter-spacing: .11em; }
@@ -167,6 +178,7 @@
   .admin-sidebar { align-items: center; padding-inline: .7rem; }
   .admin-sidebar .demo-brand strong, .admin-sidebar nav a:not(.is-active), .admin-sidebar nav a.is-active { font-size: 0; }
   .admin-sidebar nav a { justify-content: center; gap: 0; width: 2.8rem; padding-inline: 0; }
+  .admin-sidebar nav button { justify-content: center; gap: 0; width: 2.8rem; padding-inline: 0; font-size: 0; }
   .admin-sidebar nav a span { font-size: 1rem; }
   .admin-sidebar__account { grid-template-columns: 1fr; justify-items: center; }
   .admin-sidebar__account div { display: none; }
@@ -181,8 +193,9 @@
   .admin-sidebar { position: sticky; z-index: 20; top: 0; flex-direction: row; width: 100%; height: auto; padding: max(.65rem, env(safe-area-inset-top)) .85rem .65rem; border-right: 0; border-bottom: 1px solid #dde0d8; background: #fbfcf8ee; backdrop-filter: blur(18px); }
   .admin-sidebar > a { display: flex; align-self: center; line-height: 0; }
   .admin-sidebar .demo-brand__mark { width: 2.75rem; height: 2.75rem; }
-  .admin-sidebar nav { margin: 0 0 0 auto; }
+  .admin-sidebar nav { display: flex; flex-direction: row; align-items: center; gap: .2rem; margin: 0 0 0 auto; }
   .admin-sidebar nav a { display: none; width: 2.75rem; height: 2.75rem; padding: 0; border-radius: .72rem; }
+  .admin-sidebar nav button { display: flex; width: 2.75rem; height: 2.75rem; padding: 0; border-radius: .72rem; }
   .admin-sidebar nav a.is-active { display: flex; background: #eef1e8; }
   .admin-sidebar nav a span { width: auto; }
   .admin-sidebar__account { position: relative; margin: 0 0 0 .35rem; padding: 0 0 0 .55rem; border: 0; }
@@ -201,6 +214,8 @@
   .admin-revenue__summary > header strong { font-size: 1.7rem; }
   .admin-revenue__summary > header > b { align-self: start; font-size: .42rem; }
   .admin-revenue__summary dl { gap: .3rem; }
+  .admin-demo-store { grid-template-columns: 1fr; padding: .9rem; }
+  .admin-demo-store > button { justify-content: center; }
   .admin-revenue__summary dt { font-size: .46rem; }
   .admin-revenue__summary dd { font-size: .61rem; }
   .admin-kpis article { min-height: 7.6rem; padding: .9rem; border-radius: .78rem; }

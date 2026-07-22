@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { loadConnectAndInitialize } from '@stripe/connect-js'
 import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
 import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PaymentProvider, type PricingPlan } from './App'
-import { createStore, getMyStore, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
+import { createStore, getDemoStore, getMyStore, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import type { Product } from './products'
 
@@ -398,6 +398,8 @@ export default function DemoApp() {
   const [isConfirmationRateLimited, setIsConfirmationRateLimited] = useState(false)
   const [publicStore, setPublicStore] = useState<StoreRecord | null>(null)
   const [publicProducts, setPublicProducts] = useState<Product[]>([])
+  const [sampleStore, setSampleStore] = useState<StoreRecord | null>(null)
+  const [sampleProducts, setSampleProducts] = useState<Product[]>([])
   const phoneProductIndex = (phoneSlideIndex - 1 + phonePreviewProducts.length) % phonePreviewProducts.length
 
   useEffect(() => {
@@ -490,6 +492,21 @@ export default function DemoApp() {
       setPublicProducts(await listProducts(found.id))
     }).catch((error) => setAuthError(error instanceof Error ? error.message : 'Poe laadimine ebaõnnestus.'))
   }, [])
+
+  useEffect(() => {
+    if (screen !== 'sample' || !isSupabaseConfigured) return
+    let active = true
+    getDemoStore().then(async (found) => {
+      if (!found || !active) return
+      const nextProducts = await listProducts(found.id)
+      if (!active) return
+      setSampleStore(found)
+      setSampleProducts(nextProducts)
+    }).catch(() => {
+      // Keep the bundled sample as a safe fallback before the demo-store migration is deployed.
+    })
+    return () => { active = false }
+  }, [screen])
 
   const applyStore = async (nextStore: StoreRecord) => {
     const settings = nextStore.settings as Record<string, unknown>
@@ -954,7 +971,18 @@ export default function DemoApp() {
     ownerEmail={email}
     onOwnerLogin={signInFromStore}
   />
-  if (screen === 'sample') return <Storefront key="sample-storefront" onExit={() => setScreen('landing')} />
+  if (screen === 'sample') return <Storefront
+    key={`sample-storefront-${sampleStore?.id ?? 'bundled'}`}
+    storeId={sampleStore?.id}
+    initialSettings={sampleStore?.settings}
+    seedProducts={sampleStore ? sampleProducts : undefined}
+    storeName={sampleStore?.name}
+    storeSlug={sampleStore?.slug}
+    paymentProvider={sampleStore?.payment_provider}
+    paymentsReady={false}
+    initialShipping={sampleStore?.shipping}
+    onExit={() => setScreen('landing')}
+  />
   if (screen === 'storefront') return <>
     <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(provider: PaymentProvider) => provider === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment(nextStore.payment_provider); setPaymentStatus(nextStore.payment_status); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetDemo} />
     {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} businessName={businessName} registryCode={registryCode} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { completePaymentConnection('montonio', status); setIsMontonioConnectOpen(false) }} />}

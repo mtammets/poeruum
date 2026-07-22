@@ -4,6 +4,23 @@ export type ProductImageTransform = {
   scale: number
 }
 
+export type ProductImageVariant = {
+  url: string
+  width: number
+  height: number
+  bytes: number
+}
+
+export type ProductImageAsset = {
+  mimeType: string
+  variants: {
+    thumb: ProductImageVariant
+    medium: ProductImageVariant
+    large: ProductImageVariant
+    master: ProductImageVariant
+  }
+}
+
 export type Product = {
   id: string
   name: string
@@ -15,6 +32,7 @@ export type Product = {
   salePrice?: number
   objectPosition?: string
   imageTransforms?: Record<string, ProductImageTransform>
+  imageVariants?: Record<string, ProductImageAsset>
   slug?: string
   seoTitle?: string
   searchVisible?: boolean

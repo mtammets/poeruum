@@ -293,6 +293,15 @@
   color: #0a1724;
 }
 
+.product-details.is-inline-editing .save-product-edit.is-exit-target {
+  animation: save-exit-target 720ms ease-in-out 2;
+}
+
+@keyframes save-exit-target {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(138, 197, 255, 0); transform: scale(1); }
+  45% { box-shadow: 0 0 0 .65rem rgba(138, 197, 255, .34); transform: scale(1.14); }
+}
+
 .app-shell[data-inline-editing='true'] .story-stage button {
   pointer-events: none;
 }
@@ -1809,8 +1818,6 @@
 .buy-now.is-sold-out { border-color: rgba(255, 255, 255, .18); background: rgba(28, 28, 28, .78); color: rgba(255, 255, 255, .58); box-shadow: none; cursor: not-allowed; }
 .buy-now.is-sold-out strong { background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .5); }
 
-.story-stock-badge { position: absolute; z-index: 5; top: calc(max(.85rem, env(safe-area-inset-top)) + 5.4rem); left: 1rem; padding: .48rem .7rem; border: 1px solid rgba(255, 255, 255, .18); border-radius: 999px; background: rgba(12, 12, 12, .6); color: #dff5e4; font-size: .62rem; font-weight: 850; letter-spacing: .035em; backdrop-filter: blur(12px); }
-.story-stock-badge.is-sold-out { color: rgba(255, 255, 255, .65); }
 
 .sale-badge {
   position: absolute;

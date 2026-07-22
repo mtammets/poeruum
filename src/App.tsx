@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
-import { products, type Product, type ProductImageTransform } from './products'
-import { cancelStripeBilling, createOrder, listOrders, listProducts, refundStripeOrder, removeProduct, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, type ImageUploadPhase, type StoreRecord } from './lib/database'
+import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
+import { cancelStripeBilling, createOrder, listOrders, listProducts, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 
 const getProductPrice = (product: Product) =>
@@ -19,6 +19,18 @@ const clampImageOffset = (offset: number, scale: number) => {
   return Math.min(limit, Math.max(-limit, offset))
 }
 const isImageFile = (file: File) => file.type.startsWith('image/') || /\.(?:heic|heif)$/i.test(file.name)
+
+const getResponsiveImageProps = (product: Product, image: string, preferred: 'thumb' | 'medium' | 'large' = 'large') => {
+  const asset = product.imageVariants?.[image]
+  if (!asset) return { src: image }
+  const variants = Object.values(asset.variants)
+    .filter((variant, index, all) => all.findIndex((candidate) => candidate.url === variant.url) === index)
+    .sort((left, right) => left.width - right.width)
+  return {
+    src: asset.variants[preferred].url,
+    srcSet: variants.map((variant) => `${variant.url} ${variant.width}w`).join(', '),
+  }
+}
 
 const copyTextToClipboard = async (text: string) => {
   if (navigator.clipboard?.writeText) {
@@ -708,7 +720,7 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
             <div className="cart-items">
               {items.map((item) => (
                 <div className="cart-item" key={item.cartKey}>
-                  <img src={item.image} alt={item.alt} />
+                  <img {...getResponsiveImageProps(item, item.image, 'thumb')} sizes="8rem" alt={item.alt} />
                   <div className="cart-item__copy">
                     <strong>{item.name}</strong>
                     {Object.keys(item.selectedOptions).length > 0 && <small>{Object.entries(item.selectedOptions).map(([name, value]) => `${name}: ${value}`).join(' · ')}</small>}
@@ -874,6 +886,7 @@ export type StorefrontProps = {
   paymentsReady?: boolean
   initialShipping?: string[]
   merchantMode?: boolean
+  adminDemoMode?: boolean
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
   onConnectPaymentProvider?: (provider: PaymentProvider) => void
@@ -886,8 +899,9 @@ export type StorefrontProps = {
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, adminDemoMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isPublicDemo = Boolean(onExit && !merchantMode)
+  const hasPreviewBar = Boolean(onExit && (!merchantMode || adminDemoMode))
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
   const logoTapCountRef = useRef(0)
@@ -986,6 +1000,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [autoSwipeDelay, setAutoSwipeDelay] = useState(() => Number(localStorage.getItem('autoSwipeDelay')) || 30)
   const [autoSwipeSpeed, setAutoSwipeSpeed] = useState(() => Number(localStorage.getItem('autoSwipeSpeed')) || 10)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isExitAttentionActive, setIsExitAttentionActive] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -1014,6 +1029,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [isShareDragging, setIsShareDragging] = useState(false)
   const shareDragStartRef = useRef<number | null>(null)
   const editProductNameRef = useRef<HTMLHeadingElement>(null)
+  const saveProductButtonRef = useRef<HTMLButtonElement>(null)
+  const exitAttentionTimerRef = useRef<number | null>(null)
   const editProductDescriptionRef = useRef<HTMLParagraphElement>(null)
   const editProductPriceRef = useRef<HTMLElement>(null)
   const editProductSalePriceRef = useRef<HTMLElement>(null)
@@ -1025,9 +1042,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const editImageTransformsRef = useRef<Record<string, ProductImageTransform>>({})
   const editSessionImageUrlsRef = useRef<Set<string>>(new Set())
   const committedEditImageUrlsRef = useRef<Set<string>>(new Set())
+  const uploadedDuringEditRef = useRef<Set<string>>(new Set())
   const editImageUploadTimersRef = useRef(new Map<string, number>())
   const [editProductImages, setEditProductImages] = useState<string[]>([])
   const [editImageTransforms, setEditImageTransforms] = useState<Record<string, ProductImageTransform>>({})
+  const [editProductImageVariants, setEditProductImageVariants] = useState<Record<string, ProductImageAsset>>({})
   const [editImageUploads, setEditImageUploads] = useState<EditImageUpload[]>([])
   const [editProductStock, setEditProductStock] = useState('')
   const [editProductOneOfAKind, setEditProductOneOfAKind] = useState(false)
@@ -1255,7 +1274,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (storeAboutImageObjectUrlRef.current) URL.revokeObjectURL(storeAboutImageObjectUrlRef.current)
     editSessionImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     committedEditImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    if (exitAttentionTimerRef.current !== null) window.clearTimeout(exitAttentionTimerRef.current)
   }, [])
+
+  useEffect(() => {
+    if (isEditOpen) return
+    setIsExitAttentionActive(false)
+    if (exitAttentionTimerRef.current !== null) window.clearTimeout(exitAttentionTimerRef.current)
+    exitAttentionTimerRef.current = null
+  }, [isEditOpen])
 
   useEffect(() => {
     if (!isPublicDemo) return
@@ -1279,16 +1306,22 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const changeStoreLogo = async (file: File | undefined) => {
     if (!file || !isImageFile(file)) return
     if (storeId) {
+      let uploadedUrl = ''
       try {
-        const uploadedUrl = (await uploadImages(storeId, [file]))[0]
+        uploadedUrl = (await uploadImages(storeId, [file]))[0]
         const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeLogo: uploadedUrl })
-        setStoreLogo(uploadedUrl)
         await persistSettings(snapshot)
+        const previousUrl = storeLogo
+        setStoreLogo(uploadedUrl)
         savedSettingsSnapshotRef.current = snapshot
         setSettingsSaveStatus('saved')
+        if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
         return
       }
-      catch (error) { setAuthToast(error instanceof Error ? error.message : 'Logo üleslaadimine ebaõnnestus'); return }
+      catch (error) {
+        if (uploadedUrl) void removeStoredProductImages(undefined, [uploadedUrl]).catch(() => undefined)
+        setAuthToast(error instanceof Error ? error.message : 'Logo üleslaadimine ebaõnnestus'); return
+      }
     }
     if (storeLogoObjectUrlRef.current) URL.revokeObjectURL(storeLogoObjectUrlRef.current)
     const objectUrl = URL.createObjectURL(file)
@@ -1299,27 +1332,36 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const removeStoreLogo = async () => {
     if (storeLogoObjectUrlRef.current) URL.revokeObjectURL(storeLogoObjectUrlRef.current)
     storeLogoObjectUrlRef.current = null
-    setStoreLogo(null)
+    const previousUrl = storeLogo
     if (storeId) {
       const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeLogo: null })
-      try { await persistSettings(snapshot); savedSettingsSnapshotRef.current = snapshot; setSettingsSaveStatus('saved') }
+      try {
+        await persistSettings(snapshot); setStoreLogo(null); savedSettingsSnapshotRef.current = snapshot; setSettingsSaveStatus('saved')
+        if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
+      }
       catch (error) { setAuthToast(error instanceof Error ? error.message : 'Logo eemaldamine ebaõnnestus') }
-    }
+    } else setStoreLogo(null)
   }
 
   const changeStoreAboutImage = async (file: File | undefined) => {
     if (!file || !isImageFile(file)) return
     if (storeId) {
+      let uploadedUrl = ''
       try {
-        const uploadedUrl = (await uploadImages(storeId, [file]))[0]
+        uploadedUrl = (await uploadImages(storeId, [file]))[0]
         const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeAboutImage: uploadedUrl })
-        setStoreAboutImage(uploadedUrl)
         await persistSettings(snapshot)
+        const previousUrl = storeAboutImage
+        setStoreAboutImage(uploadedUrl)
         savedSettingsSnapshotRef.current = snapshot
         setSettingsSaveStatus('saved')
+        if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
         return
       }
-      catch (error) { setAuthToast(error instanceof Error ? error.message : 'Pildi üleslaadimine ebaõnnestus'); return }
+      catch (error) {
+        if (uploadedUrl) void removeStoredProductImages(undefined, [uploadedUrl]).catch(() => undefined)
+        setAuthToast(error instanceof Error ? error.message : 'Pildi üleslaadimine ebaõnnestus'); return
+      }
     }
     if (storeAboutImageObjectUrlRef.current) URL.revokeObjectURL(storeAboutImageObjectUrlRef.current)
     const objectUrl = URL.createObjectURL(file)
@@ -1330,18 +1372,23 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const removeStoreAboutImage = async () => {
     if (storeAboutImageObjectUrlRef.current) URL.revokeObjectURL(storeAboutImageObjectUrlRef.current)
     storeAboutImageObjectUrlRef.current = null
-    setStoreAboutImage(null)
+    const previousUrl = storeAboutImage
     if (storeId) {
       const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeAboutImage: null })
-      try { await persistSettings(snapshot); savedSettingsSnapshotRef.current = snapshot; setSettingsSaveStatus('saved') }
+      try {
+        await persistSettings(snapshot); setStoreAboutImage(null); savedSettingsSnapshotRef.current = snapshot; setSettingsSaveStatus('saved')
+        if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
+      }
       catch (error) { setAuthToast(error instanceof Error ? error.message : 'Pildi eemaldamine ebaõnnestus') }
-    }
+    } else setStoreAboutImage(null)
   }
 
   const openEditProduct = () => {
     if (!activeProduct) return
+    uploadedDuringEditRef.current.clear()
     setEditProductImages([...(activeProduct.gallery ?? [activeProduct.image])])
     setEditImageTransforms(activeProduct.imageTransforms ?? {})
+    setEditProductImageVariants(activeProduct.imageVariants ?? {})
     setEditProductStock(activeProduct.stock === undefined ? '' : String(activeProduct.stock))
     setEditProductOneOfAKind(Boolean(activeProduct.oneOfAKind))
     const option = activeProduct.options?.[0]
@@ -1371,6 +1418,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       setActiveIndex((index) => Math.max(0, index - 1))
       setDraftProductId(null)
     }
+    if (storeId && uploadedDuringEditRef.current.size) {
+      void removeStoredProductImages(editProductImageVariants, [...uploadedDuringEditRef.current])
+        .catch(() => setAuthToast('Kasutamata pildifailide eemaldamine ebaõnnestus'))
+    }
+    uploadedDuringEditRef.current.clear()
     editSessionImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     editSessionImageUrlsRef.current.clear()
     editImageUploadTimersRef.current.forEach((timer) => window.clearTimeout(timer))
@@ -1378,6 +1430,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setEditImageUploads([])
     setEditProductImages([])
     setEditImageTransforms({})
+    setEditProductImageVariants({})
     imageGesturePointersRef.current.clear()
     imageGestureStartRef.current = null
     setEditProductStock('')
@@ -1387,6 +1440,25 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setIsCustomProductOptionOpen(false)
     setCustomProductOption('')
     setIsEditOpen(false)
+  }
+
+  const requestExit = () => {
+    if (!onExit) return
+    if (!adminDemoMode || !isEditOpen) {
+      onExit()
+      return
+    }
+
+    setIsExitAttentionActive(false)
+    if (exitAttentionTimerRef.current !== null) window.clearTimeout(exitAttentionTimerRef.current)
+    window.requestAnimationFrame(() => {
+      setIsExitAttentionActive(true)
+      saveProductButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      exitAttentionTimerRef.current = window.setTimeout(() => {
+        setIsExitAttentionActive(false)
+        exitAttentionTimerRef.current = null
+      }, 1800)
+    })
   }
 
   const toggleProductOptionValue = (value: string) => {
@@ -1419,7 +1491,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (previousTimer) window.clearTimeout(previousTimer)
     editImageUploadTimersRef.current.set(upload.id, window.setTimeout(() => updateEditImageUpload(upload.id, { slow: true }), 4500))
     try {
-      const [uploadedUrl] = await uploadImages(storeId, [upload.file], (_index, phase) => updateEditImageUpload(upload.id, { phase }))
+      const [uploaded] = await uploadProductImages(storeId, [upload.file], (_index, phase) => updateEditImageUpload(upload.id, { phase }))
+      const uploadedUrl = uploaded.url
       const transform = editImageTransformsRef.current[upload.previewUrl] ?? DEFAULT_IMAGE_TRANSFORM
       setEditProductImages((current) => current.map((image) => image === upload.previewUrl ? uploadedUrl : image))
       setEditImageTransforms((current) => {
@@ -1428,6 +1501,13 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         if (upload.previousUrl) delete next[upload.previousUrl]
         return next
       })
+      setEditProductImageVariants((current) => {
+        const next = { ...current, [uploadedUrl]: uploaded.asset }
+        delete next[upload.previewUrl]
+        if (upload.previousUrl) delete next[upload.previousUrl]
+        return next
+      })
+      uploadedDuringEditRef.current.add(uploadedUrl)
       editSessionImageUrlsRef.current.delete(upload.previewUrl)
       URL.revokeObjectURL(upload.previewUrl)
       setEditImageUploads((current) => current.filter((item) => item.id !== upload.id))
@@ -1446,6 +1526,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       ? current.map((image) => image === upload.previewUrl ? upload.previousUrl! : image)
       : current.filter((image) => image !== upload.previewUrl))
     setEditImageTransforms((current) => {
+      const next = { ...current }
+      delete next[upload.previewUrl]
+      return next
+    })
+    setEditProductImageVariants((current) => {
       const next = { ...current }
       delete next[upload.previewUrl]
       return next
@@ -1509,6 +1594,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       delete nextTransforms[removed]
       return nextTransforms
     })
+    setEditProductImageVariants((current) => {
+      const nextVariants = { ...current }
+      delete nextVariants[removed]
+      return nextVariants
+    })
     setSelectedImages((current) => ({ ...current, [activeProduct.id]: Math.max(0, Math.min(current[activeProduct.id] ?? 0, next.length - 1)) }))
   }
 
@@ -1541,22 +1631,27 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setImageUpload({ images: previews, progress: 18, phase: 'preparing' })
     const slowTimer = window.setTimeout(() => setImageUpload((current) => current ? { ...current, slow: true } : null), 4500)
     let images: string[]
+    let imageVariants: Record<string, ProductImageAsset> = {}
     try {
-      images = storeId
-        ? await uploadImages(storeId, imageFiles, (_index, phase) => setImageUpload((current) => current ? { ...current, phase, progress: phase === 'preparing' ? 18 : 62 } : null))
-        : previews
+      if (storeId) {
+        const uploaded = await uploadProductImages(storeId, imageFiles, (_index, phase) => setImageUpload((current) => current ? { ...current, phase, progress: phase === 'preparing' ? 18 : 62 } : null))
+        images = uploaded.map((item) => item.url)
+        imageVariants = Object.fromEntries(uploaded.map((item) => [item.url, item.asset]))
+      } else images = previews
       window.clearTimeout(slowTimer)
       if (storeId) previews.forEach((preview) => URL.revokeObjectURL(preview))
       setImageUpload({ images, progress: 100, phase: 'ready' })
       await new Promise((resolve) => window.setTimeout(resolve, 350))
       const id = `product-${Date.now()}`
       images.forEach((url) => committedEditImageUrlsRef.current.add(url))
+      if (storeId) images.forEach((url) => uploadedDuringEditRef.current.add(url))
       setAddedProducts((current) => [...current, {
         id,
         name: '',
         description: '',
         image: images[0],
         gallery: images,
+        imageVariants,
         alt: 'Uue toote pilt',
         searchVisible: true,
       }])
@@ -1564,6 +1659,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       setSelectedImages((current) => ({ ...current, [id]: 0 }))
       setEditProductImages(images)
       setEditImageTransforms({})
+      setEditProductImageVariants(imageVariants)
       setEditProductStock('1')
       setEditProductOneOfAKind(true)
       setEditProductOptionType('none')
@@ -1901,6 +1997,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     return images[Math.min(selectedImages[product.id] ?? 0, images.length - 1)]
   }
 
+  const getDisplayedProductImageProps = (product: Product, preferred: 'thumb' | 'medium' | 'large' = 'large') => {
+    const image = getDisplayedProductImage(product)
+    const sourceProduct = isEditOpen && activeProduct?.id === product.id
+      ? { ...product, imageVariants: editProductImageVariants }
+      : product
+    return getResponsiveImageProps(sourceProduct, image, preferred)
+  }
+
   const getDisplayedImageTransform = (product: Product) => {
     const image = getDisplayedProductImage(product)
     return isEditOpen && activeProduct?.id === product.id
@@ -2023,6 +2127,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       image: editProductImages[0] ?? activeProduct.image,
       gallery: editProductImages.length ? editProductImages : (activeProduct.gallery ?? [activeProduct.image]),
       imageTransforms: Object.fromEntries(editProductImages.flatMap((image) => editImageTransforms[image] ? [[image, editImageTransforms[image]]] : [])),
+      imageVariants: Object.fromEntries(editProductImages.flatMap((image) => editProductImageVariants[image] ? [[image, editProductImageVariants[image]]] : [])),
       slug: activeProduct.slug || createUrlSlug(name),
       stock: editProductOneOfAKind ? 1 : stock,
       oneOfAKind: editProductOneOfAKind,
@@ -2043,6 +2148,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         delete next[persisted.id]
         return next
       })
+      const previousImages = activeProduct.gallery?.length ? activeProduct.gallery : [activeProduct.image]
+      const removedPreviousImages = previousImages.filter((image) => !editProductImages.includes(image))
+      const abandonedUploads = [...uploadedDuringEditRef.current].filter((image) => !editProductImages.includes(image))
+      if (removedPreviousImages.length) void removeStoredProductImages(activeProduct.imageVariants, removedPreviousImages).catch(() => undefined)
+      if (abandonedUploads.length) void removeStoredProductImages(editProductImageVariants, abandonedUploads).catch(() => undefined)
+      uploadedDuringEditRef.current.clear()
     } else {
       setProductEdits((current) => ({ ...current, [activeProduct.id]: changes }))
     }
@@ -2053,6 +2164,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       setShowAddedToast(true)
     }
     setEditProductImages([])
+    setEditProductImageVariants({})
     setEditProductStock('')
     setEditProductOneOfAKind(false)
     setEditProductOptionType('none')
@@ -2373,7 +2485,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   const deleteActiveProduct = async () => {
     if (!activeProduct) return
-    try { if (storeId) await removeProduct(activeProduct.id) }
+    try {
+      if (storeId) {
+        await removeProduct(activeProduct.id)
+        void removeStoredProductImages(activeProduct.imageVariants, activeProduct.gallery?.length ? activeProduct.gallery : [activeProduct.image]).catch(() => undefined)
+      }
+    }
     catch (error) { setAuthToast(error instanceof Error ? error.message : 'Toote kustutamine ebaõnnestus'); return }
     setPersistedProducts((current) => current.filter((product) => product.id !== activeProduct.id))
     setAddedProducts((current) => current.filter((product) => product.id !== activeProduct.id))
@@ -2449,7 +2566,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   ]
   const completedSetupSteps = setupChecklist.filter((item) => item.done).length
   const setupProgress = Math.round(completedSetupSteps / setupChecklist.length * 100)
-  const activeSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === settingsSection) ?? SETTINGS_SECTIONS[0]
+  const availableSettingsSections = adminDemoMode
+    ? SETTINGS_SECTIONS.filter((section) => !['payments', 'business', 'notifications', 'billing', 'account'].includes(section.id))
+    : SETTINGS_SECTIONS
+  const activeSettingsSection = availableSettingsSections.find((section) => section.id === settingsSection) ?? availableSettingsSections[0]
   const settingsSectionStatus = (section: SettingsSection) => {
     if (section === 'store') return isStoreVisible ? 'Avalik' : 'Peidetud'
     if (section === 'appearance') return storeTheme === 'midnight' ? 'Tume' : storeTheme === 'paper' ? 'Hele' : 'Värviline'
@@ -2561,17 +2681,17 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   </div>
 
   return (
-    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-demo={onExit && !merchantMode ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
+    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-demo={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
       <input ref={desktopGalleryInputRef} className="source-file-input" type="file" accept="image/*" multiple onChange={(event) => { chooseAddProductImages(event.target.files); event.target.value = '' }} />
       <section className="story-stage">
-        {onExit && !merchantMode && <div className="demo-preview-bar">
-          <button type="button" onClick={onExit} aria-label="Välju näidispoest ja mine tagasi Poeruumi avalehele">
+        {hasPreviewBar && onExit && <div className={`demo-preview-bar${isExitAttentionActive ? ' is-exit-blocked' : ''}`}>
+          <button type="button" onClick={requestExit} aria-label={adminDemoMode && isEditOpen ? 'Salvesta muudatused enne administraatori töölauale naasmist' : adminDemoMode ? 'Tagasi administraatori töölauale' : 'Välju näidispoest ja mine tagasi Poeruumi avalehele'}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 7-5 5 5 5M5 12h14" /></svg>
-            <span className="demo-preview-bar__exit-long">Välju näidispoest</span>
-            <span className="demo-preview-bar__exit-short">Välju</span>
-            <kbd>Esc</kbd>
+            <span className="demo-preview-bar__exit-long">{adminDemoMode ? 'Tagasi admini' : 'Välju näidispoest'}</span>
+            <span className="demo-preview-bar__exit-short">{adminDemoMode ? 'Admin' : 'Välju'}</span>
+            {!adminDemoMode && <kbd>Esc</kbd>}
           </button>
-          <div><span>Poeruum</span><i aria-hidden="true" />Näidispood</div>
+          <div><span>Poeruum</span><i aria-hidden="true" />{adminDemoMode ? 'Näidispoe haldus' : 'Näidispood'}</div>
         </div>}
         {merchantMode && isCustomerPreview && <button className="merchant-preview-return" type="button" onClick={() => { setIsLoggedIn(true); setIsCustomerPreview(false) }} aria-label="Tagasi poe muutmisvaatesse">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Z"/><path d="m13 7 4 4"/></svg>
@@ -2593,7 +2713,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </div>
           {!isEditOpen && <div className="header-actions">
             <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi tooteid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
-            {isAdminMode ? <button className="logout-button" onClick={logOut} aria-label="Logi välja">
+            {isAdminMode ? !adminDemoMode && <button className="logout-button" onClick={logOut} aria-label="Logi välja">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14 8l4 4-4 4m4-4H9" /></svg>
             </button> : <button className={`cart-button${addedProductId ? ' is-bumping' : ''}`} onClick={() => { setCartStep('cart'); setIsCartOpen(true) }} aria-label={`Ostukorv, ${cart.reduce((sum, item) => sum + item.quantity, 0)} toodet`}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></svg>
@@ -2611,7 +2731,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         <div className="story-track" ref={trackRef}>
           {renderedProducts.map((product, index) => (
             <article className="story-slide" key={`${product.id}-${index}`}>
-              <img src={getDisplayedProductImage(product)} alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product).x}%, ${getDisplayedImageTransform(product).y}%, 0) scale(${getDisplayedImageTransform(product).scale})`, transformOrigin: 'center' }} loading={Math.abs(index - (activeIndex + 1)) <= 1 ? 'eager' : 'lazy'} decoding={Math.abs(index - (activeIndex + 1)) <= 1 ? 'sync' : 'async'} />
+              <img {...getDisplayedProductImageProps(product)} sizes="100vw" alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product).x}%, ${getDisplayedImageTransform(product).y}%, 0) scale(${getDisplayedImageTransform(product).scale})`, transformOrigin: 'center' }} loading={Math.abs(index - (activeIndex + 1)) <= 1 ? 'eager' : 'lazy'} fetchPriority={Math.abs(index - (activeIndex + 1)) === 0 ? 'high' : 'auto'} decoding={Math.abs(index - (activeIndex + 1)) <= 1 ? 'sync' : 'async'} />
               <div className="story-shade" />
             </article>
           ))}
@@ -2657,7 +2777,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             {editProductImages.map((image, index) => {
               const upload = editImageUploads.find((item) => item.previewUrl === image)
               return <div className={`${(selectedImages[activeProduct.id] ?? 0) === index ? 'is-active' : ''}${upload ? ` is-upload-${upload.phase}` : ''}`} key={`${image}-${index}`}>
-              <button type="button" onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))} aria-label={`Vali pilt ${index + 1}`}><img src={image} alt="" /></button>
+              <button type="button" onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))} aria-label={`Vali pilt ${index + 1}`}><img {...getResponsiveImageProps({ ...activeProduct, imageVariants: editProductImageVariants }, image, 'thumb')} sizes="5rem" alt="" /></button>
               {upload && <span className="product-image-editor__thumbnail-status">{upload.phase === 'error' ? '!' : <i />}</span>}
               {upload?.phase === 'error' ? <><button className="product-image-editor__retry" type="button" onClick={() => startEditImageUpload(upload)}>Proovi uuesti</button><button className="product-image-editor__remove" type="button" aria-label="Eemalda ebaõnnestunud pilt" onClick={() => dismissEditImageUpload(upload)}>×</button></> : !upload && <button className="product-image-editor__remove" type="button" title="Eemalda pilt" aria-label={`Eemalda pilt ${index + 1}`} onClick={() => removeEditProductImage(index)}>×</button>}
               {!upload && (selectedImages[activeProduct.id] ?? 0) === index && <button className="product-image-editor__replace" type="button" title="Vaheta valitud pilt" aria-label="Vaheta valitud pilt" onClick={() => { editProductImageModeRef.current = 'replace'; editProductImageInputRef.current?.click() }}>
@@ -2678,7 +2798,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))}
                 aria-label={`Pilt ${index + 1}`}
               >
-                <img src={image} alt="" />
+                <img {...getResponsiveImageProps(activeProduct, image, 'thumb')} sizes="5rem" alt="" />
               </button>
             ))}
           </div>
@@ -2690,7 +2810,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           {saleBadgeStyle === 'elegant' && <span className="sale-badge__elegant" aria-hidden="true">Eripakkumine</span>}
           {saleBadgeStyle === 'minimal' && <span className="sale-badge__minimal" aria-hidden="true">Soodus · −{activeProductDiscount}%</span>}
         </div>}
-        {activeProduct && isActiveProductSoldOut && <div className="story-stock-badge is-sold-out">Välja müüdud</div>}
         {activeProduct && <button disabled={isActiveProductSoldOut} className={`buy-now${activeProductHasSale ? ' has-sale' : ''}${activeProductHasSale && saleBadgeStyle === 'price' ? ' has-inline-sale-price' : ''}${isActiveProductSoldOut ? ' is-sold-out' : ''}`} onClick={buyNow}>
           <span>{isActiveProductSoldOut ? 'Välja müüdud' : activeProductHasSale ? 'Osta kohe' : 'Osta'}</span>
           <strong>{activeProductHasSale && saleBadgeStyle === 'price' ? <><s>{activeProduct.price} €</s><span>{activeProduct.salePrice} €</span></> : `${getProductPrice(activeProduct)} €`}</strong>
@@ -2708,7 +2827,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               </svg>
               {setupProgress < 100 && merchantMode && <span className="admin-settings__incomplete" />}
             </button>
-            {activeProduct && <button className="admin-orders" type="button" onClick={() => setIsOrdersOpen(true)} aria-label={`Tellimused${newOrderCount ? `, ${newOrderCount} uut` : ''}`}>
+            {!adminDemoMode && activeProduct && <button className="admin-orders" type="button" onClick={() => setIsOrdersOpen(true)} aria-label={`Tellimused${newOrderCount ? `, ${newOrderCount} uut` : ''}`}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg>
               {newOrderCount > 0 && <span>{newOrderCount}</span>}
             </button>}
@@ -2744,7 +2863,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             {isAdminMode && <div className="admin-actions">
               {isEditOpen ? <>
                 <button onClick={closeEditProduct} tabIndex={-1} aria-label="Loobu muudatustest" title="Loobu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-                <button className="save-product-edit" disabled={editImageUploads.length > 0} onClick={saveEditedProduct} tabIndex={-1} aria-label="Salvesta muudatused" title="Salvesta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>
+                <button ref={saveProductButtonRef} className={`save-product-edit${isExitAttentionActive ? ' is-exit-target' : ''}`} disabled={editImageUploads.length > 0} onClick={saveEditedProduct} tabIndex={-1} aria-label="Salvesta muudatused" title="Salvesta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>
               </> : <>
                 <button onClick={openEditProduct} aria-label="Muuda toodet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Zm9-9 4 4" /></svg></button>
                 <button onClick={() => setIsDeleteOpen(true)} aria-label="Kustuta toode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
@@ -2926,7 +3045,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           {orders.length ? <div className={`order-list${orderLayout === 'list' ? ' is-list' : ''}`}>{visibleOrders.length ? visibleOrders.map((order) => <article className={order.status === 'new' ? 'is-new' : order.status === 'refunded' ? 'is-refunded' : ''} key={order.id}>
             <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'new' ? 'Uus' : order.status === 'refunded' ? 'Tagastatud' : 'Täidetud'}</span></header>
             <div className="order-customer"><strong>{order.customerName}</strong><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a><small>{order.delivery}</small></div>
-            <ul>{order.items.map((item) => <li key={item.cartKey}><img src={item.image} alt="" /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
+            <ul>{order.items.map((item) => <li key={item.cartKey}><img {...getResponsiveImageProps(item, item.image, 'thumb')} sizes="4rem" alt="" /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
             <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'new' ? <button type="button" onClick={() => changeOrderStatus(order.id, 'fulfilled')}>Märgi täidetuks</button> : order.status === 'fulfilled' ? <button className="order-refund" type="button" onClick={() => changeOrderStatus(order.id, 'refunded')}>Märgi tagastatuks</button> : <small>Poeruumi tasu krediteeritud</small>}</footer>
           </article>) : <div className="orders-no-results"><span>⌕</span><h3>Tellimusi ei leitud</h3><p>Proovi tellimuse numbrit, kliendi nime või toodet.</p><button type="button" onClick={() => setOrderSearch('')}>Tühjenda otsing</button></div>}</div> : <div className="orders-empty"><span>□</span><h3>Tellimusi veel pole</h3><p>Uued ostud ilmuvad siia automaatselt.</p></div>}
         </section>
@@ -2944,7 +3063,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </div>
           {isSettingsHome ? <div className="settings-home">
             <p>Vali, mida soovid muuta.</p>
-            <div>{SETTINGS_SECTIONS.map((section) => {
+            <div>{availableSettingsSections.map((section) => {
               const status = settingsSectionStatus(section.id)
               return <button type="button" data-section={section.id} onClick={() => { setSettingsSection(section.id); setIsSettingsHome(false) }} key={section.id}>
                 <span className="settings-home__icon"><SettingsSectionIcon section={section.id} /></span>
@@ -2969,7 +3088,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 </button>)}
               </div>}
             </div>}
-            <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} onChange={(event) => {
+            {!adminDemoMode && <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} onChange={(event) => {
               if (event.target.checked && !sellerDetailsComplete) {
                 setAuthToast('Enne poe avaldamist lisa täielikud müüja andmed')
                 setSettingsSection('business')
@@ -2977,7 +3096,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 return
               }
               setIsStoreVisible(event.target.checked)
-            }} /><i /></label>
+            }} /><i /></label>}
             <div className="settings-fields">
               <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
               <label>Poe slogan<input value={storeTagline} maxLength={100} onChange={(event) => setStoreTagline(event.target.value)} placeholder="Lühike lause sinu poe kohta" /><small className="settings-field-note">Valikuline · kuvatakse poe nime all jaluses · {storeTagline.length}/100</small></label>
@@ -3351,7 +3470,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             onPointerUp={(event) => endShareDrag(event.clientY)}
             onPointerCancel={(event) => endShareDrag(event.clientY)}
           ><div className="share-sheet__handle" /></div>
-          <div className="share-sheet__product"><img src={activeProduct.image} alt="" /><strong>{activeProduct.name}</strong><button type="button" onClick={() => setIsShareOpen(false)} aria-label="Sulge">×</button></div>
+          <div className="share-sheet__product"><img {...getResponsiveImageProps(activeProduct, activeProduct.image, 'thumb')} sizes="5rem" alt="" /><strong>{activeProduct.name}</strong><button type="button" onClick={() => setIsShareOpen(false)} aria-label="Sulge">×</button></div>
           <div className="share-sheet__actions">
             <button type="button" onClick={copyShareUrl}><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></span><small>Kopeeri</small></button>
             <a href={`https://wa.me/?text=${encodeURIComponent(`${activeProduct.name} ${shareUrl}`)}`} target="_blank" rel="noreferrer"><span className="is-whatsapp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.4-4A8 8 0 1 1 20 11.5Z"/><path d="M9 8c.5 2.7 2.3 4.5 5 5l1-1"/></svg></span><small>WhatsApp</small></a>
@@ -3381,7 +3500,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           <span className="delete-confirm__eyebrow">TOOTE KUSTUTAMINE</span>
           <h2 id="delete-title">Kustuta „{activeProduct?.name}”?</h2>
           <p id="delete-description">Toode eemaldatakse poest jäädavalt. Seda toimingut ei saa tagasi võtta.</p>
-          {activeProduct && <div className="delete-confirm__product"><img src={getDisplayedProductImage(activeProduct)} alt="" /><span><strong>{activeProduct.name}</strong><small>{getProductPrice(activeProduct).toFixed(2).replace('.', ',')} € · {activeProduct.gallery?.length ?? 1} {(activeProduct.gallery?.length ?? 1) === 1 ? 'pilt' : 'pilti'}</small></span></div>}
+          {activeProduct && <div className="delete-confirm__product"><img {...getDisplayedProductImageProps(activeProduct, 'thumb')} sizes="5rem" alt="" /><span><strong>{activeProduct.name}</strong><small>{getProductPrice(activeProduct).toFixed(2).replace('.', ',')} € · {activeProduct.gallery?.length ?? 1} {(activeProduct.gallery?.length ?? 1) === 1 ? 'pilt' : 'pilti'}</small></span></div>}
           <div className="delete-confirm__actions">
             <button type="button" autoFocus onClick={() => setIsDeleteOpen(false)}>Hoia alles</button>
             <button type="button" onClick={deleteActiveProduct}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>Kustuta toode</button>
@@ -3520,7 +3639,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             {searchResults.map((product) => {
               const index = displayProducts.findIndex((item) => item.id === product.id)
               return <button key={product.id} onClick={() => { setIsSearchOpen(false); setSearchQuery(''); requestAnimationFrame(() => goToProduct(index)) }}>
-                <img src={product.image} alt="" />
+                <img {...getResponsiveImageProps(product, product.image, 'thumb')} sizes="4rem" alt="" />
                 <span><strong>{product.name}</strong><small>{getProductPrice(product)} €</small></span>
               </button>
             })}
