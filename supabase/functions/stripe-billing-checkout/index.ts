@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,25 +55,40 @@ Deno.serve(async (request) => {
 
     const body = await request.json().catch(() => ({})) as { returnUrl?: string }
     const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
+    const stripeMode = assertStripeMode(stripeSecretKey)
+    assertStoredStripeMode(store.stripe_billing_mode, stripeMode, 'Poe Stripe Billing')
     const stripe = new Stripe(stripeSecretKey)
     const appUrl = returnBase(requiredEnv('APP_URL').replace(/\/$/, ''), body.returnUrl, stripeSecretKey.includes('_test_'))
     const fixedPlanTaxRateId = Deno.env.get('STRIPE_FIXED_PLAN_TAX_RATE_ID')?.trim()
+    const fixedPlanPriceId = requiredEnv('STRIPE_FIXED_PLAN_PRICE_ID')
+    const price = await stripe.prices.retrieve(fixedPlanPriceId)
+    if (price.livemode !== (stripeMode === 'live') || !price.active || price.currency !== 'eur' || price.type !== 'recurring'
+      || price.unit_amount !== 2900 || price.recurring?.interval !== 'month' || price.recurring.interval_count !== 1) {
+      throw new Error('Kindla paketi Stripe Price ei vasta aktiivsele režiimile või paketile.')
+    }
+    if (fixedPlanTaxRateId) {
+      const taxRate = await stripe.taxRates.retrieve(fixedPlanTaxRateId)
+      if (taxRate.livemode !== (stripeMode === 'live') || !taxRate.active || taxRate.percentage !== 24
+        || taxRate.inclusive || taxRate.country !== 'EE') throw new Error('Stripe’i käibemaksumäär ei vasta Eesti 24% standardmäärale.')
+    }
     const params: Stripe.Checkout.SessionCreateParams = {
       mode: 'subscription',
       client_reference_id: store.id,
       customer_email: store.stripe_customer_id ? undefined : user.email,
       customer: store.stripe_customer_id ?? undefined,
-      line_items: [{ price: requiredEnv('STRIPE_FIXED_PLAN_PRICE_ID'), quantity: 1, ...(fixedPlanTaxRateId ? { tax_rates: [fixedPlanTaxRateId] } : {}) }],
+      line_items: [{ price: fixedPlanPriceId, quantity: 1, ...(fixedPlanTaxRateId ? { tax_rates: [fixedPlanTaxRateId] } : {}) }],
       allow_promotion_codes: false,
       success_url: `${appUrl}/?billing=success`,
       cancel_url: `${appUrl}/?billing=cancelled`,
-      metadata: { store_id: store.id },
+      metadata: { store_id: store.id, stripe_mode: stripeMode },
       subscription_data: {
         trial_period_days: store.trial_started_at ? undefined : 30,
-        metadata: { store_id: store.id },
+        metadata: { store_id: store.id, stripe_mode: stripeMode },
       },
     }
-    const session = await stripe.checkout.sessions.create(params)
+    const session = await stripe.checkout.sessions.create(params, {
+      idempotencyKey: `poeruum-billing-${store.id}-${Math.floor(Date.now() / (5 * 60 * 1000))}`,
+    })
     if (!session.url) throw new Error('Stripe ei tagastanud arvelduslehe aadressi.')
     return json({ url: session.url })
   } catch (error) {

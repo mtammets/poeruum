@@ -16,6 +16,7 @@ const handleEvent = async (event: Stripe.Event) => {
     const isReady = account.charges_enabled && account.payouts_enabled
     const { error } = await admin.from('stores').update({
       payment_provider: 'stripe',
+      stripe_account_mode: event.livemode ? 'live' : 'test',
       payment_status: isReady ? 'connected' : 'pending',
       stripe_account_charges_enabled: account.charges_enabled,
       stripe_account_payouts_enabled: account.payouts_enabled,
@@ -30,6 +31,7 @@ const handleEvent = async (event: Stripe.Event) => {
     const { error } = await admin.from('stores').update({
       payment_status: 'idle',
       stripe_account_id: null,
+      stripe_account_mode: null,
       stripe_account_charges_enabled: false,
       stripe_account_payouts_enabled: false,
     }).eq('stripe_account_id', connectedAccountId)

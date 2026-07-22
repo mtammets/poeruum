@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,7 +92,9 @@ Deno.serve(async (request) => {
     const supabaseUrl = getRequiredEnv('SUPABASE_URL')
     const publicKey = getRequiredEnv('SUPABASE_ANON_KEY')
     const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY')
-    const stripe = new Stripe(getRequiredEnv('STRIPE_SECRET_KEY'))
+    const stripeSecretKey = getRequiredEnv('STRIPE_SECRET_KEY')
+    const stripeMode = assertStripeMode(stripeSecretKey)
+    const stripe = new Stripe(stripeSecretKey)
 
     const userClient = createClient(supabaseUrl, publicKey, {
       global: { headers: { Authorization: authorization } },
@@ -109,6 +112,7 @@ Deno.serve(async (request) => {
 
     const body = await request.json().catch(() => ({})) as { action?: string }
     let accountId = typeof store.stripe_account_id === 'string' ? store.stripe_account_id : null
+    if (accountId) assertStoredStripeMode(store.stripe_account_mode, stripeMode, 'Poe Stripe’i konto')
 
     if (body.action === 'status') {
       if (!accountId) return json({ status: 'idle' })
@@ -116,13 +120,13 @@ Deno.serve(async (request) => {
       if ('deleted' in account && account.deleted) {
         await admin.from('stores').update({
           payment_status: 'idle', stripe_account_id: null,
-          stripe_account_charges_enabled: false, stripe_account_payouts_enabled: false,
+          stripe_account_charges_enabled: false, stripe_account_payouts_enabled: false, stripe_account_mode: null,
         }).eq('id', store.id)
         return json({ status: 'idle' })
       }
       const status = stripeAccountStatus(account)
       const { error } = await admin.from('stores').update({
-        payment_provider: 'stripe', payment_status: status,
+        payment_provider: 'stripe', payment_status: status, stripe_account_mode: stripeMode,
         stripe_account_charges_enabled: account.charges_enabled,
         stripe_account_payouts_enabled: account.payouts_enabled,
       }).eq('id', store.id)
@@ -148,7 +152,7 @@ Deno.serve(async (request) => {
       const account = await createPoeruumManagedAccount(stripe, store, user)
       accountId = account.id
       const { error } = await admin.from('stores').update({
-        payment_provider: 'stripe', payment_status: 'pending', stripe_account_id: account.id,
+        payment_provider: 'stripe', payment_status: 'pending', stripe_account_id: account.id, stripe_account_mode: stripeMode,
         stripe_account_charges_enabled: account.charges_enabled,
         stripe_account_payouts_enabled: account.payouts_enabled,
       }).eq('id', store.id)

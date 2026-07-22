@@ -9,6 +9,7 @@ import {
   stripeId,
   verifyStripeEvent,
 } from '../_shared/stripe-webhook.ts'
+import { assertStoredStripeMode } from '../_shared/stripe-mode.ts'
 
 type StripeRecord = Record<string, unknown>
 
@@ -77,6 +78,7 @@ const handleEvent = async (event: Stripe.Event) => {
     if (object.mode === 'subscription') {
       await updateStore({
         pricing_plan: 'fixed',
+        stripe_billing_mode: event.livemode ? 'live' : 'test',
         ...(object.payment_status === 'no_payment_required' ? { trial_started_at: unixDate(event.created) } : {}),
         stripe_customer_id: stripeId(object.customer),
         stripe_subscription_id: stripeId(object.subscription),
@@ -87,11 +89,21 @@ const handleEvent = async (event: Stripe.Event) => {
         ? String(object.metadata.order_id)
         : null
       if (orderId && (object.payment_status === 'paid' || event.type === 'checkout.session.async_payment_succeeded')) {
+        const { data: orderMode, error: modeError } = await getAdminClient().from('orders').select('stripe_mode').eq('id', orderId).maybeSingle()
+        if (modeError) throw modeError
+        assertStoredStripeMode(orderMode?.stripe_mode, event.livemode ? 'live' : 'test', 'Tellimuse makse')
         const { error } = await getAdminClient().rpc('complete_stripe_order', {
           target_order_id: orderId,
           checkout_session_id: stripeId(object),
           payment_intent_id: stripeId(object.payment_intent),
         })
+        if (error) throw error
+      } else if (orderId && object.payment_status === 'unpaid') {
+        // Some bank methods finish asynchronously after Checkout itself is complete.
+        // Keep their goods reserved until Stripe sends the final succeeded/failed event.
+        const { error } = await getAdminClient().from('orders').update({
+          reservation_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        }).eq('id', orderId).eq('payment_status', 'pending')
         if (error) throw error
       }
     }
@@ -103,7 +115,10 @@ const handleEvent = async (event: Stripe.Event) => {
       ? String(object.metadata.order_id)
       : null
     if (orderId) {
-      const { error } = await getAdminClient().from('orders').update({ payment_status: 'failed' }).eq('id', orderId).neq('payment_status', 'paid')
+      const { data: orderMode, error: modeError } = await getAdminClient().from('orders').select('stripe_mode').eq('id', orderId).maybeSingle()
+      if (modeError) throw modeError
+      assertStoredStripeMode(orderMode?.stripe_mode, event.livemode ? 'live' : 'test', 'Tellimuse makse')
+      const { error } = await getAdminClient().rpc('release_stripe_order', { target_order_id: orderId })
       if (error) throw error
     }
     return

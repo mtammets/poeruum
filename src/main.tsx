@@ -8,8 +8,9 @@ import './brand.css'
 import './demo.css'
 import './admin.css'
 
+const hasAppReturnState = ['billing', 'checkout'].some((key) => new URLSearchParams(window.location.search).has(key))
 const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostname)
-  && window.location.pathname === '/'
+  && window.location.pathname === '/' && !hasAppReturnState
 const isAdminPath = /^\/admin\/?$/i.test(window.location.pathname)
 
 function Root() {

@@ -127,6 +127,7 @@ export async function startStripeStoreCheckout(input: {
   items: Array<{ id: string; quantity: number; selectedOptions: Record<string, string> }>
   customer: { name: string; email: string; phone: string }
   delivery: { type: 'parcel' | 'courier' | 'pickup'; provider?: 'omniva' | 'dpd' | 'smartposti'; label: string }
+  checkoutRequestId: string
 }) {
   return invokeCheckoutFunction('stripe-store-checkout', { ...input, returnUrl: window.location.origin })
 }

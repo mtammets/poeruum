@@ -29,10 +29,13 @@ Admini roll eemaldatakse Supabase Auth Admin API kaudu, muutes kasutaja `app_met
 Poe Stripe’i ostud kasutavad destination charge’i. Toodete summa pealt arvutatud Paindliku paketi teenustasu läheb Stripe’i `application_fee_amount` väljale; tarne ei kuulu tasu sisse. Kindla paketi kuutasu kasutab Stripe Billingu korduvat Price’i ja eraldi 24% Tax Rate’i.
 
 1. Loo Stripe’is korduv kuine Price netohinnaga 29 € ja lisa selle ID `.env` faili muutujasse `STRIPE_FIXED_PLAN_PRICE_ID`.
-2. Loo enne tootmisse minekut Stripe’is Eesti 24% Tax Rate ja lisa ID muutujasse `STRIPE_FIXED_PLAN_TAX_RATE_ID`. Lokaalses testis on see valikuline; tootmises ei tohi seda tühjaks jätta.
+2. Loo Stripe’is Eesti 24% mitte-inklusiivne Tax Rate ja lisa ID muutujasse `STRIPE_FIXED_PLAN_TAX_RATE_ID`. See on nõutav nii test- kui live-režiimis.
 3. Sea `APP_URL` avalikule HTTPS-aadressile.
-4. Laadi Edge Functionite serverisaladused Supabase’i: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_FIXED_PLAN_PRICE_ID`, `STRIPE_FIXED_PLAN_TAX_RATE_ID` ja `APP_URL`.
-5. Rakenda andmebaas `npm run supabase:deploy` ning funktsioonid `npm run supabase:functions:deploy`.
+4. Sea `STRIPE_MODE` väärtuseks `test` või `live`. Funktsioonid keelduvad käivitumast, kui võtme, salvestatud Stripe’i objekti või webhooki režiim ei vasta sellele.
+5. Laadi Edge Functionite serverisaladused Supabase’i: `STRIPE_MODE`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_FIXED_PLAN_PRICE_ID`, `STRIPE_FIXED_PLAN_TAX_RATE_ID` ja `APP_URL`.
+6. Rakenda andmebaas `npm run supabase:deploy` ning funktsioonid `npm run supabase:functions:deploy`.
+
+Checkout kasutab kliendi päringu ID-d, Stripe’i idempotentsusvõtit ja atomaarset 30-minutilist laoreservatsiooni. Stripe’i aegumise või makse ebaõnnestumise webhook vabastab kauba; asünkroonse pangamakse puhul hoitakse reservatsiooni lõpliku succeeded/failed sündmuseni.
 
 Stripe’i platvormikonto webhook peab saatma `stripe-webhook` funktsioonile järgmised sündmused:
 
@@ -48,6 +51,10 @@ Stripe’i platvormikonto webhook peab saatma `stripe-webhook` funktsioonile jä
 - `application_fee.refunded`
 
 Connecti webhook peab saatma `stripe-connect-webhook` funktsioonile connected account sündmused `account.updated` ja `account.application.deauthorized`.
+
+### Live-režiimi üleminek
+
+Test- ja live-režiimi Stripe’i kontod, Price’id, Tax Rate’id ning webhooki saladused on eraldi. Vahetult enne live-võtmete paigaldamist käivita kontrollitult [stripe-live-cutover.sql](supabase/stripe-live-cutover.sql), loo Stripe’i live-režiimis mõlemad webhook endpointid, 29 € kuine Price ja 24% Tax Rate ning paigalda nende live-väärtused koos `STRIPE_MODE=live` seadistusega. Cutover-skript katkestab töö, kui andmebaasis on juba live-viiteid.
 
 Admini reaalaja tulukaart loeb ainult allkirjastatud webhook’ist tabelisse `revenue_events` jõudnud sündmusi. Brauser ega kaupmees ei saa tulukandeid ise lisada. Supabase Realtime’i publikatsioon lisatakse migratsiooniga automaatselt; tulutabelit saavad lugeda ainult kasutajad, kelle JWT `app_metadata.role` on `admin`.
 

@@ -19,6 +19,11 @@ const clampImageOffset = (offset: number, scale: number) => {
   return Math.min(limit, Math.max(-limit, offset))
 }
 const isImageFile = (file: File) => file.type.startsWith('image/') || /\.(?:heic|heif)$/i.test(file.name)
+const createCheckoutRequestId = () => {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
 
 const getResponsiveImageProps = (product: Product, image: string, preferred: 'thumb' | 'medium' | 'large' = 'large') => {
   const asset = product.imageVariants?.[image]
@@ -537,6 +542,7 @@ const findParcelMachines = (machines: ParcelMachine[], query: string) => {
 
 function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, onRemove, onQuantityChange, onComplete, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onComplete: (order: DemoOrder) => void; onClose: () => void }) {
   const checkoutRef = useRef<HTMLElement>(null)
+  const checkoutRequestIdRef = useRef(createCheckoutRequestId())
   const [step, setStep] = useState<'cart' | 'checkout' | 'success'>(initialStep)
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'card'>('bank')
   const [bank, setBank] = useState('swedbank')
@@ -670,6 +676,7 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
       try {
         const url = await startStripeStoreCheckout({
           storeId,
+          checkoutRequestId: checkoutRequestIdRef.current,
           items: items.map((item) => ({ id: item.id, quantity: item.quantity, selectedOptions: item.selectedOptions })),
           customer: { name: String(data.get('customerName')), email: String(data.get('customerEmail')), phone: String(data.get('customerPhone')) },
           delivery: { type: delivery, provider: selectedParcelMachine?.provider, label: deliveryLabel },
@@ -677,6 +684,7 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
         window.location.assign(url)
       } catch (error) {
         setPaymentError(error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.')
+        checkoutRequestIdRef.current = createCheckoutRequestId()
         setIsPaying(false)
       }
       return

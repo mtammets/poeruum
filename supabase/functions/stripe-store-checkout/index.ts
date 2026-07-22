@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,6 +22,7 @@ type CheckoutItem = { id: string; quantity: number; selectedOptions?: Record<str
 type DeliveryInput = { type: 'parcel' | 'courier' | 'pickup'; provider?: 'omniva' | 'dpd' | 'smartposti'; label: string }
 type CheckoutBody = {
   storeId?: string
+  checkoutRequestId?: string
   returnUrl?: string
   items?: CheckoutItem[]
   customer?: { name?: string; email?: string; phone?: string }
@@ -47,11 +49,12 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json() as CheckoutBody
     const storeId = String(body.storeId ?? '')
+    const checkoutRequestId = String(body.checkoutRequestId ?? '').trim()
     const requestedItems = Array.isArray(body.items) ? body.items.slice(0, 50) : []
     const email = String(body.customer?.email ?? '').trim().toLowerCase()
     const customerName = String(body.customer?.name ?? '').trim()
     const customerPhone = String(body.customer?.phone ?? '').trim()
-    if (!storeId || !requestedItems.length || !email || !customerName || !body.delivery) {
+    if (!storeId || checkoutRequestId.length < 16 || checkoutRequestId.length > 100 || !requestedItems.length || !email || !customerName || !body.delivery) {
       return json({ error: 'Tellimuse andmed on puudulikud.' }, 400)
     }
 
@@ -59,12 +62,18 @@ Deno.serve(async (request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
+    const stripeMode = assertStripeMode(stripeSecretKey)
     const stripe = new Stripe(stripeSecretKey)
     const { data: store, error: storeError } = await admin.from('stores').select('*').eq('id', storeId).eq('is_published', true).maybeSingle()
     if (storeError) throw storeError
     if (!store) return json({ error: 'Poodi ei leitud või see pole avalik.' }, 404)
     if (store.payment_provider !== 'stripe' || store.payment_status !== 'connected' || !store.stripe_account_id) {
       return json({ error: 'Selle poe Stripe’i maksed pole veel aktiivsed.' }, 409)
+    }
+    assertStoredStripeMode(store.stripe_account_mode, stripeMode, 'Poe Stripe’i konto')
+    if (!store.stripe_account_mode) {
+      const { error: modeUpdateError } = await admin.from('stores').update({ stripe_account_mode: stripeMode }).eq('id', storeId).is('stripe_account_mode', null)
+      if (modeUpdateError) throw modeUpdateError
     }
 
     const uniqueProductIds = [...new Set(requestedItems.map((item) => String(item.id)))]
@@ -148,24 +157,38 @@ Deno.serve(async (request) => {
 
     const orderNumber = `PR-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`
     const totalCents = productSubtotalCents + deliveryCents
-    const { data: order, error: orderError } = await admin.from('orders').insert({
-      store_id: storeId,
-      order_number: orderNumber,
-      items: orderItems,
-      customer_name: customerName,
-      customer_email: email,
-      delivery: body.delivery.label,
-      product_subtotal: productSubtotalCents / 100,
-      total: totalCents / 100,
-      payment_status: 'pending',
-    }).select('id').single()
-    if (orderError) throw orderError
+    const reservationExpiresAt = new Date(Date.now() + 35 * 60 * 1000).toISOString()
+    const { data: order, error: orderError } = await admin.rpc('create_stripe_order_with_reservation', {
+      target_store_id: storeId,
+      request_id: checkoutRequestId,
+      order_number_value: orderNumber,
+      order_items: orderItems,
+      customer_name_value: customerName,
+      customer_email_value: email,
+      delivery_value: body.delivery.label,
+      product_subtotal_value: productSubtotalCents / 100,
+      total_value: totalCents / 100,
+      stripe_mode_value: stripeMode,
+      reservation_expires_at_value: reservationExpiresAt,
+    })
+    if (orderError) {
+      if (orderError.message.includes('INSUFFICIENT_STOCK:')) {
+        return json({ error: `${orderError.message.split('INSUFFICIENT_STOCK:')[1]?.split(/[\n(]/)[0] ?? 'Toode'}: soovitud kogus pole enam saadaval.` }, 409)
+      }
+      if (orderError.message.includes('CHECKOUT_REQUEST_REUSED')) return json({ error: 'Maksepäringu andmed muutusid. Proovi uuesti.' }, 409)
+      throw orderError
+    }
+
+    if (order.stripe_checkout_session_id) {
+      const existingSession = await stripe.checkout.sessions.retrieve(order.stripe_checkout_session_id)
+      if (existingSession.status === 'open' && existingSession.url) return json({ url: existingSession.url })
+    }
 
     const appUrl = returnBase(requiredEnv('APP_URL').replace(/\/$/, ''), body.returnUrl, stripeSecretKey.includes('_test_'))
     const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
       on_behalf_of: store.stripe_account_id,
       transfer_data: { destination: store.stripe_account_id },
-      metadata: { store_id: storeId, order_id: order.id, order_number: orderNumber },
+      metadata: { store_id: storeId, order_id: order.id, order_number: order.order_number, stripe_mode: stripeMode },
     }
     if (applicationFeeCents > 0) paymentIntentData.application_fee_amount = applicationFeeCents
 
@@ -178,11 +201,12 @@ Deno.serve(async (request) => {
         line_items: lineItems,
         success_url: `${appUrl}/p/${encodeURIComponent(store.slug)}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/p/${encodeURIComponent(store.slug)}?checkout=cancelled`,
-        metadata: { store_id: storeId, order_id: order.id, order_number: orderNumber, customer_phone: customerPhone },
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        metadata: { store_id: storeId, order_id: order.id, order_number: order.order_number, customer_phone: customerPhone, stripe_mode: stripeMode },
         payment_intent_data: paymentIntentData,
-      })
+      }, { idempotencyKey: `poeruum-checkout-${storeId}-${checkoutRequestId}` })
     } catch (error) {
-      await admin.from('orders').update({ payment_status: 'failed' }).eq('id', order.id)
+      await admin.rpc('release_stripe_order', { target_order_id: order.id })
       throw error
     }
     await admin.from('orders').update({ stripe_checkout_session_id: session.id }).eq('id', order.id)

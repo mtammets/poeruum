@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { assertStripeMode } from './stripe-mode.ts'
 
 export type WebhookSource = 'account' | 'connect'
 
@@ -26,9 +27,12 @@ export const verifyStripeEvent = async (request: Request, webhookSecretName: str
   if (!apiKey || !webhookSecret) throw new Error(`Puudub ${!apiKey ? 'STRIPE_SECRET_KEY' : webhookSecretName}.`)
   if (!signature) throw new Error('Stripe-Signature päis puudub.')
 
+  const stripeMode = assertStripeMode(apiKey)
   const stripe = new Stripe(apiKey)
   const body = await request.text()
-  return await stripe.webhooks.constructEventAsync(body, signature, webhookSecret, undefined, cryptoProvider)
+  const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret, undefined, cryptoProvider)
+  if (event.livemode !== (stripeMode === 'live')) throw new Error('Webhooki sündmus on vales Stripe’i režiimis.')
+  return event
 }
 
 export const claimEvent = async (event: Stripe.Event, source: WebhookSource) => {

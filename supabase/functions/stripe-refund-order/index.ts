@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -35,7 +36,10 @@ Deno.serve(async (request) => {
     if (order.payment_status === 'refunded') return json({ refunded: true })
     if (!order.stripe_payment_intent_id || order.payment_status !== 'paid') return json({ error: 'Sellel tellimusel pole tagastatavat Stripe’i makset.' }, 409)
 
-    const stripe = new Stripe(requiredEnv('STRIPE_SECRET_KEY'))
+    const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
+    const stripeMode = assertStripeMode(stripeSecretKey)
+    assertStoredStripeMode(order.stripe_mode, stripeMode, 'Tellimuse makse')
+    const stripe = new Stripe(stripeSecretKey)
     const refund = await stripe.refunds.create({
       payment_intent: order.stripe_payment_intent_id,
       reverse_transfer: true,
@@ -51,4 +55,3 @@ Deno.serve(async (request) => {
     return json({ error: error instanceof Error ? error.message : 'Tagastus ebaõnnestus.' }, 500)
   }
 })
-

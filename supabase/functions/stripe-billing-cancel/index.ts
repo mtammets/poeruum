@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
@@ -30,7 +31,10 @@ Deno.serve(async (request) => {
       if (error) throw error
       return json({ effectiveImmediately: true })
     }
-    const stripe = new Stripe(requiredEnv('STRIPE_SECRET_KEY'))
+    const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
+    const stripeMode = assertStripeMode(stripeSecretKey)
+    assertStoredStripeMode(store.stripe_billing_mode, stripeMode, 'Poe Stripe Billing')
+    const stripe = new Stripe(stripeSecretKey)
     const subscription = await stripe.subscriptions.update(store.stripe_subscription_id, { cancel_at_period_end: true })
     return json({ effectiveImmediately: false, cancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null })
   } catch (error) {
@@ -38,4 +42,3 @@ Deno.serve(async (request) => {
     return json({ error: error instanceof Error ? error.message : 'Paketi muutmine ebaõnnestus.' }, 500)
   }
 })
-
