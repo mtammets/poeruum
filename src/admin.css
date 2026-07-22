@@ -88,7 +88,6 @@
 .admin-setup-overview__bars em { color: #536159; font-size: .62rem; font-style: normal; font-weight: 800; text-align: right; }
 .admin-users { overflow: hidden; scroll-margin-top: 1rem; }
 .admin-users > header { padding: 1.3rem 1.3rem 1rem; }
-.admin-users > header p { margin: .25rem 0 0; color: #89928c; font-size: .62rem; }
 .admin-users__controls { display: flex; align-items: center; justify-content: flex-end; gap: .55rem; min-width: 0; }
 .admin-sort { position: relative; display: grid; flex: 0 0 auto; gap: .1rem; min-width: 9rem; padding: .42rem 1.65rem .42rem .7rem; border: 1px solid #dde0d9; border-radius: .62rem; background: #fbfcfa; }
 .admin-sort::after { position: absolute; top: 50%; right: .65rem; color: #758078; font-size: .7rem; content: '⌄'; transform: translateY(-58%); pointer-events: none; }

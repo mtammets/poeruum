@@ -93,14 +93,6 @@ const sortOptions: Array<{ id: UserSort; label: string }> = [
   { id: 'progress', label: 'Valmimad ees' },
 ]
 
-const sortDescriptions: Record<UserSort, string> = {
-  attention: 'Kõige rohkem tähelepanu vajavad kasutajad on eespool.',
-  newest: 'Kõige hiljem liitunud kasutajad on eespool.',
-  oldest: 'Kõige varem liitunud kasutajad on eespool.',
-  active: 'Kõige hiljutisema tegevusega kasutajad on eespool.',
-  progress: 'Kõige kaugemale jõudnud poed on eespool.',
-}
-
 const setupCount = (row: AdminUserRow) => setupSteps.filter((step) => row[step.key]).length
 const setupPercent = (row: AdminUserRow) => Math.round(setupCount(row) / setupSteps.length * 100)
 
@@ -436,7 +428,7 @@ export default function AdminApp() {
         </section>
 
         <section className="admin-users" id="kasutajad">
-          <header><div><h2>Seadistuse edenemine</h2><p>{sortDescriptions[sort]}</p></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
+          <header><div><h2>Seadistuse edenemine</h2></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
           <div className="admin-filters" role="group" aria-label="Filtreeri kasutajaid">
             {filters.map((item) => <button type="button" className={filter === item.id ? 'is-active' : ''} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} key={item.id}>{item.label}</button>)}
           </div>
