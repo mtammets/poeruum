@@ -132,8 +132,8 @@ export async function startStripeStoreCheckout(input: {
   return invokeCheckoutFunction('stripe-store-checkout', { ...input, returnUrl: window.location.origin })
 }
 
-export async function startStripeBillingCheckout() {
-  return invokeCheckoutFunction('stripe-billing-checkout', { returnUrl: window.location.origin })
+export async function startStripeBillingCheckout(checkoutRequestId: string) {
+  return invokeCheckoutFunction('stripe-billing-checkout', { checkoutRequestId, returnUrl: window.location.origin })
 }
 
 export async function refundStripeOrder(storeId: string, orderNumber: string) {

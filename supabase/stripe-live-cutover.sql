@@ -35,4 +35,8 @@ set payment_status = 'failed',
     reservation_expires_at = null
 where stripe_mode = 'test' and payment_status = 'pending';
 
+-- Testrežiimi tulu ei tohi pärast live-käivitust admini tulukaardile jääda.
+delete from public.revenue_events
+where metadata ->> 'livemode' = 'false';
+
 commit;

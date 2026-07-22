@@ -956,6 +956,10 @@ export default function DemoApp() {
     finally { setIsPublishing(false) }
   }
 
+  const returnNotice = authNotice ? <div className="app-return-notice" role="status" aria-live="polite">
+    <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
+  </div> : null
+
   if (publicStore) return <Storefront
     key={publicStore.id}
     storeId={publicStore.id}
@@ -984,6 +988,7 @@ export default function DemoApp() {
     onExit={() => setScreen('landing')}
   />
   if (screen === 'storefront') return <>
+    {returnNotice}
     <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(provider: PaymentProvider) => provider === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment(nextStore.payment_provider); setPaymentStatus(nextStore.payment_status); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetDemo} />
     {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} businessName={businessName} registryCode={registryCode} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { completePaymentConnection('montonio', status); setIsMontonioConnectOpen(false) }} />}
   </>
@@ -1220,6 +1225,7 @@ export default function DemoApp() {
   const paymentCanContinue = paymentStatus === 'connected' || (payment === 'montonio' && paymentStatus === 'pending')
 
   return <SetupShell screen={screen} onBack={onBack}>
+    {returnNotice}
     {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { await persistStore(false, {}, 'business'); setScreen('business') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
       <span className="setup-kicker">Alustame põhilisest</span><h1>Mis on sinu poe nimi?</h1><p>Seda näevad sinu kliendid poe päises ja otsingutulemustes.</p>
       <label>Poe nimi<input
@@ -1392,9 +1398,9 @@ export default function DemoApp() {
         <small className="publish-note">{pricingPlan === 'fixed' && <><span className="publish-trial-copy">Prooviperiood algab avaldamisel.</span><span className="publish-note-separator" aria-hidden="true"> · </span></>}Avaldamisega nõustud <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a>.</small>
       </div>
     </div>}
-    {isBillingCardOpen && <BillingCardDemo confirmLabel="Jätka Stripe’is" onClose={() => setIsBillingCardOpen(false)} onConfirm={async () => {
+    {isBillingCardOpen && <BillingCardDemo confirmLabel="Jätka Stripe’is" onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => {
       await persistStore(false, { pricing_plan: store?.pricing_plan ?? 'flexible' })
-      const url = await startStripeBillingCheckout()
+      const url = await startStripeBillingCheckout(checkoutRequestId)
       window.location.assign(url)
     }} />}
   </SetupShell>

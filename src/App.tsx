@@ -335,7 +335,7 @@ type DeliverySettings = {
   pickupAddress: string
 }
 
-export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Jätka Stripe’is' }: { onClose: () => void; onConfirm: () => Promise<void>; confirmLabel?: string }) {
+export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Jätka Stripe’is' }: { onClose: () => void; onConfirm: (checkoutRequestId: string) => Promise<void>; confirmLabel?: string }) {
   const [isConfirming, setIsConfirming] = useState(false)
   const [confirmError, setConfirmError] = useState('')
   const [billingDragY, setBillingDragY] = useState(0)
@@ -346,6 +346,7 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Jätka Str
   const billingTouchCurrentRef = useRef(0)
   const billingDragAreaRef = useRef<HTMLDivElement>(null)
   const billingCloseTimerRef = useRef<number | null>(null)
+  const checkoutRequestIdRef = useRef(createCheckoutRequestId())
   const trialStartsAt = new Date()
   const firstPaymentAt = new Date(trialStartsAt)
   firstPaymentAt.setDate(firstPaymentAt.getDate() + FIXED_PLAN_TRIAL_DAYS)
@@ -356,7 +357,7 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Jätka Str
     if (isConfirming) return
     setIsConfirming(true)
     setConfirmError('')
-    try { await onConfirm() }
+    try { await onConfirm(checkoutRequestIdRef.current) }
     catch (error) { setConfirmError(error instanceof Error ? error.message : 'Stripe’i arvelduse avamine ebaõnnestus.'); setIsConfirming(false) }
   }
 
@@ -3423,7 +3424,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </div>}
         </section>
       </div>}
-      {isBillingCardOpen && <BillingCardDemo onClose={() => setIsBillingCardOpen(false)} onConfirm={async () => { const url = await startStripeBillingCheckout(); window.location.assign(url) }} />}
+      {isBillingCardOpen && <BillingCardDemo onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => { const url = await startStripeBillingCheckout(checkoutRequestId); window.location.assign(url) }} />}
       {isEmailChangeOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isChangingEmail && event.target === event.currentTarget && setIsEmailChangeOpen(false)}>
         <section className="login-sheet password-change-sheet" role="dialog" aria-modal="true" aria-labelledby="email-change-title">
           <button className="login-sheet__close" type="button" disabled={isChangingEmail} onClick={() => setIsEmailChangeOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>

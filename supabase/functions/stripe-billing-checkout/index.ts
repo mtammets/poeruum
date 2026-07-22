@@ -53,7 +53,9 @@ Deno.serve(async (request) => {
       return json({ error: 'Kindel pakett on juba aktiivne.' }, 409)
     }
 
-    const body = await request.json().catch(() => ({})) as { returnUrl?: string }
+    const body = await request.json().catch(() => ({})) as { returnUrl?: string; checkoutRequestId?: string }
+    const checkoutRequestId = String(body.checkoutRequestId ?? '').trim()
+    if (checkoutRequestId.length < 16 || checkoutRequestId.length > 100) return json({ error: 'Maksepäringu ID puudub.' }, 400)
     const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
     const stripeMode = assertStripeMode(stripeSecretKey)
     assertStoredStripeMode(store.stripe_billing_mode, stripeMode, 'Poe Stripe Billing')
@@ -87,7 +89,7 @@ Deno.serve(async (request) => {
       },
     }
     const session = await stripe.checkout.sessions.create(params, {
-      idempotencyKey: `poeruum-billing-${store.id}-${Math.floor(Date.now() / (5 * 60 * 1000))}`,
+      idempotencyKey: `poeruum-billing-${store.id}-${checkoutRequestId}`,
     })
     if (!session.url) throw new Error('Stripe ei tagastanud arvelduslehe aadressi.')
     return json({ url: session.url })

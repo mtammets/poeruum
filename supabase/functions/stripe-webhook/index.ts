@@ -1,4 +1,4 @@
-import type Stripe from 'npm:stripe@^22'
+import Stripe from 'npm:stripe@^22'
 import {
   claimEvent,
   completeEvent,
@@ -19,6 +19,18 @@ type StoreLookup = {
 }
 
 const unixDate = (value: unknown) => new Date((typeof value === 'number' ? value : Math.floor(Date.now() / 1000)) * 1000).toISOString()
+
+const getSubscriptionState = async (subscriptionId: string | null) => {
+  if (!subscriptionId) return null
+  const secretKey = Deno.env.get('STRIPE_SECRET_KEY')
+  if (!secretKey) throw new Error('Puudub STRIPE_SECRET_KEY.')
+  const subscription = await new Stripe(secretKey).subscriptions.retrieve(subscriptionId)
+  return {
+    id: subscription.id,
+    status: subscription.status,
+    trialStartedAt: subscription.trial_start ? unixDate(subscription.trial_start) : null,
+  }
+}
 
 const findStore = async (filters: { storeId?: string | null; customerId?: string | null; subscriptionId?: string | null; connectedAccountId?: string | null }) => {
   const admin = getAdminClient()
@@ -76,13 +88,14 @@ const handleEvent = async (event: Stripe.Event) => {
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const storeId = metadataStoreId(object) ?? (typeof object.client_reference_id === 'string' ? object.client_reference_id : null)
     if (object.mode === 'subscription') {
+      const subscription = await getSubscriptionState(stripeId(object.subscription))
       await updateStore({
         pricing_plan: 'fixed',
         stripe_billing_mode: event.livemode ? 'live' : 'test',
-        ...(object.payment_status === 'no_payment_required' ? { trial_started_at: unixDate(event.created) } : {}),
+        ...(subscription?.trialStartedAt ? { trial_started_at: subscription.trialStartedAt } : {}),
         stripe_customer_id: stripeId(object.customer),
-        stripe_subscription_id: stripeId(object.subscription),
-        stripe_subscription_status: object.payment_status === 'paid' ? 'active' : 'trialing',
+        stripe_subscription_id: subscription?.id ?? stripeId(object.subscription),
+        stripe_subscription_status: subscription?.status ?? (object.payment_status === 'paid' ? 'active' : 'trialing'),
       }, { storeId })
     } else if (object.mode === 'payment') {
       const orderId = object.metadata && typeof object.metadata === 'object' && 'order_id' in object.metadata
@@ -144,17 +157,20 @@ const handleEvent = async (event: Stripe.Event) => {
     const subscriptionDetails = parent?.subscription_details && typeof parent.subscription_details === 'object'
       ? parent.subscription_details as StripeRecord
       : null
+    const subscriptionId = stripeId(subscriptionDetails?.subscription ?? object.subscription)
+    const subscription = await getSubscriptionState(subscriptionId)
     await updateStore({
-      stripe_subscription_status: event.type === 'invoice.paid' ? 'active' : 'past_due',
+      stripe_subscription_status: subscription?.status ?? (event.type === 'invoice.paid' ? 'active' : 'past_due'),
+      ...(subscription?.trialStartedAt ? { trial_started_at: subscription.trialStartedAt } : {}),
     }, {
       storeId: metadataStoreId(object),
-      subscriptionId: stripeId(subscriptionDetails?.subscription ?? object.subscription),
+      subscriptionId,
       customerId: stripeId(object.customer),
     })
     if (event.type === 'invoice.paid') {
       const store = await findStore({
         storeId: metadataStoreId(object),
-        subscriptionId: stripeId(subscriptionDetails?.subscription ?? object.subscription),
+        subscriptionId,
         customerId: stripeId(object.customer),
       })
       const amountPaid = typeof object.subtotal_excluding_tax === 'number'

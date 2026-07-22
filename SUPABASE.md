@@ -37,6 +37,8 @@ Poe Stripe’i ostud kasutavad destination charge’i. Toodete summa pealt arvut
 
 Checkout kasutab kliendi päringu ID-d, Stripe’i idempotentsusvõtit ja atomaarset 30-minutilist laoreservatsiooni. Stripe’i aegumise või makse ebaõnnestumise webhook vabastab kauba; asünkroonse pangamakse puhul hoitakse reservatsiooni lõpliku succeeded/failed sündmuseni.
 
+Billingu brauseritest käivitub käsuga `npm run test:stripe-billing`, kui rakendus töötab aadressil `http://127.0.0.1:5173`. Test kasutab süsteemi Google Chrome’i, Stripe’i testkaarte ning ajutisi Supabase’i kasutajaid ja poode. See kontrollib edukat kaarti, 3D Secure’i, tagasilükatud kaarti, tagasisuunamist, päris webhooki, prooviperioodi, korduskaitset ja paketi lõpetamist ning koristab ajutised andmed.
+
 Stripe’i platvormikonto webhook peab saatma `stripe-webhook` funktsioonile järgmised sündmused:
 
 - `checkout.session.completed`
