@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Brand } from './DemoApp'
 import { Storefront } from './App'
@@ -205,6 +205,7 @@ export default function AdminApp() {
   const [isDemoLoading, setIsDemoLoading] = useState(false)
   const [demoError, setDemoError] = useState('')
   const [isManagingDemo, setIsManagingDemo] = useState(false)
+  const dashboardRefreshTimerRef = useRef<number | null>(null)
 
   const openDemoManager = async () => {
     setIsDemoLoading(true)
@@ -241,12 +242,12 @@ export default function AdminApp() {
     setRevenueError('')
   }
 
-  const loadDashboard = async () => {
-    setIsLoading(true)
+  const loadDashboard = async ({ silent = false, refreshAuth = true }: { silent?: boolean; refreshAuth?: boolean } = {}) => {
+    if (!silent) setIsLoading(true)
     setError('')
     // Refresh the JWT so a newly assigned server-side admin role is available
     // without requiring the user to manually clear their existing session.
-    await requireSupabase().auth.refreshSession()
+    if (refreshAuth) await requireSupabase().auth.refreshSession()
     void loadRevenue()
     const { data, error: queryError } = await requireSupabase().rpc('admin_dashboard_users')
     if (queryError) {
@@ -263,7 +264,7 @@ export default function AdminApp() {
         gross_sales: Number(row.gross_sales),
       })))
     }
-    setIsLoading(false)
+    if (!silent) setIsLoading(false)
   }
 
   useEffect(() => {
@@ -300,6 +301,25 @@ export default function AdminApp() {
       })
       .subscribe()
     return () => { void client.removeChannel(channel) }
+  }, [session?.user.id])
+
+  useEffect(() => {
+    if (!session) return
+    const client = requireSupabase()
+    const channel = client.channel(`admin-dashboard-${session.user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'admin_dashboard_refresh', filter: 'id=eq.true' }, () => {
+        if (dashboardRefreshTimerRef.current !== null) window.clearTimeout(dashboardRefreshTimerRef.current)
+        dashboardRefreshTimerRef.current = window.setTimeout(() => {
+          dashboardRefreshTimerRef.current = null
+          void loadDashboard({ silent: true, refreshAuth: false })
+        }, 350)
+      })
+      .subscribe()
+    return () => {
+      if (dashboardRefreshTimerRef.current !== null) window.clearTimeout(dashboardRefreshTimerRef.current)
+      dashboardRefreshTimerRef.current = null
+      void client.removeChannel(channel)
+    }
   }, [session?.user.id])
 
   const visibleRows = useMemo(() => {
