@@ -213,7 +213,7 @@ export default function AdminApp() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<UserFilter>('all')
-  const [sort, setSort] = useState<UserSort>('attention')
+  const [sort, setSort] = useState<UserSort>('newest')
   const [search, setSearch] = useState('')
   const [revenue, setRevenue] = useState<RevenueDashboard>(emptyRevenueDashboard)
   const [revenueError, setRevenueError] = useState('')
