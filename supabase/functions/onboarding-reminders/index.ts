@@ -39,7 +39,7 @@ const renderEmail = (claim: ReminderClaim, appUrl: string) => {
   const step = stepCopy[claim.onboarding_step]
   const continueUrl = `${appUrl}/?continue_setup=1`
   const stopUrl = `${appUrl}/?onboarding_reminders=off&token=${encodeURIComponent(claim.unsubscribe_token)}`
-  const title = claim.reminder_number === 1 ? 'Jäid pooleli? Pole hullu.' : 'Kas teeme su poe valmis?'
+  const title = claim.reminder_number === 1 ? 'Poe seadistamine jäi pooleli?' : 'Kas teeme su poe valmis?'
   const subject = claim.reminder_number === 1 ? 'Sinu pood jäi pooleli — kõik on alles' : 'Kas teeme su poe valmis?'
   const intro = claim.reminder_number === 1
     ? 'Kõik, mis juba tegid, on alles.'

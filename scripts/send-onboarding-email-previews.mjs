@@ -47,7 +47,7 @@ const previews = [
   {
     subject: '[Eelvaade 1/2] Sinu pood jäi pooleli — kõik on alles',
     html: render({
-      title: 'Jäid pooleli? Pole hullu.',
+      title: 'Poe seadistamine jäi pooleli?',
       intro: 'Kõik, mis juba tegid, on alles.',
       step: 'Seadista maksed',
       detail: 'Et kliendid saaksid sinu poes mugavalt ja turvaliselt maksta.',
