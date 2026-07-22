@@ -4,6 +4,7 @@ import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/rea
 import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PaymentProvider, type PricingPlan } from './App'
 import { createStore, getDemoStore, getMyStore, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { getRequestedStoreSlug, isReservedStoreSlug } from './lib/storefrontUrl'
 import type { Product } from './products'
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
@@ -94,13 +95,16 @@ function SetupProgress({ screen }: { screen: Screen }) {
   </div>
 }
 
-const slugify = (value: string) => value
-  .toLocaleLowerCase('et')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/[^a-z0-9]+/g, '-')
-  .replace(/^-|-$/g, '')
-  .slice(0, 38)
+const slugify = (value: string) => {
+  const slug = value
+    .toLocaleLowerCase('et')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 38)
+  return isReservedStoreSlug(slug) ? `${slug}-pood` : slug
+}
 
 const isEmailNotConfirmedError = (error: unknown) => {
   if (!error || typeof error !== 'object') return false
@@ -549,10 +553,9 @@ export default function DemoApp() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
-    const pathSlug = window.location.pathname.match(/^\/p\/([^/]+)\/?$/)?.[1]
-    const requestedSlug = pathSlug || new URLSearchParams(window.location.search).get('store')
+    const requestedSlug = getRequestedStoreSlug(window.location)
     if (!requestedSlug) return
-    getStoreBySlug(decodeURIComponent(requestedSlug)).then(async (found) => {
+    getStoreBySlug(requestedSlug).then(async (found) => {
       if (!found) return
       setPublicStore(found)
       setPublicProducts(await listProducts(found.id))
@@ -615,7 +618,7 @@ export default function DemoApp() {
       }
       const { data: refreshedData } = await requireSupabase().auth.refreshSession()
       const currentSession = refreshedData.session ?? data.session
-      if (currentSession.user.app_metadata?.role === 'admin' && !window.location.pathname.startsWith('/p/')) {
+      if (currentSession.user.app_metadata?.role === 'admin' && !getRequestedStoreSlug(window.location)) {
         window.location.replace('/admin')
         return
       }

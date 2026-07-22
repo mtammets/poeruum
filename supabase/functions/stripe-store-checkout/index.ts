@@ -31,14 +31,19 @@ type CheckoutBody = {
 
 const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
 const moneyToCents = (value: unknown) => Math.max(0, Math.round(Number(value ?? 0) * 100))
-const returnBase = (configured: string, requested: string | undefined, testMode: boolean) => {
+const storefrontRootDomain = (configured: string) => (Deno.env.get('STOREFRONT_ROOT_DOMAIN')?.trim()
+  || new URL(configured).hostname.replace(/^www\./, '')).toLowerCase().replace(/^\.+|\.+$/g, '')
+
+const returnBase = (configured: string, requested: string | undefined, testMode: boolean, storeSlug: string) => {
   try {
     if (!requested) return configured
     const url = new URL(requested)
     const isPrivateTestHost = testMode && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'
       || /^10\./.test(url.hostname) || /^192\.168\./.test(url.hostname)
       || /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname))
-    return url.origin === new URL(configured).origin || isPrivateTestHost ? url.origin : configured
+    const isStorefrontHost = url.protocol === 'https:'
+      && url.hostname === `${storeSlug}.${storefrontRootDomain(configured)}`
+    return url.origin === new URL(configured).origin || isPrivateTestHost || isStorefrontHost ? url.origin : configured
   } catch { return configured }
 }
 
@@ -184,7 +189,10 @@ Deno.serve(async (request) => {
       if (existingSession.status === 'open' && existingSession.url) return json({ url: existingSession.url })
     }
 
-    const appUrl = returnBase(requiredEnv('APP_URL').replace(/\/$/, ''), body.returnUrl, stripeSecretKey.includes('_test_'))
+    const configuredAppUrl = requiredEnv('APP_URL').replace(/\/$/, '')
+    const appUrl = returnBase(configuredAppUrl, body.returnUrl, stripeSecretKey.includes('_test_'), store.slug)
+    const returnsToStoreSubdomain = new URL(appUrl).hostname === `${store.slug}.${storefrontRootDomain(configuredAppUrl)}`
+    const storefrontPath = returnsToStoreSubdomain ? '' : `/p/${encodeURIComponent(store.slug)}`
     const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
       on_behalf_of: store.stripe_account_id,
       transfer_data: { destination: store.stripe_account_id },
@@ -199,8 +207,8 @@ Deno.serve(async (request) => {
         customer_email: email,
         client_reference_id: storeId,
         line_items: lineItems,
-        success_url: `${appUrl}/p/${encodeURIComponent(store.slug)}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${appUrl}/p/${encodeURIComponent(store.slug)}?checkout=cancelled`,
+        success_url: `${appUrl}${storefrontPath}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${appUrl}${storefrontPath}?checkout=cancelled`,
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         metadata: { store_id: storeId, order_id: order.id, order_number: order.order_number, customer_phone: customerPhone, stripe_mode: stripeMode },
         payment_intent_data: paymentIntentData,

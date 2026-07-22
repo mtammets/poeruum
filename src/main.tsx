@@ -4,6 +4,7 @@ import DemoApp from './DemoApp'
 import AdminApp from './AdminApp'
 import ComingSoon from './ComingSoon'
 import SupportCenter from './SupportCenter'
+import { getStoreSlugFromHostname } from './lib/storefrontUrl'
 import './styles.css'
 import './brand.css'
 import './demo.css'
@@ -12,7 +13,8 @@ import './admin.css'
 const hasAppReturnState = ['billing', 'checkout'].some((key) => new URLSearchParams(window.location.search).has(key))
 const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostname)
   && window.location.pathname === '/' && !hasAppReturnState
-const isAdminPath = /^\/admin\/?$/i.test(window.location.pathname)
+const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
+const isAdminPath = !isStorefrontSubdomain && /^\/admin\/?$/i.test(window.location.pathname)
 
 function Root() {
   useLayoutEffect(() => {

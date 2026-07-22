@@ -7,7 +7,16 @@
 5. Supabase Auth seadetes lisa rakenduse URL lubatud redirect URL-ide hulka. Arenduses on see tavaliselt `http://localhost:5173/**`.
 6. Käivita `npm run dev`.
 
-Avalik pood avaneb aadressil `/p/poe-slug` (arenduses näiteks `http://localhost:5173/p/minu-pood`). Sama poe saab avada ka `?store=minu-pood` päringuga.
+Avalik pood avaneb tootmises aadressil `poe-slug.poeruum.ee`. `/p/poe-slug` ja `?store=poe-slug` jäävad varuaadressidena tööle. Lokaalselt saab alamdomeeni proovida, seades `VITE_STOREFRONT_ROOT_DOMAIN=localhost` ja avades näiteks `http://minu-pood.localhost:5173`.
+
+### Wildcard-domeen Renderis
+
+1. Lisa sama Renderi teenuse **Custom Domains** alla `*.poeruum.ee`.
+2. Lisa DNS-i Renderi näidatud kolm CNAME-kirjet: `*`, `_acme-challenge` ja `_cf-custom-hostname`. Nende täpsed väärtused sõltuvad Renderi teenuse ID-st.
+3. Vajuta Renderis wildcard-domeeni juures **Verify** ja oota TLS-sertifikaadi väljastamist.
+4. Sea frontendile `VITE_STOREFRONT_ROOT_DOMAIN=poeruum.ee` ning Supabase Edge Functionitele `STOREFRONT_ROOT_DOMAIN=poeruum.ee`.
+
+Ilma Renderi wildcard-domeeni ja nende DNS-kirjeteta brauser alamdomeene rakenduseni ei suuna. Juurdomeen `poeruum.ee` peab samuti Renderile osutama.
 
 `SUPABASE_SECRET_KEY` või legacy `SUPABASE_SERVICE_ROLE_KEY` võib olla lokaalses `.env` failis ainult serveripoolseks halduseks. Sellel ei tohi olla `VITE_` prefiksit ning seda ei tohi importida `src/` koodi. Rakendus kasutab brauseris publishable/anon võtit ja turvalisus põhineb migratsioonis olevatel RLS-reeglitel.
 
