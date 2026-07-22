@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { BrandMark } from './DemoApp'
 
 type SupportConversation = {
   id: string
@@ -34,6 +35,24 @@ const categories = [
 const formatTime = (value: string) => new Intl.DateTimeFormat('et-EE', {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
 }).format(new Date(value))
+
+type SupportIconName = 'chat' | 'arrow' | 'close' | 'back' | 'clock' | 'upload' | 'check' | 'payments' | 'setup' | 'technical'
+
+function SupportIcon({ name }: { name: SupportIconName }) {
+  const paths: Record<SupportIconName, React.ReactNode> = {
+    chat: <><path d="M5 5.5h14v10H9l-4 3v-13Z"/><path d="M9 9h6M9 12h4"/></>,
+    arrow: <path d="m9 6 6 6-6 6"/>,
+    close: <path d="m7 7 10 10M17 7 7 17"/>,
+    back: <><path d="m10 6-6 6 6 6"/><path d="M4 12h16"/></>,
+    clock: <><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></>,
+    upload: <><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 14v5h14v-5"/></>,
+    check: <path d="m6 12 4 4 8-9"/>,
+    payments: <><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16M8 14h3"/></>,
+    setup: <><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></>,
+    technical: <><path d="M8 5 4 9l4 4M16 5l4 4-4 4M14 3l-4 14"/></>,
+  }
+  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
+}
 
 export default function SupportCenter() {
   const [user, setUser] = useState<User | null>(null)
@@ -154,6 +173,23 @@ export default function SupportCenter() {
     else window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
   }
 
+  const chooseCategory = (nextCategory: string) => {
+    setCategory(nextCategory)
+    setView('new')
+    setError('')
+    setNotice('')
+  }
+
+  const selectAttachment = (file: File | null) => {
+    if (file && file.size > 5 * 1024 * 1024) {
+      setAttachment(null)
+      setError('Fail on suurem kui 5 MB. Vali palun väiksem fail.')
+      return
+    }
+    setAttachment(file)
+    setError('')
+  }
+
   if (!user) return null
   const unread = conversations.filter((item) => item.user_read_at === null).length
 
@@ -164,27 +200,41 @@ export default function SupportCenter() {
     </button>
     {isOpen && <div className="support-modal" role="dialog" aria-modal="true" aria-label="Poeruumi klienditugi">
       <button className="support-modal__backdrop" type="button" onClick={() => setIsOpen(false)} aria-label="Sulge klienditugi" />
-      <section className="support-panel">
+      <section className={`support-panel is-${view}`}>
         <header>
-          <div>{view !== 'list' && <button type="button" onClick={() => { setView('list'); setSelected(null); setError(''); setNotice('') }} aria-label="Tagasi vestluste juurde">←</button>}<span><strong>Poeruumi abi</strong><small>Vastame tavaliselt esimesel võimalusel</small></span></div>
-          <button type="button" onClick={() => setIsOpen(false)} aria-label="Sulge">×</button>
+          <div>{view !== 'list' ? <button type="button" onClick={() => { setView('list'); setSelected(null); setError(''); setNotice('') }} aria-label="Tagasi vestluste juurde"><SupportIcon name="back" /></button> : <BrandMark className="support-panel__logo" />}<span><strong>Poeruumi tugi</strong><small><i /> Oleme siin, et aidata</small></span></div>
+          <button type="button" onClick={() => setIsOpen(false)} aria-label="Sulge"><SupportIcon name="close" /></button>
         </header>
 
         {view === 'list' && <div className="support-panel__content">
-          <div className="support-welcome"><span>👋</span><h2>Kuidas saame aidata?</h2><p>Kirjuta meile poe seadistamise, maksete või mõne muu küsimuse kohta.</p><button type="button" onClick={() => { setView('new'); setError(''); setNotice('') }}>Saada küsimus <span>→</span></button></div>
+          <div className="support-welcome"><span className="support-welcome__icon"><SupportIcon name="chat" /></span><small>ABI ON LÄHEDAL</small><h2>Mis sind praegu takistab?</h2><p>Kirjelda olukorda oma sõnadega. Näeme sinu poe seadistuse seisu ja saame kohe asjast aru.</p>
+            <div className="support-quick-topics">
+              <button type="button" onClick={() => chooseCategory('setup')}><i><SupportIcon name="setup" /></i><span>Poe seadistamine</span><SupportIcon name="arrow" /></button>
+              <button type="button" onClick={() => chooseCategory('payments')}><i><SupportIcon name="payments" /></i><span>Maksed</span><SupportIcon name="arrow" /></button>
+              <button type="button" onClick={() => chooseCategory('technical')}><i><SupportIcon name="technical" /></i><span>Tehniline mure</span><SupportIcon name="arrow" /></button>
+            </div>
+            <button className="support-welcome__primary" type="button" onClick={() => chooseCategory('question')}>Kirjuta meile <SupportIcon name="arrow" /></button>
+            <div className="support-response-time"><SupportIcon name="clock" /><span><strong>Vastame päris inimesena</strong><small>Tavaliselt samal tööpäeval</small></span></div>
+          </div>
           {conversations.length > 0 && <div className="support-history"><h3>Varasemad vestlused</h3>{conversations.map((conversation) => <button type="button" onClick={() => void openConversation(conversation)} key={conversation.id}>
             <span><strong>{conversation.subject}</strong><small>{conversation.last_message_preview}</small></span><time>{formatTime(conversation.last_message_at)}</time>{conversation.user_read_at === null && <i />}
           </button>)}</div>}
         </div>}
 
         {view === 'new' && <form className="support-form" onSubmit={createConversation}>
-          <div><h2>Kirjuta meile</h2><p>Kirjelda lühidalt, millega vajad abi.</p></div>
-          <label>Teema<select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-          <label>Pealkiri<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={160} placeholder="Näiteks: maksete ühendamine ei õnnestu" required /></label>
-          <label>Küsimus<textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={10000} rows={6} placeholder="Kirjelda, mis juhtus ja mida proovisid…" required /></label>
-          <label className="support-file"><span>Lisa ekraanipilt või PDF <small>kuni 5 MB</small></span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} />{attachment && <b>{attachment.name}</b>}</label>
+          <div className="support-form__intro"><span><SupportIcon name="chat" /></span><div><small>UUS VESTLUS</small><h2>Kirjuta meile</h2><p>Mida täpsemalt kirjeldad, seda kiiremini saame aidata.</p></div></div>
+          <div className="support-form__fields">
+            <label><span>Millega vajad abi?</span><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+            <label><span>Ühe lausega</span><input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={160} placeholder="Näiteks: maksete ühendamine ei õnnestu" required /></label>
+            <label><span>Mis juhtus?</span><textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={10000} rows={5} placeholder="Kirjelda, mida nägid ja mida juba proovisid…" required /></label>
+          </div>
+          <div className="support-upload">
+            <input id="support-attachment" type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(event) => selectAttachment(event.target.files?.[0] ?? null)} />
+            <label htmlFor="support-attachment"><i><SupportIcon name="upload" /></i><span><strong>Lisa ekraanipilt või PDF</strong><small>JPG, PNG, WebP või PDF · kuni 5 MB</small></span><b>{attachment ? 'Vaheta' : 'Vali fail'}</b></label>
+            {attachment && <div className="support-upload__file"><span><SupportIcon name="check" /></span><p><strong>{attachment.name}</strong><small>{(attachment.size / 1024 / 1024).toFixed(1)} MB</small></p><button type="button" onClick={() => setAttachment(null)} aria-label="Eemalda manus"><SupportIcon name="close" /></button></div>}
+          </div>
           {error && <p className="support-error" role="alert">{error}</p>}{notice && <p className="support-notice">{notice}</p>}
-          <button className="support-submit" type="submit" disabled={isBusy}>{isBusy ? 'Saadan…' : 'Saada küsimus'} <span>→</span></button>
+          <div className="support-form__footer"><small>Saadame kinnituse aadressile {user.email}</small><button className="support-submit" type="submit" disabled={isBusy}>{isBusy ? 'Saadan…' : 'Saada küsimus'} <SupportIcon name="arrow" /></button></div>
         </form>}
 
         {view === 'thread' && selected && <div className="support-thread">
