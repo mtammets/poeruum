@@ -39,10 +39,15 @@ const renderEmail = (claim: ReminderClaim, appUrl: string) => {
   const step = stepCopy[claim.onboarding_step]
   const continueUrl = `${appUrl}/?continue_setup=1`
   const stopUrl = `${appUrl}/?onboarding_reminders=off&token=${encodeURIComponent(claim.unsubscribe_token)}`
-  const title = claim.reminder_number === 1 ? 'Sinu poe seadistamine jäi pooleli' : 'Sinu pood ootab viimast sammu'
+  const title = claim.reminder_number === 1 ? 'Jäid pooleli? Pole hullu.' : 'Kas teeme su poe valmis?'
+  const subject = claim.reminder_number === 1 ? 'Sinu pood jäi pooleli — kõik on alles' : 'Kas teeme su poe valmis?'
+  const eyebrow = claim.reminder_number === 1 ? 'Jätkame?' : 'Sinu poe mustand'
   const intro = claim.reminder_number === 1
-    ? 'Kõik seni sisestatud andmed on alles. Jätka rahulikult sealt, kus pooleli jäid.'
-    : 'Poeruumi seadistus on endiselt alles. Kui soovid poe valmis teha, saad jätkata täpselt poolelijäänud sammust.'
+    ? 'Sinu poe mustand on alles ja ootab sind. Kui sul on hetk, saad jätkata täpselt sealt, kus pooleli jäid.'
+    : 'Kõik, mis juba tegid, on alles. Kui soovid jätkata, saad alustada täpselt poolelijäänud sammust.'
+  const note = claim.reminder_number === 1
+    ? 'Kui praegu pole õige aeg, ei pea sa midagi tegema.'
+    : 'See on viimane meeldetuletus. Kui praegu pole õige aeg, on kõik hästi.'
   const html = `<!doctype html>
 <html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f1efe9;color:#23221f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
@@ -53,18 +58,18 @@ const renderEmail = (claim: ReminderClaim, appUrl: string) => {
       <tr><td style="overflow:hidden;border-radius:22px;background:#ffffff;box-shadow:0 10px 35px rgba(34,31,25,.08)">
         <div style="height:8px;background:#d9ff43"></div>
         <div style="padding:38px 38px 34px">
-          <div style="margin-bottom:14px;color:#77736a;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase">Poe seadistamine</div>
+          <div style="margin-bottom:14px;color:#77736a;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase">${escapeHtml(eyebrow)}</div>
           <h1 style="margin:0 0 16px;color:#171714;font-size:30px;line-height:1.2;letter-spacing:-.03em">${escapeHtml(title)}</h1>
           <p style="margin:0;color:#56534d;font-size:16px;line-height:1.65">${escapeHtml(intro)}</p>
           <div style="margin:26px 0 4px;padding:20px;border-radius:14px;background:#f6f4ef">
-            <span style="display:block;margin-bottom:6px;color:#77736a;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase">Järgmine samm</span>
+            <span style="display:block;margin-bottom:6px;color:#77736a;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase">Järgmisena</span>
             <strong style="display:block;color:#23221f;font-size:18px">${escapeHtml(step.label)}</strong>
             <span style="display:block;margin-top:7px;color:#666159;font-size:14px;line-height:1.55">${escapeHtml(step.detail)}</span>
           </div>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 24px"><tr><td style="border-radius:999px;background:#171714">
-            <a href="${continueUrl}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">Jätka poe seadistamist &nbsp;→</a>
+            <a href="${continueUrl}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">Jätka oma poega &nbsp;→</a>
           </td></tr></table>
-          <p style="margin:0;color:#8a857d;font-size:12px;line-height:1.55">See on ${claim.reminder_number === 2 ? 'viimane ' : ''}meeldetuletus sinu alustatud poe seadistamise kohta.</p>
+          <p style="margin:0;color:#8a857d;font-size:12px;line-height:1.55">${escapeHtml(note)}</p>
         </div>
       </td></tr>
       <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">Poeruum · sinu e-pood 10 minutiga<br><a href="${stopUrl}" style="color:#77736a">Ära saada mulle poe seadistamise meeldetuletusi</a></td></tr>
@@ -72,7 +77,7 @@ const renderEmail = (claim: ReminderClaim, appUrl: string) => {
   </td></tr></table>
 </body></html>`
   const text = `${title}\n\n${intro}\n\nJärgmine samm: ${step.label}\n${step.detail}\n\nJätka: ${continueUrl}\n\nMeeldetuletustest loobumine: ${stopUrl}`
-  return { title, html, text }
+  return { subject, html, text }
 }
 
 const sendReminder = async (claim: ReminderClaim) => {
@@ -89,7 +94,7 @@ const sendReminder = async (claim: ReminderClaim) => {
     body: JSON.stringify({
       from: Deno.env.get('RESEND_FROM_EMAIL')?.trim() || 'Poeruum <teavitused@send.poeruum.ee>',
       to: [claim.email],
-      subject: email.title,
+      subject: email.subject,
       html: email.html,
       text: email.text,
       tags: [

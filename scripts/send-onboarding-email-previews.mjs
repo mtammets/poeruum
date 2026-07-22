@@ -15,7 +15,7 @@ if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
   throw new Error('Kasutus: npm run supabase:onboarding-email:preview -- nimi@example.com')
 }
 
-const render = ({ title, intro, step, detail, final }) => `<!doctype html>
+const render = ({ eyebrow, title, intro, step, detail, note }) => `<!doctype html>
 <html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f1efe9;color:#23221f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0">${step} · kõik salvestatud andmed on alles.</div>
@@ -25,18 +25,18 @@ const render = ({ title, intro, step, detail, final }) => `<!doctype html>
       <tr><td style="overflow:hidden;border-radius:22px;background:#ffffff;box-shadow:0 10px 35px rgba(34,31,25,.08)">
         <div style="height:8px;background:#d9ff43"></div>
         <div style="padding:38px 38px 34px">
-          <div style="margin-bottom:14px;color:#77736a;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase">Poe seadistamine</div>
+          <div style="margin-bottom:14px;color:#77736a;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase">${eyebrow}</div>
           <h1 style="margin:0 0 16px;color:#171714;font-size:30px;line-height:1.2;letter-spacing:-.03em">${title}</h1>
           <p style="margin:0;color:#56534d;font-size:16px;line-height:1.65">${intro}</p>
           <div style="margin:26px 0 4px;padding:20px;border-radius:14px;background:#f6f4ef">
-            <span style="display:block;margin-bottom:6px;color:#77736a;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase">Järgmine samm</span>
+            <span style="display:block;margin-bottom:6px;color:#77736a;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase">Järgmisena</span>
             <strong style="display:block;color:#23221f;font-size:18px">${step}</strong>
             <span style="display:block;margin-top:7px;color:#666159;font-size:14px;line-height:1.55">${detail}</span>
           </div>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 24px"><tr><td style="border-radius:999px;background:#171714">
-            <a href="https://poeruum.ee" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">Jätka poe seadistamist &nbsp;→</a>
+            <a href="https://poeruum.ee" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">Jätka oma poega &nbsp;→</a>
           </td></tr></table>
-          <p style="margin:0;color:#8a857d;font-size:12px;line-height:1.55">See on ${final ? 'viimane ' : ''}meeldetuletus sinu alustatud poe seadistamise kohta.</p>
+          <p style="margin:0;color:#8a857d;font-size:12px;line-height:1.55">${note}</p>
         </div>
       </td></tr>
       <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">Poeruum · sinu e-pood 10 minutiga<br><a href="https://poeruum.ee" style="color:#77736a">Ära saada mulle poe seadistamise meeldetuletusi</a><br><span style="color:#aaa59d">Eelvaade — lingid ei muuda konto seadeid.</span></td></tr>
@@ -46,24 +46,26 @@ const render = ({ title, intro, step, detail, final }) => `<!doctype html>
 
 const previews = [
   {
-    subject: '[Eelvaade 1/2] Sinu poe seadistamine jäi pooleli',
+    subject: '[Eelvaade 1/2] Sinu pood jäi pooleli — kõik on alles',
     html: render({
-      title: 'Sinu poe seadistamine jäi pooleli',
-      intro: 'Kõik seni sisestatud andmed on alles. Jätka rahulikult sealt, kus pooleli jäid.',
+      eyebrow: 'Jätkame?',
+      title: 'Jäid pooleli? Pole hullu.',
+      intro: 'Sinu poe mustand on alles ja ootab sind. Kui sul on hetk, saad jätkata täpselt sealt, kus pooleli jäid.',
       step: 'Ühenda makseteenus',
       detail: 'Ühenda maksete vastuvõtmine, et kliendid saaksid sinu poes turvaliselt tasuda.',
-      final: false,
+      note: 'Kui praegu pole õige aeg, ei pea sa midagi tegema.',
     }),
     number: '1',
   },
   {
-    subject: '[Eelvaade 2/2] Sinu pood ootab viimast sammu',
+    subject: '[Eelvaade 2/2] Kas teeme su poe valmis?',
     html: render({
-      title: 'Sinu pood ootab viimast sammu',
-      intro: 'Poeruumi seadistus on endiselt alles. Kui soovid poe valmis teha, saad jätkata täpselt poolelijäänud sammust.',
+      eyebrow: 'Sinu poe mustand',
+      title: 'Kas teeme su poe valmis?',
+      intro: 'Kõik, mis juba tegid, on alles. Kui soovid jätkata, saad alustada täpselt poolelijäänud sammust.',
       step: 'Vaata andmed üle ja avalda pood',
       detail: 'Sinu poe põhiandmed on valmis. Kontrolli kokkuvõtet ja avalda pood.',
-      final: true,
+      note: 'See on viimane meeldetuletus. Kui praegu pole õige aeg, on kõik hästi.',
     }),
     number: '2',
   },
