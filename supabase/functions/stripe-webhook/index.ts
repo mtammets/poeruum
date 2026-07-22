@@ -10,6 +10,7 @@ import {
   verifyStripeEvent,
 } from '../_shared/stripe-webhook.ts'
 import { assertStoredStripeMode } from '../_shared/stripe-mode.ts'
+import { sendPaidOrderEmails } from '../_shared/order-email.ts'
 
 type StripeRecord = Record<string, unknown>
 
@@ -111,6 +112,7 @@ const handleEvent = async (event: Stripe.Event) => {
           payment_intent_id: stripeId(object.payment_intent),
         })
         if (error) throw error
+        await sendPaidOrderEmails(getAdminClient(), orderId)
       } else if (orderId && object.payment_status === 'unpaid') {
         // Some bank methods finish asynchronously after Checkout itself is complete.
         // Keep their goods reserved until Stripe sends the final succeeded/failed event.

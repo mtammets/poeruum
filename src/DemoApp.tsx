@@ -23,6 +23,7 @@ type RegistryLookupResponse = {
 }
 
 const onboardingSteps = new Set<OnboardingStep>(['business', 'payments', 'shipping', 'publish', 'complete'])
+const onboardingActivityScreens = new Set<Screen>(['store', 'business', 'payments', 'shipping', 'publish'])
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
 const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
 const isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -410,6 +411,42 @@ export default function DemoApp() {
   }, [screen, email])
 
   useEffect(() => {
+    if (!onlineUserId || !isSupabaseConfigured || !onboardingActivityScreens.has(screen)) return
+    let active = true
+    const touchActivity = () => {
+      if (active && document.visibilityState === 'visible') {
+        void requireSupabase().rpc('touch_onboarding_activity', { target_step: screen }).then(() => undefined)
+      }
+    }
+    touchActivity()
+    const heartbeat = window.setInterval(touchActivity, 60_000)
+    document.addEventListener('visibilitychange', touchActivity)
+    return () => {
+      active = false
+      window.clearInterval(heartbeat)
+      document.removeEventListener('visibilitychange', touchActivity)
+    }
+  }, [onlineUserId, screen])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('onboarding_reminders') !== 'off') return
+    const token = params.get('token') ?? ''
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)) return
+    void requireSupabase().rpc('disable_onboarding_reminders', { target_token: token }).then(({ data, error }) => {
+      if (!error && data === true) {
+        setAuthNotice('Poe seadistamise meeldetuletused on välja lülitatud.')
+        setScreen('login')
+      }
+      const cleanUrl = new URL(window.location.href)
+      cleanUrl.searchParams.delete('onboarding_reminders')
+      cleanUrl.searchParams.delete('token')
+      window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
+    })
+  }, [])
+
+  useEffect(() => {
     if (!onlineUserId || !isSupabaseConfigured) return
     const client = requireSupabase()
     const presenceSessionId = onlinePresenceSessionIdRef.current
@@ -558,6 +595,11 @@ export default function DemoApp() {
   const openOwnedStore = async (nextStore: StoreRecord) => {
     await applyStore(nextStore)
     setScreen(getStoreDestination(nextStore))
+    const cleanUrl = new URL(window.location.href)
+    if (cleanUrl.searchParams.has('continue_setup')) {
+      cleanUrl.searchParams.delete('continue_setup')
+      window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
+    }
   }
 
   useEffect(() => {
@@ -567,7 +609,10 @@ export default function DemoApp() {
     if (recoveryMode) setScreen('reset-password')
     const restore = async () => {
       const { data } = await requireSupabase().auth.getSession()
-      if (!data.session || !active || recoveryMode) return
+      if (!data.session || !active || recoveryMode) {
+        if (!data.session && active && !recoveryMode && new URLSearchParams(window.location.search).get('continue_setup') === '1') setScreen('login')
+        return
+      }
       const { data: refreshedData } = await requireSupabase().auth.refreshSession()
       const currentSession = refreshedData.session ?? data.session
       if (currentSession.user.app_metadata?.role === 'admin' && !window.location.pathname.startsWith('/p/')) {
