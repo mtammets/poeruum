@@ -30,7 +30,7 @@ const escapeHtml = (value: unknown) => String(value ?? '')
 const stepCopy: Record<ReminderClaim['onboarding_step'], { label: string; detail: string }> = {
   store: { label: 'Lisa poe nimi ja aadress', detail: 'Alusta poe põhiandmetest. Kõik järgmised sammud saad hiljem üle vaadata.' },
   business: { label: 'Lisa müüja andmed', detail: 'Täida ettevõtte kontakt- ja registriandmed, mida kliendid sinu poes näevad.' },
-  payments: { label: 'Ühenda makseteenus', detail: 'Ühenda maksete vastuvõtmine, et kliendid saaksid sinu poes turvaliselt tasuda.' },
+  payments: { label: 'Seadista maksed', detail: 'Et kliendid saaksid sinu poes mugavalt ja turvaliselt maksta.' },
   shipping: { label: 'Vali tarneviisid', detail: 'Määra pakiautomaadid, kuller või järeletulemine ja nende hinnad.' },
   publish: { label: 'Vaata andmed üle ja avalda pood', detail: 'Sinu poe põhiandmed on valmis. Kontrolli kokkuvõtet ja avalda pood.' },
 }
@@ -41,12 +41,11 @@ const renderEmail = (claim: ReminderClaim, appUrl: string) => {
   const stopUrl = `${appUrl}/?onboarding_reminders=off&token=${encodeURIComponent(claim.unsubscribe_token)}`
   const title = claim.reminder_number === 1 ? 'Jäid pooleli? Pole hullu.' : 'Kas teeme su poe valmis?'
   const subject = claim.reminder_number === 1 ? 'Sinu pood jäi pooleli — kõik on alles' : 'Kas teeme su poe valmis?'
-  const eyebrow = claim.reminder_number === 1 ? 'Jätkame?' : 'Sinu poe mustand'
   const intro = claim.reminder_number === 1
-    ? 'Sinu poe mustand on alles ja ootab sind. Kui sul on hetk, saad jätkata täpselt sealt, kus pooleli jäid.'
+    ? 'Kõik, mis juba tegid, on alles.'
     : 'Kõik, mis juba tegid, on alles. Kui soovid jätkata, saad alustada täpselt poolelijäänud sammust.'
   const note = claim.reminder_number === 1
-    ? 'Kui praegu pole õige aeg, ei pea sa midagi tegema.'
+    ? 'Pole kiiret — jätka siis, kui sulle sobib.'
     : 'See on viimane meeldetuletus. Kui praegu pole õige aeg, on kõik hästi.'
   const html = `<!doctype html>
 <html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -58,21 +57,20 @@ const renderEmail = (claim: ReminderClaim, appUrl: string) => {
       <tr><td style="overflow:hidden;border-radius:22px;background:#ffffff;box-shadow:0 10px 35px rgba(34,31,25,.08)">
         <div style="height:8px;background:#d9ff43"></div>
         <div style="padding:38px 38px 34px">
-          <div style="margin-bottom:14px;color:#77736a;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase">${escapeHtml(eyebrow)}</div>
           <h1 style="margin:0 0 16px;color:#171714;font-size:30px;line-height:1.2;letter-spacing:-.03em">${escapeHtml(title)}</h1>
           <p style="margin:0;color:#56534d;font-size:16px;line-height:1.65">${escapeHtml(intro)}</p>
           <div style="margin:26px 0 4px;padding:20px;border-radius:14px;background:#f6f4ef">
-            <span style="display:block;margin-bottom:6px;color:#77736a;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase">Järgmisena</span>
+            <span style="display:block;margin-bottom:6px;color:#77736a;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase">Järgmine samm</span>
             <strong style="display:block;color:#23221f;font-size:18px">${escapeHtml(step.label)}</strong>
             <span style="display:block;margin-top:7px;color:#666159;font-size:14px;line-height:1.55">${escapeHtml(step.detail)}</span>
           </div>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 24px"><tr><td style="border-radius:999px;background:#171714">
-            <a href="${continueUrl}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">Jätka oma poega &nbsp;→</a>
+            <a href="${continueUrl}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">Jätka seadistamist &nbsp;→</a>
           </td></tr></table>
           <p style="margin:0;color:#8a857d;font-size:12px;line-height:1.55">${escapeHtml(note)}</p>
         </div>
       </td></tr>
-      <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">Poeruum · sinu e-pood 10 minutiga<br><a href="${stopUrl}" style="color:#77736a">Ära saada mulle poe seadistamise meeldetuletusi</a></td></tr>
+      <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">Poeruum · sinu e-pood 10 minutiga<br><a href="${stopUrl}" style="color:#77736a">Ma ei soovi rohkem meeldetuletusi</a></td></tr>
     </table>
   </td></tr></table>
 </body></html>`
