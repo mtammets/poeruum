@@ -203,7 +203,7 @@ export default function AdminApp() {
   const [demoStore, setDemoStore] = useState<StoreRecord | null>(null)
   const [demoProducts, setDemoProducts] = useState<Product[]>([])
   const [isDemoLoading, setIsDemoLoading] = useState(false)
-  const [demoError, setDemoError] = useState('')
+  const [, setDemoError] = useState('')
   const [isManagingDemo, setIsManagingDemo] = useState(false)
   const dashboardRefreshTimerRef = useRef<number | null>(null)
 
@@ -400,12 +400,6 @@ export default function AdminApp() {
               </article>)}
             </div> : <p className="admin-revenue__empty">Esimene kinnitatud kuutasu või müügitasu ilmub siia automaatselt.</p>}
           </div>
-        </section>
-
-        <section className="admin-demo-store" aria-label="Näidispoe haldus">
-          <div><span><AdminIcon name="store" /></span><p><small>AVALIK NÄIDISPOOD</small><strong>Halda avalehel kuvatavat poodi</strong><em>Muuda tooteid, pilte, hindu ja poe kujundust samas vaates, mida kasutavad kaupmehed.</em></p></div>
-          <button type="button" disabled={isDemoLoading} onClick={() => void openDemoManager()}>{isDemoLoading ? 'Avan…' : 'Halda näidispoodi'}<AdminIcon name="arrow" /></button>
-          {demoError && <p className="admin-demo-store__error" role="alert">{demoError}</p>}
         </section>
 
         <section className="admin-kpis" aria-label="Kokkuvõte">

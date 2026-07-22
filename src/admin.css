@@ -62,17 +62,6 @@
 .admin-revenue__empty { display: grid; min-height: 8rem; margin: 0; place-items: center; color: #8c958f; font-size: .58rem; text-align: center; }
 .admin-revenue__empty.is-error { color: #9a4b40; }
 .admin-revenue.is-live-update { box-shadow: 0 0 0 3px #8db56b22, 0 12px 35px #24352a0a; }
-.admin-demo-store { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; margin-bottom: .85rem; padding: 1rem 1.15rem; border: 1px solid #d8ded3; border-radius: .9rem; background: #fff; box-shadow: 0 8px 24px #26352a08; }
-.admin-demo-store > div { display: flex; align-items: center; gap: .85rem; min-width: 0; }
-.admin-demo-store > div > span { display: grid; flex: 0 0 auto; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: .7rem; background: #e9eddf; color: #265f43; }
-.admin-demo-store svg { width: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-.admin-demo-store p { display: grid; gap: .14rem; margin: 0; min-width: 0; }
-.admin-demo-store small { color: #718078; font-size: .52rem; font-weight: 850; letter-spacing: .11em; }
-.admin-demo-store strong { font-family: Manrope, sans-serif; font-size: .8rem; letter-spacing: -.02em; }
-.admin-demo-store em { overflow: hidden; color: #89928c; font-size: .56rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-.admin-demo-store > button { display: flex; align-items: center; gap: .55rem; padding: .7rem .85rem; border: 0; border-radius: .65rem; background: #265f43; color: #fff; font: inherit; font-size: .62rem; font-weight: 800; cursor: pointer; }
-.admin-demo-store > button:disabled { opacity: .6; cursor: wait; }
-.admin-demo-store__error { grid-column: 1 / -1; color: #9a4b40; font-size: .58rem; }
 .admin-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; }
 .admin-kpis article { position: relative; display: grid; min-height: 9.25rem; align-content: space-between; padding: 1.15rem; overflow: hidden; border: 1px solid #e0e2dc; border-radius: .85rem; background: linear-gradient(145deg, #fff 0%, #fcfdf9 100%); box-shadow: 0 1px 0 #ffffff inset, 0 8px 24px #26352a08; }
 .admin-kpis article > span { color: #7d8780; font-size: .56rem; font-weight: 800; letter-spacing: .11em; }
@@ -218,8 +207,6 @@
   .admin-revenue__summary > header strong { font-size: 1.7rem; }
   .admin-revenue__summary > header > b { align-self: start; font-size: .42rem; }
   .admin-revenue__summary dl { gap: .3rem; }
-  .admin-demo-store { grid-template-columns: 1fr; padding: .9rem; }
-  .admin-demo-store > button { justify-content: center; }
   .admin-revenue__summary dt { font-size: .46rem; }
   .admin-revenue__summary dd { font-size: .61rem; }
   .admin-kpis article { min-height: 7.6rem; padding: .9rem; border-radius: .78rem; }
