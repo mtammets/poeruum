@@ -234,12 +234,6 @@ button, a, summary { touch-action: manipulation; }
 .auth-switch button { padding: .2rem; border: 0; background: transparent; color: var(--demo-green); font-weight: 850; }
 .auth-flow--login { margin-top: 5rem; }
 .auth-intro--login h1 { max-width: 12ch; }
-.auth-resume-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .85rem; max-width: 25rem; margin-top: 2rem; padding: 1rem; border: 1px solid #cbd2c6; border-radius: 1rem; background: #f8f8f2b8; box-shadow: 0 16px 35px #3340360c; }
-.auth-resume-card > span { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: .7rem; background: var(--demo-green); color: var(--demo-lime); font-weight: 900; }
-.auth-resume-card p { display: grid; gap: .16rem; margin: 0; }
-.auth-resume-card strong { font-size: .8rem; }
-.auth-resume-card small { color: #7e8880; font-size: .66rem; }
-.auth-resume-card b { color: var(--demo-green); }
 
 @media (max-width: 900px) {
   .auth-flow { width: min(92%, 30rem); }

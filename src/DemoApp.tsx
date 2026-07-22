@@ -1211,10 +1211,6 @@ export default function DemoApp() {
         <aside className="auth-intro auth-intro--login">
           <span className="demo-eyebrow">Tere tulemast tagasi</span>
           <h1>Jätka sealt, kus pooleli jäi.</h1>
-          <p>Sinu poe mustand, tooted ja seadistus ootavad sind.</p>
-          <div className="auth-resume-card" aria-hidden="true">
-            <span>✓</span><p><strong>Poe mustand on alles</strong><small>Viimane muudatus salvestatud</small></p><b>→</b>
-          </div>
         </aside>
         <section className="auth-card auth-card--login">
           <h1>Logi sisse</h1><p>Tagasi oma poe haldusesse.</p>

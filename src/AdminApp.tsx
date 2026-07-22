@@ -250,6 +250,11 @@ export default function AdminApp() {
     }
   }
 
+  const logOut = async () => {
+    const { error: signOutError } = await requireSupabase().auth.signOut()
+    if (!signOutError) window.location.replace('/')
+  }
+
   const loadRevenue = async () => {
     const { data, error: queryError } = await requireSupabase().rpc('admin_revenue_dashboard')
     if (queryError) {
@@ -437,7 +442,7 @@ export default function AdminApp() {
         <a href="#klienditugi"><span><AdminIcon name="message" /></span>Klienditugi</a>
         <a href="#kasutajad"><span><AdminIcon name="users" /></span>Kasutajad</a>
       </nav>
-      <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><button type="button" onClick={() => void requireSupabase().auth.signOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
+      <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
     </aside>
 
     <section className="admin-main">
