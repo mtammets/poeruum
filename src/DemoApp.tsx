@@ -5,7 +5,7 @@ import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PaymentProvider
 import { createStore, getDemoStore, getMyStore, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getRequestedStoreSlug, isReservedStoreSlug } from './lib/storefrontUrl'
-import type { Product } from './products'
+import { products as bundledProducts, type Product } from './products'
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
 type OnboardingStep = 'business' | 'payments' | 'shipping' | 'publish' | 'complete'
@@ -131,12 +131,6 @@ const getLocalizedAuthError = (error: unknown, fallback: string) => {
   }
   return authError.message || fallback
 }
-
-const phonePreviewProducts = [
-  { name: 'Kaktusekuju', description: 'Skulptuurne kaktus tumedas potis. Taim, mida ei pea kunagi kastma.', price: 32, images: ['/images/demo/kaktus_1.jpg', '/images/demo/kaktus_2.jpg'] },
-  { name: 'Puidust kass', description: 'Kõrge ja väärikas käsitsi maalitud puidust kassikuju.', price: 45, images: ['/images/demo/kass_1.jpg', '/images/demo/kass_2.jpg'] },
-  { name: 'Inglitega taldrik', description: 'Kuldne dekoratiivtaldrik kolme ruumilise ingliga.', price: 29, images: ['/images/demo/taldrik_1.jpg'] },
-]
 
 export function BrandMark({ className = '' }: { className?: string }) {
   return <span className={`demo-brand__mark${className ? ` ${className}` : ''}`} aria-hidden="true">
@@ -407,7 +401,20 @@ export default function DemoApp() {
   const [publicProducts, setPublicProducts] = useState<Product[]>([])
   const [sampleStore, setSampleStore] = useState<StoreRecord | null>(null)
   const [sampleProducts, setSampleProducts] = useState<Product[]>([])
-  const phoneProductIndex = (phoneSlideIndex - 1 + phonePreviewProducts.length) % phonePreviewProducts.length
+  const phonePreviewProducts = (sampleStore ? sampleProducts : bundledProducts)
+    .filter((product) => product.searchVisible !== false)
+    .map((product) => ({
+      id: product.id,
+      name: product.name,
+      description: product.description ?? '',
+      price: product.salePrice !== undefined && product.price !== undefined && product.salePrice < product.price
+        ? product.salePrice
+        : product.price ?? 0,
+      images: Array.from(new Set([product.image, ...(product.gallery ?? [])])).filter(Boolean),
+    }))
+  const phoneProductIndex = phonePreviewProducts.length
+    ? (phoneSlideIndex - 1 + phonePreviewProducts.length) % phonePreviewProducts.length
+    : 0
 
   useEffect(() => {
     if (screen !== 'business' || !email) return
@@ -563,18 +570,23 @@ export default function DemoApp() {
   }, [])
 
   useEffect(() => {
-    if (screen !== 'sample' || !isSupabaseConfigured) return
+    if (!['landing', 'sample'].includes(screen) || !isSupabaseConfigured) return
     let active = true
-    getDemoStore().then(async (found) => {
-      if (!found || !active) return
-      const nextProducts = await listProducts(found.id)
-      if (!active) return
-      setSampleStore(found)
-      setSampleProducts(nextProducts)
-    }).catch(() => {
-      // Keep the bundled sample as a safe fallback before the demo-store migration is deployed.
-    })
-    return () => { active = false }
+    const refreshSampleStore = () => getDemoStore().then(async (found) => {
+        if (!found || !active) return
+        const nextProducts = await listProducts(found.id)
+        if (!active) return
+        setSampleStore(found)
+        setSampleProducts(nextProducts)
+      }).catch(() => {
+        // Keep the bundled sample as a safe fallback before the demo-store migration is deployed.
+      })
+    void refreshSampleStore()
+    window.addEventListener('focus', refreshSampleStore)
+    return () => {
+      active = false
+      window.removeEventListener('focus', refreshSampleStore)
+    }
   }, [screen])
 
   const applyStore = async (nextStore: StoreRecord) => {
@@ -985,14 +997,20 @@ export default function DemoApp() {
   }, [screen, isPhoneDetailsOpen])
 
   useEffect(() => {
-    if (phoneSlideIndex !== phonePreviewProducts.length + 1) return
+    if (!phonePreviewProducts.length || phoneSlideIndex !== phonePreviewProducts.length + 1) return
     const normalizeTimeout = window.setTimeout(() => {
       setIsPhoneSwipeAnimated(false)
       setPhoneSlideIndex(1)
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => setIsPhoneSwipeAnimated(true)))
     }, 560)
     return () => window.clearTimeout(normalizeTimeout)
-  }, [phoneSlideIndex])
+  }, [phoneSlideIndex, phonePreviewProducts.length])
+
+  useEffect(() => {
+    setIsPhoneSwipeAnimated(false)
+    setPhoneSlideIndex(1)
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setIsPhoneSwipeAnimated(true)))
+  }, [phonePreviewProducts.length])
 
   const resetDemo = () => {
     setScreen('landing')
@@ -1114,12 +1132,12 @@ export default function DemoApp() {
         <div className="demo-phone__screen"><div className="demo-phone__journey">
           <section className="demo-phone__story">
             <div className={`demo-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
-              {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.name}-${index}`} />)}
+              {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.id}-${index}`} />)}
             </div>
             <div className="demo-phone__shade" />
-            <div className="demo-phone__progress">{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.name} />)}</div>
+            <div className="demo-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
             <header className="demo-phone__header">
-              <div><span>M</span><strong>MAREKI KÄSITÖÖ</strong></div>
+              <div><img src="/images/poeruum-email-logo.svg" alt="" /><strong>POERUUM</strong></div>
               <aside><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></i><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></svg><b>0</b></i></aside>
             </header>
             {phoneProduct.images.length > 1 && <div className="demo-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
@@ -1130,13 +1148,9 @@ export default function DemoApp() {
             <div><small>Kirjeldus</small><p>{phoneProduct.description}</p></div>
             <div className="demo-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
             <div className="demo-phone__cart">Lisa ostukorvi</div>
-            <footer><strong>MAREKI KÄSITÖÖ</strong><small>Valmistatud hoolega Eestis</small></footer>
+            <footer><strong>POERUUM</strong><small>Valmistatud hoolega Eestis</small></footer>
           </section>
         </div></div>
-      </div>
-      <div className="demo-mobile-sticker" aria-label="Seadista telefonis">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.2"/><path d="M10 18.5h4"/><path d="m9 11 2 2 4-4"/></svg>
-        <span><strong>Seadista telefonis</strong></span>
       </div>
       </div>
     </section>

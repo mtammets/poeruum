@@ -61,17 +61,18 @@
   position: absolute;
   top: 50%;
   left: 52%;
-  width: clamp(14.5rem, 20vw, 18.5rem);
-  aspect-ratio: .67;
+  width: clamp(12.5rem, 16vw, 15.5rem);
+  aspect-ratio: .52;
   overflow: hidden;
   border: .42rem solid #111713;
-  border-radius: 1.85rem;
+  border-radius: 2.2rem;
   background: #111;
   color: #fff;
   box-shadow: 0 2.5rem 5rem rgba(23, 35, 28, .24);
   transform-origin: center bottom;
   will-change: transform;
 }
+.coming-soon__product::before { position: absolute; z-index: 5; top: .3rem; left: 50%; width: 2.6rem; height: .28rem; border-radius: 999px; background: rgba(8, 12, 9, .82); box-shadow: 0 1px 3px rgba(255, 255, 255, .12); content: ''; transform: translateX(-50%); }
 .coming-soon__product > img, .coming-soon__shade { position: absolute; inset: 0; width: 100%; height: 100%; }
 .coming-soon__product > img { object-fit: cover; animation: cs-zoom 12s ease-in-out infinite alternate; }
 .coming-soon__shade { background: linear-gradient(180deg, rgba(0,0,0,.45), transparent 36%, transparent 56%, rgba(0,0,0,.78)); }
@@ -115,7 +116,7 @@
   .coming-soon__opening { display: none; }
   .coming-soon__showcase { grid-row: 2; min-height: 22rem; }
   .coming-soon__halo { left: 50%; width: min(102vw, 34rem); }
-  .coming-soon__product { left: 50%; width: clamp(12.5rem, 48vw, 15.5rem); border-radius: 1.55rem; }
+  .coming-soon__product { left: 50%; width: clamp(10rem, 38vw, 12rem); border-radius: 1.85rem; }
   .coming-soon__product--2 { transform: translate(-108%, -45%) rotate(-12deg) scale(.82); }
   .coming-soon__product--3 { transform: translate(8%, -45%) rotate(12deg) scale(.82); }
   .coming-soon__intro { grid-row: 3; padding: 1rem 0 1.7rem; text-align: center; }
@@ -129,7 +130,7 @@
 @media (max-width: 430px) {
   .coming-soon { grid-template-rows: auto minmax(20rem, 1fr) auto auto; }
   .coming-soon__header { min-height: 4.5rem; }
-  .coming-soon__product { width: clamp(11.5rem, 50vw, 13.25rem); }
+  .coming-soon__product { width: clamp(9rem, 38vw, 10.5rem); }
   .coming-soon__intro h1 { font-size: clamp(3rem, 14vw, 4rem); }
 }
 

@@ -62,13 +62,6 @@ button, a, summary { touch-action: manipulation; }
 .demo-phone:hover { box-shadow: 0 40px 78px #17231c4f; transform: rotate(2.5deg) translateY(-.3rem); }
 .demo-phone:focus-visible { box-shadow: 0 0 0 4px var(--demo-lime), 0 40px 78px #17231c4f; }
 .demo-phone:active { transform: rotate(3deg) translateY(-.1rem) scale(.99); }
-.demo-mobile-sticker { position: absolute; z-index: 4; left: -10rem; bottom: 4.5rem; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .65rem; width: max-content; padding: .7rem .85rem; border: 1px solid color-mix(in srgb, var(--poeruum-accent) 35%, transparent); border-radius: 1rem; background: #17231cf5; color: #fff; box-shadow: 0 20px 42px #17231c32; pointer-events: none; }
-.demo-mobile-sticker::after { position: absolute; right: -.42rem; top: 50%; width: .8rem; height: .8rem; border-top: 1px solid color-mix(in srgb, var(--poeruum-accent) 35%, transparent); border-right: 1px solid color-mix(in srgb, var(--poeruum-accent) 35%, transparent); background: #17231c; content: ''; transform: translateY(-50%) rotate(45deg); }
-.demo-mobile-sticker svg { flex: 0 0 auto; width: 1.7rem; padding: .32rem; overflow: visible; border-radius: .52rem; background: color-mix(in srgb, var(--poeruum-accent) 9%, transparent); fill: none; stroke: var(--demo-lime); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.demo-mobile-sticker span { display: grid; gap: .42rem; }
-.demo-mobile-sticker small { color: var(--demo-lime); font-size: .46rem; font-weight: 850; letter-spacing: .13em; }
-.demo-mobile-sticker strong { font-family: Manrope, sans-serif; font-size: .85rem; line-height: 1; letter-spacing: -.025em; white-space: nowrap; }
-.demo-mobile-sticker strong b { color: var(--demo-lime); font-size: 1.48rem; font-weight: inherit; }
 .demo-phone__screen { width: 100%; height: 100%; overflow: hidden; border-radius: 2rem; background: #000; }
 .demo-phone__journey { width: 100%; height: 100%; transition: transform 780ms cubic-bezier(.76, 0, .24, 1); }
 .demo-phone.is-details .demo-phone__journey { transform: translateY(-100%); }
@@ -84,6 +77,7 @@ button, a, summary { touch-action: manipulation; }
 .demo-phone__header { position: absolute; z-index: 3; top: 1.65rem; right: 1.1rem; left: 1.1rem; display: flex; align-items: center; justify-content: space-between; color: #fff; }
 .demo-phone__header > div { display: flex; align-items: center; gap: .42rem; }
 .demo-phone__header > div > span { display: grid; width: 1.65rem; height: 1.65rem; place-items: center; border-radius: 50%; background: var(--demo-lime); color: #101510; font-size: .64rem; font-weight: 900; }
+.demo-phone__header > div > img { width: 1.65rem; height: 1.65rem; border-radius: .46rem; filter: drop-shadow(0 2px 6px #0006); }
 .demo-phone__header strong { font-size: .45rem; letter-spacing: .1em; text-shadow: 0 1px 8px #000; }
 .demo-phone__header aside { display: flex; gap: .3rem; }
 .demo-phone__header aside > i { position: relative; display: grid; width: 1.65rem; height: 1.65rem; place-items: center; border: 1px solid #ffffff55; border-radius: 50%; background: #0007; font-style: normal; }
@@ -794,7 +788,6 @@ button, a, summary { touch-action: manipulation; }
   .demo-hero__copy > small { font-size: .72rem; text-align: center; }
   .demo-phone-stage { justify-self: center; width: min(15.25rem, 72vw); height: min(29rem, 137vw); }
   .demo-phone { border-width: 7px; border-radius: 2.55rem; transform: rotate(2deg); }
-  .demo-mobile-sticker { display: none; }
   .demo-benefits { display: none; }
   .demo-pricing { grid-template-columns: 1fr; gap: 1.75rem; margin: 0; padding: 3rem 1.2rem; border-radius: 0; }
   .demo-pricing__copy h2 { font-size: 2.65rem; }
