@@ -37,6 +37,7 @@ type SetupStep = {
 }
 
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
+type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
 
 type RevenueEvent = {
   id: string
@@ -83,6 +84,22 @@ const filters: Array<{ id: UserFilter; label: string }> = [
   { id: 'unpublished', label: 'Avaldamata' },
   { id: 'complete', label: 'Valmis' },
 ]
+
+const sortOptions: Array<{ id: UserSort; label: string }> = [
+  { id: 'attention', label: 'Vajavad tähelepanu' },
+  { id: 'newest', label: 'Uuemad ees' },
+  { id: 'oldest', label: 'Vanemad ees' },
+  { id: 'active', label: 'Hiljuti aktiivsed' },
+  { id: 'progress', label: 'Valmimad ees' },
+]
+
+const sortDescriptions: Record<UserSort, string> = {
+  attention: 'Kõige rohkem tähelepanu vajavad kasutajad on eespool.',
+  newest: 'Kõige hiljem liitunud kasutajad on eespool.',
+  oldest: 'Kõige varem liitunud kasutajad on eespool.',
+  active: 'Kõige hiljutisema tegevusega kasutajad on eespool.',
+  progress: 'Kõige kaugemale jõudnud poed on eespool.',
+}
 
 const setupCount = (row: AdminUserRow) => setupSteps.filter((step) => row[step.key]).length
 const setupPercent = (row: AdminUserRow) => Math.round(setupCount(row) / setupSteps.length * 100)
@@ -196,6 +213,7 @@ export default function AdminApp() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<UserFilter>('all')
+  const [sort, setSort] = useState<UserSort>('attention')
   const [search, setSearch] = useState('')
   const [revenue, setRevenue] = useState<RevenueDashboard>(emptyRevenueDashboard)
   const [revenueError, setRevenueError] = useState('')
@@ -333,9 +351,17 @@ export default function AdminApp() {
         if (filter === 'complete' && percent !== 100) return false
         return !normalizedSearch || `${row.store_name ?? ''} ${row.email} ${row.store_slug ?? ''}`.toLocaleLowerCase('et').includes(normalizedSearch)
       })
-      .sort((left, right) => setupPercent(left) - setupPercent(right)
-        || new Date(right.user_created_at).getTime() - new Date(left.user_created_at).getTime())
-  }, [rows, filter, search])
+      .sort((left, right) => {
+        const newestFirst = new Date(right.user_created_at).getTime() - new Date(left.user_created_at).getTime()
+        if (sort === 'newest') return newestFirst
+        if (sort === 'oldest') return -newestFirst
+        const recentActivityFirst = new Date(right.last_activity_at ?? right.user_created_at).getTime()
+          - new Date(left.last_activity_at ?? left.user_created_at).getTime()
+        if (sort === 'active') return recentActivityFirst || newestFirst
+        if (sort === 'progress') return setupPercent(right) - setupPercent(left) || recentActivityFirst
+        return setupPercent(left) - setupPercent(right) || newestFirst
+      })
+  }, [rows, filter, search, sort])
 
   if (!authReady) return <main className="admin-loading"><span /><p>Avan administraatori töölauda…</p></main>
   if (!isSupabaseConfigured) return <main className="admin-auth"><section className="admin-auth__card"><span>SEADISTUS PUUDUB</span><h1>Supabase pole ühendatud</h1><p>Lisa lokaalsesse <code>.env</code> faili Supabase’i võtmed ja laadi leht uuesti.</p><a href="/">Tagasi Poeruumi</a></section></main>
@@ -410,7 +436,7 @@ export default function AdminApp() {
         </section>
 
         <section className="admin-users" id="kasutajad">
-          <header><div><h2>Seadistuse edenemine</h2><p>Kõige rohkem tähelepanu vajavad kasutajad on eespool.</p></div><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></header>
+          <header><div><h2>Seadistuse edenemine</h2><p>{sortDescriptions[sort]}</p></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
           <div className="admin-filters" role="group" aria-label="Filtreeri kasutajaid">
             {filters.map((item) => <button type="button" className={filter === item.id ? 'is-active' : ''} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} key={item.id}>{item.label}</button>)}
           </div>

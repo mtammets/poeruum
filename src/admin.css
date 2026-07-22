@@ -89,6 +89,11 @@
 .admin-users { overflow: hidden; scroll-margin-top: 1rem; }
 .admin-users > header { padding: 1.3rem 1.3rem 1rem; }
 .admin-users > header p { margin: .25rem 0 0; color: #89928c; font-size: .62rem; }
+.admin-users__controls { display: flex; align-items: center; justify-content: flex-end; gap: .55rem; min-width: 0; }
+.admin-sort { position: relative; display: grid; flex: 0 0 auto; gap: .1rem; min-width: 9rem; padding: .42rem 1.65rem .42rem .7rem; border: 1px solid #dde0d9; border-radius: .62rem; background: #fbfcfa; }
+.admin-sort::after { position: absolute; top: 50%; right: .65rem; color: #758078; font-size: .7rem; content: '⌄'; transform: translateY(-58%); pointer-events: none; }
+.admin-sort > span { color: #969e98; font-size: .44rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.admin-sort select { min-width: 0; padding: 0; border: 0; outline: 0; appearance: none; background: transparent; color: #34463b; font: inherit; font-size: .59rem; font-weight: 750; cursor: pointer; }
 .admin-search { display: flex; align-items: center; gap: .45rem; width: min(100%, 16rem); padding: .62rem .7rem; border: 1px solid #dde0d9; border-radius: .62rem; background: #fbfcfa; color: #8a948d; transition: border-color 160ms ease, box-shadow 160ms ease; }
 .admin-search:focus-within { border-color: #8ca293; box-shadow: 0 0 0 3px #265f430d; }
 .admin-search > span { display: grid; }
@@ -223,7 +228,8 @@
   .admin-setup-overview__bars > div { grid-template-columns: minmax(7.6rem, 1fr) minmax(4.5rem, .8fr) 2rem; gap: .55rem; }
   .admin-setup-overview__bars strong { font-size: .62rem; }
   .admin-setup-overview__bars small { font-size: .5rem; }
-  .admin-search { width: 100%; }
+  .admin-users__controls { align-items: stretch; flex-direction: column; width: 100%; }
+  .admin-sort, .admin-search { width: 100%; }
   .admin-users > header { gap: .85rem; padding: 1rem 1rem .85rem; }
   .admin-filters { flex-wrap: wrap; gap: .15rem; padding: 0 1rem .9rem; overflow: visible; }
   .admin-filters button { padding: .45rem .58rem; font-size: .55rem; }
