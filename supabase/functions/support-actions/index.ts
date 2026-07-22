@@ -22,6 +22,11 @@ const escapeHtml = (value: unknown) => String(value ?? '')
   .replaceAll('"', '&quot;').replaceAll("'", '&#039;')
 
 const textValue = (value: unknown, max: number) => String(value ?? '').trim().slice(0, max)
+const errorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error) return String(error.message)
+  return 'Klienditoe toiming ebaõnnestus.'
+}
 const categoryValues = new Set(['question', 'setup', 'payments', 'orders', 'technical', 'feedback'])
 const statusValues = new Set(['open', 'waiting_user', 'resolved'])
 
@@ -193,6 +198,6 @@ Deno.serve(async (request) => {
     return json({ error: 'Tundmatu tegevus.' }, 400)
   } catch (error) {
     console.error(error)
-    return json({ error: error instanceof Error ? error.message : 'Klienditoe toiming ebaõnnestus.' }, 500)
+    return json({ error: errorMessage(error) }, 500)
   }
 })
