@@ -10,6 +10,7 @@ const required = (name) => {
 }
 
 const recipient = process.argv[2]?.trim().toLowerCase()
+const requestedNumber = process.argv[3]?.trim()
 if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
   throw new Error('Kasutus: npm run supabase:onboarding-email:preview -- nimi@example.com')
 }
@@ -68,7 +69,7 @@ const previews = [
   },
 ]
 
-for (const preview of previews) {
+for (const preview of previews.filter((item) => !requestedNumber || item.number === requestedNumber)) {
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
