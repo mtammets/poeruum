@@ -21,7 +21,7 @@ const render = ({ title, intro, step, detail, final }) => `<!doctype html>
   <div style="display:none;max-height:0;overflow:hidden;opacity:0">${step} · kõik salvestatud andmed on alles.</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1efe9"><tr><td align="center" style="padding:40px 16px">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
-      <tr><td style="padding:0 4px 20px"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="padding-right:11px"><img src="https://poeruum.ee/images/poeruum-email-logo.png" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border:0;border-radius:11px"></td><td style="font-size:21px;font-weight:800;letter-spacing:.13em;color:#171714">POERUUM</td></tr></table></td></tr>
+      <tr><td style="padding:0 4px 20px"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="padding-right:11px"><img src="https://poeruum.ee/images/poeruum-email-logo.png?v=2" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border:0;border-radius:11px"></td><td style="font-family:Manrope,'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:800;letter-spacing:-.055em;color:#17231c;white-space:nowrap">Poe<span style="color:#265f43;font-weight:600">ruum</span></td></tr></table></td></tr>
       <tr><td style="overflow:hidden;border-radius:22px;background:#ffffff;box-shadow:0 10px 35px rgba(34,31,25,.08)">
         <div style="height:8px;background:#d9ff43"></div>
         <div style="padding:38px 38px 34px">
