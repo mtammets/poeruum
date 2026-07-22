@@ -55,6 +55,8 @@ if (action === 'functions') {
   run(['functions', 'deploy', 'stripe-refund-order', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   run(['functions', 'deploy', 'stripe-billing-cancel', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   run(['functions', 'deploy', 'onboarding-reminders', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'support-actions', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'resend-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   process.exit(0)
 }
 

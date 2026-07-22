@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import DemoApp from './DemoApp'
 import AdminApp from './AdminApp'
 import ComingSoon from './ComingSoon'
+import SupportCenter from './SupportCenter'
 import './styles.css'
 import './brand.css'
 import './demo.css'
@@ -55,7 +56,7 @@ function Root() {
   }, [])
 
   if (isAdminPath) return <AdminApp />
-  return isPoeruumHomepage ? <ComingSoon /> : <DemoApp />
+  return isPoeruumHomepage ? <ComingSoon /> : <><DemoApp /><SupportCenter /></>
 }
 
 createRoot(document.getElementById('root')!).render(

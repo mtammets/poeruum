@@ -16,6 +16,9 @@
     "supabase:auth-email:preview": "node scripts/send-auth-email-previews.mjs",
     "supabase:order-email:preview": "node scripts/send-order-email-preview.mjs",
     "supabase:onboarding-email:preview": "node scripts/send-onboarding-email-previews.mjs",
+    "supabase:support:configure": "node scripts/configure-resend-support.mjs",
+    "supabase:support:test-webhook": "node scripts/test-resend-webhook.mjs",
+    "supabase:support:test-actions": "node scripts/test-support-actions.mjs",
     "supabase:set-admin": "node scripts/set-admin.mjs"
   },
   "dependencies": {

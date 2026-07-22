@@ -5,6 +5,7 @@ import { Storefront } from './App'
 import { getDemoStore, listProducts, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import type { Product } from './products'
+import AdminSupport from './AdminSupport'
 
 type AdminUserRow = {
   user_id: string
@@ -28,6 +29,8 @@ type AdminUserRow = {
   has_product: boolean
   has_business_details: boolean
   has_published: boolean
+  open_support_count: number
+  last_support_at: string | null
 }
 
 type SetupStep = {
@@ -57,6 +60,16 @@ type RevenueDashboard = {
   transaction_fee_total_cents: number
   refund_total_cents: number
   recent_events: RevenueEvent[]
+}
+
+type LatestEmailDelivery = {
+  user_id: string
+  resend_email_id: string
+  subject: string
+  email_type: string | null
+  status: 'sent' | 'delivered' | 'failed' | 'bounced' | 'complained'
+  sent_at: string
+  status_updated_at: string
 }
 
 const emptyRevenueDashboard: RevenueDashboard = {
@@ -126,13 +139,14 @@ const isStalled = (row: AdminUserRow) => {
   return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
-type AdminIconName = 'home' | 'users' | 'store' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
+type AdminIconName = 'home' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
     home: <><path d="M4 11.5 12 5l8 6.5" /><path d="M6.5 10.5V20h11v-9.5M10 20v-5h4v5" /></>,
     users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.4-3.5 2.2-5.3 5.5-5.3s5.1 1.8 5.5 5.3" /><circle cx="17" cy="9" r="2.2" /><path d="M15.5 14.2c3.1-.4 4.8 1.2 5 4" /></>,
     store: <><path d="M4 9h16l-1-4H5L4 9Z"/><path d="M5 9v10h14V9M9 19v-5h6v5"/><path d="M4 9a3 3 0 0 0 5 2 3 3 0 0 0 6 0 3 3 0 0 0 5-2"/></>,
+    message: <><path d="M4.5 5.5h15v10h-10l-5 3.5V5.5Z"/><path d="M8 9h8M8 12h5"/></>,
     logout: <><path d="M10 5H5v14h5M14 8l4 4-4 4M9 12h9" /></>,
     refresh: <><path d="M19 8a7.5 7.5 0 1 0 .3 7" /><path d="M19 4v4h-4" /></>,
     check: <path d="m6 12 4 4 8-9" />,
@@ -211,6 +225,7 @@ export default function AdminApp() {
   const [revenue, setRevenue] = useState<RevenueDashboard>(emptyRevenueDashboard)
   const [revenueError, setRevenueError] = useState('')
   const [liveRevenueEventId, setLiveRevenueEventId] = useState<string | null>(null)
+  const [latestEmails, setLatestEmails] = useState<Map<string, LatestEmailDelivery>>(() => new Map())
   const [demoStore, setDemoStore] = useState<StoreRecord | null>(null)
   const [demoProducts, setDemoProducts] = useState<Product[]>([])
   const [isDemoLoading, setIsDemoLoading] = useState(false)
@@ -259,6 +274,12 @@ export default function AdminApp() {
     setOnlineUserIds(new Set((data ?? []).map((row: { user_id: string }) => row.user_id)))
   }
 
+  const loadLatestEmails = async () => {
+    const { data, error: queryError } = await requireSupabase().rpc('admin_latest_email_deliveries')
+    if (queryError) return
+    setLatestEmails(new Map(((data ?? []) as LatestEmailDelivery[]).map((delivery) => [delivery.user_id, delivery])))
+  }
+
   const loadDashboard = async ({ silent = false, refreshAuth = true }: { silent?: boolean; refreshAuth?: boolean } = {}) => {
     if (!silent) setIsLoading(true)
     setError('')
@@ -266,6 +287,7 @@ export default function AdminApp() {
     // without requiring the user to manually clear their existing session.
     if (refreshAuth) await requireSupabase().auth.refreshSession()
     void loadRevenue()
+    void loadLatestEmails()
     const { data, error: queryError } = await requireSupabase().rpc('admin_dashboard_users')
     if (queryError) {
       const forbidden = queryError.code === '42501' || queryError.message.toLowerCase().includes('admin access')
@@ -279,6 +301,7 @@ export default function AdminApp() {
         product_count: Number(row.product_count),
         order_count: Number(row.order_count),
         gross_sales: Number(row.gross_sales),
+        open_support_count: Number(row.open_support_count ?? 0),
       })))
     }
     if (!silent) setIsLoading(false)
@@ -411,6 +434,7 @@ export default function AdminApp() {
       <nav aria-label="Administraatori menüü">
         <a className="is-active" href="/admin" aria-current="page"><span><AdminIcon name="home" /></span>Ülevaade</a>
         <button type="button" onClick={() => void openDemoManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
+        <a href="#klienditugi"><span><AdminIcon name="message" /></span>Klienditugi</a>
         <a href="#kasutajad"><span><AdminIcon name="users" /></span>Kasutajad</a>
       </nav>
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><button type="button" onClick={() => void requireSupabase().auth.signOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
@@ -451,16 +475,19 @@ export default function AdminApp() {
           <article><span>VAJAVAD TÄHELEPANU</span><strong>{stalledCount}</strong><small>üle 7 päeva muutuseta</small><i className="is-danger"><AdminIcon name="alert" /></i></article>
         </section>
 
+        <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />
+
         <section className="admin-users" id="kasutajad">
           <header><div><h2>Seadistuse edenemine</h2></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
           <div className="admin-filters" role="group" aria-label="Filtreeri kasutajaid">
             {filters.map((item) => <button type="button" className={filter === item.id ? 'is-active' : ''} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} key={item.id}>{item.label}</button>)}
           </div>
           <div className="admin-table">
-            <div className="admin-table__head"><span>Kasutaja</span><span>Liitus</span><span>Seadistus</span><span>Staatus</span><span>Viimane tegevus</span></div>
+            <div className="admin-table__head"><span>Kasutaja</span><span>Liitus</span><span>Seadistus</span><span>Staatus</span><span>Suhtlus</span><span>Viimane tegevus</span></div>
             {isLoading && !rows.length ? <div className="admin-table__empty"><span className="admin-table__loader" /><strong>Laadin kasutajaid…</strong></div> : visibleRows.length ? visibleRows.map((row) => {
               const percent = setupPercent(row)
               const isOnline = onlineUserIds.has(row.user_id)
+              const latestEmail = latestEmails.get(row.user_id)
               const status = percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : null
               const statusClass = percent === 100 ? 'complete' : percent === 0 ? 'empty' : 'stalled'
               return <article className={`admin-user-row${percent === 100 ? ' is-complete' : ''}`} key={row.user_id}>
@@ -468,6 +495,7 @@ export default function AdminApp() {
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
                 <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
+                <div className={`admin-user-row__support${latestEmail && ['failed', 'bounced', 'complained'].includes(latestEmail.status) ? ' is-error' : ''}`}>{row.open_support_count > 0 ? <a href="#klienditugi"><strong>{row.open_support_count} avatud vestlus{row.open_support_count === 1 ? '' : 't'}</strong><small>{formatRelativeTime(row.last_support_at)}</small></a> : latestEmail ? <span><strong>{latestEmail.email_type === 'onboarding_reminder' ? 'Seadistuse meeldetuletus' : latestEmail.email_type === 'support_reply' ? 'Klienditoe vastus' : latestEmail.email_type === 'support_confirmation' ? 'Küsimuse kinnitus' : latestEmail.subject || 'Poeruumi kiri'}</strong><small>{latestEmail.status === 'delivered' ? 'Kohale toimetatud' : latestEmail.status === 'sent' ? 'Saadetud' : latestEmail.status === 'bounced' ? 'Ei jõudnud kohale' : latestEmail.status === 'complained' ? 'Märgiti rämpspostiks' : 'Saatmine ebaõnnestus'} · {formatRelativeTime(latestEmail.status_updated_at)}</small></span> : <span>Suhtlust pole</span>}</div>
                 <div className="admin-user-row__activity"><strong className={isOnline ? 'is-online' : undefined}>{isOnline ? 'Online' : formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
               </article>
             }) : <div className="admin-table__empty"><span>⌕</span><strong>Kasutajaid ei leitud</strong><p>Muuda otsingut või vali teine filter.</p></div>}
