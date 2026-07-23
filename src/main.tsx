@@ -1,4 +1,4 @@
-import { StrictMode, useLayoutEffect } from 'react'
+import { StrictMode, useEffect, useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import DemoApp from './DemoApp'
 import AdminApp from './AdminApp'
@@ -7,6 +7,7 @@ import LegalPage, { type LegalDocument } from './LegalPage'
 import SupportCenter from './SupportCenter'
 import { applySeoMetadata } from './lib/seo'
 import { getStoreSlugFromHostname } from './lib/storefrontUrl'
+import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
 import './brand.css'
 import './demo.css'
@@ -36,6 +37,51 @@ const legalDocument: LegalDocument | null = isPlatformHostname && !isStorefrontS
       ? 'privacy'
       : null
   : null
+
+function Homepage() {
+  const [comingSoonEnabled, setComingSoonEnabled] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setComingSoonEnabled(true)
+      return
+    }
+
+    let active = true
+    const client = requireSupabase()
+    client.from('platform_settings')
+      .select('coming_soon_enabled')
+      .eq('id', 'homepage')
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (active) setComingSoonEnabled(error ? true : data?.coming_soon_enabled ?? true)
+      })
+
+    const channel = client.channel('public-homepage-mode')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'platform_settings',
+        filter: 'id=eq.homepage',
+      }, (payload) => {
+        if (active && typeof payload.new.coming_soon_enabled === 'boolean') {
+          setComingSoonEnabled(payload.new.coming_soon_enabled)
+        }
+      })
+      .subscribe()
+
+    return () => {
+      active = false
+      void client.removeChannel(channel)
+    }
+  }, [])
+
+  if (comingSoonEnabled === null) {
+    return <main className="homepage-mode-loading" aria-label="Laadin Poeruumi avalehte"><span /></main>
+  }
+
+  return comingSoonEnabled ? <ComingSoon /> : <><DemoApp /><SupportCenter /></>
+}
 
 function Root() {
   useLayoutEffect(() => {
@@ -80,7 +126,7 @@ function Root() {
 
   if (isAdminPath) return <AdminApp />
   if (legalDocument) return <LegalPage document={legalDocument} />
-  return isPoeruumHomepage ? <ComingSoon /> : <><DemoApp /><SupportCenter /></>
+  return isPoeruumHomepage ? <Homepage /> : <><DemoApp /><SupportCenter /></>
 }
 
 createRoot(document.getElementById('root')!).render(

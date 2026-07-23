@@ -232,6 +232,9 @@ export default function AdminApp() {
   const [isDemoLoading, setIsDemoLoading] = useState(false)
   const [, setDemoError] = useState('')
   const [isManagingDemo, setIsManagingDemo] = useState(false)
+  const [comingSoonEnabled, setComingSoonEnabled] = useState<boolean | null>(null)
+  const [isHomepageModeUpdating, setIsHomepageModeUpdating] = useState(false)
+  const [homepageModeError, setHomepageModeError] = useState('')
   const dashboardRefreshTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -295,6 +298,40 @@ export default function AdminApp() {
     setLatestEmails(new Map(((data ?? []) as LatestEmailDelivery[]).map((delivery) => [delivery.user_id, delivery])))
   }
 
+  const loadHomepageMode = async () => {
+    const { data, error: queryError } = await requireSupabase()
+      .from('platform_settings')
+      .select('coming_soon_enabled')
+      .eq('id', 'homepage')
+      .maybeSingle()
+    if (queryError) {
+      setHomepageModeError('Avalehe olekut ei õnnestunud laadida.')
+      return
+    }
+    setComingSoonEnabled(data?.coming_soon_enabled ?? true)
+    setHomepageModeError('')
+  }
+
+  const toggleHomepageMode = async () => {
+    if (comingSoonEnabled === null || isHomepageModeUpdating) return
+    const nextEnabled = !comingSoonEnabled
+    const confirmed = window.confirm(nextEnabled
+      ? 'Kas näidata poeruum.ee avalehel uuesti „Varsti avame” ootelehte?'
+      : 'Kas eemaldada „Varsti avame” ooteleht ja avada Poeruumi päris avaleht?')
+    if (!confirmed) return
+
+    setIsHomepageModeUpdating(true)
+    setHomepageModeError('')
+    const { data, error: updateError } = await requireSupabase()
+      .rpc('admin_set_coming_soon', { next_enabled: nextEnabled })
+    if (updateError) {
+      setHomepageModeError('Avalehe oleku muutmine ebaõnnestus.')
+    } else {
+      setComingSoonEnabled(Boolean(data))
+    }
+    setIsHomepageModeUpdating(false)
+  }
+
   const loadDashboard = async ({ silent = false, refreshAuth = true }: { silent?: boolean; refreshAuth?: boolean } = {}) => {
     if (!silent) setIsLoading(true)
     setError('')
@@ -303,6 +340,7 @@ export default function AdminApp() {
     if (refreshAuth) await requireSupabase().auth.refreshSession()
     void loadRevenue()
     void loadLatestEmails()
+    void loadHomepageMode()
     const { data, error: queryError } = await requireSupabase().rpc('admin_dashboard_users')
     if (queryError) {
       const forbidden = queryError.code === '42501' || queryError.message.toLowerCase().includes('admin access')
@@ -461,6 +499,24 @@ export default function AdminApp() {
       {error && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
+        <section className={`admin-homepage-mode${comingSoonEnabled === false ? ' is-public' : ''}`} aria-label="Avaliku avalehe olek">
+          <div>
+            <span>AVALIK AVALEHT</span>
+            <strong>{comingSoonEnabled === null ? 'Kontrollin olekut…' : comingSoonEnabled ? '„Varsti avame” on aktiivne' : 'Poeruum on avalik'}</strong>
+            <p>{comingSoonEnabled === false
+              ? 'Külastajad näevad poeruum.ee aadressil päris avalehte ja saavad konto luua.'
+              : 'Külastajad näevad poeruum.ee aadressil ootelehte.'}</p>
+            {homepageModeError && <small role="alert">{homepageModeError}</small>}
+          </div>
+          <div>
+            <b><i />{comingSoonEnabled === false ? 'AVALIK' : 'OOTELEHT'}</b>
+            <button type="button" disabled={comingSoonEnabled === null || isHomepageModeUpdating} onClick={() => void toggleHomepageMode()}>
+              {isHomepageModeUpdating ? 'Muudan…' : comingSoonEnabled === false ? 'Pane ooteleht tagasi' : 'Ava Poeruum'}
+            </button>
+            <a href="/" target="_blank" rel="noreferrer">Vaata avalehte ↗</a>
+          </div>
+        </section>
+
         <section className={`admin-revenue${liveRevenueEventId ? ' is-live-update' : ''}`} aria-label="Poeruumi tulu">
           <div className="admin-revenue__summary">
             <header><span><AdminIcon name="revenue" /></span><div><small>SELLE KUU TEENUSTASUD</small><strong>{formatMoney(revenue.month_total_cents)}</strong></div><b><i /> REAALAJAS</b></header>

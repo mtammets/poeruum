@@ -24,6 +24,21 @@
 .admin-topbar > button { display: flex; align-items: center; gap: .55rem; padding: .72rem .85rem; border: 1px solid #d6dad2; border-radius: .65rem; background: #fff; color: #435149; font: inherit; font-size: .67rem; font-weight: 750; cursor: pointer; }
 .admin-topbar > button span { display: grid; font-size: 1rem; line-height: 1; }
 .admin-topbar > button span.is-spinning { animation: admin-spin .8s linear infinite; }
+.admin-homepage-mode { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-bottom: .85rem; padding: 1.05rem 1.15rem; border: 1px solid #e4dcc2; border-radius: .85rem; background: linear-gradient(135deg, #fffdf5, #fff); box-shadow: 0 8px 24px #26352a07; }
+.admin-homepage-mode > div:first-child { display: grid; gap: .18rem; }
+.admin-homepage-mode > div:first-child > span { color: #8b7430; font-size: .51rem; font-weight: 850; letter-spacing: .12em; }
+.admin-homepage-mode > div:first-child > strong { font-family: Manrope, sans-serif; font-size: .85rem; letter-spacing: -.025em; }
+.admin-homepage-mode p { margin: 0; color: #848b85; font-size: .57rem; line-height: 1.45; }
+.admin-homepage-mode small { margin-top: .2rem; color: #a34c41; font-size: .52rem; }
+.admin-homepage-mode > div:last-child { display: flex; align-items: center; gap: .65rem; }
+.admin-homepage-mode b { display: flex; align-items: center; gap: .35rem; padding: .38rem .5rem; border-radius: 999px; background: #f6efd8; color: #7a641e; font-size: .48rem; letter-spacing: .08em; }
+.admin-homepage-mode b i { width: .36rem; height: .36rem; border-radius: 50%; background: currentColor; }
+.admin-homepage-mode button { padding: .62rem .75rem; border: 0; border-radius: .58rem; background: #265f43; color: #fff; font: inherit; font-size: .57rem; font-weight: 800; cursor: pointer; }
+.admin-homepage-mode button:disabled { cursor: wait; opacity: .55; }
+.admin-homepage-mode a { color: #607068; font-size: .54rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.admin-homepage-mode.is-public { border-color: #d5e3d2; background: linear-gradient(135deg, #f5faef, #fff); }
+.admin-homepage-mode.is-public > div:first-child > span { color: #34704e; }
+.admin-homepage-mode.is-public b { background: #e7f2e3; color: #276744; }
 .admin-revenue { display: grid; grid-template-columns: minmax(18rem, .85fr) minmax(22rem, 1.15fr); margin-bottom: .85rem; overflow: hidden; border: 1px solid #d8ded3; border-radius: 1rem; background: #fff; box-shadow: 0 12px 35px #24352a0a; }
 .admin-revenue__summary { position: relative; display: grid; gap: 1.1rem; padding: 1.35rem; overflow: hidden; background: linear-gradient(145deg, #173e2c 0%, #245f42 100%); color: #fff; }
 .admin-revenue__summary::after { position: absolute; right: -3.5rem; bottom: -5rem; width: 12rem; height: 12rem; border: 1px solid #e5f25a2b; border-radius: 50%; content: ''; box-shadow: 0 0 0 2.5rem #e5f25a0a, 0 0 0 5rem #e5f25a08; }
@@ -275,6 +290,9 @@
   .admin-topbar > button { padding: .65rem; }
   .admin-topbar > button:not(:disabled) { font-size: 0; }
   .admin-topbar > button span { font-size: 1rem; }
+  .admin-homepage-mode { align-items: stretch; flex-direction: column; gap: .8rem; padding: .9rem; }
+  .admin-homepage-mode > div:last-child { flex-wrap: wrap; }
+  .admin-homepage-mode button { flex: 1; min-height: 2.35rem; }
   .admin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
   .admin-revenue { grid-template-columns: 1fr; border-radius: .85rem; }
   .admin-revenue__summary, .admin-revenue__activity { padding: 1rem; }
