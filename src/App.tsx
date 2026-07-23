@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
-import { cancelStripeBilling, createOrder, listOrders, listProducts, manageCustomDomain, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
+import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 
 const getProductPrice = (product: Product) =>
@@ -542,12 +542,10 @@ const findParcelMachines = (machines: ParcelMachine[], query: string) => {
     .slice(0, 8)
 }
 
-function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, onRemove, onQuantityChange, onComplete, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onComplete: (order: DemoOrder) => void; onClose: () => void }) {
+function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, onRemove, onQuantityChange, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onClose: () => void }) {
   const checkoutRef = useRef<HTMLElement>(null)
   const checkoutRequestIdRef = useRef(createCheckoutRequestId())
-  const [step, setStep] = useState<'cart' | 'checkout' | 'success'>(initialStep)
-  const [paymentMethod, setPaymentMethod] = useState<'bank' | 'card'>('bank')
-  const [bank, setBank] = useState('swedbank')
+  const [step, setStep] = useState<'cart' | 'checkout'>(initialStep)
   const enabledParcelProviders = SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled)
   const enabledParcelProviderKey = enabledParcelProviders.join(',')
   const parcelEnabled = enabledParcelProviders.length > 0
@@ -566,7 +564,6 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
   const [selectedCourierAddressId, setSelectedCourierAddressId] = useState('')
   const [isPaying, setIsPaying] = useState(false)
   const [paymentError, setPaymentError] = useState('')
-  const [completedOrder, setCompletedOrder] = useState<{ id: string; total: number } | null>(null)
   const itemTotal = items.reduce((sum, item) => sum + getProductPrice(item) * item.quantity, 0)
   const selectedParcelMachine = parcelMachines.find((machine) => machine.id === selectedParcelId)
   const defaultParcelPrice = enabledParcelProviders.length
@@ -669,46 +666,28 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
     event.preventDefault()
     if (isPaying) return
     const data = new FormData(event.currentTarget)
-    const id = `PR-${String(Date.now()).slice(-5)}`
     const deliveryLabel = delivery === 'parcel' ? parcelQuery : delivery === 'courier' ? [courierAddress, courierCity, courierPostalCode].filter(Boolean).join(', ') : 'Tulen ise järele'
-    if (paymentProvider === 'stripe') {
-      if (!storeId) { setPaymentError('Päris makse jaoks peab pood olema serverisse salvestatud.'); return }
-      setIsPaying(true)
-      setPaymentError('')
-      try {
-        const url = await startStripeStoreCheckout({
-          storeId,
-          checkoutRequestId: checkoutRequestIdRef.current,
-          items: items.map((item) => ({ id: item.id, quantity: item.quantity, selectedOptions: item.selectedOptions })),
-          customer: { name: String(data.get('customerName')), email: String(data.get('customerEmail')), phone: String(data.get('customerPhone')) },
-          delivery: { type: delivery, provider: selectedParcelMachine?.provider, label: deliveryLabel },
-        })
-        window.location.assign(url)
-      } catch (error) {
-        setPaymentError(error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.')
-        checkoutRequestIdRef.current = createCheckoutRequestId()
-        setIsPaying(false)
-      }
+    if (paymentProvider !== 'stripe') {
+      setPaymentError('See makseviis ei ole praegu saadaval.')
       return
     }
-    const order: DemoOrder = {
-      id,
-      items: [...items],
-      customerName: String(data.get('customerName')),
-      customerEmail: String(data.get('customerEmail')),
-      delivery: deliveryLabel,
-      productSubtotal: itemTotal,
-      total: orderTotal,
-      createdAt: new Date().toISOString(),
-      status: 'new',
-    }
+    if (!storeId) { setPaymentError('Päris makse jaoks peab pood olema serverisse salvestatud.'); return }
     setIsPaying(true)
-    window.setTimeout(() => {
-      onComplete(order)
-      setCompletedOrder({ id, total: orderTotal })
+    setPaymentError('')
+    try {
+      const url = await startStripeStoreCheckout({
+        storeId,
+        checkoutRequestId: checkoutRequestIdRef.current,
+        items: items.map((item) => ({ id: item.id, quantity: item.quantity, selectedOptions: item.selectedOptions })),
+        customer: { name: String(data.get('customerName')), email: String(data.get('customerEmail')), phone: String(data.get('customerPhone')) },
+        delivery: { type: delivery, provider: selectedParcelMachine?.provider, label: deliveryLabel },
+      })
+      window.location.assign(url)
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.')
+      checkoutRequestIdRef.current = createCheckoutRequestId()
       setIsPaying(false)
-      setStep('success')
-    }, 850)
+    }
   }
 
   return (
@@ -717,15 +696,8 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
         <button className="checkout__close" onClick={onClose} aria-label="Sulge">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
         </button>
-        {step !== 'success' && <h2>{step === 'cart' ? 'Ostukorv' : 'Vormista tellimus'}</h2>}
-        {step === 'success' && completedOrder ? <div className="checkout-success">
-          <div>✓</div>
-          <span>AITÄH!</span>
-          <h3>Sinu tellimus on kinnitatud</h3>
-          <p>Tellimuse kinnitus saadeti sinu e-postile.</p>
-          <dl><div><dt>Tellimuse number</dt><dd>{completedOrder.id}</dd></div><div><dt>Kokku</dt><dd>{completedOrder.total.toFixed(2).replace('.', ',')} €</dd></div></dl>
-          <button className="pay" type="button" onClick={onClose}>Tagasi poodi</button>
-        </div> : items.length === 0 ? <p className="cart-empty">Ostukorv on tühi.</p> : <>
+        <h2>{step === 'cart' ? 'Ostukorv' : 'Vormista tellimus'}</h2>
+        {items.length === 0 ? <p className="cart-empty">Ostukorv on tühi.</p> : <>
           {step === 'cart' ? <>
             <div className="cart-items">
               {items.map((item) => (
@@ -828,41 +800,12 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
                 <small>Vali täpne aadress soovituste seast · {deliverySettings.courierPrice.toFixed(2).replace('.', ',')} €</small>
               </div> : <div className="pickup-note"><strong>{deliverySettings.pickupAddress || 'Järeletulemise aadress täpsustamisel'}</strong><span>Järeletulemise aeg lepitakse kokku pärast tellimust.</span></div>}
             </fieldset>
-            {!paymentsReady ? <div className="payment-pending"><span>…</span><div><strong>Maksed aktiveerimisel</strong><small>Montonio kontrollib poe andmeid. Ostjad saavad maksta pärast konto kinnitamist.</small></div></div> : paymentProvider === 'stripe' ? <fieldset className="payment stripe-payment">
+            {!paymentsReady || paymentProvider !== 'stripe' ? <div className="payment-pending"><span>…</span><div><strong>Maksed pole veel aktiivsed</strong><small>Poe omanik peab enne ostude vastuvõtmist Stripe’i ühendama.</small></div></div> : <fieldset className="payment stripe-payment">
               <legend>Makseviis</legend>
               <div className="stripe-payment__card">
                 <div className="stripe-secure"><span>⌁</span><strong>Turvaline makse Stripe’is</strong><small>Kaart · Apple Pay · Google Pay</small></div>
                 <small>Pärast tellimuse kinnitamist avaneb Stripe’i turvaline makseleht. Poeruum ei näe ega salvesta sinu kaardiandmeid.</small>
               </div>
-            </fieldset> : <fieldset className="payment">
-              <legend>Makseviis</legend>
-              <div className="payment-tabs">
-                <button type="button" className={paymentMethod === 'bank' ? 'is-selected' : ''} onClick={() => setPaymentMethod('bank')}>Pangalink</button>
-                <button type="button" className={paymentMethod === 'card' ? 'is-selected' : ''} onClick={() => setPaymentMethod('card')}>Kaart</button>
-              </div>
-              {paymentMethod === 'bank' ? (
-                <div className="bank-grid">
-                  {[
-                    ['swedbank', 'Swedbank'],
-                    ['seb', 'SEB'],
-                    ['lhv', 'LHV'],
-                    ['luminor', 'Luminor'],
-                    ['coop', 'Coop Pank'],
-                  ].map(([id, label]) => (
-                    <button type="button" key={id} className={bank === id ? 'is-selected' : ''} onClick={() => setBank(id)} aria-label={label}>
-                      <img src={`/images/banks/${id}.svg`} alt={label} />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="card-fields">
-                  <label>Kaardi number<input required inputMode="numeric" autoComplete="cc-number" placeholder="1234 5678 9012 3456" /></label>
-                  <div>
-                    <label>Kehtiv kuni<input required inputMode="numeric" autoComplete="cc-exp" placeholder="KK/AA" /></label>
-                    <label>CVC<input required inputMode="numeric" autoComplete="cc-csc" placeholder="123" /></label>
-                  </div>
-                </div>
-              )}
             </fieldset>}
             <div className="checkout-summary">
               {items.map((item) => (
@@ -877,7 +820,7 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
               <small>Hinnad sisaldavad käibemaksu.</small>
             </div>
             {paymentError && <p className="add-product-error" role="alert">{paymentError}</p>}
-            <button className="pay" type="submit" disabled={isPaying || !paymentsReady}>{!paymentsReady ? 'Maksed aktiveerimisel' : isPaying ? 'Töötlen makset…' : paymentProvider === 'stripe' ? `Maksa ${orderTotal.toFixed(2).replace('.', ',')} €` : 'Maksa'}</button>
+            <button className="pay" type="submit" disabled={isPaying || !paymentsReady || paymentProvider !== 'stripe'}>{!paymentsReady || paymentProvider !== 'stripe' ? 'Maksed pole aktiivsed' : isPaying ? 'Töötlen makset…' : `Maksa ${orderTotal.toFixed(2).replace('.', ',')} €`}</button>
             <button className="checkout-back" type="button" onClick={() => setStep('cart')}>Tagasi ostukorvi</button>
           </form>}
         </>}
@@ -909,7 +852,7 @@ export type StorefrontProps = {
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'montonio', paymentsReady = true, initialShipping, merchantMode = false, adminDemoMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminDemoMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isPublicDemo = Boolean(onExit && !merchantMode)
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminDemoMode))
   const trackRef = useRef<HTMLDivElement>(null)
@@ -1071,7 +1014,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [isAddProductSlugCustom, setIsAddProductSlugCustom] = useState(false)
   const [isAddProductSearchVisible, setIsAddProductSearchVisible] = useState(true)
   const [addProductError, setAddProductError] = useState('')
-  const [isAddAiGenerating, setIsAddAiGenerating] = useState(false)
   const [isProductDropActive, setIsProductDropActive] = useState(false)
   const addProductSubmitLockRef = useRef(false)
   const productDropDepthRef = useRef(0)
@@ -1641,7 +1583,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setIsAddProductSlugCustom(false)
     setIsAddProductSearchVisible(true)
     setAddProductError('')
-    setIsAddAiGenerating(false)
   }
 
   const chooseAddProductImages = async (files: FileList | null) => {
@@ -3009,10 +2950,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         const otherQuantity = items.filter((item) => item.id === target.id && item.cartKey !== cartKey).reduce((sum, item) => sum + item.quantity, 0)
         const allowedQuantity = Math.max(1, Math.min(quantity, getProductStockLimit(target) - otherQuantity))
         return items.map((item) => item.cartKey === cartKey ? { ...item, quantity: allowedQuantity } : item)
-      })} onComplete={(order) => {
-        setOrders((current) => [order, ...current]); setCart([])
-        if (storeId) createOrder(storeId, order).catch((error) => setAuthToast(error instanceof Error ? error.message : 'Tellimuse salvestamine ebaõnnestus'))
-      }} onClose={() => setIsCartOpen(false)} />}
+      })} onClose={() => setIsCartOpen(false)} />}
       {isOrdersOpen && <div className="overlay login-overlay orders-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsOrdersOpen(false)}>
         <section className="login-sheet orders-sheet" role="dialog" aria-modal="true" aria-label="Tellimused">
           <button className="login-sheet__close" onClick={() => setIsOrdersOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
@@ -3228,17 +3166,16 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <div className="settings-provider-list">
               {([
                 ['stripe', 'Stripe', 'Kliendid saavad maksta kaardi, Apple Pay või Google Payga. Raha liigub sinu kontole.', 'Ühenda, et võtta vastu kaardi- ja nutimakseid.'],
-                ['montonio', 'Montonio', 'Kliendid saavad maksta Eesti pangalingi või kaardiga. Raha liigub sinu kontole.', 'Ühenda, et kliendid saaksid maksta Eesti pangalingi või kaardiga.'],
               ] as Array<[PaymentProvider, string, string, string]>).map(([id, name, connectedDetail, disconnectedDetail]) => {
                 const isCurrentProvider = activePaymentProvider === id
                 return <button type="button" disabled={isCurrentProvider} aria-pressed={isCurrentProvider} className={isCurrentProvider ? `is-active${paymentsReady ? '' : ' is-pending'}` : ''} onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider(id) : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')} key={id}>
-                <span className={`settings-provider-logo is-${id}`}>{id === 'stripe' ? 'S' : 'M'}</span>
+                <span className="settings-provider-logo is-stripe">S</span>
                 <span><strong>{name}</strong><small>{isCurrentProvider ? paymentsReady ? connectedDetail : 'Teenusepakkuja kontrollib sinu andmeid. Makseid saab vastu võtta pärast kinnitamist.' : disconnectedDetail}</small></span>
                 <i className="settings-provider-status">{isCurrentProvider ? paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
               </button>})}
             </div>
-            {paymentsReady && <button className="settings-secondary-action" type="button" onClick={() => setAuthToast(`${activePaymentProvider === 'stripe' ? 'Stripe’i töölaud' : 'Montonio partnerportaal'} avaneb päris ühenduses`)}>
-              <span>{activePaymentProvider === 'stripe' ? 'Ava Stripe’i töölaud' : 'Ava Montonio partnerportaal'}</span>
+            {paymentsReady && activePaymentProvider === 'stripe' && <button className="settings-secondary-action" type="button" onClick={() => setAuthToast('Stripe’i töölaud avaneb päris ühenduses')}>
+              <span>Ava Stripe’i töölaud</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
             </button>}
           </div>}
@@ -3324,7 +3261,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : 'Pärast 39 € müüd tasuta'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Pärast prooviperioodi on kuutasu 29 € + km.' : 'Poeruumi kuutasu on 29 € + km.' : 'Kuu hinnalagi kaitseb sinu kasvu.'}</small></p></div>
             </div>
             <div className="settings-fields billing-fields"><label>Arvete e-post<input type="email" value={billingEmail} onChange={(event) => setBillingEmail(event.target.value)} placeholder={contactEmail || 'arved@minupood.ee'} /><small className="settings-field-note">Kuu kokkuvõte saadetakse järgmise kuu alguses.</small></label></div>
-            <div className="settings-info-note"><span>i</span><p>{activePaymentProvider === 'stripe' ? 'Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.' : 'Montonio makseteenuse tasud ei kuulu Poeruumi tasu sisse ja arvestatakse teenusepakkuja hinnakirja järgi.'}</p></div>
+            <div className="settings-info-note"><span>i</span><p>Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.</p></div>
           </div>}
           {settingsSection === 'account' && <div className="settings-panel account-panel" role="tabpanel">
             <header><span>KONTO</span><p>Halda oma Poeruumi kontot ja sisselogimist.</p></header>
@@ -3537,13 +3474,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <form className="product-editor-form product-editor-form--add" noValidate onSubmit={(event) => { event.preventDefault(); saveNewProduct() }}>
               <div className="product-editor-form__scroll">
               <label>Nimi<input name="name" value={addProductName} onChange={(event) => { const value = event.target.value; setAddProductName(value); if (!isAddProductSlugCustom) setAddProductSlug(createUrlSlug(value)); setAddProductError('') }} /></label>
-              <label className="ai-description-field"><span>Kirjeldus <small>valikuline</small><button type="button" disabled={isAddAiGenerating} onClick={() => {
-                setIsAddAiGenerating(true)
-                window.setTimeout(() => {
-                  setAddProductDescription(`${addProductName || 'See eriline toode'} on hoolega valitud ja loodud tooma sinu igapäeva veidi rohkem isikupära. Iga detail on läbimõeldud ning kordumatu.`)
-                  setIsAddAiGenerating(false)
-                }, 700)
-              }}>{isAddAiGenerating ? '✦ AI kirjutab…' : '✦ Loo AI-ga'}</button></span><textarea name="description" value={addProductDescription} onChange={(event) => setAddProductDescription(event.target.value)} placeholder="Kirjuta ise või lase AI-l aidata…" /></label>
+              <label className="ai-description-field"><span>Kirjeldus <small>valikuline</small></span><textarea name="description" value={addProductDescription} onChange={(event) => setAddProductDescription(event.target.value)} placeholder="Kirjelda toodet, materjale ja omadusi…" /></label>
               <label>Hind<input name="price" type="number" inputMode="decimal" min="0" step="0.01" value={addProductPrice} onChange={(event) => { setAddProductPrice(event.target.value); setAddProductError('') }} /></label>
               <label>Soodushind<input name="salePrice" type="number" inputMode="decimal" min="0" step="0.01" value={addProductSalePrice} onChange={(event) => setAddProductSalePrice(event.target.value)} placeholder="Valikuline" /></label>
               <details className="product-seo">

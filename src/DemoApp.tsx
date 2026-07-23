@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadConnectAndInitialize } from '@stripe/connect-js'
 import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
-import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PaymentProvider, type PricingPlan } from './App'
+import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PricingPlan } from './App'
 import { createStore, getDemoStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
@@ -300,65 +300,6 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
   </section>
 }
 
-function MontonioConnectDemo({ storeName, businessName, registryCode, onClose, onComplete }: { storeName: string; businessName: string; registryCode: string; onClose: () => void; onComplete: (status: 'connected' | 'pending') => void }) {
-  const [step, setStep] = useState<'choice' | 'existing' | 'apply' | 'success'>('choice')
-  const [connectionType, setConnectionType] = useState<'live' | 'sandbox'>('live')
-  const [isConnecting, setIsConnecting] = useState(false)
-
-  const connect = (type: 'live' | 'sandbox') => {
-    setConnectionType(type)
-    setIsConnecting(true)
-    window.setTimeout(() => {
-      setIsConnecting(false)
-      setStep('success')
-    }, 900)
-  }
-
-  return <div className="stripe-connect-overlay montonio-connect-overlay" role="dialog" aria-modal="true" aria-label="Montonio ühendamise demo">
-    <section className="stripe-connect montonio-connect">
-      <header><div className="stripe-connect__brand montonio-connect__brand"><span>M</span><strong>Montonio</strong><small>Partner System</small></div><button type="button" onClick={onClose} aria-label="Sulge Montonio ühendamine">×</button></header>
-
-      {step === 'choice' && <div className="montonio-connect__content">
-        <span className="stripe-connect__eyebrow">ÜHENDA MAKSED</span><h2>Alusta Montonioga</h2><p>Ühenda olemasolev kaupmehekonto või esita uue ettevõtte taotlus.</p>
-        <div className="montonio-connect__choices">
-          <button type="button" onClick={() => setStep('existing')}><span>→</span><div><strong>Mul on Montonio konto</strong><small>Vali Partnersüsteemist pood ja ühenda see Poeruumiga.</small></div></button>
-          <button type="button" onClick={() => setStep('apply')}><span>＋</span><div><strong>Loo uus kaupmehekonto</strong><small>Lisa ettevõte, pood ja vajalikud kontrollandmed.</small></div></button>
-        </div>
-        <div className="stripe-connect__secure"><span>⌁</span><small>Päris ühenduses toimub sisselogimine ja isikutuvastus Montonio Partnersüsteemis.</small></div>
-      </div>}
-
-      {step === 'existing' && <form className="stripe-connect__form" onSubmit={(event) => { event.preventDefault(); connect('live') }}>
-        <button className="montonio-connect__back" type="button" onClick={() => setStep('choice')}>← Tagasi</button>
-        <span className="stripe-connect__eyebrow">OLEMASOLEV KONTO</span><h2>Vali ühendatav pood</h2><p>Demo eeldab, et oled Montonio Partnersüsteemi turvaliselt sisse loginud.</p>
-        <label>Ettevõte<select defaultValue="seller"><option value="seller">{businessName} · {registryCode}</option></select></label>
-        <label>Pood<select defaultValue="store"><option value="store">{storeName || 'Minu pood'} · Live</option><option value="sandbox">{storeName || 'Minu pood'} testpood · Sandbox</option></select></label>
-        <div className="montonio-connect__permissions"><strong>Poeruum saab ligipääsu</strong><span>✓ Pangamaksete loomine</span><span>✓ Makse staatuste ja tagastuste haldamine</span><span>✓ Aktiivsete makseviiside sünkroonimine</span></div>
-        <button className="stripe-connect__next montonio-connect__next" type="submit" disabled={isConnecting}>{isConnecting ? 'Ühendan…' : 'Ühenda pood'} <span>{isConnecting ? '◌' : '→'}</span></button>
-      </form>}
-
-      {step === 'apply' && <form className="stripe-connect__form" onSubmit={(event) => { event.preventDefault(); connect('sandbox') }}>
-        <button className="montonio-connect__back" type="button" onClick={() => setStep('choice')}>← Tagasi</button>
-        <span className="stripe-connect__eyebrow">UUS TAOTLUS</span><h2>Ettevõte ja veebipood</h2><p>See on lühendatud demo. Päriselt lisanduvad esindajate, tegelike kasusaajate, tingimuste ja isikutuvastuse sammud.</p>
-        <div className="stripe-connect__prefill"><div><small>Ettevõte</small><strong>{businessName}</strong></div><div><small>Registrikood</small><strong>{registryCode}</strong></div><div><small>Riik</small><strong>Eesti</strong></div></div>
-        <label>Ettevõtte esindaja nimi<input required placeholder="Ees- ja perekonnanimi" autoComplete="name" /></label>
-        <label>Poe nimi<input required defaultValue={storeName || 'Minu pood'} /></label>
-        <label>Poe aadress<input required defaultValue={`${(storeName || 'minu-pood').toLocaleLowerCase('et').replace(/[^a-z0-9]+/g, '-')}.poeruum.ee`} /></label>
-        <div className="montonio-connect__review"><span>Taotluse kontroll</span><strong>tavaliselt 1–2 tööpäeva</strong><small>Sandbox-maksed saad Poeruumis kohe läbi proovida.</small></div>
-        <button className="stripe-connect__next montonio-connect__next" type="submit" disabled={isConnecting}>{isConnecting ? 'Saadan taotlust…' : 'Esita demo-taotlus'} <span>{isConnecting ? '◌' : '→'}</span></button>
-      </form>}
-
-      {step === 'success' && <div className="stripe-connect__success">
-        <div className="stripe-connect__check montonio-connect__check">✓</div><span className="stripe-connect__eyebrow">{connectionType === 'live' ? 'POOD ÜHENDATUD' : 'TAOTLUS ESITATUD'}</span>
-        <h2>{connectionType === 'live' ? 'Montonio maksed on aktiivsed' : 'Montonio kontrollib sinu andmeid'}</h2>
-        <p>{connectionType === 'live' ? 'Poeruum sünkroonis sinu poe aktiivsed pangamaksed ja makseviisid.' : 'Taotlus ootab Montonio kontrolli. Seni saad teha testmakseid, kuid päris raha ei liigu.'}</p>
-        <div className="stripe-connect__account montonio-connect__account"><span>M</span><div><strong>{storeName || 'Minu pood'}</strong><small>{connectionType === 'live' ? 'Pangamaksed ja kaardid' : 'Testkeskkond avatud'}</small></div><b>{connectionType === 'live' ? 'LIVE' : 'KONTROLLIMISEL'}</b></div>
-        <button className="stripe-connect__next montonio-connect__next" type="button" onClick={() => onComplete(connectionType === 'live' ? 'connected' : 'pending')}>Tagasi Poeruumi</button>
-      </div>}
-      <footer><span>🔒 Montonio turvaline ühendus</span><small>Interaktiivne demo · andmeid ei saadeta</small></footer>
-    </section>
-  </div>
-}
-
 export default function DemoApp() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [email, setEmail] = useState('')
@@ -366,13 +307,12 @@ export default function DemoApp() {
   const onlinePresenceSessionIdRef = useRef(crypto.randomUUID())
   const [storeName, setStoreName] = useState('')
   const [slug, setSlug] = useState('')
-  const [payment, setPayment] = useState<'stripe' | 'montonio'>('stripe')
+  const [payment, setPayment] = useState<'stripe'>('stripe')
   const [pricingPlan, setPricingPlan] = useState<PricingPlan>('flexible')
   const [fixedPlanTrialStartedAt, setFixedPlanTrialStartedAt] = useState<string | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'connected' | 'pending'>('idle')
   const [isStripeConnecting, setIsStripeConnecting] = useState(false)
   const [isStripeOnboardingOpen, setIsStripeOnboardingOpen] = useState(false)
-  const [isMontonioConnectOpen, setIsMontonioConnectOpen] = useState(false)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const mobileNavRef = useRef<HTMLDivElement>(null)
   const [shipping, setShipping] = useState<string[]>(['omniva', 'pickup'])
@@ -596,8 +536,8 @@ export default function DemoApp() {
     setStore(nextStore)
     setStoreName(nextStore.name)
     setSlug(nextStore.slug)
-    setPayment(nextStore.payment_provider)
-    setPaymentStatus(nextStore.payment_status)
+    setPayment('stripe')
+    setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle')
     setPricingPlan(nextStore.pricing_plan)
     setFixedPlanTrialStartedAt(nextStore.trial_started_at)
     setShipping(nextStore.shipping)
@@ -871,21 +811,6 @@ export default function DemoApp() {
     return saved
   }
 
-  const completePaymentConnection = async (provider: PaymentProvider, status: 'connected' | 'pending', nextStep?: OnboardingStep) => {
-    setPayment(provider)
-    setPaymentStatus(status)
-    try {
-      if (store) {
-        const settings = nextStep
-          ? { ...(store.settings as Record<string, unknown>), onboardingStep: nextStep }
-          : store.settings
-        setStore(await updateStore(store.id, { payment_provider: provider, payment_status: status, settings }))
-      }
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Makseühenduse salvestamine ebaõnnestus.')
-    }
-  }
-
   const startStripeConnect = async () => {
     setIsStripeConnecting(true)
     setAuthError('')
@@ -1028,7 +953,6 @@ export default function DemoApp() {
     setPaymentStatus('idle')
     setIsStripeConnecting(false)
     setIsStripeOnboardingOpen(false)
-    setIsMontonioConnectOpen(false)
     setIsBillingCardOpen(false)
     setShipping(['omniva', 'pickup'])
     setBusinessName('')
@@ -1100,8 +1024,7 @@ export default function DemoApp() {
   />
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(provider: PaymentProvider) => provider === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment(nextStore.payment_provider); setPaymentStatus(nextStore.payment_status); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetDemo} />
-    {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} businessName={businessName} registryCode={registryCode} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { completePaymentConnection('montonio', status); setIsMontonioConnectOpen(false) }} />}
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetDemo} />
   </>
 
   if (screen === 'landing') return <main className="demo-landing">
@@ -1211,7 +1134,7 @@ export default function DemoApp() {
       <div className="demo-faq__list">
         <details open><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Paindlik pakett maksab 0 € kuus ja 4% toodete müügilt, maksimaalselt 39 € kuus + km. Kindel pakett on esimesed 30 päeva tasuta, seejärel 29 € kuus + km ning Poeruumi müügitasu on 0%.</p></details>
         <details><summary>Kas saan kogu poe telefonis valmis teha?<span>+</span></summary><p>Jah. Telefonis saad pildistada tooted, lisada hinnad ja kirjeldused, kujundada poe, ühendada maksed ja tarne ning poe avaldada.</p></details>
-        <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Saad ühendada Stripe’i või Montonio. Nii saad pakkuda pangalinke, kaardimakseid ning teenusepakkujast sõltuvalt Apple Pay ja Google Pay makseid.</p></details>
+        <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Stripe’i kaudu saavad kliendid maksta kaardiga ning toetatud seadmetes Apple Pay või Google Payga.</p></details>
         <details><summary>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Toetatud on Omniva, DPD ja SmartPosti pakiautomaadid, kuller ning ise järele tulemine. Tarneviisid ja hinnad valid ise.</p></details>
         <details><summary>Kas saan kasutada oma domeeni ja kujundust?<span>+</span></summary><p>Jah. Võid kasutada Poeruumi aadressi või ühendada oma domeeni. Poe välimuse jaoks saad valida kujunduse, aktsentvärvi, logo ja ostunupu suuruse.</p></details>
         <details><summary>Kas saan paketti vahetada?<span>+</span></summary><p>Jah. Paketti saad hiljem mugavalt vahetada. Paindliku paketiga ei ole müügita kuul Poeruumi tasu.</p></details>
@@ -1324,8 +1247,8 @@ export default function DemoApp() {
   </main>
 
   const onBack = () => setScreen(backMap[screen] ?? 'landing')
-  const paymentNeedsAction = paymentStatus === 'idle' || (payment === 'stripe' && paymentStatus === 'pending')
-  const paymentCanContinue = paymentStatus === 'connected' || (payment === 'montonio' && paymentStatus === 'pending')
+  const paymentNeedsAction = paymentStatus === 'idle' || paymentStatus === 'pending'
+  const paymentCanContinue = paymentStatus === 'connected'
 
   return <SetupShell screen={screen} onBack={onBack}>
     {returnNotice}
@@ -1361,20 +1284,16 @@ export default function DemoApp() {
         }}>
           <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe <em>Kõige kiirem</em></strong><small>Kaardid, Apple Pay ja Google Pay</small></span><b>{payment === 'stripe' ? '✓' : ''}</b>
         </button>
-        <button className={payment === 'montonio' ? 'is-selected' : ''} onClick={() => { setPayment('montonio'); setPaymentStatus('idle'); setIsStripeOnboardingOpen(false) }}>
-          <i className="provider-logo provider-logo--montonio"><img src="/images/montonio-wordmark.svg" alt="" /></i><span><strong>Montonio</strong><small>Pangalingid, kaardid ja maksa hiljem</small></span><b>{payment === 'montonio' ? '✓' : ''}</b>
-        </button>
       </div></>}
-      {payment === 'stripe' && isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
+      {isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
         onExit={finishStripeEmbeddedOnboarding}
         onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
-      /> : <>{paymentNeedsAction ? <button className={`payment-setup-action is-${payment}`} disabled={isStripeConnecting && payment === 'stripe'} onClick={() => payment === 'stripe' ? void startStripeConnect() : setIsMontonioConnectOpen(true)}>
-        <strong>{isStripeConnecting && payment === 'stripe' ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : `Seadista ${payment === 'stripe' ? 'Stripe' : 'Montonio'}`}</strong><span>→</span>
-      </button> : <div className={`connected-provider${paymentStatus === 'pending' ? ' is-pending' : ''}`}><span>{paymentStatus === 'pending' ? '…' : '✓'}</span><div><strong>{paymentStatus === 'pending' ? 'Montonio taotlus on kontrollimisel' : 'Maksed on valmis'}</strong></div></div>}</>}
+      /> : <>{paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect()}>
+        <strong>{isStripeConnecting ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : 'Seadista Stripe'}</strong><span>→</span>
+      </button> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
       {!isStripeOnboardingOpen && paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore(false, {}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
-      {isMontonioConnectOpen && <MontonioConnectDemo storeName={storeName} businessName={businessName} registryCode={registryCode} onClose={() => setIsMontonioConnectOpen(false)} onComplete={(status) => { void completePaymentConnection('montonio', status, 'shipping'); setIsMontonioConnectOpen(false) }} />}
     </div>}
 
     {screen === 'shipping' && <div className="setup-form"><span className="setup-kicker">Kauba kättesaamine</span><h1>Vali tarneviisid</h1>
@@ -1459,7 +1378,7 @@ export default function DemoApp() {
           <button type="button" onClick={() => setScreen('store')} aria-label="Muuda poe nime ja aadressi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.5-10.5a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" /><path d="m14.5 6.7 2.8 2.8" /></svg></button>
         </div>
         <div className={`publish-payment-status${paymentStatus === 'pending' ? ' is-pending' : ''}`}>
-          <i className={`provider-logo provider-logo--${payment}`}><img src={payment === 'stripe' ? '/images/stripe-wordmark.svg' : '/images/montonio-wordmark.svg'} alt={payment === 'stripe' ? 'Stripe' : 'Montonio'} /></i>
+          <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="Stripe" /></i>
           <strong>{paymentStatus === 'pending' ? 'Kontrollimisel' : 'Maksed aktiivsed'}</strong>
           <button type="button" onClick={() => setScreen('payments')} aria-label="Muuda makseteenust"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.5-10.5a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" /><path d="m14.5 6.7 2.8 2.8" /></svg></button>
         </div>
