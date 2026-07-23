@@ -7,6 +7,7 @@ config({ path: '.env', quiet: true })
 
 const outputDirectory = path.resolve('dist')
 const platformOrigin = 'https://poeruum.ee'
+const excludedStoreSlugs = new Set(['test'])
 const supabaseUrl = process.env.VITE_SUPABASE_URL?.trim()?.replace(/\/$/, '')
 const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
 
@@ -142,7 +143,16 @@ await writePage('admin', renderPage({
   noIndex: true,
 }))
 
-for (const store of catalog) {
+for (const excludedSlug of excludedStoreSlugs) {
+  await writePage(`p/${excludedSlug}`, renderPage({
+    title: 'Lehte ei leitud — Poeruum',
+    description: 'Seda e-poodi ei ole avalikult saadaval.',
+    canonicalUrl: `${platformOrigin}/p/${excludedSlug}/`,
+    noIndex: true,
+  }))
+}
+
+for (const store of catalog.filter((entry) => !excludedStoreSlugs.has(String(entry.store_slug).toLowerCase()))) {
   const storeSlug = String(store.store_slug)
   const storeName = String(store.store_name)
   const storeUrl = `${platformOrigin}/p/${encodeURIComponent(storeSlug)}/`

@@ -5,6 +5,7 @@ import AdminApp from './AdminApp'
 import ComingSoon from './ComingSoon'
 import LegalPage, { type LegalDocument } from './LegalPage'
 import SupportCenter from './SupportCenter'
+import { applySeoMetadata } from './lib/seo'
 import { getStoreSlugFromHostname } from './lib/storefrontUrl'
 import './styles.css'
 import './brand.css'
@@ -12,6 +13,17 @@ import './demo.css'
 import './admin.css'
 
 const hasAppReturnState = ['billing', 'checkout'].some((key) => new URLSearchParams(window.location.search).has(key))
+const isDeindexedTestStorePath = /^\/p\/test(?:\/|$)/i.test(window.location.pathname)
+
+if (isDeindexedTestStorePath) {
+  applySeoMetadata({
+    title: 'Lehte ei leitud — Poeruum',
+    description: 'Seda e-poodi ei ole avalikult saadaval.',
+    canonicalUrl: `https://poeruum.ee${window.location.pathname}`,
+    noIndex: true,
+  })
+}
+
 const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostname)
   && window.location.pathname === '/' && !hasAppReturnState
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null

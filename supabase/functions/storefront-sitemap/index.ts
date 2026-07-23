@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const platformOrigin = 'https://poeruum.ee'
+const excludedStoreSlugs = new Set(['test'])
 
 const requiredEnv = (name: string) => {
   const value = Deno.env.get(name)?.trim()
@@ -48,6 +49,7 @@ Sitemap: ${platformOrigin}/sitemap-live.txt
 
     for (const store of catalog) {
       const storeSlug = String(store.store_slug)
+      if (excludedStoreSlugs.has(storeSlug.toLowerCase())) continue
       const storeUrl = `${platformOrigin}/p/${encodeURIComponent(storeSlug)}/`
       urls.push(storeUrl)
       for (const product of Array.isArray(store.products) ? store.products : []) {
