@@ -25,6 +25,9 @@ verify_jwt = true
 [functions.stripe-billing-cancel]
 verify_jwt = true
 
+[functions.custom-domain]
+verify_jwt = true
+
 [functions.support-actions]
 verify_jwt = true
 

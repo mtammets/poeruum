@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
-import { cancelStripeBilling, createOrder, listOrders, listProducts, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type ImageUploadPhase, type StoreRecord } from './lib/database'
+import { cancelStripeBilling, createOrder, listOrders, listProducts, manageCustomDomain, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 
 const getProductPrice = (product: Product) =>
@@ -300,9 +300,7 @@ type EditImageUpload = {
 }
 export type PaymentProvider = 'stripe' | 'montonio'
 type SettingsSection = 'store' | 'appearance' | 'payments' | 'delivery' | 'business' | 'links' | 'notifications' | 'billing' | 'account'
-type CustomDomainStatus = 'idle' | 'automatic' | 'dns' | 'verifying' | 'connected'
-type CustomDomainMode = 'choice' | 'buy' | 'connect'
-type DomainPurchaseStep = 'search' | 'checkout' | 'registering'
+type CustomDomainStatus = 'idle' | CustomDomainRecord['status']
 const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string }> = [
   { id: 'store', label: 'Pood', description: 'Põhiandmed ja nähtavus' },
   { id: 'appearance', label: 'Kujundus', description: 'Logo, värvid ja stiil' },
@@ -999,15 +997,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [customerConfirmations, setCustomerConfirmations] = useState(true)
   const [customDomain, setCustomDomain] = useState('')
   const [customDomainStatus, setCustomDomainStatus] = useState<CustomDomainStatus>('idle')
-  const [customDomainMode, setCustomDomainMode] = useState<CustomDomainMode>('choice')
+  const [customDomainRecord, setCustomDomainRecord] = useState<CustomDomainRecord | null>(null)
   const [customDomainError, setCustomDomainError] = useState('')
-  const [domainPurchaseStep, setDomainPurchaseStep] = useState<DomainPurchaseStep>('search')
-  const [domainSearchTerm, setDomainSearchTerm] = useState('')
-  const [domainSearchBase, setDomainSearchBase] = useState('')
-  const [selectedDomainPrice, setSelectedDomainPrice] = useState('14,90 €')
-  const [domainAutoRenew, setDomainAutoRenew] = useState(true)
-  const [domainTermsAccepted, setDomainTermsAccepted] = useState(false)
-  const domainVerificationTimerRef = useRef<number | null>(null)
+  const [isCustomDomainBusy, setIsCustomDomainBusy] = useState(false)
   const [autoSwipeEnabled, setAutoSwipeEnabled] = useState(() => localStorage.getItem('autoSwipeEnabled') !== 'false')
   const [autoSwipeDelay, setAutoSwipeDelay] = useState(() => Number(localStorage.getItem('autoSwipeDelay')) || 30)
   const [autoSwipeSpeed, setAutoSwipeSpeed] = useState(() => Number(localStorage.getItem('autoSwipeSpeed')) || 10)
@@ -1100,7 +1092,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeTagline, storeDescription, storeAboutImage,
     isStoreVisible, contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, returnsText, orderNotificationEmail,
-    billingEmail, billingPlan, sellerNotifications, customerConfirmations, customDomain, customDomainStatus, customDomainMode, selectedDomainPrice, domainAutoRenew,
+    billingEmail, billingPlan, sellerNotifications, customerConfirmations,
     autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed,
   })
   const hasUnsavedSettings = isSettingsOpen && Boolean(savedSettingsSnapshotRef.current) && savedSettingsSnapshotRef.current !== settingsSnapshot
@@ -1142,15 +1134,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (value.billingPlan) setBillingPlan(value.billingPlan)
     if (typeof value.sellerNotifications === 'boolean') setSellerNotifications(value.sellerNotifications)
     if (typeof value.customerConfirmations === 'boolean') setCustomerConfirmations(value.customerConfirmations)
-    if (value.customDomain != null) setCustomDomain(value.customDomain)
-    if (['idle', 'automatic', 'dns', 'verifying', 'connected'].includes(value.customDomainStatus)) {
-      const restoredDomainStatus = value.customDomainStatus === 'verifying' ? 'dns' : value.customDomainStatus
-      setCustomDomainStatus(restoredDomainStatus)
-      if (!['choice', 'buy', 'connect'].includes(value.customDomainMode) && restoredDomainStatus !== 'idle') setCustomDomainMode('connect')
-    }
-    if (['choice', 'buy', 'connect'].includes(value.customDomainMode)) setCustomDomainMode(value.customDomainMode)
-    if (value.selectedDomainPrice != null) setSelectedDomainPrice(value.selectedDomainPrice)
-    if (typeof value.domainAutoRenew === 'boolean') setDomainAutoRenew(value.domainAutoRenew)
     if (typeof value.autoSwipeEnabled === 'boolean') setAutoSwipeEnabled(value.autoSwipeEnabled)
     if (value.autoSwipeDelay) setAutoSwipeDelay(value.autoSwipeDelay)
     if (value.autoSwipeSpeed) setAutoSwipeSpeed(value.autoSwipeSpeed)
@@ -1159,9 +1142,36 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   useEffect(() => setPersistedProducts(seedProducts), [seedProducts])
 
-  useEffect(() => () => {
-    if (domainVerificationTimerRef.current) window.clearTimeout(domainVerificationTimerRef.current)
-  }, [])
+  useEffect(() => {
+    if (!storeId || !merchantMode) return
+    let active = true
+    setIsCustomDomainBusy(true)
+    manageCustomDomain('status', storeId).then((domain) => {
+      if (!active) return
+      setCustomDomainRecord(domain)
+      setCustomDomain(domain?.hostname ?? '')
+      setCustomDomainStatus(domain?.status ?? 'idle')
+      setCustomDomainError(domain?.error ?? '')
+    }).catch((error) => {
+      if (active) setCustomDomainError(error instanceof Error ? error.message : 'Domeeni oleku laadimine ebaõnnestus.')
+    }).finally(() => {
+      if (active) setIsCustomDomainBusy(false)
+    })
+    return () => { active = false }
+  }, [storeId, merchantMode])
+
+  useEffect(() => {
+    if (!storeId || !customDomainRecord || !['pending_dns', 'verifying'].includes(customDomainStatus)) return
+    const interval = window.setInterval(() => {
+      manageCustomDomain('status', storeId).then((domain) => {
+        setCustomDomainRecord(domain)
+        setCustomDomain(domain?.hostname ?? '')
+        setCustomDomainStatus(domain?.status ?? 'idle')
+        if (domain?.error) setCustomDomainError(domain.error)
+      }).catch(() => undefined)
+    }, 15_000)
+    return () => window.clearInterval(interval)
+  }, [storeId, customDomainRecord?.id, customDomainStatus])
 
   useEffect(() => {
     if (!storeId) return
@@ -2381,9 +2391,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }
 
   const storePublicUrl = `${storeSlug || createUrlSlug(editableStoreName) || 'minu-pood'}.poeruum.ee`
-  const customDomainParts = customDomain.split('.').filter(Boolean)
-  const customDomainHost = customDomainParts.length > 2 ? customDomainParts.slice(0, -2).join('.') : '@'
-  const domainVerificationValue = `poeruum-verification=pr_${createUrlSlug(editableStoreName) || 'minu-pood'}`
   const copyStoreUrl = async () => {
     const url = `https://${storePublicUrl}`
     await copyTextToClipboard(url)
@@ -2395,7 +2402,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     .split('/')[0]
     .replace(/\.$/, '')
 
-  const startCustomDomainConnection = () => {
+  const applyCustomDomainRecord = (domain: CustomDomainRecord | null) => {
+    setCustomDomainRecord(domain)
+    setCustomDomain(domain?.hostname ?? '')
+    setCustomDomainStatus(domain?.status ?? 'idle')
+    setCustomDomainError(domain?.error ?? '')
+  }
+
+  const startCustomDomainConnection = async () => {
+    if (!storeId || isCustomDomainBusy) return
     const domain = normalizeCustomDomain(customDomain)
     if (!/^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)) {
       setCustomDomainError('Sisesta kehtiv domeen, näiteks www.sinupood.ee.')
@@ -2405,89 +2420,47 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       setCustomDomainError('Poeruumi aadress on sul juba olemas. Siia lisa enda domeen.')
       return
     }
-    setCustomDomain(domain)
+    setIsCustomDomainBusy(true)
     setCustomDomainError('')
-    setCustomDomainStatus('automatic')
+    try {
+      applyCustomDomainRecord(await manageCustomDomain('create', storeId, domain))
+    } catch (error) {
+      setCustomDomainError(error instanceof Error ? error.message : 'Domeeni lisamine ebaõnnestus.')
+    } finally {
+      setIsCustomDomainBusy(false)
+    }
   }
 
-  const verifyCustomDomain = () => {
-    if (domainVerificationTimerRef.current) window.clearTimeout(domainVerificationTimerRef.current)
-    setCustomDomainStatus('verifying')
-    domainVerificationTimerRef.current = window.setTimeout(() => {
-      setCustomDomainStatus('connected')
-      domainVerificationTimerRef.current = null
-    }, 1800)
+  const refreshCustomDomain = async (verify = false, silent = false) => {
+    if (!storeId || isCustomDomainBusy) return
+    if (!silent) setIsCustomDomainBusy(true)
+    setCustomDomainError('')
+    try {
+      if (verify) setCustomDomainStatus('verifying')
+      applyCustomDomainRecord(await manageCustomDomain(verify ? 'verify' : 'status', storeId))
+    } catch (error) {
+      if (!silent) setCustomDomainError(error instanceof Error ? error.message : 'Domeeni kontrollimine ebaõnnestus.')
+    } finally {
+      if (!silent) setIsCustomDomainBusy(false)
+    }
   }
 
-  const resetCustomDomain = (clearDomain = false) => {
-    if (domainVerificationTimerRef.current) window.clearTimeout(domainVerificationTimerRef.current)
-    domainVerificationTimerRef.current = null
-    setCustomDomainStatus('idle')
+  const removeCustomDomain = async () => {
+    if (!storeId || isCustomDomainBusy) return
+    setIsCustomDomainBusy(true)
     setCustomDomainError('')
-    if (clearDomain) {
-      setCustomDomain('')
-      setCustomDomainMode('choice')
-      setDomainPurchaseStep('search')
-      setDomainSearchBase('')
-      setDomainSearchTerm('')
+    try {
+      applyCustomDomainRecord(await manageCustomDomain('delete', storeId))
+    } catch (error) {
+      setCustomDomainError(error instanceof Error ? error.message : 'Domeeni eemaldamine ebaõnnestus.')
+    } finally {
+      setIsCustomDomainBusy(false)
     }
   }
 
   const copyDomainRecord = async (value: string) => {
     await copyTextToClipboard(value)
     setShowCopiedToast(true)
-  }
-
-  const openDomainMode = (mode: Exclude<CustomDomainMode, 'choice'>) => {
-    resetCustomDomain(false)
-    setCustomDomainMode(mode)
-    setCustomDomainError('')
-    if (mode === 'buy') {
-      setDomainPurchaseStep('search')
-      setDomainSearchTerm(createUrlSlug(editableStoreName))
-      setDomainSearchBase('')
-    }
-  }
-
-  const returnToDomainChoice = () => {
-    resetCustomDomain(false)
-    setCustomDomainMode('choice')
-    setDomainPurchaseStep('search')
-    setDomainSearchBase('')
-    setDomainTermsAccepted(false)
-  }
-
-  const searchDomains = () => {
-    const base = createUrlSlug(domainSearchTerm.replace(/\.(ee|com|eu)$/i, ''))
-    if (base.length < 2) {
-      setCustomDomainError('Sisesta vähemalt kaks tähemärki.')
-      return
-    }
-    setDomainSearchTerm(base)
-    setDomainSearchBase(base)
-    setCustomDomainError('')
-  }
-
-  const selectDomainToBuy = (domain: string, price: string) => {
-    setCustomDomain(domain)
-    setSelectedDomainPrice(price)
-    setDomainTermsAccepted(false)
-    setCustomDomainError('')
-    setDomainPurchaseStep('checkout')
-  }
-
-  const registerDomain = () => {
-    if (!domainTermsAccepted) {
-      setCustomDomainError('Registreerimiseks nõustu domeenitingimustega.')
-      return
-    }
-    if (domainVerificationTimerRef.current) window.clearTimeout(domainVerificationTimerRef.current)
-    setCustomDomainError('')
-    setDomainPurchaseStep('registering')
-    domainVerificationTimerRef.current = window.setTimeout(() => {
-      setCustomDomainStatus('connected')
-      domainVerificationTimerRef.current = null
-    }, 2200)
   }
 
   const endShareDrag = (clientY: number) => {
@@ -2537,9 +2510,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     ? sortedOrders.filter((order) => `${order.id} ${order.customerName} ${order.customerEmail} ${order.delivery} ${order.items.map((item) => item.name).join(' ')}`.toLocaleLowerCase('et').includes(normalizedOrderSearch))
     : sortedOrders
   const now = new Date()
-  const domainRenewalDate = new Date(now)
-  domainRenewalDate.setFullYear(domainRenewalDate.getFullYear() + 1)
-  const domainRenewalLabel = domainRenewalDate.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
   const currentMonthOrders = orders.filter((order) => {
     const createdAt = new Date(order.createdAt)
     return createdAt.getFullYear() === now.getFullYear() && createdAt.getMonth() === now.getMonth()
@@ -3137,90 +3107,43 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               </div>
               <div className="settings-domain-flow" data-status={customDomainStatus}>
                 <div className="settings-domain-flow__heading">
-                  <span><strong>Oma domeen</strong><small>Leia uus aadress või ühenda juba olemasolev domeen.</small></span>
-                  {customDomainStatus !== 'idle' && <b>{customDomainStatus === 'automatic' ? 'Automaatne ühendus' : customDomainStatus === 'dns' ? 'DNS seadistamine' : customDomainStatus === 'verifying' ? 'Kontrollin' : 'Ühendatud'}</b>}
+                  <span><strong>Oma domeen</strong><small>Ühenda domeen, mille oled ostnud Zone’ist, Veebimajutusest või mujalt.</small></span>
+                  {customDomainStatus !== 'idle' && <b>{customDomainStatus === 'pending_dns' ? 'Ootan DNS-i' : customDomainStatus === 'verifying' ? 'HTTPS loomisel' : customDomainStatus === 'active' ? 'Ühendatud' : 'Vajab tähelepanu'}</b>}
                 </div>
-                {customDomainMode === 'choice' && customDomainStatus !== 'connected' && <div className="settings-domain-choice">
-                  <button type="button" className="is-primary" onClick={() => openDomainMode('buy')}>
-                    <span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></span>
-                    <strong>Leia ja osta uus domeen</strong><small>Kontrolli saadavust, osta ja ühenda automaatselt.</small><b>Soovitatud</b><i>→</i>
-                  </button>
-                  <button type="button" onClick={() => openDomainMode('connect')}>
-                    <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7L11.2 6M14 11a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 1 0 5.7 5.7l1.6-1.5"/></svg></span>
-                    <strong>Mul on domeen olemas</strong><small>Proovi automaatset ühendamist või seadista DNS käsitsi.</small><i>→</i>
-                  </button>
-                </div>}
-
-                {customDomainMode === 'buy' && customDomainStatus !== 'connected' && <div className="settings-domain-purchase">
-                  {domainPurchaseStep === 'search' && <>
-                    <button className="settings-domain-back" type="button" onClick={returnToDomainChoice}>← Kõik valikud</button>
-                    <div className="settings-domain-purchase__hero"><span>1</span><div><strong>Leia oma poele nimi</strong><small>Kontrollime kohe, millised aadressid on saadaval.</small></div></div>
-                    <div className="settings-domain-search"><input value={domainSearchTerm} onChange={(event) => { setDomainSearchTerm(event.target.value); setDomainSearchBase(''); setCustomDomainError('') }} onKeyDown={(event) => event.key === 'Enter' && searchDomains()} placeholder="sinupood" autoCapitalize="none" autoCorrect="off" spellCheck={false} /><button type="button" onClick={searchDomains}>Otsi</button></div>
-                    {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
-                    {domainSearchBase && <div className="settings-domain-results">
-                      {[
-                        [`${domainSearchBase}.ee`, '14,90 €', 'Eesti klientidele tuttav'],
-                        [`${domainSearchBase}.com`, '16,90 €', 'Rahvusvaheline valik'],
-                        [`${domainSearchBase}pood.ee`, '14,90 €', 'Selge ja kirjeldav'],
-                      ].map(([domain, price, note], index) => <button type="button" className={index === 0 ? 'is-recommended' : ''} onClick={() => selectDomainToBuy(domain, price)} key={domain}>
-                        <span><strong>{domain}</strong><small>{note}</small></span><em>Saadaval</em><b>{price}<small>/ aasta</small></b><i>Vali →</i>
-                      </button>)}
-                    </div>}
-                    <small className="settings-domain-demo-label">Frontend-demo · saadavus ja hinnad on näidised.</small>
-                  </>}
-
-                  {domainPurchaseStep === 'checkout' && <>
-                    <button className="settings-domain-back" type="button" onClick={() => { setDomainPurchaseStep('search'); setCustomDomainError('') }}>← Tagasi otsingusse</button>
-                    <div className="settings-domain-purchase__hero"><span>2</span><div><strong>Kinnita registreerimine</strong><small>Domeen registreeritakse sinu või sinu ettevõtte nimele.</small></div></div>
-                    <div className="settings-domain-order"><span><small>Valitud domeen</small><strong>{customDomain}</strong></span><b>{selectedDomainPrice}<small>/ aasta</small></b></div>
-                    <div className="settings-domain-owner"><span><small>Registreerija</small><strong>{businessName.trim() || editableStoreName}</strong></span><span><small>Kontakt</small><strong>{contactEmail.trim() || accountEmail || 'Lisa kontakt-e-post poe seadetesse'}</strong></span><button type="button" onClick={() => setSettingsSection('business')}>Muuda andmeid</button></div>
-                    <div className="settings-domain-payment"><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg></span><div><small>Makseviis</small><strong>Turvaline kaardimakse</strong></div><b>{selectedDomainPrice}</b></div>
-                    <label className="settings-domain-renew"><input type="checkbox" checked={domainAutoRenew} onChange={(event) => setDomainAutoRenew(event.target.checked)} /><i /><span><strong>Uuenda domeeni automaatselt</strong><small>Teavitame sind enne järgmist aastamakset.</small></span></label>
-                    <label className="settings-domain-consent"><input type="checkbox" checked={domainTermsAccepted} onChange={(event) => { setDomainTermsAccepted(event.target.checked); setCustomDomainError('') }} /><i /><span>Nõustun domeeni registreerimise tingimustega ja kinnitan, et omanikuandmed on õiged.</span></label>
-                    {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
-                    <button className="settings-domain-buy-button" type="button" onClick={registerDomain}>Maksa {selectedDomainPrice} ja registreeri <span>→</span></button>
-                    <small className="settings-domain-demo-label">Frontend-demo · makset ei tehta ja domeeni päriselt ei registreerita.</small>
-                  </>}
-
-                  {domainPurchaseStep === 'registering' && <div className="settings-domain-registering" role="status"><i /><strong>Registreerime domeeni…</strong><p>{customDomain}</p><div><span className="is-done">✓ Omanikuandmed</span><span className="is-active">• Domeeni registreerimine</span><span>• DNS ja SSL</span></div><small>Frontend-demo lõpetab seadistuse automaatselt.</small></div>}
-                </div>}
-
-                {customDomainMode === 'connect' && customDomainStatus !== 'connected' && <div className="settings-domain-connect">
-                  {customDomainStatus === 'idle' && <div className="settings-domain-flow__start">
-                    <button className="settings-domain-back" type="button" onClick={returnToDomainChoice}>← Kõik valikud</button>
+                {customDomainStatus === 'idle' && <div className="settings-domain-connect">
+                  <div className="settings-domain-flow__start">
                     <label>Sinu olemasolev domeen<input value={customDomain} onChange={(event) => { setCustomDomain(event.target.value); setCustomDomainError('') }} onKeyDown={(event) => event.key === 'Enter' && startCustomDomainConnection()} placeholder="www.sinupood.ee" autoCapitalize="none" autoCorrect="off" spellCheck={false} /></label>
                     {customDomainError && <p role="alert">{customDomainError}</p>}
-                    <button type="button" onClick={startCustomDomainConnection}>Ühenda automaatselt <span>→</span></button>
-                    <small>Proovime esmalt ühendada domeenihalduriga ilma DNS-kirjeid käsitsi muutmata.</small>
-                  </div>}
-                  {customDomainStatus !== 'idle' && <div className="settings-domain-flow__steps" aria-label="Domeeni ühendamise edenemine">
-                    <span className="is-done"><i>1</i><small>Domeen</small></span>
-                    <span className={customDomainStatus === 'automatic' ? 'is-active' : 'is-done'}><i>2</i><small>Ühendus</small></span>
-                    <span className={customDomainStatus === 'verifying' ? 'is-active' : ''}><i>3</i><small>Valmis</small></span>
-                  </div>}
-                  {customDomainStatus === 'automatic' && <div className="settings-domain-automatic"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9M3 12h13m0 0-4-4m4 4-4 4"/></svg></span><div><strong>Ühenda domeenihalduriga</strong><p>Logi oma domeenihaldurisse sisse ja kinnita Poeruumi DNS-seaded. Tehnilisi kirjeid pole vaja muuta.</p></div><button type="button" onClick={verifyCustomDomain}>Ava ja kinnita <span>↗</span></button><button type="button" onClick={() => setCustomDomainStatus('dns')}>Seadista DNS käsitsi</button></div>}
-                  {customDomainStatus === 'dns' && <div className="settings-domain-flow__dns">
-                  <div className="settings-domain-flow__intro"><span>2</span><p><strong>Lisa domeenihalduris kaks DNS-kirjet</strong><small>Ava teenus, kust domeeni ostsid, ning kopeeri sinna allolevad väärtused.</small></p></div>
-                  <div className="settings-domain-record"><b>CNAME</b><span><small>Nimi / host</small><code>{customDomainHost}</code></span><span><small>Väärtus</small><code>domains.poeruum.ee</code></span><button type="button" onClick={() => copyDomainRecord('domains.poeruum.ee')} aria-label="Kopeeri CNAME-kirje väärtus"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>
-                  <div className="settings-domain-record"><b>TXT</b><span><small>Nimi / host</small><code>_poeruum</code></span><span><small>Väärtus</small><code>{domainVerificationValue}</code></span><button type="button" onClick={() => copyDomainRecord(domainVerificationValue)} aria-label="Kopeeri TXT-kirje väärtus"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>
-                  <p className="settings-domain-flow__notice"><span>i</span>DNS-i muudatuste levimine võib võtta mõnest minutist kuni 48 tunnini.</p>
-                    <div className="settings-domain-flow__actions"><button type="button" onClick={() => setCustomDomainStatus('automatic')}>Tagasi</button><button type="button" onClick={verifyCustomDomain}>Kontrolli ühendust <span>→</span></button></div>
-                  </div>}
-                  {customDomainStatus === 'verifying' && <div className="settings-domain-flow__checking" role="status"><i /><strong>Kontrollime ühendust…</strong><p>Vaatame, kas {customDomain} suunab õigesti Poeruumi.</p><small>Frontend-demo lõpetab kontrolli automaatselt.</small></div>}
+                    <button type="button" disabled={isCustomDomainBusy} onClick={() => void startCustomDomainConnection()}>{isCustomDomainBusy ? 'Lisan domeeni…' : 'Alusta ühendamist'} <span>→</span></button>
+                    <small>Domeen jääb sinu praeguse registripidaja juurde. Poeruum annab järgmises sammus vajaliku DNS-kirje.</small>
+                  </div>
                 </div>}
 
-                {customDomainStatus === 'connected' && <div className="settings-domain-flow__connected">
+                {customDomainRecord && customDomainStatus !== 'active' && <div className="settings-domain-connect">
+                  <div className="settings-domain-flow__steps" aria-label="Domeeni ühendamise edenemine">
+                    <span className="is-done"><i>1</i><small>Domeen</small></span>
+                    <span className={customDomainStatus === 'pending_dns' ? 'is-active' : 'is-done'}><i>2</i><small>DNS</small></span>
+                    <span className={customDomainStatus === 'verifying' ? 'is-active' : ''}><i>3</i><small>HTTPS</small></span>
+                  </div>
+                  {customDomainRecord.dnsRecord && <div className="settings-domain-flow__dns">
+                    <div className="settings-domain-flow__intro"><span>2</span><p><strong>Lisa domeenihalduris järgmine DNS-kirje</strong><small>Ava teenus, kust domeeni ostsid, ja sisesta täpselt need väärtused.</small></p></div>
+                    <div className="settings-domain-record"><b>{customDomainRecord.dnsRecord.type}</b><span><small>Nimi / host</small><code>{customDomainRecord.dnsRecord.name}</code></span><span><small>Väärtus</small><code>{customDomainRecord.dnsRecord.value}</code></span><button type="button" onClick={() => copyDomainRecord(customDomainRecord.dnsRecord!.value)} aria-label="Kopeeri DNS-kirje väärtus"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>
+                    <p className="settings-domain-flow__notice"><span>i</span>Ära muuda MX-kirjeid ega nimeservereid. DNS-i levimine võib võtta mõnest minutist kuni 48 tunnini.</p>
+                    {customDomainStatus === 'verifying' && <div className="settings-domain-flow__checking" role="status"><i /><strong>DNS on leitud</strong><p>Render loob domeenile turvalist HTTPS-sertifikaati.</p><small>Kontrollime olekut automaatselt iga 15 sekundi järel.</small></div>}
+                    <div className="settings-domain-flow__actions"><button type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>Eemalda</button><button type="button" disabled={isCustomDomainBusy} onClick={() => void refreshCustomDomain(true)}>{isCustomDomainBusy ? 'Kontrollin…' : 'Kontrolli ühendust'} <span>→</span></button></div>
+                  </div>}
+                  {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
+                  {customDomainStatus === 'error' && <div className="settings-domain-flow__actions"><button type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>Eemalda</button><button type="button" disabled={isCustomDomainBusy} onClick={() => void startCustomDomainConnection()}>Proovi uuesti <span>→</span></button></div>}
+                </div>}
+
+                {customDomainStatus === 'active' && <div className="settings-domain-flow__connected">
                   <div className="settings-domain-connected__summary">
                     <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span>
-                    <div><small>Ühendatud</small><strong>{customDomain}</strong><p>{customDomainMode === 'buy' ? 'Domeen on registreeritud sinu nimele.' : 'Domeen suunab turvaliselt sinu Poeruumi poodi.'}</p></div>
+                    <div><small>DNS JA HTTPS AKTIIVSED</small><strong>{customDomain}</strong><p>Domeen suunab turvaliselt sinu Poeruumi poodi.</p></div>
                   </div>
                   <a className="settings-domain-open" href={`https://${customDomain}`} target="_blank" rel="noreferrer">Ava pood <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-9 9"/><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a>
-                  {customDomainMode === 'buy' && <div className="settings-domain-managed">
-                    <div><small>Omanik</small><strong>{businessName.trim() || editableStoreName}</strong></div>
-                    <div className="settings-domain-renewal"><span><small>Automaatne uuendamine</small><strong>{domainAutoRenew ? `Järgmine makse ${selectedDomainPrice} · ${domainRenewalLabel}` : 'Automaatne uuendamine on väljas'}</strong></span><button type="button" role="switch" aria-checked={domainAutoRenew} onClick={() => setDomainAutoRenew((enabled) => !enabled)}><i /></button></div>
-                    <button type="button" onClick={() => setAuthToast('Domeenihaldus on frontend-demos näidisvaade')}>Halda domeeni</button>
-                  </div>}
-                  <button className="settings-domain-remove" type="button" onClick={() => resetCustomDomain(true)}>{customDomainMode === 'buy' ? 'Eemalda domeen poest' : 'Eemalda ühendus'}</button>
+                  {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
+                  <button className="settings-domain-remove" type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>{isCustomDomainBusy ? 'Eemaldan…' : 'Eemalda ühendus'}</button>
                 </div>}
               </div>
             </div>
@@ -3627,7 +3550,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 <summary><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></span><div><strong>Google’i eelvaade</strong><small>Loodud automaatselt</small></div><b>Valmis</b><i /></summary>
                 <div className="product-seo__content">
                   <div className="product-seo__preview">
-                    <small>{customDomainStatus === 'connected' ? customDomain : `${storeSlug || 'minupood'}.poeruum.ee`} › toode › {addProductSlug || 'toote-nimi'}</small>
+                    <small>{customDomainStatus === 'active' ? customDomain : `${storeSlug || 'minupood'}.poeruum.ee`} › toode › {addProductSlug || 'toote-nimi'}</small>
                     <strong>{addProductSeoTitle || `${addProductName || 'Toote nimi'} – ${editableStoreName}`}</strong>
                     <p>{addProductDescription || 'Toote kirjeldus kuvatakse siin automaatselt.'}</p>
                   </div>

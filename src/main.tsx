@@ -14,7 +14,8 @@ const hasAppReturnState = ['billing', 'checkout'].some((key) => new URLSearchPar
 const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostname)
   && window.location.pathname === '/' && !hasAppReturnState
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
-const isAdminPath = !isStorefrontSubdomain && /^\/admin\/?$/i.test(window.location.pathname)
+const isPlatformHostname = /^(?:localhost|127\.0\.0\.1|(?:[a-z0-9-]+\.)?poeruum\.ee)$/i.test(window.location.hostname)
+const isAdminPath = isPlatformHostname && !isStorefrontSubdomain && /^\/admin\/?$/i.test(window.location.pathname)
 
 function Root() {
   useLayoutEffect(() => {

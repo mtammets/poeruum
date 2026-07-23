@@ -18,6 +18,28 @@ Avalik pood avaneb tootmises aadressil `poe-slug.poeruum.ee`. `/p/poe-slug` ja `
 
 Ilma Renderi wildcard-domeeni ja nende DNS-kirjeteta brauser alamdomeene rakenduseni ei suuna. Juurdomeen `poeruum.ee` peab samuti Renderile osutama.
 
+### Klientide oma domeenid
+
+Olemasoleva kliendidomeeni ühendamine kasutab Render Custom Domains API-t. Domeen jääb kliendi registripidaja juurde; Poeruum lisab selle Renderi teenusele, annab kasutajale vajaliku DNS-kirje ning märgib domeeni aktiivseks alles pärast Renderi DNS-kontrolli ja edukat HTTPS-päringut.
+
+1. Loo Render Account Settings all API key.
+2. Leia Poeruumi web service'i ID (`srv-...`) ja selle `onrender.com` hostinimi.
+3. Lisa Supabase Edge Functionite saladustesse `RENDER_API_KEY`, `RENDER_SERVICE_ID`, `RENDER_SERVICE_HOSTNAME` ja soovi korral `RENDER_APEX_IPV4`. Viimase vaikeväärtus on Renderi avalik load balancer `216.24.57.1`.
+4. Rakenda migratsioon `npm run supabase:deploy` ning funktsioonid `npm run supabase:functions:deploy`.
+
+Näiteks:
+
+```sh
+npx supabase secrets set \
+  RENDER_API_KEY=... \
+  RENDER_SERVICE_ID=srv-... \
+  RENDER_SERVICE_HOSTNAME=poeruum.onrender.com \
+  RENDER_APEX_IPV4=216.24.57.1 \
+  --project-ref "$SUPABASE_PROJECT_REF"
+```
+
+Alamdomeenile, näiteks `www.pood.ee`, näitab Poeruum CNAME-kirjet Renderi teenuse hostinimele. Juurdomeenile `pood.ee` näidatakse A-kirjet. Render lisab ja uuendab TLS-sertifikaadi automaatselt. Konto kustutamisel eemaldab `delete-account` domeenid enne kasutaja ja poe andmete kustutamist, et Renderisse ei jääks orbdomeene.
+
 `SUPABASE_SECRET_KEY` või legacy `SUPABASE_SERVICE_ROLE_KEY` võib olla lokaalses `.env` failis ainult serveripoolseks halduseks. Sellel ei tohi olla `VITE_` prefiksit ning seda ei tohi importida `src/` koodi. Rakendus kasutab brauseris publishable/anon võtit ja turvalisus põhineb migratsioonis olevatel RLS-reeglitel.
 
 Kui e-posti kinnitamine on Auth seadetes aktiivne, peab uus kasutaja enne esimest sisselogimist kinnitama Supabase'i saadetud kirja.

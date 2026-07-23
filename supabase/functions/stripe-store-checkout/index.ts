@@ -34,16 +34,29 @@ const moneyToCents = (value: unknown) => Math.max(0, Math.round(Number(value ?? 
 const storefrontRootDomain = (configured: string) => (Deno.env.get('STOREFRONT_ROOT_DOMAIN')?.trim()
   || new URL(configured).hostname.replace(/^www\./, '')).toLowerCase().replace(/^\.+|\.+$/g, '')
 
-const returnBase = (configured: string, requested: string | undefined, testMode: boolean, storeSlug: string) => {
+const returnBase = (
+  configured: string,
+  requested: string | undefined,
+  testMode: boolean,
+  storeSlug: string,
+  customHostname?: string,
+) => {
   try {
-    if (!requested) return configured
-    const url = new URL(requested)
-    const isPrivateTestHost = testMode && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'
-      || /^10\./.test(url.hostname) || /^192\.168\./.test(url.hostname)
-      || /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname))
-    const isStorefrontHost = url.protocol === 'https:'
-      && url.hostname === `${storeSlug}.${storefrontRootDomain(configured)}`
-    return url.origin === new URL(configured).origin || isPrivateTestHost || isStorefrontHost ? url.origin : configured
+    if (customHostname) return `https://${customHostname}`
+    if (testMode && requested) {
+      const url = new URL(requested)
+      const isPrivateTestHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+        || /^10\./.test(url.hostname) || /^192\.168\./.test(url.hostname)
+        || /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname)
+      if (isPrivateTestHost) return url.origin
+    }
+    if (requested) {
+      const url = new URL(requested)
+      const isStorefrontHost = url.protocol === 'https:'
+        && url.hostname === `${storeSlug}.${storefrontRootDomain(configured)}`
+      if (isStorefrontHost || url.origin === new URL(configured).origin) return url.origin
+    }
+    return configured
   } catch { return configured }
 }
 
@@ -80,6 +93,13 @@ Deno.serve(async (request) => {
       const { error: modeUpdateError } = await admin.from('stores').update({ stripe_account_mode: stripeMode }).eq('id', storeId).is('stripe_account_mode', null)
       if (modeUpdateError) throw modeUpdateError
     }
+
+    const { data: customDomain, error: customDomainError } = await admin.from('custom_domains')
+      .select('hostname')
+      .eq('store_id', storeId)
+      .eq('status', 'active')
+      .maybeSingle()
+    if (customDomainError) throw customDomainError
 
     const uniqueProductIds = [...new Set(requestedItems.map((item) => String(item.id)))]
     const { data: products, error: productsError } = await admin.from('products').select('*').eq('store_id', storeId).in('id', uniqueProductIds)
@@ -190,9 +210,16 @@ Deno.serve(async (request) => {
     }
 
     const configuredAppUrl = requiredEnv('APP_URL').replace(/\/$/, '')
-    const appUrl = returnBase(configuredAppUrl, body.returnUrl, stripeSecretKey.includes('_test_'), store.slug)
+    const appUrl = returnBase(
+      configuredAppUrl,
+      body.returnUrl,
+      stripeSecretKey.includes('_test_'),
+      store.slug,
+      customDomain?.hostname,
+    )
     const returnsToStoreSubdomain = new URL(appUrl).hostname === `${store.slug}.${storefrontRootDomain(configuredAppUrl)}`
-    const storefrontPath = returnsToStoreSubdomain ? '' : `/p/${encodeURIComponent(store.slug)}`
+    const returnsToCustomDomain = customDomain?.hostname === new URL(appUrl).hostname
+    const storefrontPath = returnsToStoreSubdomain || returnsToCustomDomain ? '' : `/p/${encodeURIComponent(store.slug)}`
     const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
       on_behalf_of: store.stripe_account_id,
       transfer_group: `order_${order.id}`,

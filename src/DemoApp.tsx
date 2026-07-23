@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { loadConnectAndInitialize } from '@stripe/connect-js'
 import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
 import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PaymentProvider, type PricingPlan } from './App'
-import { createStore, getDemoStore, getMyStore, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
+import { createStore, getDemoStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
-import { getRequestedStoreSlug, isReservedStoreSlug } from './lib/storefrontUrl'
+import { getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { products as bundledProducts, type Product } from './products'
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
@@ -561,8 +561,10 @@ export default function DemoApp() {
   useEffect(() => {
     if (!isSupabaseConfigured) return
     const requestedSlug = getRequestedStoreSlug(window.location)
-    if (!requestedSlug) return
-    getStoreBySlug(requestedSlug).then(async (found) => {
+    const loadRequestedStore = requestedSlug
+      ? getStoreBySlug(requestedSlug)
+      : getStoreByHostname(window.location.hostname)
+    loadRequestedStore.then(async (found) => {
       if (!found) return
       setPublicStore(found)
       setPublicProducts(await listProducts(found.id))
@@ -630,7 +632,10 @@ export default function DemoApp() {
       }
       const { data: refreshedData } = await requireSupabase().auth.refreshSession()
       const currentSession = refreshedData.session ?? data.session
-      if (currentSession.user.app_metadata?.role === 'admin' && !getRequestedStoreSlug(window.location)) {
+      const hostname = window.location.hostname.toLowerCase().replace(/\.$/, '')
+      const isPlatformHostname = hostname === 'localhost' || hostname === '127.0.0.1'
+        || hostname === STOREFRONT_ROOT_DOMAIN || hostname.endsWith(`.${STOREFRONT_ROOT_DOMAIN}`)
+      if (currentSession.user.app_metadata?.role === 'admin' && isPlatformHostname && !getRequestedStoreSlug(window.location)) {
         window.location.replace('/admin')
         return
       }

@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { deleteRenderCustomDomain } from '../_shared/render-custom-domain.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,6 +41,20 @@ Deno.serve(async (request) => {
     })
     const { data: stores, error: storesError } = await admin.from('stores').select('id').eq('owner_id', user.id)
     if (storesError) throw storesError
+
+    const storeIds = (stores ?? []).map((store) => store.id)
+    if (storeIds.length) {
+      const { data: customDomains, error: domainsError } = await admin.from('custom_domains')
+        .select('hostname,provider_domain_id,provider_redirect_domain_id')
+        .in('store_id', storeIds)
+      if (domainsError) throw domainsError
+      for (const domain of customDomains ?? []) {
+        await deleteRenderCustomDomain(domain.provider_domain_id || domain.hostname)
+        if (domain.provider_redirect_domain_id && domain.provider_redirect_domain_id !== domain.provider_domain_id) {
+          await deleteRenderCustomDomain(domain.provider_redirect_domain_id)
+        }
+      }
+    }
 
     const listFiles = async (prefix: string): Promise<string[]> => {
       const paths: string[] = []

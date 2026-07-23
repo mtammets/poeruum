@@ -23,6 +23,20 @@ export type StoreRecord = {
   settings: Record<string, unknown>
 }
 
+export type CustomDomainRecord = {
+  id: string
+  storeId: string
+  hostname: string
+  status: 'pending_dns' | 'verifying' | 'active' | 'error'
+  verificationStatus: 'verified' | 'unverified' | null
+  domainType: 'apex' | 'subdomain' | null
+  dnsRecord: { type: string; name: string; value: string } | null
+  error: string | null
+  dnsVerifiedAt: string | null
+  tlsVerifiedAt: string | null
+  lastCheckedAt: string | null
+}
+
 export type OrderRecord = {
   id: string
   store_id: string
@@ -77,6 +91,13 @@ export async function getStoreBySlug(slug: string) {
   return data as StoreRecord | null
 }
 
+export async function getStoreByHostname(hostname: string) {
+  const { data: slug, error: resolveError } = await requireSupabase()
+    .rpc('resolve_store_slug_for_hostname', { requested_hostname: hostname })
+  throwIfError(resolveError)
+  return slug ? getStoreBySlug(String(slug)) : null
+}
+
 export async function getDemoStore() {
   const { data, error } = await requireSupabase().from('stores').select('*').eq('id', DEMO_STORE_ID).maybeSingle()
   throwIfError(error)
@@ -109,6 +130,25 @@ export async function invokeStripeConnect(action: 'start' | 'status') {
   }
   if (data?.error) throw new Error(String(data.error))
   return data as { clientSecret?: string; status?: StoreRecord['payment_status']; chargesEnabled?: boolean; payoutsEnabled?: boolean }
+}
+
+export async function manageCustomDomain(
+  action: 'create' | 'status' | 'verify' | 'delete',
+  storeId: string,
+  hostname?: string,
+) {
+  const { data, error } = await requireSupabase().functions.invoke('custom-domain', {
+    body: { action, storeId, hostname },
+  })
+  if (error) {
+    const context = 'context' in error ? error.context : null
+    const details = context instanceof Response
+      ? await context.clone().json().catch(() => null) as { error?: string } | null
+      : null
+    throw new Error(details?.error || error.message)
+  }
+  if (data?.error) throw new Error(String(data.error))
+  return (data?.domain ?? null) as CustomDomainRecord | null
 }
 
 const invokeCheckoutFunction = async (name: string, body?: Record<string, unknown>) => {

@@ -2613,7 +2613,8 @@
 .settings-domain-flow__heading strong { color: #fff; font-size: .78rem; }
 .settings-domain-flow__heading small { color: rgba(255, 255, 255, .45); font-size: .62rem; font-weight: 500; line-height: 1.4; }
 .settings-domain-flow__heading > b { flex: 0 0 auto; padding: .34rem .5rem; border-radius: 999px; background: rgba(255, 209, 102, .1); color: #ffd166; font-size: .54rem; }
-.settings-domain-flow[data-status='connected'] .settings-domain-flow__heading > b { background: rgba(117, 214, 161, .1); color: #75d6a1; }
+.settings-domain-flow[data-status='active'] .settings-domain-flow__heading > b { background: rgba(117, 214, 161, .1); color: #75d6a1; }
+.settings-domain-flow button:disabled { cursor: wait; opacity: .58; }
 
 .settings-domain-flow__steps { display: grid; grid-template-columns: repeat(3, 1fr); }
 .settings-domain-flow__steps > span { position: relative; display: grid; justify-items: center; gap: .3rem; color: rgba(255, 255, 255, .34); }
