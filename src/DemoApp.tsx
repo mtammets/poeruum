@@ -1142,7 +1142,6 @@ export default function DemoApp() {
           <footer><span className="demo-testimonial__avatar">R</span><p><strong>Rasmus</strong><small>Väiketootja · Pärnu</small></p></footer>
         </article>
       </div>
-      <small className="demo-testimonials__note">Illustratiivsed näidistekstid — asenda enne avaldamist päris klientide tagasisidega.</small>
     </section>
     <section className="demo-faq" id="kkk">
       <header>

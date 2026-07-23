@@ -156,7 +156,6 @@ button, a, summary { touch-action: manipulation; }
 .demo-testimonial footer p { display: grid; gap: .08rem; margin: 0; }
 .demo-testimonial footer strong { font-size: .75rem; }
 .demo-testimonial footer small { color: currentColor; font-size: .6rem; opacity: .58; }
-.demo-testimonials__note { display: block; margin-top: .75rem; color: #8a928c; font-size: .56rem; text-align: right; }
 .demo-faq { display: grid; grid-template-columns: .72fr 1.28fr; gap: 4rem; max-width: 76rem; margin: 6rem auto 5rem; padding: 0 2rem; scroll-margin-top: 2rem; }
 .demo-faq > header { align-self: start; position: sticky; top: 2rem; }
 .demo-faq h2 { margin: 0; font-family: Manrope, sans-serif; font-size: clamp(2.4rem, 4vw, 3.5rem); line-height: 1; letter-spacing: -.06em; }
@@ -808,7 +807,6 @@ button, a, summary { touch-action: manipulation; }
   .demo-testimonials__grid { grid-template-columns: 1fr; grid-template-rows: auto; }
   .demo-testimonial:nth-child(2) { margin-top: 0; }
   .demo-testimonial__bubble { min-height: 0; padding: 1.35rem; }
-  .demo-testimonials__note { line-height: 1.5; text-align: left; }
   .demo-faq { grid-template-columns: 1fr; gap: 2.3rem; margin: 0; padding: 3.5rem 1.2rem; }
   .demo-faq > header { position: static; }
   .demo-faq h2 { font-size: 2.8rem; }
