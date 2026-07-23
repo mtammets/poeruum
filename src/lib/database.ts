@@ -407,14 +407,6 @@ export async function listOrders(storeId: string) {
   return (data ?? []) as OrderRecord[]
 }
 
-export async function createOrder(storeId: string, order: { id: string; items: unknown[]; customerName: string; customerEmail: string; delivery: string; productSubtotal: number; total: number }) {
-  const { error } = await requireSupabase().from('orders').insert({
-    store_id: storeId, order_number: order.id, items: order.items, customer_name: order.customerName,
-    customer_email: order.customerEmail, delivery: order.delivery, product_subtotal: order.productSubtotal, total: order.total,
-  })
-  throwIfError(error)
-}
-
 export async function updateOrderStatus(storeId: string, orderNumber: string, status: OrderRecord['status']) {
   const { error } = await requireSupabase().from('orders').update({ status }).eq('store_id', storeId).eq('order_number', orderNumber)
   throwIfError(error)
