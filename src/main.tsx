@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import DemoApp from './DemoApp'
 import AdminApp from './AdminApp'
 import ComingSoon from './ComingSoon'
+import LegalPage, { type LegalDocument } from './LegalPage'
 import SupportCenter from './SupportCenter'
 import { getStoreSlugFromHostname } from './lib/storefrontUrl'
 import './styles.css'
@@ -16,6 +17,13 @@ const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostna
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
 const isPlatformHostname = /^(?:localhost|127\.0\.0\.1|(?:[a-z0-9-]+\.)?poeruum\.ee)$/i.test(window.location.hostname)
 const isAdminPath = isPlatformHostname && !isStorefrontSubdomain && /^\/admin\/?$/i.test(window.location.pathname)
+const legalDocument: LegalDocument | null = isPlatformHostname && !isStorefrontSubdomain
+  ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
+    ? 'terms'
+    : /^\/(?:privaatsus|privaatsuspoliitika)\/?$/i.test(window.location.pathname)
+      ? 'privacy'
+      : null
+  : null
 
 function Root() {
   useLayoutEffect(() => {
@@ -59,6 +67,7 @@ function Root() {
   }, [])
 
   if (isAdminPath) return <AdminApp />
+  if (legalDocument) return <LegalPage document={legalDocument} />
   return isPoeruumHomepage ? <ComingSoon /> : <><DemoApp /><SupportCenter /></>
 }
 

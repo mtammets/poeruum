@@ -46,6 +46,6 @@ export default function ComingSoon() {
       </article>)}
     </section>
 
-    <div className="coming-soon__index" aria-hidden="true"><span>01</span><i /><span>03</span></div>
+    <div className="coming-soon__index"><span aria-hidden="true">01</span><i aria-hidden="true" /><span aria-hidden="true">03</span><nav aria-label="Õiguslik teave"><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a></nav></div>
   </main>
 }

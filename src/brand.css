@@ -984,9 +984,12 @@
 }
 
 .site-footer__legal { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--store-line); }
-.site-footer__legal button { padding: 0; border: 0; border-bottom: 1px solid var(--store-line-strong); background: transparent; color: var(--store-ink-muted); font: inherit; font-size: .64rem; font-weight: 720; }
+.site-footer__legal button,
+.site-footer__legal a { padding: 0; border: 0; border-bottom: 1px solid var(--store-line-strong); background: transparent; color: var(--store-ink-muted); font: inherit; font-size: .64rem; font-weight: 720; text-decoration: none; }
 .site-footer__legal button:hover,
-.site-footer__legal button:focus-visible { border-color: var(--store-ink); color: var(--store-ink); }
+.site-footer__legal button:focus-visible,
+.site-footer__legal a:hover,
+.site-footer__legal a:focus-visible { border-color: var(--store-ink); color: var(--store-ink); }
 
 @media (max-width: 420px) {
   .site-footer__bottom { align-items: flex-start; gap: .7rem; }

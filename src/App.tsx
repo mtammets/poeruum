@@ -2902,6 +2902,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           {storeSlug && <nav className="site-footer__legal" aria-label="Poe õiguslik teave">
             <button type="button" onClick={() => setLegalView('seller')}>Müüja andmed</button>
             <button type="button" onClick={() => setLegalView('terms')}>Müügitingimused</button>
+            <a href="https://poeruum.ee/privaatsus" target="_blank" rel="noreferrer">Poeruumi privaatsus</a>
           </nav>}
           <div className="site-footer__bottom">
             <span>© 2026 {editableStoreName}</span>

@@ -1142,7 +1142,7 @@ export default function DemoApp() {
     </section>
     <footer className="demo-footer">
       <div><Brand /><p>Lihtne e-pood Eesti väikeettevõtjale.</p></div>
-      <div><span>© 2026 Poeruum</span><span>Interaktiivne demo</span></div>
+      <div><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span><span>Interaktiivne demo</span></div>
     </footer>
   </main>
 
@@ -1234,7 +1234,7 @@ export default function DemoApp() {
             <label className="auth-consent">
               <input required type="checkbox" />
               <span className="auth-checkbox" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 2.8 2.8 6.2-6.2" /></svg></span>
-              <span>Nõustun kasutustingimuste ja privaatsuspoliitikaga</span>
+              <span>Nõustun <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a> ja olen tutvunud <a href="/privaatsus" target="_blank" rel="noreferrer">privaatsuspoliitikaga</a>.</span>
             </label>
             {authError && <p className="add-product-error" role="alert">{authError}</p>}
             <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Loon kontot…' : 'Loo konto ja jätka'} <span>→</span></button>
@@ -1417,7 +1417,7 @@ export default function DemoApp() {
         <span>{isPublishing ? '◌' : '→'}</span>
       </button>
       <div className="publish-notes">
-        <small className="publish-note">{pricingPlan === 'fixed' && <><span className="publish-trial-copy">Prooviperiood algab avaldamisel.</span><span className="publish-note-separator" aria-hidden="true"> · </span></>}Avaldamisega nõustud <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a>.</small>
+        <small className="publish-note">{pricingPlan === 'fixed' && <><span className="publish-trial-copy">Prooviperiood algab avaldamisel.</span><span className="publish-note-separator" aria-hidden="true"> · </span></>}Avaldamisega nõustud <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a> ja kinnitad, et oled tutvunud <a href="/privaatsus" target="_blank" rel="noreferrer">privaatsuspoliitikaga</a>.</small>
       </div>
     </div>}
     {isBillingCardOpen && <BillingCardDemo confirmLabel="Jätka Stripe’is" onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => {
