@@ -49,8 +49,8 @@ function Terms() {
 
     <section>
       <h2>4. Paketid ja tasud</h2>
-      <p><strong>Paindlik:</strong> 0 € kuutasu ja 4% toodete müügisummalt, kuni 39 € kuus, millele lisandub käibemaks. Tarne hind ei kuulu Poeruumi müügitasu arvestusse.</p>
-      <p><strong>Kindel:</strong> esimesed 30 päeva tasuta, seejärel 29 € kuus, millele lisandub käibemaks. Poeruumi müügitasu on 0%.</p>
+      <p><strong>Paindlik:</strong> 0 € kuutasu ja netotasu 4% toodete müügisummalt, millele lisandub 24% käibemaks. Tasutav summa on seega 4,96% ning selle ülempiir on 48,36 € kuus (39 € netotasu + 9,36 € käibemaks). Tarne hind ei kuulu Poeruumi müügitasu arvestusse.</p>
+      <p><strong>Kindel:</strong> esimesed 30 päeva tasuta, seejärel 35,96 € kuus (29 € netohind + 6,96 € käibemaks). Poeruumi müügitasu on 0%.</p>
       <p>Mõlemas paketis saab oma olemasoleva domeeni ühendada ilma Poeruumi lisatasuta. Domeeni registreerimise ja teenusepakkuja tasud maksab kasutaja ise. Maksevahendaja tehingutasud ei sisaldu Poeruumi hinnas.</p>
       <p>Jooksev hind, arveldusperiood ja kohaldatavad maksud kuvatakse enne tasulise paketi kinnitamist. Korduv tellimus kestab kuni tühistamiseni. Tühistamine jõustub arveldusvaates näidatud ajal ning juba alanud perioodi eest tasutud summat ei tagastata, välja arvatud juhul, kui seadus nõuab teisiti.</p>
     </section>

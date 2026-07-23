@@ -131,6 +131,8 @@ type DemoOrder = {
   status: 'new' | 'fulfilled' | 'refunded'
   stripeProcessingFee?: number
   stripePlatformFee?: number
+  stripePlatformFeeNet?: number
+  stripePlatformFeeVat?: number
   stripeSellerNet?: number
 }
 
@@ -279,8 +281,11 @@ const createDemoOrders = (): DemoOrder[] => {
 }
 const MAX_PRODUCT_IMAGES = 3
 const PLATFORM_FEE_RATE = 0.04
-const PLATFORM_FEE_CAP = 39
+const VAT_RATE = 0.24
+const PLATFORM_FEE_NET_CAP = 39
+const PLATFORM_FEE_GROSS_CAP = PLATFORM_FEE_NET_CAP * (1 + VAT_RATE)
 const FIXED_PLAN_MONTHLY_FEE = 29
+const FIXED_PLAN_MONTHLY_TOTAL = FIXED_PLAN_MONTHLY_FEE * (1 + VAT_RATE)
 const FIXED_PLAN_TRIAL_DAYS = 30
 export type PricingPlan = 'flexible' | 'fixed'
 type StoreTheme = 'midnight' | 'paper' | 'pop'
@@ -473,11 +478,11 @@ export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Jätka Str
         <div className="billing-card-demo__next-payment">
           <i aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="14" rx="3" /><path d="M8 4v4M16 4v4M4 10h16" /></svg></i>
           <span><small>Järgmine makse</small><strong>{firstPaymentLabel}</strong></span>
-          <b>29 € / kuu + km</b>
+          <b>35,96 € / kuu<small>29 € + 6,96 € km</small></b>
         </div>
       </div>
       <form onSubmit={confirm}>
-        <label className="billing-card-demo__consent"><input required type="checkbox" defaultChecked /><span>Nõustun pärast prooviperioodi 29 € + km kuutasuga.</span></label>
+        <label className="billing-card-demo__consent"><input required type="checkbox" defaultChecked /><span>Nõustun pärast prooviperioodi 35,96 € kuutasuga (sisaldab 24% käibemaksu).</span></label>
         {confirmError && <p className="add-product-error" role="alert">{confirmError}</p>}
         <button type="submit" disabled={isConfirming}>{isConfirming ? 'Kinnitan…' : confirmLabel}<span aria-hidden="true">{isConfirming ? '◌' : '→'}</span></button>
       </form>
@@ -542,7 +547,7 @@ const findParcelMachines = (machines: ParcelMachine[], query: string) => {
     .slice(0, 8)
 }
 
-function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, onRemove, onQuantityChange, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onClose: () => void }) {
+function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, vatRegistered, onRemove, onQuantityChange, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; vatRegistered: boolean; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onClose: () => void }) {
   const checkoutRef = useRef<HTMLElement>(null)
   const checkoutRequestIdRef = useRef(createCheckoutRequestId())
   const [step, setStep] = useState<'cart' | 'checkout'>(initialStep)
@@ -574,7 +579,7 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
     : delivery === 'courier' ? deliverySettings.courierPrice : 0
   const deliveryPrice = deliverySettings.freeShippingFrom > 0 && itemTotal >= deliverySettings.freeShippingFrom ? 0 : baseDeliveryPrice
   const orderTotal = itemTotal + deliveryPrice
-  const vatAmount = orderTotal * 24 / 124
+  const vatAmount = vatRegistered ? orderTotal * VAT_RATE / (1 + VAT_RATE) : 0
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -816,8 +821,9 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
               ))}
               <div><span>Tarne</span><span>{deliveryPrice.toFixed(2).replace('.', ',')} €</span></div>
               <strong><span>Kokku</span><span>{orderTotal.toFixed(2).replace('.', ',')} €</span></strong>
-              <div className="vat-row"><span>sh käibemaks 24%</span><span>{vatAmount.toFixed(2).replace('.', ',')} €</span></div>
-              <small>Hinnad sisaldavad käibemaksu.</small>
+              {vatRegistered
+                ? <><div className="vat-row"><span>sh käibemaks 24%</span><span>{vatAmount.toFixed(2).replace('.', ',')} €</span></div><small>Hinnad sisaldavad käibemaksu.</small></>
+                : <small>Müüja ei ole käibemaksukohustuslane.</small>}
             </div>
             {paymentError && <p className="add-product-error" role="alert">{paymentError}</p>}
             <button className="pay" type="submit" disabled={isPaying || !paymentsReady || paymentProvider !== 'stripe'}>{!paymentsReady || paymentProvider !== 'stripe' ? 'Maksed pole aktiivsed' : isPaying ? 'Töötlen makset…' : `Maksa ${orderTotal.toFixed(2).replace('.', ',')} €`}</button>
@@ -929,6 +935,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [businessName, setBusinessName] = useState('')
   const [registryCode, setRegistryCode] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
+  const [vatRegistered, setVatRegistered] = useState(false)
+  const [vatNumber, setVatNumber] = useState('')
   const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
   const [legalView, setLegalView] = useState<'seller' | 'terms' | null>(null)
   const [orderNotificationEmail, setOrderNotificationEmail] = useState('')
@@ -1033,7 +1041,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeTagline, storeDescription, storeAboutImage,
     isStoreVisible, contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
-    deliverySettings, businessName, registryCode, businessAddress, returnsText, orderNotificationEmail,
+    deliverySettings, businessName, registryCode, businessAddress, vatRegistered, vatNumber, returnsText, orderNotificationEmail,
     billingEmail, billingPlan, sellerNotifications, customerConfirmations,
     autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed,
   })
@@ -1070,6 +1078,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (value.businessName != null) setBusinessName(value.businessName)
     if (value.registryCode != null) setRegistryCode(value.registryCode)
     if (value.businessAddress != null) setBusinessAddress(value.businessAddress)
+    if (typeof value.vatRegistered === 'boolean') setVatRegistered(value.vatRegistered)
+    if (value.vatNumber != null) setVatNumber(value.vatNumber)
     if (value.returnsText != null) setReturnsText(value.returnsText)
     if (value.orderNotificationEmail != null) setOrderNotificationEmail(value.orderNotificationEmail)
     if (value.billingEmail != null) setBillingEmail(value.billingEmail)
@@ -1134,6 +1144,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       total: Number(row.total), createdAt: row.created_at, status: row.status,
       stripeProcessingFee: Number(row.stripe_processing_fee_cents) / 100,
       stripePlatformFee: Number(row.stripe_platform_fee_cents) / 100,
+      stripePlatformFeeNet: Number(row.stripe_platform_fee_net_cents ?? row.stripe_platform_fee_cents) / 100,
+      stripePlatformFeeVat: Number(row.stripe_platform_fee_vat_cents ?? 0) / 100,
       stripeSellerNet: Number(row.stripe_seller_net_cents) / 100,
     })))).catch((error) => setAuthToast(error instanceof Error ? error.message : 'Tellimuste laadimine ebaõnnestus'))
   }, [storeId, merchantMode])
@@ -2443,7 +2455,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   )
   const storeInitial = editableStoreName.trim().charAt(0).toLocaleUpperCase('et') || 'P'
   const contactLine = [contactEmail, contactPhone].filter(Boolean).join(' · ')
-  const sellerDetailsComplete = Boolean(businessName.trim() && /^\d{8}$/.test(registryCode.trim()) && businessAddress.trim() && contactEmail.trim())
+  const vatDetailsComplete = !vatRegistered || /^EE\d{9}$/.test(vatNumber.trim())
+  const sellerDetailsComplete = Boolean(businessName.trim() && /^\d{8}$/.test(registryCode.trim()) && businessAddress.trim() && contactEmail.trim() && vatDetailsComplete)
   const newOrderCount = orders.filter((order) => order.status === 'new').length
   const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   const normalizedOrderSearch = orderSearch.trim().toLocaleLowerCase('et')
@@ -2461,9 +2474,16 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const isFixedPlanTrialActive = billingPlan === 'fixed' && Boolean(fixedPlanTrialEndsAt && now < fixedPlanTrialEndsAt)
   const fixedPlanTrialDaysLeft = fixedPlanTrialEndsAt ? Math.max(0, Math.ceil((fixedPlanTrialEndsAt.getTime() - now.getTime()) / 86_400_000)) : 0
   const fixedPlanTrialEndLabel = fixedPlanTrialEndsAt?.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
-  const monthlyPlatformFee = billingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : FIXED_PLAN_MONTHLY_FEE : Math.min(monthlyProductSales * PLATFORM_FEE_RATE, PLATFORM_FEE_CAP)
-  const remainingPlatformFee = billingPlan === 'fixed' ? 0 : Math.max(0, PLATFORM_FEE_CAP - monthlyPlatformFee)
-  const platformFeeProgress = billingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, monthlyPlatformFee / PLATFORM_FEE_CAP * 100)
+  const recordedMonthlyPlatformFee = currentMonthOrders.reduce((sum, order) => order.status === 'refunded' ? sum : sum + (order.stripePlatformFee ?? 0), 0)
+  const estimatedFlexibleFeeNet = Math.min(monthlyProductSales * PLATFORM_FEE_RATE, PLATFORM_FEE_NET_CAP)
+  const estimatedFlexibleFeeTotal = estimatedFlexibleFeeNet * (1 + VAT_RATE)
+  const monthlyPlatformFee = billingPlan === 'fixed'
+    ? isFixedPlanTrialActive ? 0 : FIXED_PLAN_MONTHLY_TOTAL
+    : storeId ? recordedMonthlyPlatformFee : estimatedFlexibleFeeTotal
+  const monthlyPlatformFeeNet = monthlyPlatformFee / (1 + VAT_RATE)
+  const monthlyPlatformFeeVat = monthlyPlatformFee - monthlyPlatformFeeNet
+  const remainingPlatformFee = billingPlan === 'fixed' ? 0 : Math.max(0, PLATFORM_FEE_GROSS_CAP - monthlyPlatformFee)
+  const platformFeeProgress = billingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, monthlyPlatformFee / PLATFORM_FEE_GROSS_CAP * 100)
   const billingMonth = now.toLocaleDateString('et-EE', { month: 'long', year: 'numeric' })
   const selectBillingPlan = async (plan: PricingPlan) => {
     if (plan === 'fixed' && billingPlan !== 'fixed') {
@@ -2933,6 +2953,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           {legalView === 'seller' ? <dl>
             <div><dt>Ettevõte</dt><dd>{businessName || editableStoreName}</dd></div>
             {registryCode && <div><dt>Registrikood</dt><dd>{registryCode} · Eesti äriregister</dd></div>}
+            {vatRegistered && vatNumber && <div><dt>KMKR number</dt><dd>{vatNumber}</dd></div>}
             {businessAddress && <div><dt>Aadress</dt><dd>{businessAddress}</dd></div>}
             {contactEmail && <div><dt>E-post</dt><dd><a href={`mailto:${contactEmail}`}>{contactEmail}</a></dd></div>}
             {contactPhone && <div><dt>Telefon</dt><dd><a href={`tel:${contactPhone.replace(/\s/g, '')}`}>{contactPhone}</a></dd></div>}
@@ -2945,7 +2966,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         </section>
       </div>}
 
-      {isCartOpen && <Cart storeId={storeId} items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
+      {isCartOpen && <Cart storeId={storeId} items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} vatRegistered={vatRegistered} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
         const target = items.find((item) => item.cartKey === cartKey)
         if (!target || quantity <= 0) return items.filter((item) => item.cartKey !== cartKey)
         const otherQuantity = items.filter((item) => item.id === target.id && item.cartKey !== cartKey).reduce((sum, item) => sum + item.quantity, 0)
@@ -2970,7 +2991,13 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'new' ? 'Uus' : order.status === 'refunded' ? 'Tagastatud' : 'Täidetud'}</span></header>
             <div className="order-customer"><strong>{order.customerName}</strong><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a><small>{order.delivery}</small></div>
             <ul>{order.items.map((item) => <li key={item.cartKey}><img {...getResponsiveImageProps(item, item.image, 'thumb')} sizes="4rem" alt="" /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
-            {Boolean(order.stripeSellerNet) && <dl className="order-settlement"><div><dt>Stripe’i maksetasu</dt><dd>−{formatEuro(order.stripeProcessingFee ?? 0)}</dd></div><div><dt>Poeruumi teenustasu</dt><dd>−{formatEuro(order.stripePlatformFee ?? 0)}</dd></div><div><dt>Sulle laekub</dt><dd>{formatEuro(order.stripeSellerNet ?? 0)}</dd></div></dl>}
+            {Boolean(order.stripeSellerNet) && <dl className="order-settlement">
+              <div><dt>Stripe’i maksetasu</dt><dd>−{formatEuro(order.stripeProcessingFee ?? 0)}</dd></div>
+              <div><dt>Poeruumi teenustasu (neto)</dt><dd>−{formatEuro(order.stripePlatformFeeNet ?? 0)}</dd></div>
+              {Boolean(order.stripePlatformFeeVat) && <div><dt>Käibemaks Poeruumi teenustasult</dt><dd>−{formatEuro(order.stripePlatformFeeVat ?? 0)}</dd></div>}
+              <div><dt>Poeruumi tasu kokku</dt><dd>−{formatEuro(order.stripePlatformFee ?? 0)}</dd></div>
+              <div><dt>Sulle laekub</dt><dd>{formatEuro(order.stripeSellerNet ?? 0)}</dd></div>
+            </dl>}
             <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'new' ? <button type="button" onClick={() => changeOrderStatus(order.id, 'fulfilled')}>Märgi täidetuks</button> : order.status === 'fulfilled' ? <button className="order-refund" type="button" onClick={() => changeOrderStatus(order.id, 'refunded')}>Märgi tagastatuks</button> : <small>Poeruumi tasu krediteeritud</small>}</footer>
           </article>) : <div className="orders-no-results"><span>⌕</span><h3>Tellimusi ei leitud</h3><p>Proovi tellimuse numbrit, kliendi nime või toodet.</p><button type="button" onClick={() => setOrderSearch('')}>Tühjenda otsing</button></div>}</div> : <div className="orders-empty"><span>□</span><h3>Tellimusi veel pole</h3><p>Uued ostud ilmuvad siia automaatselt.</p></div>}
         </section>
@@ -3210,9 +3237,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <label>Ettevõtte nimi <small>kohustuslik</small><input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
               <div><label>Registrikood <small>kohustuslik</small><input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={registryCode} onChange={(event) => setRegistryCode(event.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" /></label><label>Ettevõtte aadress <small>kohustuslik</small><input required value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label></div>
               <label>Klientide kontakt-e-post <small>kohustuslik</small><input required type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="tere@minupood.ee" /></label>
+              <label className="settings-toggle"><span><strong>Olen käibemaksukohustuslane</strong><small>Poeruumi poes kasutatakse praegu Eesti standardmäära 24%</small></span><input type="checkbox" checked={vatRegistered} onChange={(event) => { setVatRegistered(event.target.checked); if (!event.target.checked) setVatNumber('') }} /><i /></label>
+              {vatRegistered && <label>KMKR number <small>kohustuslik</small><input required value={vatNumber} inputMode="text" pattern="EE[0-9]{9}" maxLength={11} onChange={(event) => setVatNumber(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11))} placeholder="EE123456789" /><small className="settings-field-note">Hinnad sisestatakse lõpphinnana koos käibemaksuga. Kassas käibemaksu juurde ei lisata.</small></label>}
               <label>Tagastustingimused<textarea rows={4} value={returnsText} onChange={(event) => setReturnsText(event.target.value)} /></label>
             </div>
-            <div className="settings-info-note"><span>i</span><p>Müüja nimi, 8-kohaline registrikood, aadress ja poe kontakt-e-post peavad olema enne avaldamist lisatud. Andmed kuvatakse ostjale poe jaluses.</p></div>
+            <div className="settings-info-note"><span>i</span><p>Müüja nimi, 8-kohaline registrikood, aadress ja poe kontakt-e-post peavad olema enne avaldamist lisatud. Kui müüd vähendatud, 0% või maksuvaba määraga kaupu, ei ole praegune 24% standardmäära arvestus piisav.</p></div>
           </div>}
           {settingsSection === 'links' && <div className="settings-panel" role="tabpanel">
             <header><span>SOTSIAALMEEDIA</span><p>Lisa lingid, mis kuvatakse poe jaluses.</p></header>
@@ -3244,22 +3273,23 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <header><span>ARVELDUS</span><p>Vali müügimahule sobiv pakett. Vahetada saad igal ajal.</p></header>
             <div className="billing-plan-options" role="radiogroup" aria-label="Poeruumi pakett">
               <button type="button" className={billingPlan === 'flexible' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'flexible'} onClick={() => selectBillingPlan('flexible')}>
-                <span>PAINDLIK</span><strong>0 € <small>/ kuu</small></strong><p>4% toodete müügilt</p><em>Kuni 39 € kuus + km</em><b>{billingPlan === 'flexible' ? '✓ Valitud' : 'Vali pakett'}</b>
+                <span>PAINDLIK</span><strong>0 € <small>/ kuu</small></strong><p>4% + km toodete müügilt</p><em>Kuni 48,36 € kuus (39 € + km)</em><b>{billingPlan === 'flexible' ? '✓ Valitud' : 'Vali pakett'}</b>
               </button>
               <button type="button" className={billingPlan === 'fixed' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'fixed'} onClick={() => selectBillingPlan('fixed')}>
-                <span>KINDEL · 30 PÄEVA TASUTA</span><strong>29 € <small>/ kuu + km</small></strong><p>0% Poeruumi müügitasu</p><em>Esimesed 30 päeva tasuta</em><b>{billingPlan === 'fixed' ? '✓ Valitud' : 'Alusta tasuta'}</b>
+                <span>KINDEL · 30 PÄEVA TASUTA</span><strong>35,96 € <small>/ kuu</small></strong><p>29 € + 6,96 € km</p><em>Esimesed 30 päeva tasuta</em><b>{billingPlan === 'fixed' ? '✓ Valitud' : 'Alusta tasuta'}</b>
               </button>
             </div>
             <div className="billing-current">
               <header><span>{billingMonth}</span><strong>{formatEuro(monthlyPlatformFee)}</strong></header>
               <div className="billing-current__progress"><i style={{ width: `${platformFeeProgress}%` }} /></div>
               <div><span>Toodete müük <strong>{formatEuro(monthlyProductSales)}</strong></span><span>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `${fixedPlanTrialDaysLeft} päeva tasuta` : '0% müügitasu' : remainingPlatformFee > 0 ? `Kuulaeni ${formatEuro(remainingPlatformFee)}` : 'Hinnalagi täis'}</span></div>
-              <small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel 29 € kuus + km.` : 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
+              {monthlyPlatformFee > 0 && <small>Netotasu {formatEuro(monthlyPlatformFeeNet)} · käibemaks 24% {formatEuro(monthlyPlatformFeeVat)}</small>}
+              <small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel 35,96 € kuus koos käibemaksuga.` : 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_GROSS_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
             </div>
             <div className="billing-rules">
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg></span><p><strong>{billingPlan === 'fixed' ? 'Müügilt 0% Poeruumile' : 'Tarne ei kuulu arvestusse'}</strong><small>{billingPlan === 'fixed' ? 'Müügimahu kasv ei suurenda kuutasu.' : '4% arvutatakse ainult toodete summalt.'}</small></p></div>
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8H4V4"/><path d="M4.5 8a8 8 0 1 1-.1 7"/></svg></span><p><strong>{billingPlan === 'fixed' ? 'Paketti saad vahetada' : 'Tagastuse tasu krediteeritakse'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Prooviperiood algas Kindla paketi esmakordsel valimisel.' : 'Uus valik hakkab kehtima järgmisest arvelduskuust.' : 'Tagastatud toodete müük vähendatakse arvestusest.'}</small></p></div>
-              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : 'Pärast 39 € müüd tasuta'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Pärast prooviperioodi on kuutasu 29 € + km.' : 'Poeruumi kuutasu on 29 € + km.' : 'Kuu hinnalagi kaitseb sinu kasvu.'}</small></p></div>
+              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : '48,36 € hinnalagi koos km-ga'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Pärast prooviperioodi on kuutasu 35,96 € koos käibemaksuga.' : 'Poeruumi kuutasu on 35,96 € koos käibemaksuga.' : 'Netolagi 39 € + 9,36 € käibemaks.'}</small></p></div>
             </div>
             <div className="settings-fields billing-fields"><label>Arvete e-post<input type="email" value={billingEmail} onChange={(event) => setBillingEmail(event.target.value)} placeholder={contactEmail || 'arved@minupood.ee'} /><small className="settings-field-note">Kuu kokkuvõte saadetakse järgmise kuu alguses.</small></label></div>
             <div className="settings-info-note"><span>i</span><p>Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.</p></div>

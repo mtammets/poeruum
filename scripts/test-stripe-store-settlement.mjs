@@ -69,6 +69,8 @@ try {
     ...(store.settings ?? {}),
     customerConfirmations: false,
     sellerNotifications: false,
+    vatRegistered: true,
+    vatNumber: 'EE123456789',
     deliverySettings: { ...((store.settings ?? {}).deliverySettings ?? {}), pickupEnabled: true },
   }
   const { error: prepareStoreError } = await admin.from('stores').update({ is_published: true, settings: testSettings }).eq('id', store.id)
@@ -108,6 +110,15 @@ try {
     if (error) throw error
     return data
   }, 'Checkouti tellimus')
+  if (!order.seller_vat_registered || order.seller_vat_number !== 'EE123456789'
+    || Number(order.seller_vat_rate) !== 24 || Number(order.seller_vat_amount) !== 1.94) {
+    throw new Error(`Tellimuse müüja käibemaksu hetktõmmis on vale: ${JSON.stringify({
+      registered: order.seller_vat_registered,
+      number: order.seller_vat_number,
+      rate: order.seller_vat_rate,
+      amount: order.seller_vat_amount,
+    })}`)
+  }
 
   const paymentIntent = await stripePost('payment_intents', {
     amount: Math.round(Number(order.total) * 100),
@@ -122,7 +133,9 @@ try {
     'metadata[order_id]': order.id,
     'metadata[order_number]': order.order_number,
     'metadata[stripe_mode]': 'test',
-    'metadata[platform_fee_cents]': 40,
+    'metadata[platform_fee_cents]': 50,
+    'metadata[platform_fee_net_cents]': 40,
+    'metadata[platform_fee_vat_cents]': 10,
     'metadata[seller_account_id]': store.stripe_account_id,
   }, `settlement-test-payment-${checkoutRequestId}`)
   testPaymentIntentId = paymentIntent.id
@@ -169,15 +182,29 @@ try {
     - Number(order.stripe_processing_fee_cents)
     - Number(order.stripe_platform_fee_cents)
   if (Number(order.stripe_processing_fee_cents) <= 0) throw new Error('Stripe’i tegelikku maksetasu ei salvestatud.')
-  if (Number(order.stripe_platform_fee_cents) !== 40) throw new Error(`Poeruumi 4% tasu on vale: ${order.stripe_platform_fee_cents}.`)
+  if (Number(order.stripe_platform_fee_net_cents) !== 40) throw new Error(`Poeruumi 4% netotasu on vale: ${order.stripe_platform_fee_net_cents}.`)
+  if (Number(order.stripe_platform_fee_vat_cents) !== 10) throw new Error(`Poeruumi tasu käibemaks on vale: ${order.stripe_platform_fee_vat_cents}.`)
+  if (Number(order.stripe_platform_fee_cents) !== 50) throw new Error(`Poeruumi tasu koos käibemaksuga on vale: ${order.stripe_platform_fee_cents}.`)
   if (Number(order.stripe_seller_net_cents) !== expectedNet) throw new Error('Müüja netosumma ei vasta tasude jaotusele.')
   if (Number(transfer.amount) !== expectedNet || transfer.destination !== store.stripe_account_id) throw new Error('Stripe’i ülekanne ei vasta salvestatud netosummale.')
+  const { data: revenueEvent, error: revenueError } = await admin.from('revenue_events')
+    .select('amount_cents,metadata')
+    .eq('provider_object_id', order.stripe_transfer_id)
+    .eq('kind', 'transaction_fee')
+    .maybeSingle()
+  if (revenueError) throw revenueError
+  if (Number(revenueEvent?.amount_cents) !== 40 || Number(revenueEvent?.metadata?.vat_amount_cents) !== 10
+    || Number(revenueEvent?.metadata?.gross_amount_cents) !== 50) {
+    throw new Error(`Poeruumi netotulu ja käibemaksu jaotus on vale: ${JSON.stringify(revenueEvent)}`)
+  }
 
   console.log(JSON.stringify({
     result: 'ok',
     orderTotalCents: Math.round(Number(order.total) * 100),
     stripeProcessingFeeCents: order.stripe_processing_fee_cents,
-    poeruumFeeCents: order.stripe_platform_fee_cents,
+    poeruumFeeNetCents: order.stripe_platform_fee_net_cents,
+    poeruumFeeVatCents: order.stripe_platform_fee_vat_cents,
+    poeruumFeeTotalCents: order.stripe_platform_fee_cents,
     sellerNetCents: order.stripe_seller_net_cents,
     transferId: order.stripe_transfer_id,
   }, null, 2))

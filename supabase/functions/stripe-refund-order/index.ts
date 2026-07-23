@@ -58,6 +58,8 @@ Deno.serve(async (request) => {
     const { error: updateError } = await admin.from('orders').update({ status: 'refunded', payment_status: 'refunded' }).eq('id', order.id)
     if (updateError) throw updateError
     const platformFeeCents = Math.max(0, Number(order.stripe_platform_fee_cents ?? 0))
+    const platformFeeNetCents = Math.max(0, Number(order.stripe_platform_fee_net_cents ?? platformFeeCents))
+    const platformFeeVatCents = Math.max(0, Number(order.stripe_platform_fee_vat_cents ?? 0))
     if (usesSeparateTransfer && platformFeeCents > 0) {
       const { error: revenueError } = await admin.from('revenue_events').upsert({
         provider: 'stripe',
@@ -65,11 +67,18 @@ Deno.serve(async (request) => {
         provider_object_id: refund.id,
         store_id: store.id,
         kind: 'transaction_fee_refund',
-        amount_cents: -platformFeeCents,
+        amount_cents: -platformFeeNetCents,
         currency: refund.currency.toLowerCase(),
-        description: 'Tagastatud müügitasu',
+        description: 'Tagastatud müügitasu ja käibemaks',
         occurred_at: new Date(refund.created * 1000).toISOString(),
-        metadata: { refund_id: refund.id, transfer_id: order.stripe_transfer_id },
+        metadata: {
+          refund_id: refund.id,
+          transfer_id: order.stripe_transfer_id,
+          net_amount_cents: -platformFeeNetCents,
+          vat_amount_cents: -platformFeeVatCents,
+          gross_amount_cents: -platformFeeCents,
+          vat_rate: 24,
+        },
       }, { onConflict: 'provider,provider_event_id', ignoreDuplicates: true })
       if (revenueError) throw revenueError
     }

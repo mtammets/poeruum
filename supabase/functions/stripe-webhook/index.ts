@@ -128,6 +128,9 @@ const completeStorePayment = async (event: Stripe.Event, object: StripeRecord, o
 
   const processingFeeCents = Math.max(0, Number(balanceTransaction.fee ?? 0))
   const platformFeeCents = Math.max(0, Math.floor(Number(paymentIntent.metadata.platform_fee_cents ?? 0)))
+  const platformFeeNetCents = Math.max(0, Math.floor(Number(paymentIntent.metadata.platform_fee_net_cents ?? platformFeeCents)))
+  const platformFeeVatCents = Math.max(0, Math.floor(Number(paymentIntent.metadata.platform_fee_vat_cents ?? 0)))
+  if (platformFeeNetCents + platformFeeVatCents !== platformFeeCents) throw new Error('Poeruumi teenustasu käibemaksu jaotus ei klapi.')
   const paidCents = Math.max(0, Number(paymentIntent.amount_received || charge.amount))
   const sellerNetCents = Math.max(0, paidCents - processingFeeCents - platformFeeCents)
   if (sellerNetCents <= 0) throw new Error('Makse summa ei kata Stripe’i ja Poeruumi teenustasusid.')
@@ -148,6 +151,8 @@ const completeStorePayment = async (event: Stripe.Event, object: StripeRecord, o
     stripe_transfer_id: transfer.id,
     stripe_processing_fee_cents: processingFeeCents,
     stripe_platform_fee_cents: platformFeeCents,
+    stripe_platform_fee_net_cents: platformFeeNetCents,
+    stripe_platform_fee_vat_cents: platformFeeVatCents,
     stripe_seller_net_cents: sellerNetCents,
   }).eq('id', orderId)
   if (settlementError) throw settlementError
@@ -165,10 +170,14 @@ const completeStorePayment = async (event: Stripe.Event, object: StripeRecord, o
       objectId: transfer.id,
       store: { id: store.id, name: store.name },
       kind: 'transaction_fee',
-      amountCents: platformFeeCents,
+      amountCents: platformFeeNetCents,
       currency: paymentIntent.currency,
-      description: '4% müügitasu',
+      description: '4% müügitasu + käibemaks',
       metadata: {
+        net_amount_cents: platformFeeNetCents,
+        vat_amount_cents: platformFeeVatCents,
+        gross_amount_cents: platformFeeCents,
+        vat_rate: 24,
         payment_intent_id: paymentIntentId,
         stripe_processing_fee_cents: processingFeeCents,
         seller_net_cents: sellerNetCents,

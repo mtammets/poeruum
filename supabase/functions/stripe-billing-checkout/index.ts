@@ -61,24 +61,22 @@ Deno.serve(async (request) => {
     assertStoredStripeMode(store.stripe_billing_mode, stripeMode, 'Poe Stripe Billing')
     const stripe = new Stripe(stripeSecretKey)
     const appUrl = returnBase(requiredEnv('APP_URL').replace(/\/$/, ''), body.returnUrl, stripeSecretKey.includes('_test_'))
-    const fixedPlanTaxRateId = Deno.env.get('STRIPE_FIXED_PLAN_TAX_RATE_ID')?.trim()
+    const fixedPlanTaxRateId = requiredEnv('STRIPE_FIXED_PLAN_TAX_RATE_ID')
     const fixedPlanPriceId = requiredEnv('STRIPE_FIXED_PLAN_PRICE_ID')
     const price = await stripe.prices.retrieve(fixedPlanPriceId)
     if (price.livemode !== (stripeMode === 'live') || !price.active || price.currency !== 'eur' || price.type !== 'recurring'
       || price.unit_amount !== 2900 || price.recurring?.interval !== 'month' || price.recurring.interval_count !== 1) {
       throw new Error('Kindla paketi Stripe Price ei vasta aktiivsele režiimile või paketile.')
     }
-    if (fixedPlanTaxRateId) {
-      const taxRate = await stripe.taxRates.retrieve(fixedPlanTaxRateId)
-      if (taxRate.livemode !== (stripeMode === 'live') || !taxRate.active || taxRate.percentage !== 24
-        || taxRate.inclusive || taxRate.country !== 'EE') throw new Error('Stripe’i käibemaksumäär ei vasta Eesti 24% standardmäärale.')
-    }
+    const taxRate = await stripe.taxRates.retrieve(fixedPlanTaxRateId)
+    if (taxRate.livemode !== (stripeMode === 'live') || !taxRate.active || taxRate.percentage !== 24
+      || taxRate.inclusive || taxRate.country !== 'EE') throw new Error('Stripe’i käibemaksumäär ei vasta Eesti 24% standardmäärale.')
     const params: Stripe.Checkout.SessionCreateParams = {
       mode: 'subscription',
       client_reference_id: store.id,
       customer_email: store.stripe_customer_id ? undefined : user.email,
       customer: store.stripe_customer_id ?? undefined,
-      line_items: [{ price: fixedPlanPriceId, quantity: 1, ...(fixedPlanTaxRateId ? { tax_rates: [fixedPlanTaxRateId] } : {}) }],
+      line_items: [{ price: fixedPlanPriceId, quantity: 1, tax_rates: [fixedPlanTaxRateId] }],
       allow_promotion_codes: false,
       success_url: `${appUrl}/?billing=success`,
       cancel_url: `${appUrl}/?billing=cancelled`,

@@ -12,6 +12,10 @@ type OrderRow = {
   delivery: string
   product_subtotal: number | string
   total: number | string
+  seller_vat_registered: boolean
+  seller_vat_number: string | null
+  seller_vat_rate: number | string | null
+  seller_vat_amount: number | string
   customer_confirmation_sent_at: string | null
   seller_notification_sent_at: string | null
 }
@@ -80,6 +84,9 @@ const emailShell = (input: { title: string; intro: string; order: OrderRow; stor
   const businessName = String(settings.businessName ?? '').trim()
   const support = [contactEmail, contactPhone].filter(Boolean).join(' · ')
   const deliveryPrice = Math.max(0, Number(order.total) - Number(order.product_subtotal))
+  const vatLine = order.seller_vat_registered
+    ? `<tr><td style="padding:5px 0">sh käibemaks ${escapeHtml(order.seller_vat_rate)}%</td><td style="padding:5px 0;text-align:right">${formatMoney(order.seller_vat_amount)}</td></tr>`
+    : '<tr><td colspan="2" style="padding:6px 0;color:#8a857d;font-size:12px">Müüja ei ole käibemaksukohustuslane.</td></tr>'
   return `<!doctype html>
 <html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f1efe9;color:#23221f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
@@ -105,13 +112,14 @@ const emailShell = (input: { title: string; intro: string; order: OrderRow; stor
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;font-size:14px;color:#666159">
               <tr><td style="padding:5px 0">Tooted</td><td style="padding:5px 0;text-align:right">${formatMoney(order.product_subtotal)}</td></tr>
               <tr><td style="padding:5px 0">Tarne</td><td style="padding:5px 0;text-align:right">${deliveryPrice > 0 ? formatMoney(deliveryPrice) : 'Tasuta'}</td></tr>
+              ${vatLine}
               <tr><td style="padding-top:14px;color:#171714;font-size:19px;font-weight:800">Kokku</td><td style="padding-top:14px;text-align:right;color:#171714;font-size:19px;font-weight:800">${formatMoney(order.total)}</td></tr>
             </table>
             <div style="margin-top:26px;padding:18px 20px;border-radius:14px;background:#f6f4ef;color:#666159;font-size:14px;line-height:1.55"><strong style="color:#23221f">Tarne</strong><br>${escapeHtml(order.delivery)}</div>
             ${!input.seller ? `<p style="margin:26px 0 0;color:#77736a;font-size:13px;line-height:1.6">Hakkame tellimust ette valmistama.${input.canReply ? ' Küsimuste korral vasta sellele kirjale.' : ''}</p>` : ''}
           </div>
         </td></tr>
-        <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">${escapeHtml(businessName || storeName)}${support ? ` · ${escapeHtml(support)}` : ''}<br>Pood töötab <a href="https://poeruum.ee" style="color:#77736a;text-decoration:none">Poeruumil</a>.</td></tr>
+        <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">${escapeHtml(businessName || storeName)}${order.seller_vat_registered && order.seller_vat_number ? ` · KMKR ${escapeHtml(order.seller_vat_number)}` : ''}${support ? ` · ${escapeHtml(support)}` : ''}<br>Pood töötab <a href="https://poeruum.ee" style="color:#77736a;text-decoration:none">Poeruumil</a>.</td></tr>
       </table>
     </td></tr>
   </table>
@@ -146,7 +154,8 @@ const sendEmail = async (input: { to: string; subject: string; html: string; tex
 export const sendPaidOrderEmails = async (admin: SupabaseClient, orderId: string) => {
   const { data: orderData, error: orderError } = await admin.from('orders').select([
     'id', 'store_id', 'order_number', 'items', 'customer_name', 'customer_email', 'delivery',
-    'product_subtotal', 'total', 'customer_confirmation_sent_at', 'seller_notification_sent_at',
+    'product_subtotal', 'total', 'seller_vat_registered', 'seller_vat_number', 'seller_vat_rate',
+    'seller_vat_amount', 'customer_confirmation_sent_at', 'seller_notification_sent_at',
   ].join(',')).eq('id', orderId).eq('payment_status', 'paid').maybeSingle()
   if (orderError) throw orderError
   if (!orderData) return
@@ -176,7 +185,7 @@ export const sendPaidOrderEmails = async (admin: SupabaseClient, orderId: string
       replyTo: customerReplyTo || undefined,
       subject: `Tellimus ${order.order_number} on kinnitatud · ${storeName}`,
       html: emailShell({ title: 'Aitäh tellimuse eest!', intro: `Tere, ${order.customer_name}! Saime sinu tellimuse kätte ja makse õnnestus.`, order, store, settings, canReply: Boolean(customerReplyTo) }),
-      text: `Aitäh tellimuse eest!\n\n${order.customer_name}, sinu tellimus poest ${storeName} on kinnitatud.\n\n${renderTextItems(order.items)}\n\nTarne: ${order.delivery}\nKokku: ${formatMoney(order.total)}\nTellimus: ${order.order_number}${customerReplyTo ? `\n\nKüsimuste korral vasta sellele kirjale (${customerReplyTo}).` : ''}`,
+      text: `Aitäh tellimuse eest!\n\n${order.customer_name}, sinu tellimus poest ${storeName} on kinnitatud.\n\n${renderTextItems(order.items)}\n\nTarne: ${order.delivery}\n${order.seller_vat_registered ? `Käibemaks ${order.seller_vat_rate}%: ${formatMoney(order.seller_vat_amount)}\n` : 'Müüja ei ole käibemaksukohustuslane.\n'}Kokku: ${formatMoney(order.total)}\nTellimus: ${order.order_number}${customerReplyTo ? `\n\nKüsimuste korral vasta sellele kirjale (${customerReplyTo}).` : ''}`,
       idempotencyKey: `order-${order.id}-customer-confirmation`,
     })
     const { error } = await admin.from('orders').update({ customer_confirmation_sent_at: new Date().toISOString() }).eq('id', order.id).is('customer_confirmation_sent_at', null)
@@ -194,7 +203,7 @@ export const sendPaidOrderEmails = async (admin: SupabaseClient, orderId: string
         replyTo: isEmail(order.customer_email) ? order.customer_email : undefined,
         subject: `Uus tellimus ${order.order_number} · ${formatMoney(order.total)} · ${storeName}`,
         html: emailShell({ title: 'Uus tasutud tellimus', intro: `${order.customer_name} esitas ja tasus uue tellimuse.`, order, store, settings, seller: true }),
-        text: `Uus tasutud tellimus\n\nKlient: ${order.customer_name}\nE-post: ${order.customer_email}\n\n${renderTextItems(order.items)}\n\nTarne: ${order.delivery}\nKokku: ${formatMoney(order.total)}\nTellimus: ${order.order_number}`,
+        text: `Uus tasutud tellimus\n\nKlient: ${order.customer_name}\nE-post: ${order.customer_email}\n\n${renderTextItems(order.items)}\n\nTarne: ${order.delivery}\n${order.seller_vat_registered ? `Käibemaks ${order.seller_vat_rate}%: ${formatMoney(order.seller_vat_amount)}\n` : 'Müüja ei ole käibemaksukohustuslane.\n'}Kokku: ${formatMoney(order.total)}\nTellimus: ${order.order_number}`,
         idempotencyKey: `order-${order.id}-seller-notification`,
       })
       const { error } = await admin.from('orders').update({ seller_notification_sent_at: new Date().toISOString() }).eq('id', order.id).is('seller_notification_sent_at', null)

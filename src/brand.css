@@ -2320,7 +2320,8 @@
 .billing-card-demo__next-payment > span { display: grid; min-width: 0; gap: .06rem; }
 .billing-card-demo__next-payment small { color: rgba(255, 255, 255, .43); font-size: .5rem; line-height: 1.2; }
 .billing-card-demo__next-payment strong { color: rgba(255, 255, 255, .82); font-size: .62rem; line-height: 1.2; }
-.billing-card-demo__next-payment b { color: #fff; font-size: .66rem; text-align: right; white-space: nowrap; }
+.billing-card-demo__next-payment b { display: grid; gap: .12rem; color: #fff; font-size: .66rem; text-align: right; white-space: nowrap; }
+.billing-card-demo__next-payment b small { font-weight: 550; }
 .login-sheet.billing-card-demo form { gap: .68rem; }
 .billing-card-demo form > label { gap: .34rem; font-size: .7rem; }
 .billing-card-demo form input { padding: .78rem .85rem; }

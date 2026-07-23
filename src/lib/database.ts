@@ -51,7 +51,13 @@ export type OrderRecord = {
   created_at: string
   stripe_processing_fee_cents: number
   stripe_platform_fee_cents: number
+  stripe_platform_fee_net_cents: number
+  stripe_platform_fee_vat_cents: number
   stripe_seller_net_cents: number
+  seller_vat_registered: boolean
+  seller_vat_number: string | null
+  seller_vat_rate: number | null
+  seller_vat_amount: number
 }
 
 const throwIfError = (error: { message: string } | null) => {
