@@ -25,8 +25,8 @@ Deno.serve(async (request) => {
     if (body.confirmation !== 'KUSTUTA') return json({ error: 'Kinnitus puudub.' }, 400)
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const publicKey = Deno.env.get('SUPABASE_ANON_KEY')
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const publicKey = Deno.env.get('POERUUM_SUPABASE_PUBLISHABLE_KEY')
+    const serviceRoleKey = Deno.env.get('POERUUM_SUPABASE_SECRET_KEY')
     if (!supabaseUrl || !publicKey || !serviceRoleKey) throw new Error('Funktsiooni keskkonnamuutujad puuduvad.')
 
     const userClient = createClient(supabaseUrl, publicKey, {

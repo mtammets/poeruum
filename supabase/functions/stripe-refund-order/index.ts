@@ -20,13 +20,13 @@ Deno.serve(async (request) => {
     const authorization = request.headers.get('Authorization')
     if (!authorization) return json({ error: 'Sisselogimine on nõutud.' }, 401)
     const supabaseUrl = requiredEnv('SUPABASE_URL')
-    const userClient = createClient(supabaseUrl, requiredEnv('SUPABASE_ANON_KEY'), {
+    const userClient = createClient(supabaseUrl, requiredEnv('POERUUM_SUPABASE_PUBLISHABLE_KEY'), {
       global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false },
     })
     const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) return json({ error: 'Sessioon on aegunud. Logi uuesti sisse.' }, 401)
     const body = await request.json().catch(() => ({})) as { storeId?: string; orderNumber?: string }
-    const admin = createClient(supabaseUrl, requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false, autoRefreshToken: false } })
+    const admin = createClient(supabaseUrl, requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), { auth: { persistSession: false, autoRefreshToken: false } })
     const { data: store, error: storeError } = await admin.from('stores').select('id').eq('id', body.storeId ?? '').eq('owner_id', user.id).maybeSingle()
     if (storeError) throw storeError
     if (!store) return json({ error: 'Tellimuse tagastamiseks puudub õigus.' }, 403)

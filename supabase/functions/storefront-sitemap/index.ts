@@ -35,7 +35,7 @@ Sitemap: ${platformOrigin}/sitemap-live.txt
       })
     }
 
-    const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+    const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const { data, error } = await admin.rpc('storefront_seo_catalog')

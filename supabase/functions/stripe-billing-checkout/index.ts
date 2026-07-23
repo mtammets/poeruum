@@ -36,8 +36,8 @@ Deno.serve(async (request) => {
     const authorization = request.headers.get('Authorization')
     if (!authorization) return json({ error: 'Sisselogimine on nõutud.' }, 401)
     const supabaseUrl = requiredEnv('SUPABASE_URL')
-    const publicKey = requiredEnv('SUPABASE_ANON_KEY')
-    const serviceRoleKey = requiredEnv('SUPABASE_SERVICE_ROLE_KEY')
+    const publicKey = requiredEnv('POERUUM_SUPABASE_PUBLISHABLE_KEY')
+    const serviceRoleKey = requiredEnv('POERUUM_SUPABASE_SECRET_KEY')
     const userClient = createClient(supabaseUrl, publicKey, {
       global: { headers: { Authorization: authorization } },
       auth: { persistSession: false, autoRefreshToken: false },

@@ -90,8 +90,8 @@ Deno.serve(async (request) => {
     if (!authorization) return json({ error: 'Sisselogimine on nõutud.' }, 401)
 
     const supabaseUrl = getRequiredEnv('SUPABASE_URL')
-    const publicKey = getRequiredEnv('SUPABASE_ANON_KEY')
-    const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY')
+    const publicKey = getRequiredEnv('POERUUM_SUPABASE_PUBLISHABLE_KEY')
+    const serviceRoleKey = getRequiredEnv('POERUUM_SUPABASE_SECRET_KEY')
     const stripeSecretKey = getRequiredEnv('STRIPE_SECRET_KEY')
     const stripeMode = assertStripeMode(stripeSecretKey)
     const stripe = new Stripe(stripeSecretKey)

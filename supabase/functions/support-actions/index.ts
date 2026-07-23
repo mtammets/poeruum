@@ -68,14 +68,14 @@ Deno.serve(async (request) => {
     if (!token) return json({ error: 'Palun logi sisse.' }, 401)
 
     const supabaseUrl = requiredEnv('SUPABASE_URL')
-    const userClient = createClient(supabaseUrl, requiredEnv('SUPABASE_ANON_KEY'), {
+    const userClient = createClient(supabaseUrl, requiredEnv('POERUUM_SUPABASE_PUBLISHABLE_KEY'), {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const { data: { user }, error: userError } = await userClient.auth.getUser(token)
     if (userError || !user) return json({ error: 'Sinu seanss on aegunud. Palun logi uuesti sisse.' }, 401)
 
-    const admin = createClient(supabaseUrl, requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+    const admin = createClient(supabaseUrl, requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const isAdmin = user.app_metadata?.role === 'admin'

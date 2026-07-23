@@ -46,7 +46,7 @@ Deno.serve(async (request) => {
 
     const eventId = request.headers.get('svix-id') ?? ''
     if (!eventId) return json({ error: 'Invalid webhook' }, 400)
-    const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+    const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const { error: receiptError } = await admin.from('resend_webhook_events').insert({ id: eventId, event_type: event.type })

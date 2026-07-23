@@ -13,7 +13,7 @@ export const json = (body: unknown, status = 200) => new Response(JSON.stringify
 
 export const getAdminClient = () => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  const serviceRoleKey = Deno.env.get('POERUUM_SUPABASE_SECRET_KEY')
   if (!supabaseUrl || !serviceRoleKey) throw new Error('Supabase serveri keskkonnamuutujad puuduvad.')
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },

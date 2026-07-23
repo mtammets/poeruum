@@ -79,7 +79,7 @@ Deno.serve(async (request) => {
       return json({ error: 'Tellimuse andmed on puudulikud.' }, 400)
     }
 
-    const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+    const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')

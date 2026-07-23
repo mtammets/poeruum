@@ -110,7 +110,7 @@ Deno.serve(async (request) => {
     return json({ error: 'Unauthorized' }, 401)
   }
 
-  const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+  const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
     auth: { persistSession: false, autoRefreshToken: false },
   })
   let sent = 0
