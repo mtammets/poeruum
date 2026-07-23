@@ -177,7 +177,11 @@ button, a, summary { touch-action: manipulation; }
 .auth-page::before { position: absolute; top: 12%; left: 9%; width: 25rem; height: 25rem; border-radius: 50%; background: #dce5ca; content: ''; filter: blur(1px); opacity: .72; }
 .flow-header { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 76rem; margin: 0 auto; padding: 1.4rem 2rem; }
 .flow-header .demo-brand { gap: calc(.62rem + 2px); }
-.flow-header > button { padding: .7rem 1rem; border: 0; background: transparent; color: #667068; font-weight: 600; }
+.flow-header__actions { display: flex; align-items: center; gap: .35rem; }
+.flow-header__actions > button { padding: .7rem 1rem; border: 0; border-radius: .62rem; background: transparent; color: #667068; font: inherit; font-weight: 600; cursor: pointer; }
+.flow-header__actions > button:hover { background: rgba(38, 95, 67, .06); color: var(--demo-green); }
+.flow-header__actions > button.flow-header__exit { border: 1px solid #d7ddd3; background: rgba(255, 255, 255, .62); color: var(--demo-green); }
+.flow-header__actions > button:disabled { cursor: wait; opacity: .55; }
 .auth-flow { position: relative; z-index: 1; width: min(calc(100% - 4rem), 70rem); margin: 1.25rem auto 4rem; }
 .auth-flow > .setup-progress-wrap { margin: 0 auto 2.5rem; }
 .auth-content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(24rem, 28rem); align-items: center; gap: clamp(3rem, 7vw, 7rem); }
@@ -814,7 +818,9 @@ button, a, summary { touch-action: manipulation; }
   .demo-footer > div:first-child { display: grid; gap: .65rem; }
   .demo-footer > div:last-child { justify-content: space-between; width: 100%; padding-top: 1rem; border-top: 1px solid #d7dbd1; }
   .flow-header { width: 100%; padding: max(1rem, env(safe-area-inset-top)) 1.2rem 1rem; }
-  .flow-header > button { min-height: 2.8rem; padding: .5rem 0 .5rem .75rem; }
+  .flow-header__actions { gap: .15rem; }
+  .flow-header__actions > button { min-height: 2.8rem; padding: .5rem .55rem; font-size: .7rem; }
+  .flow-header__actions > button.flow-header__exit { padding-inline: .7rem; }
   .auth-flow { margin-top: .65rem; }
   .auth-flow > .setup-progress-wrap { margin-bottom: 1.2rem; }
   .auth-card { margin: 0 auto; padding: 1.4rem; }

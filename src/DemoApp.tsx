@@ -150,16 +150,21 @@ export function Brand() {
   </div>
 }
 
-function FlowHeader({ onBack }: { onBack: () => void }) {
+function FlowHeader({ onBack, onExit, isExiting = false }: { onBack: () => void; onExit?: () => void; isExiting?: boolean }) {
   return <header className="flow-header">
     <Brand />
-    <button type="button" onClick={onBack} aria-label="Tagasi eelmisele lehele">← Tagasi</button>
+    <div className="flow-header__actions">
+      {onExit && <button className="flow-header__exit" type="button" disabled={isExiting} onClick={onExit}>
+        {isExiting ? 'Salvestan…' : 'Salvesta ja välju'}
+      </button>}
+      <button type="button" onClick={onBack} aria-label="Tagasi eelmisele lehele">← Tagasi</button>
+    </div>
   </header>
 }
 
-function SetupShell({ screen, children, onBack }: { screen: Screen; children: React.ReactNode; onBack: () => void }) {
+function SetupShell({ screen, children, onBack, onExit, isExiting }: { screen: Screen; children: React.ReactNode; onBack: () => void; onExit?: () => void; isExiting?: boolean }) {
   return <main className={`setup-page${screen === 'publish' ? ' setup-page--publish' : ''}`}>
-    <FlowHeader onBack={onBack} />
+    <FlowHeader onBack={onBack} onExit={onExit} isExiting={isExiting} />
     <SetupProgress screen={screen} />
     <section className="setup-card">{children}</section>
   </main>
@@ -327,6 +332,7 @@ export default function DemoApp() {
   const [businessEmail, setBusinessEmail] = useState('')
   const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [isSetupExiting, setIsSetupExiting] = useState(false)
   const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
   const [phoneSlideIndex, setPhoneSlideIndex] = useState(1)
   const [isPhoneSwipeAnimated, setIsPhoneSwipeAnimated] = useState(true)
@@ -1258,10 +1264,31 @@ export default function DemoApp() {
   </main>
 
   const onBack = () => setScreen(backMap[screen] ?? 'landing')
+  const exitPublishSetup = async () => {
+    if (isSetupExiting) return
+    setIsSetupExiting(true)
+    setAuthError('')
+    try {
+      await persistStore(false, { pricing_plan: pricingPlan }, 'publish')
+      const { error: signOutError } = await requireSupabase().auth.signOut()
+      if (signOutError) throw signOutError
+      resetDemo()
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Poolelioleva poe salvestamine ebaõnnestus.')
+    } finally {
+      setIsSetupExiting(false)
+    }
+  }
   const paymentNeedsAction = paymentStatus === 'idle' || paymentStatus === 'pending'
   const paymentCanContinue = paymentStatus === 'connected'
 
-  return <SetupShell screen={screen} onBack={onBack}>
+  return <SetupShell
+    screen={screen}
+    onBack={onBack}
+    onExit={screen === 'publish' ? () => void exitPublishSetup() : undefined}
+    isExiting={isSetupExiting}
+  >
     {returnNotice}
     {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { await persistStore(false, {}, 'business'); setScreen('business') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
       <span className="setup-kicker">Alustame põhilisest</span><h1>Mis on sinu poe nimi?</h1><p>Seda näevad sinu kliendid poe päises ja otsingutulemustes.</p>
