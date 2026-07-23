@@ -43,12 +43,9 @@
 .coming-soon__header .demo-brand { gap: .72rem; }
 .coming-soon__header .demo-brand__mark { width: 2.45rem; height: 2.45rem; }
 .coming-soon__header .demo-brand strong { font-size: 1.3rem; }
-.coming-soon__opening { display: flex; align-items: center; gap: .55rem; color: #657168; font-size: .65rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
-.coming-soon__opening i { width: .45rem; height: .45rem; border-radius: 50%; background: var(--cs-green); box-shadow: 0 0 0 .25rem rgba(38, 95, 67, .1); animation: cs-pulse 2.6s ease-in-out infinite; }
 
 .coming-soon__intro { position: relative; z-index: 10; align-self: center; padding: 3rem 2rem 5rem 0; }
-.coming-soon__intro > span { color: #718078; font-size: .65rem; font-weight: 800; letter-spacing: .2em; }
-.coming-soon__intro h1 { margin: 1.1rem 0 0; font-family: Manrope, sans-serif; font-size: clamp(4.4rem, 8vw, 8.5rem); font-weight: 700; line-height: .78; letter-spacing: -.085em; }
+.coming-soon__intro h1 { margin: 0; font-family: Manrope, sans-serif; font-size: clamp(4.4rem, 8vw, 8.5rem); font-weight: 700; line-height: .78; letter-spacing: -.085em; }
 .coming-soon__intro h1 em { color: var(--cs-green); font-family: Georgia, serif; font-weight: 400; }
 
 .coming-soon__showcase { position: relative; align-self: stretch; min-height: 39rem; perspective: 1200px; }
@@ -99,12 +96,7 @@
 .coming-soon__index { position: relative; z-index: 10; display: flex; grid-column: 1 / -1; align-items: center; gap: .7rem; padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); color: #76827a; font-size: .56rem; font-weight: 700; }
 .coming-soon__index i { position: relative; width: 5rem; height: 1px; overflow: hidden; background: rgba(23,35,28,.17); }
 .coming-soon__index i::after { position: absolute; inset: 0; background: var(--cs-green); content: ''; transform-origin: left; animation: cs-progress 5s linear infinite; }
-.coming-soon__index nav { display: flex; gap: 1rem; margin-left: auto; }
-.coming-soon__index nav a { color: #657168; font-size: .62rem; font-weight: 700; text-decoration-color: rgba(23, 35, 28, .28); text-underline-offset: .2em; }
-.coming-soon__index nav a:hover,
-.coming-soon__index nav a:focus-visible { color: var(--cs-green); text-decoration-color: currentColor; }
 
-@keyframes cs-pulse { 0%, 100% { opacity: .55; transform: scale(.82); } 50% { opacity: 1; transform: scale(1); } }
 @keyframes cs-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes cs-zoom { from { transform: scale(1.01); } to { transform: scale(1.09); } }
 @keyframes cs-float-main { 0%, 100% { transform: translate(-50%, -50%) rotate(-2deg); } 50% { transform: translate(-50%, calc(-50% - .65rem)) rotate(0deg); } }
@@ -117,17 +109,14 @@
   .coming-soon__header { min-height: 5rem; }
   .coming-soon__header .demo-brand__mark { width: 2.2rem; height: 2.2rem; }
   .coming-soon__header .demo-brand strong { font-size: 1.15rem; }
-  .coming-soon__opening { display: none; }
   .coming-soon__showcase { grid-row: 2; min-height: 22rem; }
   .coming-soon__halo { left: 50%; width: min(102vw, 34rem); }
   .coming-soon__product { left: 50%; width: clamp(10rem, 38vw, 12rem); border-radius: 1.85rem; }
   .coming-soon__product--2 { transform: translate(-108%, -45%) rotate(-12deg) scale(.82); }
   .coming-soon__product--3 { transform: translate(8%, -45%) rotate(12deg) scale(.82); }
   .coming-soon__intro { grid-row: 3; padding: 1rem 0 1.7rem; text-align: center; }
-  .coming-soon__intro > span { display: none; }
   .coming-soon__intro h1 { margin: 0; font-size: clamp(3.6rem, 15vw, 5.2rem); line-height: .76; }
   .coming-soon__index { grid-row: 4; justify-content: center; padding-bottom: max(1.1rem, env(safe-area-inset-bottom)); }
-  .coming-soon__index nav { margin-left: 1rem; }
   @keyframes cs-float-left { 0%, 100% { transform: translate(-108%, -45%) rotate(-12deg) scale(.82); } 50% { transform: translate(-110%, calc(-45% + .4rem)) rotate(-10deg) scale(.82); } }
   @keyframes cs-float-right { 0%, 100% { transform: translate(8%, -45%) rotate(12deg) scale(.82); } 50% { transform: translate(10%, calc(-45% - .4rem)) rotate(10deg) scale(.82); } }
 }

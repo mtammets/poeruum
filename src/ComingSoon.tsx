@@ -27,11 +27,9 @@ export default function ComingSoon() {
   return <main className="coming-soon">
     <header className="coming-soon__header">
       <Brand />
-      <span className="coming-soon__opening"><i /> Avame peagi</span>
     </header>
 
     <section className="coming-soon__intro">
-      <span>POERUUM.EE</span>
       <h1>Varsti<br /><em>avame.</em></h1>
     </section>
 
@@ -55,6 +53,6 @@ export default function ComingSoon() {
       </article>)}
     </section>
 
-    <div className="coming-soon__index"><span aria-hidden="true">01</span><i aria-hidden="true" /><span aria-hidden="true">03</span><nav aria-label="Õiguslik teave"><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a></nav></div>
+    <div className="coming-soon__index"><span aria-hidden="true">01</span><i aria-hidden="true" /><span aria-hidden="true">03</span></div>
   </main>
 }
