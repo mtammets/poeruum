@@ -8,7 +8,7 @@ config({ path: '.env', quiet: true })
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const anonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 const stripeKey = process.env.STRIPE_SECRET_KEY
 const appUrl = process.env.STRIPE_E2E_APP_URL || 'http://127.0.0.1:5173'
 if (!supabaseUrl || !anonKey || !serviceKey || !stripeKey?.startsWith('sk_test_')) {

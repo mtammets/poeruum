@@ -10,8 +10,9 @@ const required = (name) => {
   if (!value) throw new Error(`Puudub ${name}.`)
   return value
 }
+const adminKey = process.env.SUPABASE_SECRET_KEY?.trim() || required('SUPABASE_SERVICE_ROLE_KEY')
 
-const supabase = createClient(required('VITE_SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
+const supabase = createClient(required('VITE_SUPABASE_URL'), adminKey, {
   auth: { persistSession: false, autoRefreshToken: false },
   realtime: { transport: WebSocket },
 })

@@ -10,7 +10,8 @@ const required = (name) => {
   return value
 }
 const options = { auth: { persistSession: false, autoRefreshToken: false }, realtime: { transport: WebSocket } }
-const admin = createClient(required('VITE_SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), options)
+const adminKey = process.env.SUPABASE_SECRET_KEY?.trim() || required('SUPABASE_SERVICE_ROLE_KEY')
+const admin = createClient(required('VITE_SUPABASE_URL'), adminKey, options)
 const client = createClient(required('VITE_SUPABASE_URL'), required('VITE_SUPABASE_PUBLISHABLE_KEY'), options)
 const suffix = crypto.randomUUID()
 const email = `support-test-${suffix}@example.com`

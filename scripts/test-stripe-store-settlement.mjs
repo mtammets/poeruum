@@ -7,7 +7,7 @@ config({ path: '.env', quiet: true })
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const anonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 const stripeKey = process.env.STRIPE_SECRET_KEY
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 if (!supabaseUrl || !anonKey || !serviceKey || !stripeKey?.startsWith('sk_test_') || !webhookSecret) {
