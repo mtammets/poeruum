@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Brand } from './DemoApp'
+import { applySeoMetadata } from './lib/seo'
 import './legal.css'
 
 export type LegalDocument = 'terms' | 'privacy'
@@ -188,10 +189,21 @@ export default function LegalPage({ document }: { document: LegalDocument }) {
   const isTerms = document === 'terms'
 
   useEffect(() => {
-    const previousTitle = window.document.title
-    window.document.title = `${isTerms ? 'Kasutustingimused' : 'Privaatsuspoliitika'} — Poeruum`
+    applySeoMetadata({
+      title: `${isTerms ? 'Kasutustingimused' : 'Privaatsuspoliitika'} — Poeruum`,
+      description: isTerms
+        ? 'Poeruumi e-poeplatvormi kasutamise tingimused kaupmehele.'
+        : 'Kuidas Poeruum kaupmeeste ja ostjate isikuandmeid töötleb ning kaitseb.',
+      canonicalUrl: `https://poeruum.ee/${isTerms ? 'kasutustingimused' : 'privaatsus'}/`,
+      structuredData: {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name: `${isTerms ? 'Kasutustingimused' : 'Privaatsuspoliitika'} — Poeruum`,
+        url: `https://poeruum.ee/${isTerms ? 'kasutustingimused' : 'privaatsus'}/`,
+        isPartOf: { '@type': 'WebSite', name: 'Poeruum', url: 'https://poeruum.ee/' },
+      },
+    })
     window.scrollTo(0, 0)
-    return () => { window.document.title = previousTitle }
   }, [isTerms])
 
   return <div className="legal-page">

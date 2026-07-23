@@ -4,6 +4,8 @@ import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
 import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, getStoreSlugFromHostname } from './lib/storefrontUrl'
+import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
 
 const getProductPrice = (product: Product) =>
   product.salePrice !== undefined && product.price !== undefined && product.salePrice < product.price
@@ -848,6 +850,7 @@ export type StorefrontProps = {
   adminDemoMode?: boolean
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
+  initialProductSlug?: string | null
   onConnectPaymentProvider?: (provider: PaymentProvider) => void
   onStoreChange?: (store: StoreRecord) => void
   onAccountDeleted?: () => void
@@ -858,9 +861,10 @@ export type StorefrontProps = {
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminDemoMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminDemoMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isPublicDemo = Boolean(onExit && !merchantMode)
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminDemoMode))
+  const isSeoStorefront = Boolean(storeSlug && !merchantMode && !isPublicDemo)
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
   const logoTapCountRef = useRef(0)
@@ -869,6 +873,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
   const storeDescriptionInputRef = useRef<HTMLTextAreaElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [productRouteSlug, setProductRouteSlug] = useState<string | null>(initialProductSlug)
   const [cart, setCart] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [cartStep, setCartStep] = useState<'cart' | 'checkout'>('cart')
@@ -1680,6 +1685,22 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const isAdminMode = isLoggedIn && !isCustomerPreview
 
   useEffect(() => {
+    if (!initialProductSlug || !displayProducts.length) return
+    const index = displayProducts.findIndex((product) =>
+      getProductUrlSlug(product).toLowerCase() === initialProductSlug.toLowerCase()
+      || product.id.toLowerCase() === initialProductSlug.toLowerCase(),
+    )
+    if (index < 0) return
+    activeIndexRef.current = index
+    setActiveIndex(index)
+    const frame = window.requestAnimationFrame(() => {
+      const track = trackRef.current
+      track?.scrollTo({ left: (index + 1) * track.clientWidth, behavior: 'auto' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [initialProductSlug, displayProducts.length])
+
+  useEffect(() => {
     const track = trackRef.current
     if (!track || !displayProducts.length) return
     let frame = 0
@@ -1819,7 +1840,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }, [])
 
   useEffect(() => {
-    if (!autoSwipeEnabled || isEditOpen) {
+    if (!autoSwipeEnabled || isEditOpen || productRouteSlug) {
       setIsScreensaverActive(false)
       return
     }
@@ -1886,11 +1907,20 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, scheduleScreensaver))
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [isCartOpen, isEditOpen, displayProducts.length, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed])
+  }, [isCartOpen, isEditOpen, displayProducts.length, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, productRouteSlug])
 
   const goToProduct = (index: number) => {
     const track = trackRef.current
     track?.scrollTo({ left: (index + 1) * track.clientWidth, behavior: 'smooth' })
+    const product = displayProducts[index]
+    if (!isSeoStorefront || !storeSlug || !product) return
+    const nextSlug = getProductUrlSlug(product)
+    const hostnameStoreSlug = getStoreSlugFromHostname(window.location.hostname)
+    const nextPath = hostnameStoreSlug
+      ? `/toode/${encodeURIComponent(nextSlug)}/`
+      : getStorefrontPath(storeSlug, product)
+    window.history.pushState({}, '', `${nextPath}${window.location.search}`)
+    setProductRouteSlug(nextSlug)
   }
 
   const getSelectionsForProduct = (product: Product) => ({
@@ -1963,6 +1993,60 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const activeProductCartQuantity = activeProduct ? cart.filter((item) => item.id === activeProduct.id).reduce((sum, item) => sum + item.quantity, 0) : 0
   const isActiveProductSoldOut = activeProductStockLimit <= 0
   const isActiveProductAtCartLimit = activeProductCartQuantity >= activeProductStockLimit
+
+  useEffect(() => {
+    if (!isSeoStorefront || !storeSlug) return
+    const routedProduct = productRouteSlug
+      ? displayProducts.find((product) =>
+        getProductUrlSlug(product).toLowerCase() === productRouteSlug.toLowerCase()
+        || product.id.toLowerCase() === productRouteSlug.toLowerCase())
+      : null
+    const seoProduct = routedProduct ?? null
+    const description = seoProduct
+      ? (seoProduct.description || `${seoProduct.name} e-poes ${editableStoreName}.`).trim().slice(0, 160)
+      : (storeDescription || `${editableStoreName} e-pood Poeruumis.`).trim().slice(0, 160)
+    const canonicalUrl = getStorefrontCanonicalUrl(storeSlug, seoProduct ?? undefined)
+    const price = seoProduct ? getProductPrice(seoProduct) : 0
+    const available = seoProduct ? getProductStockLimit(seoProduct) > 0 : false
+
+    applySeoMetadata({
+      title: seoProduct ? (seoProduct.seoTitle || `${seoProduct.name} – ${editableStoreName}`) : `${editableStoreName} – e-pood`,
+      description,
+      canonicalUrl,
+      imageUrl: seoProduct?.image || storeLogo || undefined,
+      type: seoProduct ? 'product' : 'website',
+      noIndex: isLocalSeoPreview() || seoProduct?.searchVisible === false,
+      structuredData: seoProduct ? {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: seoProduct.name,
+        description,
+        image: Array.from(new Set([seoProduct.image, ...(seoProduct.gallery ?? [])]))
+          .map((image) => new URL(image, window.location.origin).toString()),
+        sku: seoProduct.id,
+        url: canonicalUrl,
+        brand: { '@type': 'Brand', name: editableStoreName },
+        offers: {
+          '@type': 'Offer',
+          priceCurrency: 'EUR',
+          price: price.toFixed(2),
+          availability: `https://schema.org/${available ? 'InStock' : 'OutOfStock'}`,
+          url: canonicalUrl,
+          itemCondition: 'https://schema.org/NewCondition',
+        },
+      } : {
+        '@context': 'https://schema.org',
+        '@type': 'OnlineStore',
+        name: editableStoreName,
+        description,
+        url: canonicalUrl,
+        ...(storeLogo ? { logo: storeLogo } : {}),
+      },
+    })
+  }, [
+    isSeoStorefront, storeSlug, productRouteSlug, displayProducts, editableStoreName,
+    storeDescription, storeLogo,
+  ])
   const editOptionValues = editProductOptionValues.split(',').map((value) => value.trim()).filter(Boolean)
   const editOptionPresets = editProductOptionType === 'Suurus' ? ['XS', 'S', 'M', 'L', 'XL'] : ['Must', 'Valge', 'Sinine', 'Roheline', 'Punane']
   const editCustomOptionValues = editOptionValues.filter((value) => !editOptionPresets.includes(value))
@@ -2325,8 +2409,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   const shareActiveProduct = async () => {
     if (!activeProduct) return
-    const url = new URL(window.location.href)
-    url.hash = `toode=${encodeURIComponent(activeProduct.id)}`
+    const url = new URL(storeSlug
+      ? getStorefrontCanonicalUrl(storeSlug, activeProduct)
+      : window.location.href)
     const shareData = { title: activeProduct.name, text: activeProduct.description || activeProduct.name, url: url.toString() }
     if (navigator.share) {
       try { await navigator.share(shareData); return } catch (error) {
@@ -3113,7 +3198,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 </div>}
               </div>
             </div>
-            <div className="settings-seo-status"><span>✓</span><div><strong>Google’iks valmis</strong><small>Tootelehed, otsinguandmed ja sitemap luuakse automaatselt.</small></div><b>Automaatne</b></div>
+            <div className="settings-seo-status"><span>✓</span><div><strong>Otsingumootoritele valmis</strong><small>Indekseeritavad tootelehed, metaandmed, canonical ja sitemap luuakse automaatselt.</small></div><b>Automaatne</b></div>
           </div>}
           {settingsSection === 'appearance' && <div className="settings-panel" role="tabpanel">
             <header><span>VÄLIMUS</span><p>Kohanda poe ilmet ja toodete esitlemist.</p></header>
@@ -3519,7 +3604,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                   <label>Otsingu pealkiri <small>{(addProductSeoTitle || `${addProductName || 'Toote nimi'} – ${editableStoreName}`).length}/60</small><input value={addProductSeoTitle} maxLength={60} onChange={(event) => setAddProductSeoTitle(event.target.value)} placeholder={`${addProductName || 'Toote nimi'} – ${editableStoreName}`} /></label>
                   <label>Lehe aadress<div className="product-seo__slug"><span>/toode/</span><input value={addProductSlug} onChange={(event) => { setIsAddProductSlugCustom(true); setAddProductSlug(createUrlSlug(event.target.value)) }} placeholder="toote-nimi" /></div></label>
                   <label className="settings-toggle product-seo__toggle"><span><strong>Nähtav otsingumootorites</strong><small>Väljalülitamisel toodet Google’isse ei lisata</small></span><input type="checkbox" checked={isAddProductSearchVisible} onChange={(event) => setIsAddProductSearchVisible(event.target.checked)} /><i /></label>
-                  <div className="product-seo__automatic"><span>✓</span><p><strong>Tehniline SEO on automaatne</strong><small>Tooteandmed, canonical ja sitemap ei vaja seadistamist.</small></p></div>
+                  <div className="product-seo__automatic"><span>✓</span><p><strong>Tehniline SEO on automaatne</strong><small>Tooteleht, Open Graph, canonical ja sitemap ei vaja eraldi seadistamist.</small></p></div>
                 </div>
               </details>
               {addProductError && <p className="add-product-error" role="alert">{addProductError}</p>}

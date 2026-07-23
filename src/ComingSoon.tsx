@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Brand, BrandMark } from './DemoApp'
+import { applySeoMetadata } from './lib/seo'
 import './coming-soon.css'
 
 const showcaseProducts = [
@@ -10,9 +11,17 @@ const showcaseProducts = [
 
 export default function ComingSoon() {
   useEffect(() => {
-    const previousTitle = document.title
-    document.title = 'Poeruum — varsti avame'
-    return () => { document.title = previousTitle }
+    applySeoMetadata({
+      title: 'Poeruum — varsti avame',
+      description: 'Poeruum on lihtne Eesti e-poeplatvorm toodete, maksete, tarne ja tellimuste haldamiseks.',
+      canonicalUrl: 'https://poeruum.ee/',
+      structuredData: {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: 'Poeruum',
+        url: 'https://poeruum.ee/',
+      },
+    })
   }, [])
 
   return <main className="coming-soon">

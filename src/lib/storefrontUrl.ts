@@ -27,7 +27,7 @@ export function getRequestedStoreSlug(location: StorefrontLocation) {
   const hostnameSlug = getStoreSlugFromHostname(location.hostname)
   if (hostnameSlug) return hostnameSlug
 
-  const pathSlug = location.pathname.match(/^\/p\/([^/]+)\/?$/)?.[1]
+  const pathSlug = location.pathname.match(/^\/p\/([^/]+)(?:\/|$)/)?.[1]
   const requestedSlug = pathSlug || new URLSearchParams(location.search).get('store')
   if (!requestedSlug) return null
 
@@ -37,4 +37,28 @@ export function getRequestedStoreSlug(location: StorefrontLocation) {
   } catch {
     return null
   }
+}
+
+export function getRequestedProductSlug(location: Pick<Location, 'pathname'>) {
+  const match = location.pathname.match(/(?:^|\/)toode\/([^/]+)\/?$/)
+  if (!match?.[1]) return null
+
+  try {
+    const decodedSlug = decodeURIComponent(match[1]).toLowerCase()
+    return validStoreSlug.test(decodedSlug) || /^[0-9a-f-]{16,}$/i.test(decodedSlug) ? decodedSlug : null
+  } catch {
+    return null
+  }
+}
+
+export const getProductUrlSlug = (product: { id: string; slug?: string }) => product.slug || product.id
+
+export function getStorefrontCanonicalUrl(storeSlug: string, product?: { id: string; slug?: string }) {
+  const base = `https://${STOREFRONT_ROOT_DOMAIN}/p/${encodeURIComponent(storeSlug)}`
+  return product ? `${base}/toode/${encodeURIComponent(getProductUrlSlug(product))}/` : `${base}/`
+}
+
+export function getStorefrontPath(storeSlug: string, product?: { id: string; slug?: string }) {
+  const storePath = `/p/${encodeURIComponent(storeSlug)}`
+  return product ? `${storePath}/toode/${encodeURIComponent(getProductUrlSlug(product))}/` : `${storePath}/`
 }

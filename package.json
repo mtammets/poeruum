@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/generate-seo-assets.mjs",
+    "seo:generate": "node scripts/generate-seo-assets.mjs",
     "preview": "vite preview",
     "test:stripe-billing": "node scripts/stripe-billing-e2e.mjs",
     "test:stripe-settlement": "node scripts/test-stripe-store-settlement.mjs",

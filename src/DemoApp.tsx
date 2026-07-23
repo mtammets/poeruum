@@ -4,7 +4,7 @@ import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/rea
 import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PricingPlan } from './App'
 import { createStore, getDemoStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
-import { getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
+import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { products as bundledProducts, type Product } from './products'
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
@@ -341,6 +341,7 @@ export default function DemoApp() {
   const [isConfirmationRateLimited, setIsConfirmationRateLimited] = useState(false)
   const [publicStore, setPublicStore] = useState<StoreRecord | null>(null)
   const [publicProducts, setPublicProducts] = useState<Product[]>([])
+  const requestedProductSlug = getRequestedProductSlug(window.location)
   const [sampleStore, setSampleStore] = useState<StoreRecord | null>(null)
   const [sampleProducts, setSampleProducts] = useState<Product[]>([])
   const phonePreviewProducts = (sampleStore ? sampleProducts : bundledProducts)
@@ -1016,6 +1017,7 @@ export default function DemoApp() {
     initialShipping={publicStore.shipping}
     pricingPlan={publicStore.pricing_plan}
     fixedPlanTrialStartedAt={publicStore.trial_started_at}
+    initialProductSlug={requestedProductSlug}
     ownerEmail={email}
     onOwnerLogin={signInFromStore}
   />

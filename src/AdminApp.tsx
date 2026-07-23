@@ -6,6 +6,7 @@ import { getDemoStore, listProducts, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import type { Product } from './products'
 import AdminSupport from './AdminSupport'
+import { applySeoMetadata } from './lib/seo'
 
 type AdminUserRow = {
   user_id: string
@@ -232,6 +233,15 @@ export default function AdminApp() {
   const [, setDemoError] = useState('')
   const [isManagingDemo, setIsManagingDemo] = useState(false)
   const dashboardRefreshTimerRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    applySeoMetadata({
+      title: 'Administraatori töölaud — Poeruum',
+      description: 'Poeruumi administraatori turvaline sisselogimine.',
+      canonicalUrl: 'https://poeruum.ee/admin/',
+      noIndex: true,
+    })
+  }, [])
 
   const openDemoManager = async () => {
     setIsDemoLoading(true)
