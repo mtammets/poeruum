@@ -2286,7 +2286,6 @@
 .billing-rules p { display: grid; gap: 0.05rem; margin: 0; }
 .billing-rules strong { font-size: 0.7rem; }
 .billing-rules small { color: rgba(255, 255, 255, 0.43); font-size: 0.61rem; }
-.billing-fields { padding-top: 0 !important; border-top: 0 !important; }
 
 .billing-card-overlay {
   z-index: 90;

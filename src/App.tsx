@@ -316,7 +316,7 @@ const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description
   { id: 'business', label: 'Müüja', description: 'Ettevõtte andmed' },
   { id: 'links', label: 'Lingid', description: 'Kontakt ja sotsiaalmeedia' },
   { id: 'notifications', label: 'Teavitused', description: 'E-kirjad ja märguanded' },
-  { id: 'billing', label: 'Plaan ja arved', description: 'Pakett, tasud ja arved' },
+  { id: 'billing', label: 'Plaan ja tasud', description: 'Pakett ja tasude arvestus' },
   { id: 'account', label: 'Konto', description: 'Väljalogimine ja kustutamine' },
 ]
 
@@ -945,7 +945,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
   const [legalView, setLegalView] = useState<'seller' | 'terms' | null>(null)
   const [orderNotificationEmail, setOrderNotificationEmail] = useState('')
-  const [billingEmail, setBillingEmail] = useState('')
   const [billingPlan, setBillingPlan] = useState<PricingPlan>(pricingPlan)
   const [fixedPlanTrialStartedAt, setFixedPlanTrialStartedAt] = useState<Date | null>(() => pricingPlan === 'fixed' ? new Date(initialFixedPlanTrialStartedAt ?? Date.now()) : null)
   const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
@@ -1047,7 +1046,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeTagline, storeDescription, storeAboutImage,
     isStoreVisible, contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, vatRegistered, vatNumber, returnsText, orderNotificationEmail,
-    billingEmail, billingPlan, sellerNotifications, customerConfirmations,
+    billingPlan, sellerNotifications, customerConfirmations,
     autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed,
   })
   const hasUnsavedSettings = isSettingsOpen && Boolean(savedSettingsSnapshotRef.current) && savedSettingsSnapshotRef.current !== settingsSnapshot
@@ -1087,7 +1086,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (value.vatNumber != null) setVatNumber(value.vatNumber)
     if (value.returnsText != null) setReturnsText(value.returnsText)
     if (value.orderNotificationEmail != null) setOrderNotificationEmail(value.orderNotificationEmail)
-    if (value.billingEmail != null) setBillingEmail(value.billingEmail)
     if (value.billingPlan) setBillingPlan(value.billingPlan)
     if (typeof value.sellerNotifications === 'boolean') setSellerNotifications(value.sellerNotifications)
     if (typeof value.customerConfirmations === 'boolean') setCustomerConfirmations(value.customerConfirmations)
@@ -3376,7 +3374,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8H4V4"/><path d="M4.5 8a8 8 0 1 1-.1 7"/></svg></span><p><strong>{billingPlan === 'fixed' ? 'Paketti saad vahetada' : 'Tagastuse tasu krediteeritakse'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Prooviperiood algas Kindla paketi esmakordsel valimisel.' : 'Uus valik hakkab kehtima järgmisest arvelduskuust.' : 'Tagastatud toodete müük vähendatakse arvestusest.'}</small></p></div>
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : '48,36 € hinnalagi koos km-ga'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Pärast prooviperioodi on kuutasu 35,96 € koos käibemaksuga.' : 'Poeruumi kuutasu on 35,96 € koos käibemaksuga.' : 'Netolagi 39 € + 9,36 € käibemaks.'}</small></p></div>
             </div>
-            <div className="settings-fields billing-fields"><label>Arvete e-post<input type="email" value={billingEmail} onChange={(event) => setBillingEmail(event.target.value)} placeholder={contactEmail || 'arved@minupood.ee'} /><small className="settings-field-note">Kuu kokkuvõte saadetakse järgmise kuu alguses.</small></label></div>
             <div className="settings-info-note"><span>i</span><p>Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.</p></div>
           </div>}
           {settingsSection === 'account' && <div className="settings-panel account-panel" role="tabpanel">
