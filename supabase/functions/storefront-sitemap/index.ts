@@ -22,7 +22,7 @@ Disallow: /admin
 Disallow: /*?checkout=
 Disallow: /*?billing=
 
-Sitemap: ${platformOrigin}/sitemap.xml
+Sitemap: ${platformOrigin}/sitemap-live.txt
 `
       return new Response(request.method === 'HEAD' ? null : robots, {
         headers: {
