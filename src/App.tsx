@@ -5,7 +5,7 @@ import { products, type Product, type ProductImageAsset, type ProductImageTransf
 import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
-import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, getStoreSlugFromHostname } from './lib/storefrontUrl'
+import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, getStoreSlugFromHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
 import {
   createCheckoutRequestId,
@@ -611,7 +611,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [isScreensaverActive, setIsScreensaverActive] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Record<string, number>>({})
   const [selectedProductOptions, setSelectedProductOptions] = useState<Record<string, Record<string, string>>>({})
-  const [isLoginOpen, setIsLoginOpen] = useState(false)
+  const [isLoginOpen, setIsLoginOpen] = useState(() =>
+    new URLSearchParams(window.location.search).get('owner_login') === '1')
   const [loginEmail, setLoginEmail] = useState(ownerEmail)
   const [loginCaptchaToken, setLoginCaptchaToken] = useState('')
   const [loginCaptchaResetKey, setLoginCaptchaResetKey] = useState(0)
@@ -1678,6 +1679,16 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }
 
   const openOwnerLogin = () => {
+    const hostname = window.location.hostname.toLowerCase().replace(/\.$/, '')
+    const isPoeruumHostname = hostname === STOREFRONT_ROOT_DOMAIN
+      || hostname.endsWith(`.${STOREFRONT_ROOT_DOMAIN}`)
+      || ['localhost', '127.0.0.1'].includes(hostname)
+    if (isCaptchaConfigured && storeSlug && !isPoeruumHostname) {
+      const loginUrl = new URL(getStorefrontCanonicalUrl(storeSlug))
+      loginUrl.searchParams.set('owner_login', '1')
+      window.location.assign(loginUrl)
+      return
+    }
     // A stale modal must never sit above the login dialog and capture taps.
     setIsCartOpen(false)
     setIsAboutOpen(false)
