@@ -180,6 +180,9 @@ button, a, summary { touch-action: manipulation; }
 .flow-header__actions > button { padding: .7rem 1rem; border: 0; border-radius: .62rem; background: transparent; color: #667068; font: inherit; font-weight: 600; cursor: pointer; }
 .flow-header__actions > button:hover { background: rgba(38, 95, 67, .06); color: var(--platform-green); }
 .flow-header__actions > button.flow-header__exit { border: 1px solid #d7ddd3; background: rgba(255, 255, 255, .62); color: var(--platform-green); }
+.flow-header__actions > button.flow-header__discard { color: #9a4038; }
+.flow-header__actions > button.flow-header__discard:hover { background: rgba(154, 64, 56, .07); color: #7f302a; }
+.flow-header__exit-short { display: none; }
 .flow-header__actions > button:disabled { cursor: wait; opacity: .55; }
 .auth-flow { position: relative; z-index: 1; width: min(calc(100% - 4rem), 70rem); margin: 1.25rem auto 4rem; }
 .auth-flow > .setup-progress-wrap { margin: 0 auto 2.5rem; }
@@ -819,6 +822,8 @@ button, a, summary { touch-action: manipulation; }
   .flow-header__actions { gap: .15rem; }
   .flow-header__actions > button { min-height: 2.8rem; padding: .5rem .55rem; font-size: .7rem; }
   .flow-header__actions > button.flow-header__exit { padding-inline: .7rem; }
+  .flow-header__exit-long { display: none; }
+  .flow-header__exit-short { display: inline; }
   .auth-flow { margin-top: .65rem; }
   .auth-flow > .setup-progress-wrap { margin-bottom: 1.2rem; }
   .auth-card { margin: 0 auto; padding: 1.4rem; }

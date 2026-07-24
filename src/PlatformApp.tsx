@@ -15,7 +15,7 @@ const Storefront = lazy(async () => {
 })
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
-type OnboardingStep = 'business' | 'payments' | 'shipping' | 'publish' | 'complete'
+type OnboardingStep = 'store' | 'business' | 'payments' | 'shipping' | 'publish' | 'complete'
 type RegistryLookupStatus = 'idle' | 'loading' | 'found' | 'not-found' | 'error'
 
 type RegistryCompany = {
@@ -30,7 +30,7 @@ type RegistryLookupResponse = {
   data?: RegistryCompany[]
 }
 
-const onboardingSteps = new Set<OnboardingStep>(['business', 'payments', 'shipping', 'publish', 'complete'])
+const onboardingSteps = new Set<OnboardingStep>(['store', 'business', 'payments', 'shipping', 'publish', 'complete'])
 const onboardingActivityScreens = new Set<Screen>(['store', 'business', 'payments', 'shipping', 'publish'])
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
 const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
@@ -139,21 +139,48 @@ const getLocalizedAuthError = (error: unknown, fallback: string) => {
   return authError.message || fallback
 }
 
-function FlowHeader({ onBack, onExit, isExiting = false }: { onBack: () => void; onExit?: () => void; isExiting?: boolean }) {
+function FlowHeader({
+  onBack,
+  onExit,
+  onDiscardExit,
+  isExiting = false,
+}: {
+  onBack: () => void
+  onExit?: () => void
+  onDiscardExit?: () => void
+  isExiting?: boolean
+}) {
   return <header className="flow-header">
     <Brand />
     <div className="flow-header__actions">
       {onExit && <button className="flow-header__exit" type="button" disabled={isExiting} onClick={onExit}>
-        {isExiting ? 'Salvestan…' : 'Salvesta ja välju'}
+        {isExiting ? 'Salvestan…' : <><span className="flow-header__exit-long">Salvesta ja logi välja</span><span className="flow-header__exit-short">Salvesta</span></>}
       </button>}
-      <button type="button" onClick={onBack} aria-label="Tagasi eelmisele lehele">← Tagasi</button>
+      {onDiscardExit && <button className="flow-header__discard" type="button" disabled={isExiting} onClick={onDiscardExit}>
+        <span className="flow-header__exit-long">Logi välja salvestamata</span><span className="flow-header__exit-short">Välju</span>
+      </button>}
+      <button type="button" disabled={isExiting} onClick={onBack} aria-label="Tagasi eelmisele lehele">← Tagasi</button>
     </div>
   </header>
 }
 
-function SetupShell({ screen, children, onBack, onExit, isExiting }: { screen: Screen; children: React.ReactNode; onBack: () => void; onExit?: () => void; isExiting?: boolean }) {
+function SetupShell({
+  screen,
+  children,
+  onBack,
+  onExit,
+  onDiscardExit,
+  isExiting,
+}: {
+  screen: Screen
+  children: React.ReactNode
+  onBack: () => void
+  onExit?: () => void
+  onDiscardExit?: () => void
+  isExiting?: boolean
+}) {
   return <main className={`setup-page${screen === 'publish' ? ' setup-page--publish' : ''}`}>
-    <FlowHeader onBack={onBack} onExit={onExit} isExiting={isExiting} />
+    <FlowHeader onBack={onBack} onExit={onExit} onDiscardExit={onDiscardExit} isExiting={isExiting} />
     <SetupProgress screen={screen} />
     <section className="setup-card">{children}</section>
   </main>
@@ -322,6 +349,7 @@ function PlatformFlow() {
   const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
   const [isPublishing, setIsPublishing] = useState(false)
   const [isSetupExiting, setIsSetupExiting] = useState(false)
+  const [setupExitSaveFailed, setSetupExitSaveFailed] = useState(false)
   const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
   const [phoneSlideIndex, setPhoneSlideIndex] = useState(1)
   const [isPhoneSwipeAnimated, setIsPhoneSwipeAnimated] = useState(true)
@@ -947,6 +975,9 @@ function PlatformFlow() {
   const resetPlatformFlow = () => {
     setScreen('landing')
     setEmail('')
+    setOnlineUserId(null)
+    setStore(null)
+    setStoredProducts([])
     setStoreName('')
     setSlug('')
     setPayment('stripe')
@@ -956,6 +987,8 @@ function PlatformFlow() {
     setIsStripeConnecting(false)
     setIsStripeOnboardingOpen(false)
     setIsBillingCardOpen(false)
+    setIsPublishing(false)
+    setIsMobileNavOpen(false)
     setShipping(['omniva', 'pickup'])
     setBusinessName('')
     setRegistryCode('')
@@ -964,6 +997,16 @@ function PlatformFlow() {
     setVatNumber('')
     setBusinessEmail('')
     setReturnsText(DEFAULT_RETURNS_TEXT)
+    setRegistryLookupStatus('idle')
+    setRegistryLookupCompanyName('')
+    setRegistryLookupAttempt(0)
+    setAuthError('')
+    setAuthNotice('')
+    setIsAuthBusy(false)
+    setNeedsEmailConfirmation(false)
+    setConfirmationResendCooldown(0)
+    setIsConfirmationRateLimited(false)
+    setSetupExitSaveFailed(false)
   }
 
   const handleAccountDeleted = () => {
@@ -1251,19 +1294,53 @@ function PlatformFlow() {
     </div>
   </main>
 
-  const onBack = () => setScreen(backMap[screen] ?? 'landing')
-  const exitPublishSetup = async () => {
+  const onBack = () => {
+    setSetupExitSaveFailed(false)
+    setAuthError('')
+    setScreen(backMap[screen] ?? 'landing')
+  }
+  const signOutOfSetup = async () => {
+    const { error: signOutError } = await requireSupabase().auth.signOut({ scope: 'local' })
+    if (signOutError) throw signOutError
+    resetPlatformFlow()
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
+  const saveAndExitSetup = async () => {
+    if (isSetupExiting) return
+    setIsSetupExiting(true)
+    setSetupExitSaveFailed(false)
+    setAuthError('')
+    try {
+      const currentStep = screen as Exclude<OnboardingStep, 'complete'>
+      const hasValidStoreIdentity = Boolean(storeName.trim() && (slug || slugify(storeName)))
+
+      if (store || hasValidStoreIdentity) {
+        if (!hasValidStoreIdentity) throw new Error('Poe nimi peab enne salvestamist olema täidetud.')
+        await persistStore(store?.is_published ?? false, { pricing_plan: pricingPlan }, currentStep)
+      }
+
+      if (isStripeOnboardingOpen) {
+        setIsStripeOnboardingOpen(false)
+        await invokeStripeConnect('status').catch(() => undefined)
+      }
+
+      await signOutOfSetup()
+    } catch (error) {
+      setSetupExitSaveFailed(true)
+      setAuthError(error instanceof Error ? error.message : 'Poolelioleva poe salvestamine ebaõnnestus.')
+    } finally {
+      setIsSetupExiting(false)
+    }
+  }
+  const discardAndExitSetup = async () => {
     if (isSetupExiting) return
     setIsSetupExiting(true)
     setAuthError('')
     try {
-      await persistStore(false, { pricing_plan: pricingPlan }, 'publish')
-      const { error: signOutError } = await requireSupabase().auth.signOut()
-      if (signOutError) throw signOutError
-      resetPlatformFlow()
-      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      setIsStripeOnboardingOpen(false)
+      await signOutOfSetup()
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Poolelioleva poe salvestamine ebaõnnestus.')
+      setAuthError(error instanceof Error ? error.message : 'Väljalogimine ebaõnnestus.')
     } finally {
       setIsSetupExiting(false)
     }
@@ -1274,7 +1351,8 @@ function PlatformFlow() {
   return <SetupShell
     screen={screen}
     onBack={onBack}
-    onExit={screen === 'publish' ? () => void exitPublishSetup() : undefined}
+    onExit={() => void saveAndExitSetup()}
+    onDiscardExit={setupExitSaveFailed ? () => void discardAndExitSetup() : undefined}
     isExiting={isSetupExiting}
   >
     {returnNotice}
