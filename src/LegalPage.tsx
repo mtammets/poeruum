@@ -1,6 +1,17 @@
 import { useEffect } from 'react'
 import { Brand } from './Brand'
 import { applySeoMetadata } from './lib/seo'
+import {
+  FIXED_PLAN_MONTHLY_FEE,
+  FIXED_PLAN_MONTHLY_TOTAL,
+  FIXED_PLAN_MONTHLY_VAT,
+  formatPricingEuro,
+  formatPricingPercent,
+  PLATFORM_FEE_GROSS_CAP,
+  PLATFORM_FEE_NET_CAP,
+  PLATFORM_FEE_RATE,
+  VAT_RATE,
+} from './storefrontConfig'
 import './legal.css'
 
 export type LegalDocument = 'terms' | 'privacy'
@@ -50,8 +61,8 @@ function Terms() {
 
     <section>
       <h2>4. Paketid ja tasud</h2>
-      <p><strong>Paindlik:</strong> 0 € kuutasu ja netotasu 4% toodete müügisummalt, millele lisandub 24% käibemaks. Tasutav summa on seega 4,96% ning selle ülempiir on 48,36 € kuus (39 € netotasu + 9,36 € käibemaks). Tarne hind ei kuulu Poeruumi müügitasu arvestusse.</p>
-      <p><strong>Kindel:</strong> esimesed 30 päeva tasuta, seejärel 35,96 € kuus (29 € netohind + 6,96 € käibemaks). Poeruumi müügitasu on 0%.</p>
+      <p><strong>Paindlik:</strong> 0 € kuutasu ja netotasu {formatPricingPercent(PLATFORM_FEE_RATE)} toodete müügisummalt, millele lisandub 24% käibemaks. Tasutav summa on seega {formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))} ning selle ülempiir on {formatPricingEuro(PLATFORM_FEE_NET_CAP)} + käibemaks ehk {formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus koos käibemaksuga. Tarne hind ei kuulu Poeruumi müügitasu arvestusse.</p>
+      <p><strong>Kindel:</strong> esimesed 30 päeva tasuta, seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)} kuus + 24% käibemaks ehk kokku {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} ({formatPricingEuro(FIXED_PLAN_MONTHLY_VAT)} käibemaks). Poeruumi müügitasu on 0%.</p>
       <p>Mõlemas paketis saab oma olemasoleva domeeni ühendada ilma Poeruumi lisatasuta. Domeeni registreerimise ja teenusepakkuja tasud maksab kasutaja ise. Maksevahendaja tehingutasud ei sisaldu Poeruumi hinnas.</p>
       <p>Jooksev hind, arveldusperiood ja kohaldatavad maksud kuvatakse enne tasulise paketi kinnitamist. Korduv tellimus kestab kuni tühistamiseni. Tühistamine jõustub arveldusvaates näidatud ajal ning juba alanud perioodi eest tasutud summat ei tagastata, välja arvatud juhul, kui seadus nõuab teisiti.</p>
     </section>

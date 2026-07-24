@@ -6,7 +6,19 @@ import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, refu
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, getStoreSlugFromHostname } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
-import { createCheckoutRequestId, DEFAULT_RETURNS_TEXT, FIXED_PLAN_TRIAL_DAYS, type PricingPlan } from './storefrontConfig'
+import {
+  createCheckoutRequestId,
+  DEFAULT_RETURNS_TEXT,
+  FIXED_PLAN_MONTHLY_FEE,
+  FIXED_PLAN_MONTHLY_TOTAL,
+  FIXED_PLAN_TRIAL_DAYS,
+  formatPricingEuro,
+  PLATFORM_FEE_GROSS_CAP,
+  PLATFORM_FEE_NET_CAP,
+  PLATFORM_FEE_RATE,
+  VAT_RATE,
+  type PricingPlan,
+} from './storefrontConfig'
 import BillingPlanDialog from './BillingPlanDialog'
 
 const getProductPrice = (product: Product) =>
@@ -156,12 +168,6 @@ const getDefaultProductOptions = (product: Product) => Object.fromEntries(
 const getProductStockLimit = (product: Product) => product.oneOfAKind ? 1 : product.stock ?? Number.POSITIVE_INFINITY
 
 const MAX_PRODUCT_IMAGES = 3
-const PLATFORM_FEE_RATE = 0.04
-const VAT_RATE = 0.24
-const PLATFORM_FEE_NET_CAP = 39
-const PLATFORM_FEE_GROSS_CAP = PLATFORM_FEE_NET_CAP * (1 + VAT_RATE)
-const FIXED_PLAN_MONTHLY_FEE = 29
-const FIXED_PLAN_MONTHLY_TOTAL = FIXED_PLAN_MONTHLY_FEE * (1 + VAT_RATE)
 type StoreTheme = 'midnight' | 'paper' | 'pop'
 type BuyButtonSize = 'small' | 'medium' | 'large'
 type SaleBadgeStyle = 'quirky' | 'classic' | 'price' | 'elegant' | 'minimal'
@@ -3078,10 +3084,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <header><span>ARVELDUS</span><p>Vali müügimahule sobiv pakett. Vahetada saad igal ajal.</p></header>
             <div className="billing-plan-options" role="radiogroup" aria-label="Poeruumi pakett">
               <button type="button" className={billingPlan === 'flexible' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'flexible'} onClick={() => selectBillingPlan('flexible')}>
-                <span>PAINDLIK</span><strong>0 € <small>/ kuu</small></strong><p>4% + km toodete müügilt</p><em>Kuni 48,36 € kuus (39 € + km)</em><b>{billingPlan === 'flexible' ? '✓ Valitud' : 'Vali pakett'}</b>
+                <span>PAINDLIK</span><strong>0 € <small>/ kuu</small></strong><p>Teenustasu 4% müügilt + km</p><em>Kuni {formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km ({formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} koos km-ga)</em><b>{billingPlan === 'flexible' ? '✓ Valitud' : 'Vali pakett'}</b>
               </button>
               <button type="button" className={billingPlan === 'fixed' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'fixed'} onClick={() => selectBillingPlan('fixed')}>
-                <span>KINDEL · 30 PÄEVA TASUTA</span><strong>35,96 € <small>/ kuu</small></strong><p>29 € + 6,96 € km</p><em>Esimesed 30 päeva tasuta</em><b>{billingPlan === 'fixed' ? '✓ Valitud' : 'Alusta tasuta'}</b>
+                <span>KINDEL · 30 PÄEVA TASUTA</span><strong>{formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)} <small>/ kuu + km</small></strong><p>{formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos km-ga</p><em>Esimesed 30 päeva tasuta</em><b>{billingPlan === 'fixed' ? '✓ Valitud' : 'Alusta tasuta'}</b>
               </button>
             </div>
             <div className="billing-current">
@@ -3089,12 +3095,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <div className="billing-current__progress"><i style={{ width: `${platformFeeProgress}%` }} /></div>
               <div><span>Toodete müük <strong>{formatEuro(monthlyProductSales)}</strong></span><span>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `${fixedPlanTrialDaysLeft} päeva tasuta` : '0% müügitasu' : remainingPlatformFee > 0 ? `Kuulaeni ${formatEuro(remainingPlatformFee)}` : 'Hinnalagi täis'}</span></div>
               {monthlyPlatformFee > 0 && <small>Netotasu {formatEuro(monthlyPlatformFeeNet)} · käibemaks 24% {formatEuro(monthlyPlatformFeeVat)}</small>}
-              <small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel 35,96 € kuus koos käibemaksuga.` : 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_GROSS_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
+              <small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga.` : 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_GROSS_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
             </div>
             <div className="billing-rules">
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg></span><p><strong>{billingPlan === 'fixed' ? 'Müügilt 0% Poeruumile' : 'Tarne ei kuulu arvestusse'}</strong><small>{billingPlan === 'fixed' ? 'Müügimahu kasv ei suurenda kuutasu.' : '4% arvutatakse ainult toodete summalt.'}</small></p></div>
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8H4V4"/><path d="M4.5 8a8 8 0 1 1-.1 7"/></svg></span><p><strong>{billingPlan === 'fixed' ? 'Paketti saad vahetada' : 'Tagastuse tasu krediteeritakse'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Prooviperiood algas Kindla paketi esmakordsel valimisel.' : 'Uus valik hakkab kehtima järgmisest arvelduskuust.' : 'Tagastatud toodete müük vähendatakse arvestusest.'}</small></p></div>
-              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : '48,36 € hinnalagi koos km-ga'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Pärast prooviperioodi on kuutasu 35,96 € koos käibemaksuga.' : 'Poeruumi kuutasu on 35,96 € koos käibemaksuga.' : 'Netolagi 39 € + 9,36 € käibemaks.'}</small></p></div>
+              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : `${formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km hinnalagi`}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `Pärast prooviperioodi on kuutasu ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Poeruumi kuutasu on ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Koos käibemaksuga maksimaalselt ${formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus.`}</small></p></div>
             </div>
             <div className="settings-info-note"><span>i</span><p>Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.</p></div>
           </div>}

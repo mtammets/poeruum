@@ -7,7 +7,18 @@ import { createStore, getShowcaseStore, getMyStore, getStoreByHostname, getStore
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { products as bundledProducts, type Product } from './products'
-import { DEFAULT_RETURNS_TEXT, type PricingPlan } from './storefrontConfig'
+import {
+  DEFAULT_RETURNS_TEXT,
+  FIXED_PLAN_MONTHLY_FEE,
+  FIXED_PLAN_MONTHLY_TOTAL,
+  formatPricingEuro,
+  formatPricingPercent,
+  PLATFORM_FEE_GROSS_CAP,
+  PLATFORM_FEE_NET_CAP,
+  PLATFORM_FEE_RATE,
+  VAT_RATE,
+  type PricingPlan,
+} from './storefrontConfig'
 
 const Storefront = lazy(async () => {
   const module = await import('./App')
@@ -1102,7 +1113,7 @@ function PlatformFlow() {
         <h1>Sinu e-pood.<br /><em>10 minutiga.</em></h1>
         <p>Tee pilt, lisa hind ja vajuta „Avalda”. Kõige muu eest hoolitseme meie.</p>
         <button onClick={() => setScreen('account')}>Alusta tasuta <span>→</span></button>
-        <small>Kaks paketti: 0 € kuutasu + müügitasu või 30 päeva tasuta, seejärel 35,96 € kuus koos käibemaksuga</small>
+        <small>Kaks paketti: 0 € kuutasu + teenustasu või 30 päeva tasuta, seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)} kuus + km ({formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos km-ga)</small>
       </div>
       <div className="platform-phone-stage">
         <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
@@ -1141,16 +1152,16 @@ function PlatformFlow() {
       <div className="platform-pricing__plans">
         <article className="platform-pricing__card is-featured">
           <span>PAINDLIK <b>ALUSTA SIIT</b></span>
-          <div className="platform-pricing__rate"><strong>0 €</strong><p>kuus<br />+ 4% + km müügilt</p></div>
-          <dl><div><dt>Müüki pole</dt><dd>0 €</dd></div><div><dt>Tasutav koos km-ga</dt><dd>4,96%</dd></div><div className="is-cap"><dt>Maksimum kuus</dt><dd>48,36 €</dd></div></dl>
-          <small>Sobib alustamiseks ja ebaregulaarse müügiga poele.</small>
+          <div className="platform-pricing__rate"><strong>0 €</strong><p>kuus<br />teenustasu {formatPricingPercent(PLATFORM_FEE_RATE)} müügilt + km</p></div>
+          <dl><div><dt>Müüki pole</dt><dd>0 €</dd></div><div><dt>Koos km-ga</dt><dd>{formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))}</dd></div><div className="is-cap"><dt>Kuulagi</dt><dd>{formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km</dd></div></dl>
+          <small>Koos käibemaksuga maksimaalselt {formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus.</small>
           <button onClick={() => { selectPricingPlan('flexible'); setScreen('account') }}>Vali Paindlik <span>→</span></button>
         </article>
         <article className="platform-pricing__card">
           <span>KINDEL <b>30 PÄEVA TASUTA</b></span>
-          <div className="platform-pricing__rate"><strong>35,96 €</strong><p>kuus koos km-ga<br />0% müügilt</p></div>
-          <dl><div><dt>Poeruumi müügitasu</dt><dd>0%</dd></div><div><dt>Netohind</dt><dd>29 €</dd></div><div className="is-cap"><dt>Käibemaks 24%</dt><dd>6,96 €</dd></div></dl>
-          <small>Esimesed 30 päeva tasuta, seejärel 35,96 € kuus.</small>
+          <div className="platform-pricing__rate"><strong>{formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)}</strong><p>kuus + km<br />0% müügilt</p></div>
+          <dl><div><dt>Poeruumi müügitasu</dt><dd>0%</dd></div><div><dt>Käibemaks 24%</dt><dd>{formatPricingEuro(FIXED_PLAN_MONTHLY_FEE * VAT_RATE)}</dd></div><div className="is-cap"><dt>Tasutav kokku</dt><dd>{formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)}</dd></div></dl>
+          <small>Esimesed 30 päeva tasuta, seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos km-ga.</small>
           <button onClick={() => { selectPricingPlan('fixed'); setScreen('account') }}>Alusta tasuta <span>→</span></button>
         </article>
       </div>
@@ -1180,7 +1191,7 @@ function PlatformFlow() {
         <h2>KKK</h2>
       </header>
       <div className="platform-faq__list">
-        <details open><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Paindlik pakett maksab 0 € kuus ja 4% toodete müügilt + 24% käibemaks tasult ehk kokku 4,96%, maksimaalselt 48,36 € kuus. Kindel pakett on esimesed 30 päeva tasuta, seejärel 35,96 € kuus koos käibemaksuga ning Poeruumi müügitasu on 0%.</p></details>
+        <details open><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Paindlik pakett maksab 0 € kuus ja teenustasu on {formatPricingPercent(PLATFORM_FEE_RATE)} toodete müügilt + 24% käibemaks ehk kokku {formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))}, maksimaalselt {formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km ({formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} koos km-ga) kuus. Kindel pakett on esimesed 30 päeva tasuta, seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)} kuus + km ({formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos km-ga) ning Poeruumi müügitasu on 0%.</p></details>
         <details><summary>Kas saan kogu poe telefonis valmis teha?<span>+</span></summary><p>Jah. Telefonis saad pildistada tooted, lisada hinnad ja kirjeldused, kujundada poe, ühendada maksed ja tarne ning poe avaldada.</p></details>
         <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Stripe’i kaudu saavad kliendid maksta kaardiga ning toetatud seadmetes Apple Pay või Google Payga.</p></details>
         <details><summary>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Toetatud on Omniva, DPD ja SmartPosti pakiautomaadid, kuller ning ise järele tulemine. Tarneviisid ja hinnad valid ise.</p></details>
@@ -1503,13 +1514,13 @@ function PlatformFlow() {
           <button type="button" role="radio" aria-checked={pricingPlan === 'flexible'} className={pricingPlan === 'flexible' ? 'is-selected' : ''} onClick={() => selectPricingPlan('flexible')}>
             <span className="publish-plan-name">Paindlik<i aria-hidden="true" /></span>
             <strong className="publish-plan-price">0 € <small>/ kuu</small></strong>
-            <span className="publish-plan-details"><strong>4% + km müügilt</strong><small>Kokku 4,96% · kuni 48,36 €</small></span>
+            <span className="publish-plan-details"><strong>Teenustasu {formatPricingPercent(PLATFORM_FEE_RATE)} müügilt + km</strong><small>Koos km-ga {formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))} · kuni {formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km ({formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} koos km-ga)</small></span>
             <b>{pricingPlan === 'flexible' ? 'Valitud' : 'Vali pakett'}<span aria-hidden="true">{pricingPlan === 'flexible' ? '✓' : '→'}</span></b>
           </button>
           <button type="button" role="radio" aria-checked={pricingPlan === 'fixed'} className={pricingPlan === 'fixed' ? 'is-selected' : ''} onClick={() => selectPricingPlan('fixed')}>
             <span className="publish-plan-name">Kindel<i aria-hidden="true" /></span>
-            <strong className="publish-plan-price">35,96 € <small>/ kuu koos km-ga</small></strong>
-            <span className="publish-plan-details"><strong>Esimesed 30 päeva tasuta</strong><small>29 € + 6,96 € km · müügitasu 0%</small></span>
+            <strong className="publish-plan-price">{formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)} <small>/ kuu + km</small></strong>
+            <span className="publish-plan-details"><strong>Esimesed 30 päeva tasuta</strong><small>{formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos km-ga · müügitasu 0%</small></span>
             <b>{pricingPlan === 'fixed' ? 'Valitud' : 'Vali Kindel'}<span aria-hidden="true">{pricingPlan === 'fixed' ? '✓' : '→'}</span></b>
           </button>
         </div>

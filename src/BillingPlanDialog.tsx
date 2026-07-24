@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { createCheckoutRequestId, FIXED_PLAN_TRIAL_DAYS } from './storefrontConfig'
+import {
+  createCheckoutRequestId,
+  FIXED_PLAN_MONTHLY_FEE,
+  FIXED_PLAN_MONTHLY_TOTAL,
+  FIXED_PLAN_MONTHLY_VAT,
+  FIXED_PLAN_TRIAL_DAYS,
+  formatPricingEuro,
+} from './storefrontConfig'
 
 export default function BillingPlanDialog({ onClose, onConfirm, confirmLabel = 'Jätka Stripe’is' }: { onClose: () => void; onConfirm: (checkoutRequestId: string) => Promise<void>; confirmLabel?: string }) {
   const [isConfirming, setIsConfirming] = useState(false)
@@ -134,11 +141,11 @@ export default function BillingPlanDialog({ onClose, onConfirm, confirmLabel = '
         <div className="billing-plan-dialog__next-payment">
           <i aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="14" rx="3" /><path d="M8 4v4M16 4v4M4 10h16" /></svg></i>
           <span><small>Järgmine makse</small><strong>{firstPaymentLabel}</strong></span>
-          <b>35,96 € / kuu<small>29 € + 6,96 € km</small></b>
+          <b>{formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} / kuu<small>{formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)} + {formatPricingEuro(FIXED_PLAN_MONTHLY_VAT)} km</small></b>
         </div>
       </div>
       <form onSubmit={confirm}>
-        <label className="billing-plan-dialog__consent"><input required type="checkbox" defaultChecked /><span>Nõustun pärast prooviperioodi 35,96 € kuutasuga (sisaldab 24% käibemaksu).</span></label>
+        <label className="billing-plan-dialog__consent"><input required type="checkbox" defaultChecked /><span>Nõustun pärast prooviperioodi {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuutasuga (sisaldab 24% käibemaksu).</span></label>
         {confirmError && <p className="add-product-error" role="alert">{confirmError}</p>}
         <button type="submit" disabled={isConfirming}>{isConfirming ? 'Kinnitan…' : confirmLabel}<span aria-hidden="true">{isConfirming ? '◌' : '→'}</span></button>
       </form>
