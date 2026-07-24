@@ -1,7 +1,7 @@
 import type { Product, ProductImageAsset } from '../products'
 import { requireSupabase } from './supabase'
 
-export const DEMO_STORE_ID = '00000000-0000-4000-8000-000000000001'
+export const SHOWCASE_STORE_ID = '00000000-0000-4000-8000-000000000001'
 
 export type StoreRecord = {
   id: string
@@ -104,8 +104,8 @@ export async function getStoreByHostname(hostname: string) {
   return slug ? getStoreBySlug(String(slug)) : null
 }
 
-export async function getDemoStore() {
-  const { data, error } = await requireSupabase().from('stores').select('*').eq('id', DEMO_STORE_ID).maybeSingle()
+export async function getShowcaseStore() {
+  const { data, error } = await requireSupabase().from('stores').select('*').eq('id', SHOWCASE_STORE_ID).maybeSingle()
   throwIfError(error)
   return data as StoreRecord | null
 }

@@ -40,9 +40,9 @@
   border-bottom: 1px solid rgba(23, 35, 28, .13);
 }
 
-.coming-soon__header .demo-brand { gap: .72rem; }
-.coming-soon__header .demo-brand__mark { width: 2.45rem; height: 2.45rem; }
-.coming-soon__header .demo-brand strong { font-size: 1.3rem; }
+.coming-soon__header .platform-brand { gap: .72rem; }
+.coming-soon__header .platform-brand__mark { width: 2.45rem; height: 2.45rem; }
+.coming-soon__header .platform-brand strong { font-size: 1.3rem; }
 
 .coming-soon__intro { position: relative; z-index: 10; align-self: center; padding: 3rem 2rem 5rem 0; }
 .coming-soon__intro h1 { margin: 0; font-family: Manrope, sans-serif; font-size: clamp(4.4rem, 8vw, 8.5rem); font-weight: 700; line-height: .78; letter-spacing: -.085em; }
@@ -107,8 +107,8 @@
   .coming-soon { grid-template-columns: 1fr; grid-template-rows: auto minmax(21rem, 1fr) auto auto; padding: 0 1.3rem; }
   .coming-soon::before { right: 50%; bottom: 10%; width: 145vw; transform: translateX(50%); }
   .coming-soon__header { min-height: 5rem; }
-  .coming-soon__header .demo-brand__mark { width: 2.2rem; height: 2.2rem; }
-  .coming-soon__header .demo-brand strong { font-size: 1.15rem; }
+  .coming-soon__header .platform-brand__mark { width: 2.2rem; height: 2.2rem; }
+  .coming-soon__header .platform-brand strong { font-size: 1.15rem; }
   .coming-soon__showcase { grid-row: 2; min-height: 22rem; }
   .coming-soon__halo { left: 50%; width: min(102vw, 34rem); }
   .coming-soon__product { left: 50%; width: clamp(10rem, 38vw, 12rem); border-radius: 1.85rem; }

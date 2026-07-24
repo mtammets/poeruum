@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { Brand } from './DemoApp'
+import { Brand } from './Brand'
 import { Storefront } from './App'
-import { getDemoStore, listProducts, type StoreRecord } from './lib/database'
+import { getShowcaseStore, listProducts, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import type { Product } from './products'
 import AdminSupport from './AdminSupport'
@@ -80,6 +80,39 @@ const emptyRevenueDashboard: RevenueDashboard = {
   transaction_fee_total_cents: 0,
   refund_total_cents: 0,
   recent_events: [],
+}
+
+const DEFAULT_SOCIAL_IMAGE_URL = '/images/poeruum-social.png'
+const SOCIAL_IMAGE_WIDTH = 1200
+const SOCIAL_IMAGE_HEIGHT = 630
+
+const prepareSocialImage = async (file: File) => {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    throw new Error('Vali JPG-, PNG- või WebP-pilt.')
+  }
+  if (file.size > 20_000_000) throw new Error('Algfail võib olla kuni 20 MB.')
+
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+  const canvas = document.createElement('canvas')
+  canvas.width = SOCIAL_IMAGE_WIDTH
+  canvas.height = SOCIAL_IMAGE_HEIGHT
+  const context = canvas.getContext('2d')
+  if (!context) {
+    bitmap.close()
+    throw new Error('Brauser ei saanud pilti töödelda.')
+  }
+
+  const scale = Math.max(SOCIAL_IMAGE_WIDTH / bitmap.width, SOCIAL_IMAGE_HEIGHT / bitmap.height)
+  const width = bitmap.width * scale
+  const height = bitmap.height * scale
+  context.imageSmoothingEnabled = true
+  context.imageSmoothingQuality = 'high'
+  context.drawImage(bitmap, (SOCIAL_IMAGE_WIDTH - width) / 2, (SOCIAL_IMAGE_HEIGHT - height) / 2, width, height)
+  bitmap.close()
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', .88))
+  if (!blob) throw new Error('Pildi optimeerimine ebaõnnestus.')
+  return blob
 }
 
 const setupSteps: SetupStep[] = [
@@ -227,14 +260,18 @@ export default function AdminApp() {
   const [revenueError, setRevenueError] = useState('')
   const [liveRevenueEventId, setLiveRevenueEventId] = useState<string | null>(null)
   const [latestEmails, setLatestEmails] = useState<Map<string, LatestEmailDelivery>>(() => new Map())
-  const [demoStore, setDemoStore] = useState<StoreRecord | null>(null)
-  const [demoProducts, setDemoProducts] = useState<Product[]>([])
-  const [isDemoLoading, setIsDemoLoading] = useState(false)
-  const [, setDemoError] = useState('')
-  const [isManagingDemo, setIsManagingDemo] = useState(false)
+  const [showcaseStore, setShowcaseStore] = useState<StoreRecord | null>(null)
+  const [showcaseProducts, setShowcaseProducts] = useState<Product[]>([])
+  const [isShowcaseLoading, setIsShowcaseLoading] = useState(false)
+  const [, setShowcaseError] = useState('')
+  const [isManagingShowcase, setIsManagingShowcase] = useState(false)
   const [comingSoonEnabled, setComingSoonEnabled] = useState<boolean | null>(null)
   const [isHomepageModeUpdating, setIsHomepageModeUpdating] = useState(false)
   const [homepageModeError, setHomepageModeError] = useState('')
+  const [socialImagePath, setSocialImagePath] = useState<string | null>(null)
+  const [isSocialImageUpdating, setIsSocialImageUpdating] = useState(false)
+  const [socialImageError, setSocialImageError] = useState('')
+  const [socialImageNotice, setSocialImageNotice] = useState('')
   const dashboardRefreshTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -246,20 +283,20 @@ export default function AdminApp() {
     })
   }, [])
 
-  const openDemoManager = async () => {
-    setIsDemoLoading(true)
-    setDemoError('')
+  const openShowcaseManager = async () => {
+    setIsShowcaseLoading(true)
+    setShowcaseError('')
     try {
-      const found = await getDemoStore()
+      const found = await getShowcaseStore()
       if (!found) throw new Error('Näidispoodi ei leitud. Rakenda esmalt näidispoe migratsioon.')
       const products = await listProducts(found.id)
-      setDemoStore(found)
-      setDemoProducts(products)
-      setIsManagingDemo(true)
+      setShowcaseStore(found)
+      setShowcaseProducts(products)
+      setIsManagingShowcase(true)
     } catch (loadError) {
-      setDemoError(loadError instanceof Error ? loadError.message : 'Näidispoodi ei õnnestunud avada.')
+      setShowcaseError(loadError instanceof Error ? loadError.message : 'Näidispoodi ei õnnestunud avada.')
     } finally {
-      setIsDemoLoading(false)
+      setIsShowcaseLoading(false)
     }
   }
 
@@ -301,7 +338,7 @@ export default function AdminApp() {
   const loadHomepageMode = async () => {
     const { data, error: queryError } = await requireSupabase()
       .from('platform_settings')
-      .select('coming_soon_enabled')
+      .select('coming_soon_enabled,social_image_path')
       .eq('id', 'homepage')
       .maybeSingle()
     if (queryError) {
@@ -309,7 +346,67 @@ export default function AdminApp() {
       return
     }
     setComingSoonEnabled(data?.coming_soon_enabled ?? true)
+    setSocialImagePath(data?.social_image_path ?? null)
     setHomepageModeError('')
+  }
+
+  const socialImageUrl = socialImagePath
+    ? requireSupabase().storage.from('platform-assets').getPublicUrl(socialImagePath).data.publicUrl
+    : DEFAULT_SOCIAL_IMAGE_URL
+
+  const changeSocialImage = async (file: File | undefined) => {
+    if (!file || isSocialImageUpdating) return
+    setIsSocialImageUpdating(true)
+    setSocialImageError('')
+    setSocialImageNotice('')
+    const previousPath = socialImagePath
+    let uploadedPath = ''
+    try {
+      const blob = await prepareSocialImage(file)
+      const randomPart = typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      uploadedPath = `social/homepage-${randomPart}.webp`
+      const client = requireSupabase()
+      const { error: uploadError } = await client.storage.from('platform-assets').upload(uploadedPath, blob, {
+        contentType: 'image/webp',
+        cacheControl: '300',
+        upsert: false,
+      })
+      if (uploadError) throw uploadError
+
+      const { data, error: updateError } = await client.rpc('admin_set_homepage_social_image', {
+        next_path: uploadedPath,
+      })
+      if (updateError) throw updateError
+      setSocialImagePath(String(data))
+      setSocialImageNotice('Uus jagamispilt on salvestatud. Mõni sotsiaalvõrgustik võib vana eelvaadet veel ajutiselt puhverdada.')
+      if (previousPath) void client.storage.from('platform-assets').remove([previousPath])
+    } catch (uploadError) {
+      if (uploadedPath) void requireSupabase().storage.from('platform-assets').remove([uploadedPath])
+      setSocialImageError(uploadError instanceof Error ? uploadError.message : 'Jagamispildi salvestamine ebaõnnestus.')
+    } finally {
+      setIsSocialImageUpdating(false)
+    }
+  }
+
+  const restoreDefaultSocialImage = async () => {
+    if (!socialImagePath || isSocialImageUpdating) return
+    if (!window.confirm('Kas taastada Poeruumi vaikimisi jagamispilt?')) return
+    setIsSocialImageUpdating(true)
+    setSocialImageError('')
+    setSocialImageNotice('')
+    const previousPath = socialImagePath
+    const client = requireSupabase()
+    const { error: updateError } = await client.rpc('admin_set_homepage_social_image', { next_path: null })
+    if (updateError) {
+      setSocialImageError(updateError.message || 'Vaikimisi pildi taastamine ebaõnnestus.')
+    } else {
+      setSocialImagePath(null)
+      setSocialImageNotice('Vaikimisi jagamispilt on taastatud.')
+      void client.storage.from('platform-assets').remove([previousPath])
+    }
+    setIsSocialImageUpdating(false)
   }
 
   const toggleHomepageMode = async () => {
@@ -459,21 +556,21 @@ export default function AdminApp() {
   if (!isSupabaseConfigured) return <main className="admin-auth"><section className="admin-auth__card"><span>SEADISTUS PUUDUB</span><h1>Supabase pole ühendatud</h1><p>Lisa lokaalsesse <code>.env</code> faili Supabase’i võtmed ja laadi leht uuesti.</p><a href="/">Tagasi Poeruumi</a></section></main>
   if (!session) return <AdminLogin onSignedIn={() => void loadDashboard()} />
 
-  if (isManagingDemo && demoStore) return <Storefront
-    key={`admin-demo-${demoStore.id}`}
-    storeId={demoStore.id}
-    initialSettings={demoStore.settings}
-    seedProducts={demoProducts}
-    storeName={demoStore.name}
-    storeSlug={demoStore.slug}
-    paymentProvider={demoStore.payment_provider}
+  if (isManagingShowcase && showcaseStore) return <Storefront
+    key={`admin-platform-${showcaseStore.id}`}
+    storeId={showcaseStore.id}
+    initialSettings={showcaseStore.settings}
+    seedProducts={showcaseProducts}
+    storeName={showcaseStore.name}
+    storeSlug={showcaseStore.slug}
+    paymentProvider={showcaseStore.payment_provider}
     paymentsReady={false}
-    initialShipping={demoStore.shipping}
-    pricingPlan={demoStore.pricing_plan}
+    initialShipping={showcaseStore.shipping}
+    pricingPlan={showcaseStore.pricing_plan}
     merchantMode
-    adminDemoMode
-    onStoreChange={setDemoStore}
-    onExit={() => setIsManagingDemo(false)}
+    adminShowcaseMode
+    onStoreChange={setShowcaseStore}
+    onExit={() => setIsManagingShowcase(false)}
   />
 
   const completedCount = rows.filter((row) => setupPercent(row) === 100).length
@@ -486,7 +583,7 @@ export default function AdminApp() {
       <a href="/" aria-label="Poeruumi avaleht"><Brand /></a>
       <nav aria-label="Administraatori menüü">
         <a className="is-active" href="/admin" aria-current="page"><span><AdminIcon name="home" /></span>Ülevaade</a>
-        <button type="button" onClick={() => void openDemoManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
+        <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
         <a href="#klienditugi"><span><AdminIcon name="message" /></span>Klienditugi</a>
         <a href="#kasutajad"><span><AdminIcon name="users" /></span>Kasutajad</a>
       </nav>
@@ -514,6 +611,31 @@ export default function AdminApp() {
               {isHomepageModeUpdating ? 'Muudan…' : comingSoonEnabled === false ? 'Pane ooteleht tagasi' : 'Ava Poeruum'}
             </button>
             <a href="/" target="_blank" rel="noreferrer">Vaata avalehte ↗</a>
+          </div>
+        </section>
+
+        <section className="admin-social-image" aria-labelledby="admin-social-image-title">
+          <div className="admin-social-image__copy">
+            <span>SEO JA JAGAMINE</span>
+            <h2 id="admin-social-image-title">Avalehe jagamispilt</h2>
+            <p>Seda pilti näidatakse, kui keegi jagab poeruum.ee linki Facebookis, LinkedInis, Slackis või sõnumirakenduses.</p>
+            <div className="admin-social-image__actions">
+              <label className={isSocialImageUpdating ? 'is-disabled' : undefined}>
+                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={isSocialImageUpdating} onChange={(event) => {
+                  void changeSocialImage(event.target.files?.[0])
+                  event.target.value = ''
+                }} />
+                {isSocialImageUpdating ? 'Töötlen pilti…' : socialImagePath ? 'Asenda pilt' : 'Laadi uus pilt'}
+              </label>
+              {socialImagePath && <button type="button" disabled={isSocialImageUpdating} onClick={() => void restoreDefaultSocialImage()}>Taasta vaikimisi</button>}
+            </div>
+            <small>Pilt lõigatakse automaatselt mõõtu 1200 × 630 px. Hoia oluline sisu pildi keskel.</small>
+            {socialImageError && <p className="is-error" role="alert">{socialImageError}</p>}
+            {socialImageNotice && <p className="is-success" role="status">{socialImageNotice}</p>}
+          </div>
+          <div className="admin-social-image__preview">
+            <img src={socialImageUrl} alt="Poeruumi jagamispildi eelvaade" />
+            <div><small>poeruum.ee</small><strong>Poeruum – loo Eesti e-pood 10 minutiga</strong><span>Loo professionaalne e-pood umbes 10 minutiga.</span></div>
           </div>
         </section>
 

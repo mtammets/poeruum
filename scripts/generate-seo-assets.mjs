@@ -59,8 +59,9 @@ if (!Array.isArray(catalog)) throw new Error('SEO kataloog ei ole oodatud kujul.
 
 const baseHtml = await readFile(path.join(outputDirectory, 'index.html'), 'utf8')
 const seoBlockPattern = /<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/
+const contentBlockPattern = /<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/
 
-const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, type = 'website', noIndex = false, structuredData }) => {
+const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, imageWidth, imageHeight, type = 'website', noIndex = false, structuredData }) => {
   const resolvedImage = absoluteImageUrl(imageUrl)
   return `<!-- poeruum:seo:start -->
     <meta name="description" content="${escapeHtml(description)}" />
@@ -71,7 +72,9 @@ const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, type = 'we
     <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
     <meta property="og:locale" content="et_EE" />
     ${resolvedImage ? `<meta property="og:image" content="${escapeHtml(resolvedImage)}" />
-    <meta property="og:image:alt" content="${escapeHtml(title)}" />` : ''}
+    <meta property="og:image:alt" content="${escapeHtml(title)}" />
+    ${imageWidth && imageHeight ? `<meta property="og:image:width" content="${imageWidth}" />
+    <meta property="og:image:height" content="${imageHeight}" />` : ''}` : ''}
     <meta name="twitter:card" content="${resolvedImage ? 'summary_large_image' : 'summary'}" />
     <meta name="twitter:title" content="${escapeHtml(title)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
@@ -84,6 +87,7 @@ const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, type = 'we
 const renderPage = (metadata) => baseHtml
   .replace(seoBlockPattern, renderSeoBlock(metadata))
   .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(metadata.title)}</title>`)
+  .replace(contentBlockPattern, `<!-- poeruum:content:start --><main class="seo-fallback"><div><span>${escapeHtml(metadata.eyebrow || 'Poeruum')}</span><h1>${escapeHtml(metadata.heading || metadata.title)}</h1><p>${escapeHtml(metadata.description)}</p>${metadata.ctaUrl ? `<a href="${escapeHtml(metadata.ctaUrl)}">${escapeHtml(metadata.ctaLabel || 'Ava leht')}</a>` : ''}</div></main><!-- poeruum:content:end -->`)
 
 const writePage = async (relativePath, html) => {
   const directory = path.join(outputDirectory, relativePath)
@@ -101,18 +105,67 @@ const sitemapEntries = [{
 let storePageCount = 0
 let productPageCount = 0
 
+const homepageMetadata = {
+  title: 'Poeruum – loo Eesti e-pood 10 minutiga',
+  description: 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
+  canonicalUrl: `${platformOrigin}/`,
+  imageUrl: `${supabaseUrl}/functions/v1/homepage-social-image`,
+  imageWidth: 1200,
+  imageHeight: 630,
+  eyebrow: 'Eesti e-poeplatvorm',
+  heading: 'Loo oma e-pood 10 minutiga',
+  ctaUrl: '/#hind',
+  ctaLabel: 'Vaata pakette',
+  structuredData: {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebSite',
+        '@id': `${platformOrigin}/#website`,
+        url: `${platformOrigin}/`,
+        name: 'Poeruum',
+        description: 'Lihtne Eesti e-poeplatvorm toodete, maksete, tarne ja tellimuste haldamiseks.',
+        inLanguage: 'et',
+      },
+      {
+        '@type': 'SoftwareApplication',
+        '@id': `${platformOrigin}/#software`,
+        url: `${platformOrigin}/`,
+        name: 'Poeruum',
+        description: 'Loo professionaalne e-pood umbes 10 minutiga ning halda tooteid, makseid, tellimusi ja tarnet ühest keskkonnast.',
+        applicationCategory: 'BusinessApplication',
+        operatingSystem: 'Web browser',
+        inLanguage: 'et',
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'EUR',
+          description: 'Paindlik pakett kuutasuta; tehingutasu rakendub müügilt.',
+        },
+        isPartOf: { '@id': `${platformOrigin}/#website` },
+      },
+    ],
+  },
+}
+
+await writeFile(path.join(outputDirectory, 'index.html'), renderPage(homepageMetadata))
+
 const platformPages = [
   {
     path: 'kasutustingimused',
     title: 'Kasutustingimused — Poeruum',
     description: 'Poeruumi e-poeplatvormi kasutamise tingimused kaupmehele.',
     canonicalUrl: `${platformOrigin}/kasutustingimused/`,
+    eyebrow: 'Juriidiline teave',
+    heading: 'Poeruumi kasutustingimused',
   },
   {
     path: 'privaatsus',
     title: 'Privaatsuspoliitika — Poeruum',
     description: 'Kuidas Poeruum kaupmeeste ja ostjate isikuandmeid töötleb ning kaitseb.',
     canonicalUrl: `${platformOrigin}/privaatsus/`,
+    eyebrow: 'Juriidiline teave',
+    heading: 'Poeruumi privaatsuspoliitika',
   },
 ]
 
@@ -141,6 +194,8 @@ await writePage('admin', renderPage({
   description: 'Poeruumi administraatori turvaline sisselogimine.',
   canonicalUrl: `${platformOrigin}/admin/`,
   noIndex: true,
+  eyebrow: 'Poeruum',
+  heading: 'Administraatori töölaud',
 }))
 
 for (const excludedSlug of excludedStoreSlugs) {
@@ -166,6 +221,8 @@ for (const store of catalog.filter((entry) => !excludedStoreSlugs.has(String(ent
     description: storeDescription,
     canonicalUrl: storeUrl,
     imageUrl: storeImage,
+    eyebrow: 'E-pood Poeruumis',
+    heading: storeName,
     structuredData: {
       '@context': 'https://schema.org',
       '@type': 'OnlineStore',
@@ -198,6 +255,8 @@ for (const store of catalog.filter((entry) => !excludedStoreSlugs.has(String(ent
       canonicalUrl: productUrl,
       imageUrl,
       type: 'product',
+      eyebrow: storeName,
+      heading: String(product.name),
       structuredData: {
         '@context': 'https://schema.org',
         '@type': 'Product',
@@ -244,7 +303,7 @@ Disallow: /admin
 Disallow: /*?checkout=
 Disallow: /*?billing=
 
-Sitemap: ${platformOrigin}/sitemap-live.txt
+Sitemap: ${platformOrigin}/sitemap.xml
 `
 
 await Promise.all([

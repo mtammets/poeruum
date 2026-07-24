@@ -3,6 +3,8 @@ type SeoMetadata = {
   description: string
   canonicalUrl: string
   imageUrl?: string
+  imageWidth?: number
+  imageHeight?: number
   type?: 'website' | 'product'
   noIndex?: boolean
   structuredData?: Record<string, unknown>
@@ -28,6 +30,8 @@ export const applySeoMetadata = ({
   description,
   canonicalUrl,
   imageUrl,
+  imageWidth,
+  imageHeight,
   type = 'website',
   noIndex = false,
   structuredData,
@@ -55,8 +59,15 @@ export const applySeoMetadata = ({
     upsertMeta('meta[property="og:image"]', { property: 'og:image', content: resolvedImageUrl })
     upsertMeta('meta[property="og:image:alt"]', { property: 'og:image:alt', content: title })
     upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: resolvedImageUrl })
+    if (imageWidth && imageHeight) {
+      upsertMeta('meta[property="og:image:width"]', { property: 'og:image:width', content: String(imageWidth) })
+      upsertMeta('meta[property="og:image:height"]', { property: 'og:image:height', content: String(imageHeight) })
+    } else {
+      document.head.querySelectorAll('meta[property="og:image:width"], meta[property="og:image:height"], meta[property="og:image:type"]')
+        .forEach((element) => element.remove())
+    }
   } else {
-    document.head.querySelectorAll('[data-poeruum-seo][property="og:image"], [data-poeruum-seo][property="og:image:alt"], [data-poeruum-seo][name="twitter:image"]')
+    document.head.querySelectorAll('meta[property="og:image"], meta[property="og:image:alt"], meta[property="og:image:width"], meta[property="og:image:height"], meta[property="og:image:type"], meta[name="twitter:image"]')
       .forEach((element) => element.remove())
   }
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Brand } from './DemoApp'
+import { Brand } from './Brand'
 import { applySeoMetadata } from './lib/seo'
 import './legal.css'
 

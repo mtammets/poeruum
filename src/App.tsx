@@ -6,6 +6,8 @@ import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, refu
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, getStoreSlugFromHostname } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
+import { createCheckoutRequestId, DEFAULT_RETURNS_TEXT, FIXED_PLAN_TRIAL_DAYS, type PricingPlan } from './storefrontConfig'
+import BillingPlanDialog from './BillingPlanDialog'
 
 const getProductPrice = (product: Product) =>
   product.salePrice !== undefined && product.price !== undefined && product.salePrice < product.price
@@ -13,7 +15,6 @@ const getProductPrice = (product: Product) =>
     : product.price ?? 0
 
 const formatEuro = (value: number) => `${value.toFixed(2).replace('.', ',')} €`
-export const DEFAULT_RETURNS_TEXT = 'Tarbijal on õigus e-poest ostetud kaubast 14 päeva jooksul pärast kauba kättesaamist taganeda. Taganemiseks saada müüja kontakt-e-postile ühemõtteline avaldus. Kauba tagastamise otsesed kulud kannab ostja, välja arvatud puudusega kauba korral. Raha tagastatakse 14 päeva jooksul pärast taganemisavalduse saamist; müüja võib tagasimaksega oodata, kuni kaup on tagastatud või ostja on esitanud tõendi selle saatmise kohta. Taganemisõigusele kehtivad seaduses sätestatud erandid.'
 const DEFAULT_IMAGE_TRANSFORM: ProductImageTransform = { x: 0, y: 0, scale: 1 }
 const clampImageScale = (scale: number) => Math.min(3, Math.max(1, scale))
 const clampImageOffset = (offset: number, scale: number) => {
@@ -21,12 +22,6 @@ const clampImageOffset = (offset: number, scale: number) => {
   return Math.min(limit, Math.max(-limit, offset))
 }
 const isImageFile = (file: File) => file.type.startsWith('image/') || /\.(?:heic|heif)$/i.test(file.name)
-const createCheckoutRequestId = () => {
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
 const getResponsiveImageProps = (product: Product, image: string, preferred: 'thumb' | 'medium' | 'large' = 'large') => {
   const asset = product.imageVariants?.[image]
   if (!asset) return { src: image }
@@ -121,7 +116,7 @@ type OmnivaLocation = { ZIP: string; NAME: string; TYPE: string; A0_NAME: string
 type ShippingProvider = 'omniva' | 'dpd' | 'smartposti'
 type ParcelMachine = { provider: ShippingProvider; id: string; name: string; city: string; address?: string; searchText: string }
 type AksAddress = { adr_id: string; aadresstekst: string; ipikkaadress: string; omavalitsus: string; asustusyksus: string; sihtnumber: string; liikVal: string }
-type DemoOrder = {
+type StoreOrder = {
   id: string
   items: CartItem[]
   customerName: string
@@ -160,127 +155,6 @@ const getDefaultProductOptions = (product: Product) => Object.fromEntries(
 
 const getProductStockLimit = (product: Product) => product.oneOfAKind ? 1 : product.stock ?? Number.POSITIVE_INFINITY
 
-const createDemoOrders = (): DemoOrder[] => {
-  const createdAt = (daysAgo: number, hour: number) => {
-    const date = new Date()
-    date.setDate(date.getDate() - daysAgo)
-    date.setHours(hour, 15, 0, 0)
-    return date.toISOString()
-  }
-
-  return [
-    {
-      id: 'PR-10714',
-      items: [createCartItem(products[0])],
-      customerName: 'Maris Põld',
-      customerEmail: 'maris.pold@example.com',
-      delivery: 'Omniva · Tallinna Kristiine keskuse pakiautomaat',
-      productSubtotal: 18,
-      total: 20.9,
-      createdAt: createdAt(0, 18),
-      status: 'new',
-    },
-    {
-      id: 'PR-10712',
-      items: [createCartItem(products[4]), createCartItem(products[3])],
-      customerName: 'Rasmus Vaher',
-      customerEmail: 'rasmus.vaher@example.com',
-      delivery: 'Kuller · Narva mnt 7, Tallinn',
-      productSubtotal: 50,
-      total: 54.9,
-      createdAt: createdAt(0, 12),
-      status: 'fulfilled',
-    },
-    {
-      id: 'PR-10709',
-      items: [createCartItem(products[1], 1, { Värv: 'Grafiit' }), createCartItem(products[0])],
-      customerName: 'Kadi Oja',
-      customerEmail: 'kadi.oja@example.com',
-      delivery: 'DPD · Tartu Kvartali pakiautomaat',
-      productSubtotal: 50,
-      total: 52.9,
-      createdAt: createdAt(1, 17),
-      status: 'new',
-    },
-    {
-      id: 'PR-10703',
-      items: [createCartItem(products[6])],
-      customerName: 'Marten Ilves',
-      customerEmail: 'marten.ilves@example.com',
-      delivery: 'Tulen ise järele · Paldiski mnt 25, Tallinn',
-      productSubtotal: 34,
-      total: 34,
-      createdAt: createdAt(1, 10),
-      status: 'fulfilled',
-    },
-    {
-      id: 'PR-10699',
-      items: [createCartItem(products[2]), createCartItem(products[4])],
-      customerName: 'Helena Sild',
-      customerEmail: 'helena.sild@example.com',
-      delivery: 'SmartPosti · Pärnu Kaubamajaka pakiautomaat',
-      productSubtotal: 67,
-      total: 69.9,
-      createdAt: createdAt(2, 15),
-      status: 'new',
-    },
-    {
-      id: 'PR-10698',
-      items: [createCartItem(products[5], 1, { Värv: 'Kuldne' }), createCartItem(products[6])],
-      customerName: 'Liisa Kask',
-      customerEmail: 'liisa.kask@example.com',
-      delivery: 'SmartPosti · Tartu Lõunakeskuse pakiautomaat',
-      productSubtotal: 63,
-      total: 65.9,
-      createdAt: createdAt(1, 14),
-      status: 'new',
-    },
-    {
-      id: 'PR-10691',
-      items: [createCartItem(products[2])],
-      customerName: 'Karl Tamm',
-      customerEmail: 'karl.tamm@example.com',
-      delivery: 'Omniva · Tallinna Viru Keskuse pakiautomaat',
-      productSubtotal: 45,
-      total: 47.9,
-      createdAt: createdAt(3, 11),
-      status: 'fulfilled',
-    },
-    {
-      id: 'PR-10694',
-      items: [createCartItem(products[0]), createCartItem(products[3], 1, { Suurus: 'Keskmine' }), createCartItem(products[4])],
-      customerName: 'Triin Rebane',
-      customerEmail: 'triin.rebane@example.com',
-      delivery: 'Kuller · Rüütli 18, Pärnu',
-      productSubtotal: 68,
-      total: 72.9,
-      createdAt: createdAt(4, 13),
-      status: 'fulfilled',
-    },
-    {
-      id: 'PR-10687',
-      items: [createCartItem(products[5], 1, { Värv: 'Hõbedane' })],
-      customerName: 'Sander Kivi',
-      customerEmail: 'sander.kivi@example.com',
-      delivery: 'Omniva · Viljandi Uku keskuse pakiautomaat',
-      productSubtotal: 29,
-      total: 31.9,
-      createdAt: createdAt(5, 9),
-      status: 'refunded',
-    },
-    {
-      id: 'PR-10684',
-      items: [createCartItem(products[1], 1, { Värv: 'Roheline' })],
-      customerName: 'Anna Saar',
-      customerEmail: 'anna.saar@example.com',
-      delivery: 'DPD · Pärnu Kaubamajaka pakiautomaat',
-      productSubtotal: 32,
-      total: 34.9,
-      createdAt: createdAt(6, 16),
-      status: 'refunded',
-    },
-  ]
-}
 const MAX_PRODUCT_IMAGES = 3
 const PLATFORM_FEE_RATE = 0.04
 const VAT_RATE = 0.24
@@ -288,8 +162,6 @@ const PLATFORM_FEE_NET_CAP = 39
 const PLATFORM_FEE_GROSS_CAP = PLATFORM_FEE_NET_CAP * (1 + VAT_RATE)
 const FIXED_PLAN_MONTHLY_FEE = 29
 const FIXED_PLAN_MONTHLY_TOTAL = FIXED_PLAN_MONTHLY_FEE * (1 + VAT_RATE)
-const FIXED_PLAN_TRIAL_DAYS = 30
-export type PricingPlan = 'flexible' | 'fixed'
 type StoreTheme = 'midnight' | 'paper' | 'pop'
 type BuyButtonSize = 'small' | 'medium' | 'large'
 type SaleBadgeStyle = 'quirky' | 'classic' | 'price' | 'elegant' | 'minimal'
@@ -343,156 +215,6 @@ type DeliverySettings = {
   pickupAddress: string
 }
 
-export function BillingCardDemo({ onClose, onConfirm, confirmLabel = 'Jätka Stripe’is' }: { onClose: () => void; onConfirm: (checkoutRequestId: string) => Promise<void>; confirmLabel?: string }) {
-  const [isConfirming, setIsConfirming] = useState(false)
-  const [confirmError, setConfirmError] = useState('')
-  const [billingDragY, setBillingDragY] = useState(0)
-  const [isBillingDragging, setIsBillingDragging] = useState(false)
-  const [hasBillingDragged, setHasBillingDragged] = useState(false)
-  const billingDragStartRef = useRef<number | null>(null)
-  const billingTouchStartRef = useRef<number | null>(null)
-  const billingTouchCurrentRef = useRef(0)
-  const billingDragAreaRef = useRef<HTMLDivElement>(null)
-  const billingCloseTimerRef = useRef<number | null>(null)
-  const checkoutRequestIdRef = useRef(createCheckoutRequestId())
-  const trialStartsAt = new Date()
-  const firstPaymentAt = new Date(trialStartsAt)
-  firstPaymentAt.setDate(firstPaymentAt.getDate() + FIXED_PLAN_TRIAL_DAYS)
-  const firstPaymentLabel = firstPaymentAt.toLocaleDateString('et-EE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-  const confirm = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (isConfirming) return
-    setIsConfirming(true)
-    setConfirmError('')
-    try { await onConfirm(checkoutRequestIdRef.current) }
-    catch (error) { setConfirmError(error instanceof Error ? error.message : 'Stripe’i arvelduse avamine ebaõnnestus.'); setIsConfirming(false) }
-  }
-
-  useEffect(() => () => {
-    if (billingCloseTimerRef.current !== null) window.clearTimeout(billingCloseTimerRef.current)
-  }, [])
-
-  useEffect(() => {
-    const handle = billingDragAreaRef.current
-    if (!handle) return
-    const startTouchDrag = (event: TouchEvent) => {
-      const touch = event.touches[0]
-      if (!touch) return
-      event.preventDefault()
-      billingTouchStartRef.current = touch.clientY
-      billingTouchCurrentRef.current = touch.clientY
-      setHasBillingDragged(true)
-      setIsBillingDragging(true)
-    }
-    const moveTouchDrag = (event: TouchEvent) => {
-      if (billingTouchStartRef.current === null) return
-      const touch = event.touches[0]
-      if (!touch) return
-      event.preventDefault()
-      billingTouchCurrentRef.current = touch.clientY
-      setBillingDragY(Math.max(0, touch.clientY - billingTouchStartRef.current))
-    }
-    const finishTouchDrag = (event: TouchEvent) => {
-      if (billingTouchStartRef.current === null) return
-      event.preventDefault()
-      const distance = Math.max(0, billingTouchCurrentRef.current - billingTouchStartRef.current)
-      billingTouchStartRef.current = null
-      setIsBillingDragging(false)
-      if (distance >= Math.min(120, window.innerHeight * .12)) {
-        setBillingDragY(window.innerHeight)
-        billingCloseTimerRef.current = window.setTimeout(onClose, 260)
-        return
-      }
-      setBillingDragY(0)
-    }
-    const cancelTouchDrag = (event: TouchEvent) => {
-      if (billingTouchStartRef.current === null) return
-      event.preventDefault()
-      billingTouchStartRef.current = null
-      setIsBillingDragging(false)
-      setBillingDragY(0)
-    }
-    const options: AddEventListenerOptions = { passive: false }
-    handle.addEventListener('touchstart', startTouchDrag, options)
-    handle.addEventListener('touchmove', moveTouchDrag, options)
-    handle.addEventListener('touchend', finishTouchDrag, options)
-    handle.addEventListener('touchcancel', cancelTouchDrag, options)
-    return () => {
-      handle.removeEventListener('touchstart', startTouchDrag)
-      handle.removeEventListener('touchmove', moveTouchDrag)
-      handle.removeEventListener('touchend', finishTouchDrag)
-      handle.removeEventListener('touchcancel', cancelTouchDrag)
-    }
-  }, [onClose])
-
-  const startBillingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!window.matchMedia('(max-width: 599px)').matches) return
-    if (event.pointerType === 'touch') return
-    billingDragStartRef.current = event.clientY
-    setHasBillingDragged(true)
-    setIsBillingDragging(true)
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  const moveBillingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (billingDragStartRef.current === null) return
-    setBillingDragY(Math.max(0, event.clientY - billingDragStartRef.current))
-  }
-
-  const endBillingDrag = (event: React.PointerEvent<HTMLDivElement>, cancelled = false) => {
-    if (billingDragStartRef.current === null) return
-    const distance = Math.max(0, event.clientY - billingDragStartRef.current)
-    billingDragStartRef.current = null
-    setIsBillingDragging(false)
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    if (!cancelled && distance >= Math.min(120, window.innerHeight * .12)) {
-      setBillingDragY(window.innerHeight)
-      billingCloseTimerRef.current = window.setTimeout(onClose, 260)
-      return
-    }
-    setBillingDragY(0)
-  }
-
-  return <div className="overlay login-overlay billing-card-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className={`login-sheet billing-card-demo${isBillingDragging ? ' is-dragging' : ''}${hasBillingDragged ? ' has-dragged' : ''}`} style={hasBillingDragged ? { transform: `translateY(${billingDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Poeruumi Kindla paketi aktiveerimine">
-      <div ref={billingDragAreaRef} className="billing-card-demo__drag-area" aria-hidden="true" onPointerDown={startBillingDrag} onPointerMove={moveBillingDrag} onPointerUp={(event) => endBillingDrag(event)} onPointerCancel={(event) => endBillingDrag(event, true)}><span className="billing-card-demo__handle" /></div>
-      <button className="login-sheet__close" type="button" onClick={onClose} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-      <span className="login-sheet__eyebrow">KINDEL · 30 PÄEVA TASUTA</span>
-      <div className="billing-card-demo__title">
-        <span className="billing-card-demo__visual" aria-hidden="true">
-          <svg viewBox="0 0 64 48">
-            <rect className="billing-card-demo__visual-card" x="2" y="5" width="60" height="38" rx="9" />
-            <path className="billing-card-demo__visual-stripe" d="M3 15h58" />
-            <rect className="billing-card-demo__visual-chip" x="11" y="21" width="14" height="10" rx="2" />
-            <path className="billing-card-demo__visual-chip-line" d="M18 21v10M11 26h14" />
-            <g className="billing-card-demo__visual-contactless">
-              <path d="M43 23c3 2 3 6 0 8" />
-              <path d="M47 20c6 4 6 11 0 15" />
-              <path d="M51 17c9 6 9 15 0 21" />
-            </g>
-          </svg>
-        </span>
-        <h2>Aktiveeri Kindel pakett</h2>
-      </div>
-      <div className="billing-card-demo__summary">
-        <div className="billing-card-demo__today"><span>Täna tasuda</span><strong>0 €</strong></div>
-        <div className="billing-card-demo__next-payment">
-          <i aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="14" rx="3" /><path d="M8 4v4M16 4v4M4 10h16" /></svg></i>
-          <span><small>Järgmine makse</small><strong>{firstPaymentLabel}</strong></span>
-          <b>35,96 € / kuu<small>29 € + 6,96 € km</small></b>
-        </div>
-      </div>
-      <form onSubmit={confirm}>
-        <label className="billing-card-demo__consent"><input required type="checkbox" defaultChecked /><span>Nõustun pärast prooviperioodi 35,96 € kuutasuga (sisaldab 24% käibemaksu).</span></label>
-        {confirmError && <p className="add-product-error" role="alert">{confirmError}</p>}
-        <button type="submit" disabled={isConfirming}>{isConfirming ? 'Kinnitan…' : confirmLabel}<span aria-hidden="true">{isConfirming ? '◌' : '→'}</span></button>
-      </form>
-      <small className="billing-card-demo__note"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" /></svg><span>Kaardiandmed sisestad turvaliselt Stripe’is</span></small>
-    </section>
-  </div>
-}
-
 const SHIPPING_PROVIDERS: ShippingProvider[] = ['omniva', 'dpd', 'smartposti']
 const SHIPPING_PROVIDER_LABELS: Record<ShippingProvider, string> = {
   omniva: 'Omniva',
@@ -519,13 +241,13 @@ const createParcelMachine = (provider: ShippingProvider, id: string, city: strin
   searchText: normalizeSearch(`${SHIPPING_PROVIDER_LABELS[provider]} ${city} ${name} ${address ?? ''} ${id}`),
 })
 
-const demoParcelMachines: ParcelMachine[] = [
-  createParcelMachine('omniva', 'omniva:demo-1', 'Tallinn', 'Viru Keskuse pakiautomaat'),
-  createParcelMachine('dpd', 'dpd:demo-1', 'Tallinn', 'Kristiine Keskuse pakiautomaat'),
-  createParcelMachine('smartposti', 'smartposti:demo-1', 'Tallinn', 'Ülemiste Keskuse pakiautomaat'),
-  createParcelMachine('omniva', 'omniva:demo-2', 'Tartu', 'Lõunakeskuse pakiautomaat'),
-  createParcelMachine('dpd', 'dpd:demo-2', 'Tartu', 'Kvartali pakiautomaat'),
-  createParcelMachine('smartposti', 'smartposti:demo-2', 'Pärnu', 'Kaubamajaka pakiautomaat'),
+const fallbackParcelMachines: ParcelMachine[] = [
+  createParcelMachine('omniva', 'omniva:fallback-1', 'Tallinn', 'Viru Keskuse pakiautomaat'),
+  createParcelMachine('dpd', 'dpd:fallback-1', 'Tallinn', 'Kristiine Keskuse pakiautomaat'),
+  createParcelMachine('smartposti', 'smartposti:fallback-1', 'Tallinn', 'Ülemiste Keskuse pakiautomaat'),
+  createParcelMachine('omniva', 'omniva:fallback-2', 'Tartu', 'Lõunakeskuse pakiautomaat'),
+  createParcelMachine('dpd', 'dpd:fallback-2', 'Tartu', 'Kvartali pakiautomaat'),
+  createParcelMachine('smartposti', 'smartposti:fallback-2', 'Pärnu', 'Kaubamajaka pakiautomaat'),
 ]
 
 const normalizeExternalUrl = (value: string) => {
@@ -557,7 +279,7 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
   const enabledParcelProviderKey = enabledParcelProviders.join(',')
   const parcelEnabled = enabledParcelProviders.length > 0
   const [delivery, setDelivery] = useState<'parcel' | 'courier' | 'pickup'>(() => parcelEnabled ? 'parcel' : deliverySettings.courierEnabled ? 'courier' : 'pickup')
-  const [parcelMachines, setParcelMachines] = useState<ParcelMachine[]>(() => demoParcelMachines.filter((machine) => enabledParcelProviders.includes(machine.provider)))
+  const [parcelMachines, setParcelMachines] = useState<ParcelMachine[]>(() => fallbackParcelMachines.filter((machine) => enabledParcelProviders.includes(machine.provider)))
   const [parcelQuery, setParcelQuery] = useState('')
   const [selectedParcelId, setSelectedParcelId] = useState('')
   const [isParcelSearchOpen, setIsParcelSearchOpen] = useState(false)
@@ -619,7 +341,7 @@ function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, del
       const machines = results.flatMap((result) => result.status === 'fulfilled' ? result.value : [])
         .sort((a, b) => a.city.localeCompare(b.city, 'et') || a.name.localeCompare(b.name, 'et'))
       setParcelLoadFailed(results.some((result) => result.status === 'rejected'))
-      setParcelMachines(machines.length ? machines : demoParcelMachines.filter((machine) => enabledParcelProviders.includes(machine.provider)))
+      setParcelMachines(machines.length ? machines : fallbackParcelMachines.filter((machine) => enabledParcelProviders.includes(machine.provider)))
     })
     return () => controller.abort()
   }, [step, delivery, enabledParcelProviderKey])
@@ -847,7 +569,7 @@ export type StorefrontProps = {
   paymentsReady?: boolean
   initialShipping?: string[]
   merchantMode?: boolean
-  adminDemoMode?: boolean
+  adminShowcaseMode?: boolean
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
   initialProductSlug?: string | null
@@ -861,10 +583,10 @@ export type StorefrontProps = {
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminDemoMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
-  const isPublicDemo = Boolean(onExit && !merchantMode)
-  const hasPreviewBar = Boolean(onExit && (!merchantMode || adminDemoMode))
-  const isSeoStorefront = Boolean(storeSlug && !merchantMode && !isPublicDemo)
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
+  const isShowcasePreview = Boolean(onExit && !merchantMode)
+  const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
+  const isSeoStorefront = Boolean(storeSlug && !merchantMode && !isShowcasePreview)
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
   const logoTapCountRef = useRef(0)
@@ -896,7 +618,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(true)
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('store')
   const [isOrdersOpen, setIsOrdersOpen] = useState(false)
-  const [orders, setOrders] = useState<DemoOrder[]>(() => merchantMode && !storeId ? createDemoOrders() : [])
+  const [orders, setOrders] = useState<StoreOrder[]>([])
   const [orderLayout, setOrderLayout] = useState<'grid' | 'list'>('grid')
   const [orderSearch, setOrderSearch] = useState('')
   const [storeTheme, setStoreTheme] = useState<StoreTheme>(theme)
@@ -1267,23 +989,23 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }, [isEditOpen])
 
   useEffect(() => {
-    if (!isPublicDemo) return
+    if (!isShowcasePreview) return
     setIsLoggedIn(false)
     setIsLoginOpen(false)
     setIsCustomerPreview(false)
     setIsSettingsOpen(false)
     setIsOrdersOpen(false)
     setIsEditOpen(false)
-  }, [isPublicDemo])
+  }, [isShowcasePreview])
 
   useEffect(() => {
-    if (!isPublicDemo || !onExit) return
-    const exitDemoOnEscape = (event: KeyboardEvent) => {
+    if (!isShowcasePreview || !onExit) return
+    const exitShowcaseOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onExit()
     }
-    window.addEventListener('keydown', exitDemoOnEscape)
-    return () => window.removeEventListener('keydown', exitDemoOnEscape)
-  }, [isPublicDemo, onExit])
+    window.addEventListener('keydown', exitShowcaseOnEscape)
+    return () => window.removeEventListener('keydown', exitShowcaseOnEscape)
+  }, [isShowcasePreview, onExit])
 
   const changeStoreLogo = async (file: File | undefined) => {
     if (!file || !isImageFile(file)) return
@@ -1426,7 +1148,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   const requestExit = () => {
     if (!onExit) return
-    if (!adminDemoMode || !isEditOpen) {
+    if (!adminShowcaseMode || !isEditOpen) {
       onExit()
       return
     }
@@ -1965,7 +1687,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }
 
   const handleLogoTap = () => {
-    if (isPublicDemo) return
+    if (isShowcasePreview) return
     if (isLoggedIn) {
       logoTapCountRef.current = 0
       return
@@ -2525,7 +2247,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setShowDeletedToast(true)
   }
 
-  const changeOrderStatus = async (orderNumber: string, status: DemoOrder['status']) => {
+  const changeOrderStatus = async (orderNumber: string, status: StoreOrder['status']) => {
     try {
       if (storeId && status === 'refunded' && activePaymentProvider === 'stripe') await refundStripeOrder(storeId, orderNumber)
       else if (storeId) await updateOrderStatus(storeId, orderNumber, status)
@@ -2595,7 +2317,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   ]
   const completedSetupSteps = setupChecklist.filter((item) => item.done).length
   const setupProgress = Math.round(completedSetupSteps / setupChecklist.length * 100)
-  const availableSettingsSections = adminDemoMode
+  const availableSettingsSections = adminShowcaseMode
     ? SETTINGS_SECTIONS.filter((section) => !['payments', 'business', 'notifications', 'billing', 'account'].includes(section.id))
     : SETTINGS_SECTIONS
   const activeSettingsSection = availableSettingsSections.find((section) => section.id === settingsSection) ?? availableSettingsSections[0]
@@ -2710,17 +2432,17 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   </div>
 
   return (
-    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-demo={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
+    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
       <input ref={desktopGalleryInputRef} className="source-file-input" type="file" accept="image/*" multiple onChange={(event) => { chooseAddProductImages(event.target.files); event.target.value = '' }} />
       <section className="story-stage">
-        {hasPreviewBar && onExit && <div className={`demo-preview-bar${isExitAttentionActive ? ' is-exit-blocked' : ''}`}>
-          <button type="button" onClick={requestExit} aria-label={adminDemoMode && isEditOpen ? 'Salvesta muudatused enne administraatori töölauale naasmist' : adminDemoMode ? 'Tagasi administraatori töölauale' : 'Välju näidispoest ja mine tagasi Poeruumi avalehele'}>
+        {hasPreviewBar && onExit && <div className={`platform-preview-bar${isExitAttentionActive ? ' is-exit-blocked' : ''}`}>
+          <button type="button" onClick={requestExit} aria-label={adminShowcaseMode && isEditOpen ? 'Salvesta muudatused enne administraatori töölauale naasmist' : adminShowcaseMode ? 'Tagasi administraatori töölauale' : 'Välju näidispoest ja mine tagasi Poeruumi avalehele'}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 7-5 5 5 5M5 12h14" /></svg>
-            <span className="demo-preview-bar__exit-long">{adminDemoMode ? 'Tagasi admini' : 'Välju näidispoest'}</span>
-            <span className="demo-preview-bar__exit-short">{adminDemoMode ? 'Admin' : 'Välju'}</span>
-            {!adminDemoMode && <kbd>Esc</kbd>}
+            <span className="platform-preview-bar__exit-long">{adminShowcaseMode ? 'Tagasi admini' : 'Välju näidispoest'}</span>
+            <span className="platform-preview-bar__exit-short">{adminShowcaseMode ? 'Admin' : 'Välju'}</span>
+            {!adminShowcaseMode && <kbd>Esc</kbd>}
           </button>
-          <div><span>Poeruum</span><i aria-hidden="true" />{adminDemoMode ? 'Näidispoe haldus' : 'Näidispood'}</div>
+          <div><span>Poeruum</span><i aria-hidden="true" />{adminShowcaseMode ? 'Näidispoe haldus' : 'Näidispood'}</div>
         </div>}
         {merchantMode && isCustomerPreview && <button className="merchant-preview-return" type="button" onClick={() => { setIsLoggedIn(true); setIsCustomerPreview(false) }} aria-label="Tagasi poe muutmisvaatesse">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Z"/><path d="m13 7 4 4"/></svg>
@@ -2742,7 +2464,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </div>
           {!isEditOpen && <div className="header-actions">
             <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi tooteid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
-            {isAdminMode ? !adminDemoMode && <button className="logout-button" onClick={logOut} aria-label="Logi välja">
+            {isAdminMode ? !adminShowcaseMode && <button className="logout-button" onClick={logOut} aria-label="Logi välja">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14 8l4 4-4 4m4-4H9" /></svg>
             </button> : <button className={`cart-button${addedProductId ? ' is-bumping' : ''}`} onClick={() => { setCartStep('cart'); setIsCartOpen(true) }} aria-label={`Ostukorv, ${cart.reduce((sum, item) => sum + item.quantity, 0)} toodet`}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></svg>
@@ -2856,7 +2578,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               </svg>
               {setupProgress < 100 && merchantMode && <span className="admin-settings__incomplete" />}
             </button>
-            {!adminDemoMode && activeProduct && <button className="admin-orders" type="button" onClick={() => setIsOrdersOpen(true)} aria-label={`Tellimused${newOrderCount ? `, ${newOrderCount} uut` : ''}`}>
+            {!adminShowcaseMode && activeProduct && <button className="admin-orders" type="button" onClick={() => setIsOrdersOpen(true)} aria-label={`Tellimused${newOrderCount ? `, ${newOrderCount} uut` : ''}`}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg>
               {newOrderCount > 0 && <span>{newOrderCount}</span>}
             </button>}
@@ -3123,7 +2845,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 </button>)}
               </div>}
             </div>}
-            {!adminDemoMode && <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} onChange={(event) => {
+            {!adminShowcaseMode && <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} onChange={(event) => {
               if (event.target.checked && !sellerDetailsComplete) {
                 setAuthToast('Enne poe avaldamist lisa täielikud müüja andmed')
                 setSettingsSection('business')
@@ -3147,7 +2869,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                   </label>
                   {storeAboutImage && <button className="settings-about-image__remove" type="button" onClick={removeStoreAboutImage} aria-label="Eemalda tutvustuse pilt">×</button>}
                 </div>
-                <small>Demos pilti serverisse ei salvestata.</small>
+                <small>{storeId ? 'Pilt salvestatakse turvaliselt sinu poe juurde.' : 'Pilt salvestub pärast poe loomist.'}</small>
               </div>
               <div><label>Kontakt-e-post<input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="tere@minupood.ee" /></label><label>Telefon<input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+372 5555 5555" /></label></div>
               <div className="settings-store-address">
@@ -3211,7 +2933,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 </label>
                 {storeLogo && <button className="settings-logo__remove" type="button" onClick={removeStoreLogo} aria-label="Eemalda poe logo">×</button>}
               </div>
-              <small>Demos pilti serverisse ei salvestata.</small>
+              <small>{storeId ? 'Logo salvestatakse turvaliselt sinu poe juurde.' : 'Logo salvestub pärast poe loomist.'}</small>
             </div>
             <div className="settings-theme">
               <span>Kujundus</span>
@@ -3404,7 +3126,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </div>}
         </section>
       </div>}
-      {isBillingCardOpen && <BillingCardDemo onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => { const url = await startStripeBillingCheckout(checkoutRequestId); window.location.assign(url) }} />}
+      {isBillingCardOpen && <BillingPlanDialog onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => { const url = await startStripeBillingCheckout(checkoutRequestId); window.location.assign(url) }} />}
       {isEmailChangeOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isChangingEmail && event.target === event.currentTarget && setIsEmailChangeOpen(false)}>
         <section className="login-sheet password-change-sheet" role="dialog" aria-modal="true" aria-labelledby="email-change-title">
           <button className="login-sheet__close" type="button" disabled={isChangingEmail} onClick={() => setIsEmailChangeOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>

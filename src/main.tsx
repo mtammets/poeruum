@@ -1,17 +1,22 @@
-import { StrictMode, useEffect, useLayoutEffect, useState } from 'react'
+import { lazy, StrictMode, Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import DemoApp from './DemoApp'
-import AdminApp from './AdminApp'
-import ComingSoon from './ComingSoon'
-import LegalPage, { type LegalDocument } from './LegalPage'
-import SupportCenter from './SupportCenter'
+import PlatformApp from './PlatformApp'
+import type { LegalDocument } from './LegalPage'
 import { applySeoMetadata } from './lib/seo'
 import { getStoreSlugFromHostname } from './lib/storefrontUrl'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
 import './brand.css'
-import './demo.css'
+import './platform.css'
 import './admin.css'
+
+const AdminApp = lazy(() => import('./AdminApp'))
+const ComingSoon = lazy(() => import('./ComingSoon'))
+const LegalPage = lazy(() => import('./LegalPage'))
+const SupportCenter = lazy(() => import('./SupportCenter'))
+
+const LoadingScreen = () => <main className="homepage-mode-loading" aria-label="Laadin Poeruumi"><span /></main>
+const PlatformWithSupport = () => <><PlatformApp /><Suspense fallback={null}><SupportCenter /></Suspense></>
 
 const hasAppReturnState = ['billing', 'checkout'].some((key) => new URLSearchParams(window.location.search).has(key))
 const isDeindexedTestStorePath = /^\/p\/test(?:\/|$)/i.test(window.location.pathname)
@@ -80,7 +85,9 @@ function Homepage() {
     return <main className="homepage-mode-loading" aria-label="Laadin Poeruumi avalehte"><span /></main>
   }
 
-  return comingSoonEnabled ? <ComingSoon /> : <><DemoApp /><SupportCenter /></>
+  return <Suspense fallback={<LoadingScreen />}>
+    {comingSoonEnabled ? <ComingSoon /> : <PlatformWithSupport />}
+  </Suspense>
 }
 
 function Root() {
@@ -124,9 +131,9 @@ function Root() {
     }
   }, [])
 
-  if (isAdminPath) return <AdminApp />
-  if (legalDocument) return <LegalPage document={legalDocument} />
-  return isPoeruumHomepage ? <Homepage /> : <><DemoApp /><SupportCenter /></>
+  if (isAdminPath) return <Suspense fallback={<LoadingScreen />}><AdminApp /></Suspense>
+  if (legalDocument) return <Suspense fallback={<LoadingScreen />}><LegalPage document={legalDocument} /></Suspense>
+  return isPoeruumHomepage ? <Homepage /> : <PlatformWithSupport />
 }
 
 createRoot(document.getElementById('root')!).render(

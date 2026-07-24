@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
-import { BrandMark } from './DemoApp'
+import { BrandMark } from './Brand'
 
 type SupportConversation = {
   id: string

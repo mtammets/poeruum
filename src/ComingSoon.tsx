@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
-import { Brand, BrandMark } from './DemoApp'
+import { Brand, BrandMark } from './Brand'
 import { applySeoMetadata } from './lib/seo'
 import './coming-soon.css'
 
 const showcaseProducts = [
-  { name: 'Lamp Sammal', price: '79 €', image: '/images/demo/lamp_sammal.webp' },
-  { name: 'Vaas Laine', price: '49 €', image: '/images/demo/vaas_laine.webp' },
-  { name: 'Alus Täpe', price: '39 €', image: '/images/demo/alus_tape.webp' },
+  { name: 'Lamp Sammal', price: '79 €', image: '/images/showcase/lamp_sammal.webp' },
+  { name: 'Vaas Laine', price: '49 €', image: '/images/showcase/vaas_laine.webp' },
+  { name: 'Alus Täpe', price: '39 €', image: '/images/showcase/alus_tape.webp' },
 ]
 
 export default function ComingSoon() {

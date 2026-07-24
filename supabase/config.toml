@@ -37,6 +37,9 @@ verify_jwt = false
 [functions.storefront-sitemap]
 verify_jwt = false
 
+[functions.homepage-social-image]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

@@ -1,11 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { loadConnectAndInitialize } from '@stripe/connect-js'
 import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
-import { BillingCardDemo, DEFAULT_RETURNS_TEXT, Storefront, type PricingPlan } from './App'
-import { createStore, getDemoStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
+import BillingPlanDialog from './BillingPlanDialog'
+import { Brand } from './Brand'
+import { createStore, getShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { products as bundledProducts, type Product } from './products'
+import { DEFAULT_RETURNS_TEXT, type PricingPlan } from './storefrontConfig'
+
+const Storefront = lazy(async () => {
+  const module = await import('./App')
+  return { default: module.Storefront }
+})
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
 type OnboardingStep = 'business' | 'payments' | 'shipping' | 'publish' | 'complete'
@@ -130,24 +137,6 @@ const getLocalizedAuthError = (error: unknown, fallback: string) => {
     return 'E-posti aadress või parool ei ole õige.'
   }
   return authError.message || fallback
-}
-
-export function BrandMark({ className = '' }: { className?: string }) {
-  return <span className={`demo-brand__mark${className ? ` ${className}` : ''}`} aria-hidden="true">
-    <svg viewBox="0 0 40 40">
-      <rect x="1" y="1" width="38" height="38" rx="11" />
-      <path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z" />
-      <path d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18" />
-      <path d="M15.5 22.2h9" />
-    </svg>
-  </span>
-}
-
-export function Brand() {
-  return <div className="demo-brand" aria-label="Poeruum">
-    <BrandMark />
-    <strong>Poe<span>ruum</span></strong>
-  </div>
 }
 
 function FlowHeader({ onBack, onExit, isExiting = false }: { onBack: () => void; onExit?: () => void; isExiting?: boolean }) {
@@ -305,7 +294,7 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
   </section>
 }
 
-export default function DemoApp() {
+function PlatformFlow() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [email, setEmail] = useState('')
   const [onlineUserId, setOnlineUserId] = useState<string | null>(null)
@@ -523,14 +512,14 @@ export default function DemoApp() {
   useEffect(() => {
     if (!['landing', 'sample'].includes(screen) || !isSupabaseConfigured) return
     let active = true
-    const refreshSampleStore = () => getDemoStore().then(async (found) => {
+    const refreshSampleStore = () => getShowcaseStore().then(async (found) => {
       if (!found || !active) return
       const nextProducts = await listProducts(found.id)
       if (!active) return
       setSampleStore(found)
       setSampleProducts(nextProducts)
     }).catch(() => {
-      // Keep the bundled sample as a safe fallback before the demo-store migration is deployed.
+      // Keep the bundled sample as a safe fallback before the platform-store migration is deployed.
     })
     void refreshSampleStore()
     window.addEventListener('focus', refreshSampleStore)
@@ -955,7 +944,7 @@ export default function DemoApp() {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => setIsPhoneSwipeAnimated(true)))
   }, [phonePreviewProducts.length])
 
-  const resetDemo = () => {
+  const resetPlatformFlow = () => {
     setScreen('landing')
     setEmail('')
     setStoreName('')
@@ -980,7 +969,7 @@ export default function DemoApp() {
   const handleAccountDeleted = () => {
     setStore(null)
     setStoredProducts([])
-    resetDemo()
+    resetPlatformFlow()
   }
 
   const backMap: Partial<Record<Screen, Screen>> = {
@@ -1041,22 +1030,22 @@ export default function DemoApp() {
   />
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetDemo} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetPlatformFlow} />
   </>
 
-  if (screen === 'landing') return <main className="demo-landing">
-    <nav><Brand /><div ref={mobileNavRef} className="demo-nav-actions">
-      <a className="demo-nav-link" href="#hind">Hind</a>
-      <a className="demo-nav-link" href="#kkk">KKK</a>
-      <button className="demo-nav-link" onClick={() => setScreen('sample')}>Vaata näidispoodi</button>
-      <button className="demo-nav-link demo-nav-login" onClick={() => setScreen('login')}>Logi sisse</button>
-      <button className="demo-nav-cta" onClick={() => setScreen('account')}>Loo pood</button>
-      <button className="demo-mobile-menu-toggle" type="button" aria-label={isMobileNavOpen ? 'Sulge menüü' : 'Ava menüü'} aria-expanded={isMobileNavOpen} onClick={() => setIsMobileNavOpen((open) => !open)}>
+  if (screen === 'landing') return <main className="platform-landing">
+    <nav><Brand /><div ref={mobileNavRef} className="platform-nav-actions">
+      <a className="platform-nav-link" href="#hind">Hind</a>
+      <a className="platform-nav-link" href="#kkk">KKK</a>
+      <button className="platform-nav-link" onClick={() => setScreen('sample')}>Vaata näidispoodi</button>
+      <button className="platform-nav-link platform-nav-login" onClick={() => setScreen('login')}>Logi sisse</button>
+      <button className="platform-nav-cta" onClick={() => setScreen('account')}>Loo pood</button>
+      <button className="platform-mobile-menu-toggle" type="button" aria-label={isMobileNavOpen ? 'Sulge menüü' : 'Ava menüü'} aria-expanded={isMobileNavOpen} onClick={() => setIsMobileNavOpen((open) => !open)}>
         {isMobileNavOpen
           ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
           : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg>}
       </button>
-      {isMobileNavOpen && <div className="demo-mobile-menu">
+      {isMobileNavOpen && <div className="platform-mobile-menu">
         <a href="#hind" onClick={() => setIsMobileNavOpen(false)}><span>Hind</span><b>→</b></a>
         <a href="#kkk" onClick={() => setIsMobileNavOpen(false)}><span>KKK</span><b>→</b></a>
         <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('sample') }}><span>Näidispood</span><b>→</b></button>
@@ -1064,90 +1053,90 @@ export default function DemoApp() {
         <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('account') }}><span>Loo pood</span><b>→</b></button>
       </div>}
     </div></nav>
-    <section className="demo-hero">
-      <div className="demo-hero__copy">
-        <span className="demo-eyebrow">Lihtsaim viis oma e-poeni</span>
+    <section className="platform-hero">
+      <div className="platform-hero__copy">
+        <span className="platform-eyebrow">Lihtsaim viis oma e-poeni</span>
         <h1>Sinu e-pood.<br /><em>10 minutiga.</em></h1>
         <p>Tee pilt, lisa hind ja vajuta „Avalda”. Kõige muu eest hoolitseme meie.</p>
         <button onClick={() => setScreen('account')}>Alusta tasuta <span>→</span></button>
         <small>Kaks paketti: 0 € kuutasu + müügitasu või 30 päeva tasuta, seejärel 35,96 € kuus koos käibemaksuga</small>
       </div>
-      <div className="demo-phone-stage">
-        <div className={`demo-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
-          <div className="demo-phone__screen"><div className="demo-phone__journey">
-            <section className="demo-phone__story">
-              <div className={`demo-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
+      <div className="platform-phone-stage">
+        <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
+          <div className="platform-phone__screen"><div className="platform-phone__journey">
+            <section className="platform-phone__story">
+              <div className={`platform-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
                 {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.id}-${index}`} />)}
               </div>
-              <div className="demo-phone__shade" />
-              <div className="demo-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
-              <header className="demo-phone__header">
+              <div className="platform-phone__shade" />
+              <div className="platform-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
+              <header className="platform-phone__header">
                 <div><img src="/images/poeruum-email-logo.svg" alt="" /><strong>POERUUM</strong></div>
                 <aside><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg></i><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6" /><circle cx="9" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg><b>0</b></i></aside>
               </header>
-              {phoneProduct.images.length > 1 && <div className="demo-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
-              <div className="demo-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
+              {phoneProduct.images.length > 1 && <div className="platform-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
+              <div className="platform-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
             </section>
-            <section className="demo-phone__details">
+            <section className="platform-phone__details">
               <header><h3>{phoneProduct.name}</h3><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></svg></span></header>
               <div><small>Kirjeldus</small><p>{phoneProduct.description}</p></div>
-              <div className="demo-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
-              <div className="demo-phone__cart">Lisa ostukorvi</div>
+              <div className="platform-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
+              <div className="platform-phone__cart">Lisa ostukorvi</div>
               <footer><strong>POERUUM</strong><small>Valmistatud hoolega Eestis</small></footer>
             </section>
           </div></div>
         </div>
       </div>
     </section>
-    <section className="demo-benefits"><div><b>01</b><strong>Loo konto</strong><span>Alusta vaid mõne minutiga</span></div><div><b>02</b><strong>Seadista oma pood</strong><span>Lisa tooted, maksed ja tarne</span></div><div><b>03</b><strong>Avalda ja hakka müüma</strong><span>Sinu poe veebiaadressil</span></div></section>
-    <section className="demo-pricing" id="hind">
-      <div className="demo-pricing__copy">
-        <span className="demo-eyebrow">Kaks lihtsat valikut</span>
+    <section className="platform-benefits"><div><b>01</b><strong>Loo konto</strong><span>Alusta vaid mõne minutiga</span></div><div><b>02</b><strong>Seadista oma pood</strong><span>Lisa tooted, maksed ja tarne</span></div><div><b>03</b><strong>Avalda ja hakka müüma</strong><span>Sinu poe veebiaadressil</span></div></section>
+    <section className="platform-pricing" id="hind">
+      <div className="platform-pricing__copy">
+        <span className="platform-eyebrow">Kaks lihtsat valikut</span>
         <h2>Vali, kuidas<br />maksad.</h2>
         <p>Alusta ilma kuutasuta või vali kindel kuukulu. Mõlemas paketis saad kasutada kõiki Poeruumi põhivõimalusi.</p>
       </div>
-      <div className="demo-pricing__plans">
-        <article className="demo-pricing__card is-featured">
+      <div className="platform-pricing__plans">
+        <article className="platform-pricing__card is-featured">
           <span>PAINDLIK <b>ALUSTA SIIT</b></span>
-          <div className="demo-pricing__rate"><strong>0 €</strong><p>kuus<br />+ 4% + km müügilt</p></div>
+          <div className="platform-pricing__rate"><strong>0 €</strong><p>kuus<br />+ 4% + km müügilt</p></div>
           <dl><div><dt>Müüki pole</dt><dd>0 €</dd></div><div><dt>Tasutav koos km-ga</dt><dd>4,96%</dd></div><div className="is-cap"><dt>Maksimum kuus</dt><dd>48,36 €</dd></div></dl>
           <small>Sobib alustamiseks ja ebaregulaarse müügiga poele.</small>
           <button onClick={() => { selectPricingPlan('flexible'); setScreen('account') }}>Vali Paindlik <span>→</span></button>
         </article>
-        <article className="demo-pricing__card">
+        <article className="platform-pricing__card">
           <span>KINDEL <b>30 PÄEVA TASUTA</b></span>
-          <div className="demo-pricing__rate"><strong>35,96 €</strong><p>kuus koos km-ga<br />0% müügilt</p></div>
+          <div className="platform-pricing__rate"><strong>35,96 €</strong><p>kuus koos km-ga<br />0% müügilt</p></div>
           <dl><div><dt>Poeruumi müügitasu</dt><dd>0%</dd></div><div><dt>Netohind</dt><dd>29 €</dd></div><div className="is-cap"><dt>Käibemaks 24%</dt><dd>6,96 €</dd></div></dl>
           <small>Esimesed 30 päeva tasuta, seejärel 35,96 € kuus.</small>
           <button onClick={() => { selectPricingPlan('fixed'); setScreen('account') }}>Alusta tasuta <span>→</span></button>
         </article>
       </div>
-      <p className="demo-pricing__note">Paketti saad hiljem mugavalt vahetada. Paketi hind ei sisalda maksete töötlemise tasusid.</p>
+      <p className="platform-pricing__note">Paketti saad hiljem mugavalt vahetada. Paketi hind ei sisalda maksete töötlemise tasusid.</p>
     </section>
-    <section className="demo-testimonials" aria-labelledby="testimonials-title">
+    <section className="platform-testimonials" aria-labelledby="testimonials-title">
       <header>
         <h2 id="testimonials-title">Mida müüjad hindavad</h2>
       </header>
-      <div className="demo-testimonials__grid">
-        <article className="demo-testimonial demo-testimonial--dark">
-          <div className="demo-testimonial__bubble"><div className="demo-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>Tegin tootest pildi ja õhtuks oli pood päriselt üleval. Telefonist!</blockquote></div>
-          <footer><span className="demo-testimonial__avatar">K</span><p><strong>Kadi</strong><small>Keraamika · Tartu</small></p></footer>
+      <div className="platform-testimonials__grid">
+        <article className="platform-testimonial platform-testimonial--dark">
+          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>Tegin tootest pildi ja õhtuks oli pood päriselt üleval. Telefonist!</blockquote></div>
+          <footer><span className="platform-testimonial__avatar">K</span><p><strong>Kadi</strong><small>Keraamika · Tartu</small></p></footer>
         </article>
-        <article className="demo-testimonial demo-testimonial--cream">
-          <div className="demo-testimonial__bubble"><div className="demo-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>Enam ei otsi ma tellimusi sõnumitest taga. Kõik on ühes kohas ja pilt on kohe selge.</blockquote></div>
-          <footer><span className="demo-testimonial__avatar">M</span><p><strong>Maris</strong><small>Vintage-esemed · Tallinn</small></p></footer>
+        <article className="platform-testimonial platform-testimonial--cream">
+          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>Enam ei otsi ma tellimusi sõnumitest taga. Kõik on ühes kohas ja pilt on kohe selge.</blockquote></div>
+          <footer><span className="platform-testimonial__avatar">M</span><p><strong>Maris</strong><small>Vintage-esemed · Tallinn</small></p></footer>
         </article>
-        <article className="demo-testimonial demo-testimonial--green">
-          <div className="demo-testimonial__bubble"><div className="demo-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>5/5 just selle eest, et kuutasu pole. Sain rahulikult proovida, mis päriselt müüb.</blockquote></div>
-          <footer><span className="demo-testimonial__avatar">R</span><p><strong>Rasmus</strong><small>Väiketootja · Pärnu</small></p></footer>
+        <article className="platform-testimonial platform-testimonial--green">
+          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>5/5 just selle eest, et kuutasu pole. Sain rahulikult proovida, mis päriselt müüb.</blockquote></div>
+          <footer><span className="platform-testimonial__avatar">R</span><p><strong>Rasmus</strong><small>Väiketootja · Pärnu</small></p></footer>
         </article>
       </div>
     </section>
-    <section className="demo-faq" id="kkk">
+    <section className="platform-faq" id="kkk">
       <header>
         <h2>KKK</h2>
       </header>
-      <div className="demo-faq__list">
+      <div className="platform-faq__list">
         <details open><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Paindlik pakett maksab 0 € kuus ja 4% toodete müügilt + 24% käibemaks tasult ehk kokku 4,96%, maksimaalselt 48,36 € kuus. Kindel pakett on esimesed 30 päeva tasuta, seejärel 35,96 € kuus koos käibemaksuga ning Poeruumi müügitasu on 0%.</p></details>
         <details><summary>Kas saan kogu poe telefonis valmis teha?<span>+</span></summary><p>Jah. Telefonis saad pildistada tooted, lisada hinnad ja kirjeldused, kujundada poe, ühendada maksed ja tarne ning poe avaldada.</p></details>
         <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Stripe’i kaudu saavad kliendid maksta kaardiga ning toetatud seadmetes Apple Pay või Google Payga.</p></details>
@@ -1156,7 +1145,7 @@ export default function DemoApp() {
         <details><summary>Kas saan paketti vahetada?<span>+</span></summary><p>Jah. Paketti saad hiljem mugavalt vahetada. Paindliku paketiga ei ole müügita kuul Poeruumi tasu.</p></details>
       </div>
     </section>
-    <footer className="demo-footer">
+    <footer className="platform-footer">
       <div><Brand /><p>Lihtne e-pood Eesti väikeettevõtjale.</p></div>
       <div><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span></div>
     </footer>
@@ -1167,7 +1156,7 @@ export default function DemoApp() {
     <div className="auth-flow auth-flow--login">
       <div className="auth-content">
         <aside className="auth-intro auth-intro--login">
-          <span className="demo-eyebrow">Tere tulemast tagasi</span>
+          <span className="platform-eyebrow">Tere tulemast tagasi</span>
           <h1>Jätka sealt, kus pooleli jäi.</h1>
         </aside>
         <section className="auth-card auth-card--login">
@@ -1196,7 +1185,7 @@ export default function DemoApp() {
   if (screen === 'forgot-password') return <main className="auth-page auth-page--login">
     <FlowHeader onBack={() => { setAuthError(''); setAuthNotice(''); setScreen('login') }} />
     <div className="auth-flow auth-flow--login"><div className="auth-content">
-      <aside className="auth-intro auth-intro--login"><span className="demo-eyebrow">Parooli taastamine</span><h1>Saadame sulle turvalise lingi.</h1><p>Lingi kaudu saad valida uue parooli. Sinu pood ja andmed jäävad alles.</p></aside>
+      <aside className="auth-intro auth-intro--login"><span className="platform-eyebrow">Parooli taastamine</span><h1>Saadame sulle turvalise lingi.</h1><p>Lingi kaudu saad valida uue parooli. Sinu pood ja andmed jäävad alles.</p></aside>
       <section className="auth-card auth-card--login">
         <h1>Unustasid parooli?</h1><p>Sisesta oma konto e-posti aadress.</p>
         <form onSubmit={requestPasswordReset}>
@@ -1213,7 +1202,7 @@ export default function DemoApp() {
   if (screen === 'reset-password') return <main className="auth-page auth-page--login">
     <FlowHeader onBack={() => setScreen('login')} />
     <div className="auth-flow auth-flow--login"><div className="auth-content">
-      <aside className="auth-intro auth-intro--login"><span className="demo-eyebrow">Uus parool</span><h1>Taasta ligipääs oma poele.</h1><p>Vali uus tugev parool, mida sa mujal ei kasuta.</p></aside>
+      <aside className="auth-intro auth-intro--login"><span className="platform-eyebrow">Uus parool</span><h1>Taasta ligipääs oma poele.</h1><p>Vali uus tugev parool, mida sa mujal ei kasuta.</p></aside>
       <section className="auth-card auth-card--login">
         <h1>Vali uus parool</h1><p>{email ? `Konto: ${email}` : 'Sisesta uus parool.'}</p>
         <form onSubmit={completePasswordReset}>
@@ -1232,7 +1221,7 @@ export default function DemoApp() {
       <SetupProgress screen="account" />
       <div className="auth-content">
         <aside className="auth-intro">
-          <span className="demo-eyebrow">Sinu pood, sinu moodi</span>
+          <span className="platform-eyebrow">Sinu pood, sinu moodi</span>
           <h1>Alustamine on lihtne!</h1>
           <p>Poeruum juhib sind samm-sammult ideest avaldatud e-poeni. Tehnilisi oskusi pole vaja.</p>
           <ul>
@@ -1271,7 +1260,7 @@ export default function DemoApp() {
       await persistStore(false, { pricing_plan: pricingPlan }, 'publish')
       const { error: signOutError } = await requireSupabase().auth.signOut()
       if (signOutError) throw signOutError
-      resetDemo()
+      resetPlatformFlow()
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Poolelioleva poe salvestamine ebaõnnestus.')
@@ -1460,10 +1449,16 @@ export default function DemoApp() {
         <small className="publish-note">{pricingPlan === 'fixed' && <><span className="publish-trial-copy">Prooviperiood algab avaldamisel.</span><span className="publish-note-separator" aria-hidden="true"> · </span></>}Avaldamisega nõustud <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a> ja kinnitad, et oled tutvunud <a href="/privaatsus" target="_blank" rel="noreferrer">privaatsuspoliitikaga</a>.</small>
       </div>
     </div>}
-    {isBillingCardOpen && <BillingCardDemo confirmLabel="Jätka Stripe’is" onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => {
+    {isBillingCardOpen && <BillingPlanDialog confirmLabel="Jätka Stripe’is" onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => {
       await persistStore(false, { pricing_plan: store?.pricing_plan ?? 'flexible' })
       const url = await startStripeBillingCheckout(checkoutRequestId)
       window.location.assign(url)
     }} />}
   </SetupShell>
+}
+
+export default function PlatformApp() {
+  return <Suspense fallback={<main className="homepage-mode-loading" aria-label="Laadin poodi"><span /></main>}>
+    <PlatformFlow />
+  </Suspense>
 }
