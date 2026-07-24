@@ -75,7 +75,9 @@ const createFixture = async (label, { trialStarted = false } = {}) => {
   }).select().single()
   if (storeError) throw storeError
   fixture.storeId = store.id
-  const authClient = createClient(supabaseUrl, anonKey, clientOptions)
+  // Server-side E2E authentication uses the service key so production CAPTCHA
+  // remains mandatory for public clients without making CI solve real challenges.
+  const authClient = createClient(supabaseUrl, serviceKey, clientOptions)
   const { data: login, error: loginError } = await authClient.auth.signInWithPassword({ email, password })
   if (loginError) throw loginError
   fixture.session = login.session

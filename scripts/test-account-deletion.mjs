@@ -44,7 +44,7 @@ try {
 
   const tokenResponse = await request('/auth/v1/token?grant_type=password', {
     method: 'POST',
-    headers: { apikey: publicKey, 'content-type': 'application/json' },
+    headers: serviceHeaders,
     body: JSON.stringify({ email, password }),
   })
   const { access_token: accessToken } = await tokenResponse.json()
