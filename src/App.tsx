@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
 import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, getStoreSlugFromHostname } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
 import {
@@ -20,6 +21,7 @@ import {
   type PricingPlan,
 } from './storefrontConfig'
 import BillingPlanDialog from './BillingPlanDialog'
+import { isCaptchaConfigured, Turnstile } from './Turnstile'
 
 const getProductPrice = (product: Product) =>
   product.salePrice !== undefined && product.price !== undefined && product.salePrice < product.price
@@ -583,7 +585,7 @@ export type StorefrontProps = {
   onStoreChange?: (store: StoreRecord) => void
   onAccountDeleted?: () => void
   ownerEmail?: string
-  onOwnerLogin?: (email: string, password: string) => Promise<void>
+  onOwnerLogin?: (email: string, password: string, captchaToken?: string) => Promise<void>
   onBackToSetup?: () => void
   onExit?: () => void
   initialSettings?: Record<string, unknown>
@@ -611,6 +613,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [selectedProductOptions, setSelectedProductOptions] = useState<Record<string, Record<string, string>>>({})
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [loginEmail, setLoginEmail] = useState(ownerEmail)
+  const [loginCaptchaToken, setLoginCaptchaToken] = useState('')
+  const [loginCaptchaResetKey, setLoginCaptchaResetKey] = useState(0)
   const [isOwnerLoginBusy, setIsOwnerLoginBusy] = useState(false)
   const [loginRecoveryMessage, setLoginRecoveryMessage] = useState('')
   const [isLoggedIn, setIsLoggedIn] = useState(merchantMode)
@@ -701,6 +705,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [emailChangePassword, setEmailChangePassword] = useState('')
   const [isChangingEmail, setIsChangingEmail] = useState(false)
   const [emailChangeError, setEmailChangeError] = useState('')
+  const [accountCaptchaToken, setAccountCaptchaToken] = useState('')
+  const [accountCaptchaResetKey, setAccountCaptchaResetKey] = useState(0)
   const [isSessionActionBusy, setIsSessionActionBusy] = useState(false)
   const [isAccountDeleteOpen, setIsAccountDeleteOpen] = useState(false)
   const [accountDeleteConfirmation, setAccountDeleteConfirmation] = useState('')
@@ -2012,11 +2018,18 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (!loginEmail.trim()) { setAuthToast('Sisesta esmalt e-posti aadress'); return }
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
-      const { error } = await requireSupabase().auth.resetPasswordForEmail(loginEmail.trim(), { redirectTo: window.location.origin })
+      if (isCaptchaConfigured && !loginCaptchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      const { error } = await requireSupabase().auth.resetPasswordForEmail(loginEmail.trim(), {
+        redirectTo: window.location.origin,
+        captchaToken: loginCaptchaToken || undefined,
+      })
       if (error) throw error
       setLoginRecoveryMessage('Taastamislink on saadetud sinu e-postile.')
     } catch (error) {
       setAuthToast(error instanceof Error ? error.message : 'Taastamislingi saatmine ebaõnnestus')
+    } finally {
+      setLoginCaptchaToken('')
+      setLoginCaptchaResetKey((value) => value + 1)
     }
   }
 
@@ -2047,6 +2060,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setNewPassword('')
     setNewPasswordConfirmation('')
     setPasswordChangeError('')
+    setAccountCaptchaToken('')
     setIsPasswordChangeOpen(true)
   }
 
@@ -2054,6 +2068,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setNewAccountEmail('')
     setEmailChangePassword('')
     setEmailChangeError('')
+    setAccountCaptchaToken('')
     setIsEmailChangeOpen(true)
   }
 
@@ -2066,8 +2081,13 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setEmailChangeError('')
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
+      if (isCaptchaConfigured && !accountCaptchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
       const supabase = requireSupabase()
-      const { error: verificationError } = await supabase.auth.signInWithPassword({ email: accountEmail, password: emailChangePassword })
+      const { error: verificationError } = await supabase.auth.signInWithPassword({
+        email: accountEmail,
+        password: emailChangePassword,
+        options: { captchaToken: accountCaptchaToken || undefined },
+      })
       if (verificationError) throw new Error('Praegune parool ei ole õige.')
       const { error: updateError } = await supabase.auth.updateUser({ email: nextEmail }, { emailRedirectTo: window.location.origin })
       if (updateError) throw updateError
@@ -2077,23 +2097,31 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       setEmailChangeError(error instanceof Error ? error.message : 'E-posti muutmine ebaõnnestus.')
     } finally {
       setIsChangingEmail(false)
+      setAccountCaptchaToken('')
+      setAccountCaptchaResetKey((value) => value + 1)
     }
   }
 
   const changePassword = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (isChangingPassword) return
-    if (newPassword.length < 8) { setPasswordChangeError('Uus parool peab olema vähemalt 8 tähemärki pikk.'); return }
+    const passwordError = getPasswordPolicyError(newPassword)
+    if (passwordError) { setPasswordChangeError(passwordError); return }
     if (newPassword !== newPasswordConfirmation) { setPasswordChangeError('Uued paroolid ei ühti.'); return }
     if (currentPassword === newPassword) { setPasswordChangeError('Uus parool peab erinema praegusest paroolist.'); return }
     setIsChangingPassword(true)
     setPasswordChangeError('')
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
+      if (isCaptchaConfigured && !accountCaptchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
       const supabase = requireSupabase()
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user?.email) throw new Error('Sessioon on aegunud. Logi uuesti sisse.')
-      const { error: verificationError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword })
+      const { error: verificationError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+        options: { captchaToken: accountCaptchaToken || undefined },
+      })
       if (verificationError) throw new Error('Praegune parool ei ole õige.')
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
       if (updateError) throw updateError
@@ -2106,6 +2134,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       setPasswordChangeError(error instanceof Error ? error.message : 'Parooli muutmine ebaõnnestus.')
     } finally {
       setIsChangingPassword(false)
+      setAccountCaptchaToken('')
+      setAccountCaptchaResetKey((value) => value + 1)
     }
   }
 
@@ -3140,6 +3170,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           <form onSubmit={changeEmail}>
             <label>Uus e-posti aadress<input type="email" value={newAccountEmail} onChange={(event) => { setNewAccountEmail(event.target.value); setEmailChangeError('') }} autoComplete="email" required disabled={isChangingEmail} autoFocus /></label>
             <label>Praegune parool<input type="password" value={emailChangePassword} onChange={(event) => { setEmailChangePassword(event.target.value); setEmailChangeError('') }} autoComplete="current-password" required disabled={isChangingEmail} /></label>
+            <Turnstile key={`email-change-${accountCaptchaResetKey}`} action="account_verify" onToken={setAccountCaptchaToken} />
             {emailChangeError && <p className="password-change-sheet__error" role="alert">{emailChangeError}</p>}
             <button type="submit" disabled={isChangingEmail || !newAccountEmail.trim() || !emailChangePassword}>{isChangingEmail ? 'Saadan…' : 'Saada kinnituskiri'}</button>
           </form>
@@ -3150,13 +3181,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           <button className="login-sheet__close" type="button" disabled={isChangingPassword} onClick={() => setIsPasswordChangeOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
           <span className="login-sheet__eyebrow">KONTO TURVALISUS</span>
           <h2 id="password-change-title">Muuda parooli</h2>
-          <p className="password-change-sheet__intro">Sisesta praegune parool ja vali uus vähemalt 8 tähemärgi pikkune parool.</p>
+          <p className="password-change-sheet__intro">Sisesta praegune parool ja vali uus tugev parool.</p>
           <form onSubmit={changePassword}>
             <label>Praegune parool<input type="password" value={currentPassword} onChange={(event) => { setCurrentPassword(event.target.value); setPasswordChangeError('') }} autoComplete="current-password" required disabled={isChangingPassword} /></label>
-            <label>Uus parool<input type="password" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={8} required disabled={isChangingPassword} /><small className="settings-field-note">Vähemalt 8 tähemärki</small></label>
-            <label>Korda uut parooli<input type="password" value={newPasswordConfirmation} onChange={(event) => { setNewPasswordConfirmation(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={8} required disabled={isChangingPassword} /></label>
+            <label>Uus parool<input type="password" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} required disabled={isChangingPassword} /><small className="settings-field-note">{PASSWORD_REQUIREMENTS_TEXT}</small></label>
+            <label>Korda uut parooli<input type="password" value={newPasswordConfirmation} onChange={(event) => { setNewPasswordConfirmation(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} required disabled={isChangingPassword} /></label>
+            <Turnstile key={`password-change-${accountCaptchaResetKey}`} action="account_verify" onToken={setAccountCaptchaToken} />
             {passwordChangeError && <p className="password-change-sheet__error" role="alert">{passwordChangeError}</p>}
-            <button type="submit" disabled={isChangingPassword || !currentPassword || newPassword.length < 8 || !newPasswordConfirmation}>{isChangingPassword ? 'Muudan…' : 'Muuda parool'}</button>
+            <button type="submit" disabled={isChangingPassword || !currentPassword || newPassword.length < PASSWORD_MIN_LENGTH || !newPasswordConfirmation}>{isChangingPassword ? 'Muudan…' : 'Muuda parool'}</button>
           </form>
         </section>
       </div>}
@@ -3238,9 +3270,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               const password = String(form.get('password') ?? '')
               setIsOwnerLoginBusy(true)
               try {
-                if (onOwnerLogin) await onOwnerLogin(normalizedEmail, password)
+                if (isCaptchaConfigured && !loginCaptchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+                if (onOwnerLogin) await onOwnerLogin(normalizedEmail, password, loginCaptchaToken)
                 else if (storeId && isSupabaseConfigured) {
-                  const { error } = await requireSupabase().auth.signInWithPassword({ email: normalizedEmail, password })
+                  const { error } = await requireSupabase().auth.signInWithPassword({
+                    email: normalizedEmail,
+                    password,
+                    options: { captchaToken: loginCaptchaToken || undefined },
+                  })
                   if (error) throw error
                 }
                 setLoginEmail(normalizedEmail)
@@ -3250,11 +3287,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 setAuthToast(message === 'Invalid login credentials' ? 'E-post või parool ei ole õige' : message)
               } finally {
                 setIsOwnerLoginBusy(false)
+                setLoginCaptchaToken('')
+                setLoginCaptchaResetKey((value) => value + 1)
               }
             }}>
               <label>E-post<input name="email" type="email" value={loginEmail} onChange={(event) => { setLoginEmail(event.target.value); setLoginRecoveryMessage('') }} autoComplete="username" required /></label>
               <label>Parool<input name="password" type="password" autoComplete="current-password" required /></label>
               <button className="login-forgot-password" type="button" onClick={requestLoginPasswordReset}>Unustasid parooli?</button>
+              <Turnstile key={`owner-login-${loginCaptchaResetKey}`} action="login" onToken={setLoginCaptchaToken} />
               {loginRecoveryMessage && <p className="login-recovery-message" role="status">{loginRecoveryMessage}</p>}
               <button type="submit" disabled={isOwnerLoginBusy}>{isOwnerLoginBusy ? 'Login sisse…' : 'Logi sisse'}</button>
             </form>

@@ -4,6 +4,7 @@ import { Brand } from './Brand'
 import { Storefront } from './App'
 import { getShowcaseStore, listProducts, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { isCaptchaConfigured, Turnstile } from './Turnstile'
 import type { Product } from './products'
 import AdminSupport from './AdminSupport'
 import { applySeoMetadata } from './lib/seo'
@@ -197,15 +198,28 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isBusy, setIsBusy] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaResetKey, setCaptchaResetKey] = useState(0)
 
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
     setIsBusy(true)
-    const { error: authError } = await requireSupabase().auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+    if (isCaptchaConfigured && !captchaToken) {
+      setError('Kinnita enne jätkamist, et sa ei ole robot.')
+      setIsBusy(false)
+      return
+    }
+    const { error: authError } = await requireSupabase().auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+      options: { captchaToken: captchaToken || undefined },
+    })
     if (authError) setError('E-posti aadress või parool ei ole õige.')
     else onSignedIn()
     setIsBusy(false)
+    setCaptchaToken('')
+    setCaptchaResetKey((value) => value + 1)
   }
 
   return <main className="admin-auth">
@@ -217,6 +231,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
       <form onSubmit={signIn}>
         <label>E-post<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label>
         <label>Parool<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
+        <Turnstile key={`admin-login-${captchaResetKey}`} action="admin_login" onToken={setCaptchaToken} />
         {error && <p className="admin-auth__error" role="alert">{error}</p>}
         <button type="submit" disabled={isBusy}>{isBusy ? 'Login sisse…' : 'Logi sisse'}<span aria-hidden="true">→</span></button>
       </form>

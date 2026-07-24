@@ -5,8 +5,10 @@ import BillingPlanDialog from './BillingPlanDialog'
 import { Brand } from './Brand'
 import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { products as bundledProducts, type Product } from './products'
+import { isCaptchaConfigured, Turnstile } from './Turnstile'
 import {
   DEFAULT_RETURNS_TEXT,
   FIXED_PLAN_MONTHLY_FEE,
@@ -146,6 +148,9 @@ const getLocalizedAuthError = (error: unknown, fallback: string) => {
   if (isEmailRateLimitError(error)) return 'Saatmislimiit on täis.'
   if (authError.code === 'invalid_credentials' || message.includes('invalid login credentials')) {
     return 'E-posti aadress või parool ei ole õige.'
+  }
+  if (authError.code === 'weak_password' || message.includes('password should') || message.includes('weak password')) {
+    return PASSWORD_REQUIREMENTS_TEXT
   }
   return authError.message || fallback
 }
@@ -368,6 +373,8 @@ function PlatformFlow() {
   const [store, setStore] = useState<StoreRecord | null>(null)
   const [storedProducts, setStoredProducts] = useState<Product[]>([])
   const [authError, setAuthError] = useState('')
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaResetKey, setCaptchaResetKey] = useState(0)
   const [authNotice, setAuthNotice] = useState('')
   const [isAuthBusy, setIsAuthBusy] = useState(false)
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false)
@@ -694,7 +701,8 @@ function PlatformFlow() {
     setIsAuthBusy(true); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false)
     try {
       const form = new FormData(event.currentTarget)
-      const existing = await authenticateOwner(email, String(form.get('password') ?? ''))
+      if (isCaptchaConfigured && !captchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      const existing = await authenticateOwner(email, String(form.get('password') ?? ''), captchaToken)
       if (existing === 'admin') {
         window.location.assign('/admin')
         return
@@ -707,7 +715,7 @@ function PlatformFlow() {
         setAuthError(getLocalizedAuthError(error, 'E-posti aadress pole veel kinnitatud.'))
       } else setAuthError(getLocalizedAuthError(error, 'Sisselogimine ebaõnnestus.'))
     }
-    finally { setIsAuthBusy(false) }
+    finally { setIsAuthBusy(false); setCaptchaToken(''); setCaptchaResetKey((value) => value + 1) }
   }
 
   const restoreLoginScrollAfterKeyboard = (event: React.FocusEvent<HTMLInputElement>) => {
@@ -723,10 +731,11 @@ function PlatformFlow() {
     setIsAuthBusy(true); setAuthError(''); setAuthNotice('')
     try {
       const normalizedEmail = email.trim().toLowerCase()
+      if (isCaptchaConfigured && !captchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
       const { error } = await requireSupabase().auth.resend({
         type: 'signup',
         email: normalizedEmail,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: window.location.origin, captchaToken: captchaToken || undefined },
       })
       if (error) throw error
       setEmail(normalizedEmail)
@@ -740,13 +749,17 @@ function PlatformFlow() {
         setIsConfirmationRateLimited(true)
         setConfirmationResendCooldown(0)
       }
-    } finally { setIsAuthBusy(false) }
+    } finally { setIsAuthBusy(false); setCaptchaToken(''); setCaptchaResetKey((value) => value + 1) }
   }
 
-  const authenticateOwner = async (loginEmail: string, password: string) => {
+  const authenticateOwner = async (loginEmail: string, password: string, nextCaptchaToken = '') => {
     if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
     const normalizedEmail = loginEmail.trim().toLowerCase()
-    const { data, error } = await requireSupabase().auth.signInWithPassword({ email: normalizedEmail, password })
+    const { data, error } = await requireSupabase().auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+      options: { captchaToken: nextCaptchaToken || undefined },
+    })
     if (error) throw error
     setEmail(normalizedEmail)
     if (data.user.app_metadata?.role === 'admin') {
@@ -758,8 +771,8 @@ function PlatformFlow() {
     return getMyStore()
   }
 
-  const signInFromStore = async (loginEmail: string, password: string) => {
-    const existing = await authenticateOwner(loginEmail, password)
+  const signInFromStore = async (loginEmail: string, password: string, nextCaptchaToken = '') => {
+    const existing = await authenticateOwner(loginEmail, password, nextCaptchaToken)
     if (existing === 'admin') {
       window.location.assign('/admin')
       return
@@ -780,10 +793,14 @@ function PlatformFlow() {
       if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
       const form = new FormData(event.currentTarget)
       const normalizedEmail = email.trim().toLowerCase()
+      const password = String(form.get('password') ?? '')
+      const passwordError = getPasswordPolicyError(password)
+      if (passwordError) throw new Error(passwordError)
+      if (isCaptchaConfigured && !captchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
       const { data, error } = await requireSupabase().auth.signUp({
         email: normalizedEmail,
-        password: String(form.get('password') ?? ''),
-        options: { emailRedirectTo: window.location.origin },
+        password,
+        options: { emailRedirectTo: window.location.origin, captchaToken: captchaToken || undefined },
       })
       if (error) throw error
       setEmail(normalizedEmail)
@@ -794,8 +811,8 @@ function PlatformFlow() {
         return
       }
       setScreen('store')
-    } catch (error) { setAuthError(error instanceof Error ? error.message : 'Konto loomine ebaõnnestus.') }
-    finally { setIsAuthBusy(false) }
+    } catch (error) { setAuthError(getLocalizedAuthError(error, 'Konto loomine ebaõnnestus.')) }
+    finally { setIsAuthBusy(false); setCaptchaToken(''); setCaptchaResetKey((value) => value + 1) }
   }
 
   const requestPasswordReset = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -803,11 +820,15 @@ function PlatformFlow() {
     setIsAuthBusy(true); setAuthError(''); setAuthNotice('')
     try {
       if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
-      const { error } = await requireSupabase().auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin })
+      if (isCaptchaConfigured && !captchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      const { error } = await requireSupabase().auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: window.location.origin,
+        captchaToken: captchaToken || undefined,
+      })
       if (error) throw error
       setAuthNotice('Taastamislink on saadetud. Kontrolli oma e-posti.')
     } catch (error) { setAuthError(error instanceof Error ? error.message : 'Taastamislingi saatmine ebaõnnestus.') }
-    finally { setIsAuthBusy(false) }
+    finally { setIsAuthBusy(false); setCaptchaToken(''); setCaptchaResetKey((value) => value + 1) }
   }
 
   const completePasswordReset = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -817,7 +838,8 @@ function PlatformFlow() {
       const form = new FormData(event.currentTarget)
       const password = String(form.get('password') ?? '')
       const confirmation = String(form.get('passwordConfirmation') ?? '')
-      if (password.length < 8) throw new Error('Parool peab olema vähemalt 8 tähemärki pikk.')
+      const passwordError = getPasswordPolicyError(password)
+      if (passwordError) throw new Error(passwordError)
       if (password !== confirmation) throw new Error('Paroolid ei ühti.')
       const { error } = await requireSupabase().auth.updateUser({ password })
       if (error) throw error
@@ -825,7 +847,7 @@ function PlatformFlow() {
       setAuthNotice('Parool on muudetud. Logi nüüd uue parooliga sisse.')
       setScreen('login')
       window.history.replaceState({}, '', window.location.pathname)
-    } catch (error) { setAuthError(error instanceof Error ? error.message : 'Parooli muutmine ebaõnnestus.') }
+    } catch (error) { setAuthError(getLocalizedAuthError(error, 'Parooli muutmine ebaõnnestus.')) }
     finally { setIsAuthBusy(false) }
   }
 
@@ -1214,8 +1236,9 @@ function PlatformFlow() {
           <h1>Logi sisse</h1><p>Tagasi oma poe haldusesse.</p>
           <form onSubmit={signIn}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false); setConfirmationResendCooldown(0); setIsConfirmationRateLimited(false) }} onBlur={restoreLoginScrollAfterKeyboard} placeholder="sina@ettevote.ee" autoComplete="username" enterKeyHint="next" autoFocus /></label>
-            <label>Parool<input required name="password" type="password" minLength={6} placeholder="Sinu parool" autoComplete="current-password" enterKeyHint="done" onBlur={restoreLoginScrollAfterKeyboard} /></label>
+            <label>Parool<input required name="password" type="password" placeholder="Sinu parool" autoComplete="current-password" enterKeyHint="done" onBlur={restoreLoginScrollAfterKeyboard} /></label>
             <button className="auth-password-link" type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setScreen('forgot-password') }}>Unustasid parooli?</button>
+            <Turnstile key={`login-${captchaResetKey}`} action="login" onToken={setCaptchaToken} />
             {needsEmailConfirmation && <div className="auth-confirmation-prompt" role="alert">
               <span><strong>{authError || 'Kinnita e-posti aadress'}</strong><small>{isConfirmationRateLimited ? 'Kasuta kõige uuemat saabunud kirja või proovi umbes tunni pärast uuesti.' : 'Kasuta kõige uuemat kirja, mille Poeruum sulle saatis.'}</small></span>
               <button type="button" disabled={isAuthBusy || isConfirmationRateLimited || confirmationResendCooldown > 0} onClick={resendConfirmation}>
@@ -1241,6 +1264,7 @@ function PlatformFlow() {
         <h1>Unustasid parooli?</h1><p>Sisesta oma konto e-posti aadress.</p>
         <form onSubmit={requestPasswordReset}>
           <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice('') }} placeholder="sina@ettevote.ee" autoComplete="email" autoFocus /></label>
+          <Turnstile key={`password-reset-${captchaResetKey}`} action="password_reset" onToken={setCaptchaToken} />
           {authError && <p className="add-product-error" role="alert">{authError}</p>}
           {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
           <button type="submit" disabled={isAuthBusy || !email.trim()}>{isAuthBusy ? 'Saadan…' : 'Saada taastamislink'} <span>→</span></button>
@@ -1257,8 +1281,8 @@ function PlatformFlow() {
       <section className="auth-card auth-card--login">
         <h1>Vali uus parool</h1><p>{email ? `Konto: ${email}` : 'Sisesta uus parool.'}</p>
         <form onSubmit={completePasswordReset}>
-          <label>Uus parool<input required name="password" type="password" minLength={8} placeholder="Vähemalt 8 tähemärki" autoComplete="new-password" autoFocus /></label>
-          <label>Korda uut parooli<input required name="passwordConfirmation" type="password" minLength={8} placeholder="Korda parooli" autoComplete="new-password" /></label>
+          <label>Uus parool<input required name="password" type="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" autoFocus /><small>{PASSWORD_REQUIREMENTS_TEXT}</small></label>
+          <label>Korda uut parooli<input required name="passwordConfirmation" type="password" minLength={PASSWORD_MIN_LENGTH} placeholder="Korda parooli" autoComplete="new-password" /></label>
           {authError && <p className="add-product-error" role="alert">{authError}</p>}
           <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Muudan…' : 'Salvesta uus parool'} <span>→</span></button>
         </form>
@@ -1286,12 +1310,13 @@ function PlatformFlow() {
           <h1>Loo konto</h1>
           <form onSubmit={signUp}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sina@ettevote.ee" autoFocus /></label>
-            <label>Parool<input required name="password" type="password" minLength={6} placeholder="Vähemalt 6 tähemärki" /></label>
+            <label>Parool<input required name="password" type="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" /><small>{PASSWORD_REQUIREMENTS_TEXT}</small></label>
             <label className="auth-consent">
               <input required type="checkbox" />
               <span className="auth-checkbox" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 2.8 2.8 6.2-6.2" /></svg></span>
               <span>Nõustun <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a> ja olen tutvunud <a href="/privaatsus" target="_blank" rel="noreferrer">privaatsuspoliitikaga</a>.</span>
             </label>
+            <Turnstile key={`signup-${captchaResetKey}`} action="signup" onToken={setCaptchaToken} />
             {authError && <p className="add-product-error" role="alert">{authError}</p>}
             <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Loon kontot…' : 'Loo konto ja jätka'} <span>→</span></button>
           </form>
