@@ -3,7 +3,7 @@ import { loadConnectAndInitialize } from '@stripe/connect-js'
 import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
 import BillingPlanDialog from './BillingPlanDialog'
 import { Brand } from './Brand'
-import { createStore, getShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type StoreRecord } from './lib/database'
+import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { products as bundledProducts, type Product } from './products'
@@ -373,10 +373,10 @@ function PlatformFlow() {
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false)
   const [confirmationResendCooldown, setConfirmationResendCooldown] = useState(0)
   const [isConfirmationRateLimited, setIsConfirmationRateLimited] = useState(false)
-  const [publicStore, setPublicStore] = useState<StoreRecord | null>(null)
+  const [publicStore, setPublicStore] = useState<PublicStoreRecord | null>(null)
   const [publicProducts, setPublicProducts] = useState<Product[]>([])
   const requestedProductSlug = getRequestedProductSlug(window.location)
-  const [sampleStore, setSampleStore] = useState<StoreRecord | null>(null)
+  const [sampleStore, setSampleStore] = useState<PublicStoreRecord | null>(null)
   const [sampleProducts, setSampleProducts] = useState<Product[]>([])
   const phonePreviewProducts = (sampleStore ? sampleProducts : bundledProducts)
     .filter((product) => product.searchVisible !== false)
@@ -551,7 +551,7 @@ function PlatformFlow() {
   useEffect(() => {
     if (!['landing', 'sample'].includes(screen) || !isSupabaseConfigured) return
     let active = true
-    const refreshSampleStore = () => getShowcaseStore().then(async (found) => {
+    const refreshSampleStore = () => getPublicShowcaseStore().then(async (found) => {
       if (!found || !active) return
       const nextProducts = await listProducts(found.id)
       if (!active) return
@@ -829,11 +829,11 @@ function PlatformFlow() {
     finally { setIsAuthBusy(false) }
   }
 
-  const persistStore = async (published = false, overrides: Partial<StoreRecord> = {}, nextStep?: OnboardingStep) => {
+  const persistStore = async (published = false, overrides: Partial<StoreContentInput> = {}, nextStep?: OnboardingStep) => {
     const existingSettings = (store?.settings ?? {}) as Record<string, unknown>
     const payload = {
-      name: storeName.trim(), slug: slug || slugify(storeName), payment_provider: payment, payment_status: paymentStatus,
-      pricing_plan: pricingPlan, trial_started_at: fixedPlanTrialStartedAt, shipping, is_published: published,
+      name: storeName.trim(), slug: slug || slugify(storeName), payment_provider: payment,
+      shipping, is_published: published,
       settings: {
         ...existingSettings,
         businessName: businessName.trim(),
@@ -857,7 +857,7 @@ function PlatformFlow() {
     setAuthError('')
     setAuthNotice('')
     try {
-      const saved = await persistStore(store?.is_published ?? false, { payment_provider: 'stripe', payment_status: 'pending' }, store?.is_published ? 'complete' : 'payments')
+      const saved = await persistStore(store?.is_published ?? false, { payment_provider: 'stripe' }, store?.is_published ? 'complete' : 'payments')
       setPayment('stripe')
       setPaymentStatus('pending')
       setStore(saved)
@@ -1064,8 +1064,6 @@ function PlatformFlow() {
     paymentProvider={publicStore.payment_provider}
     paymentsReady={publicStore.payment_status === 'connected'}
     initialShipping={publicStore.shipping}
-    pricingPlan={publicStore.pricing_plan}
-    fixedPlanTrialStartedAt={publicStore.trial_started_at}
     initialProductSlug={requestedProductSlug}
     ownerEmail={email}
     onOwnerLogin={signInFromStore}
@@ -1326,7 +1324,7 @@ function PlatformFlow() {
 
       if (store || hasValidStoreIdentity) {
         if (!hasValidStoreIdentity) throw new Error('Poe nimi peab enne salvestamist olema täidetud.')
-        await persistStore(store?.is_published ?? false, { pricing_plan: pricingPlan }, currentStep)
+        await persistStore(store?.is_published ?? false, {}, currentStep)
       }
 
       if (isStripeOnboardingOpen) {
@@ -1538,7 +1536,7 @@ function PlatformFlow() {
       </div>
     </div>}
     {isBillingCardOpen && <BillingPlanDialog confirmLabel="Jätka Stripe’is" onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => {
-      await persistStore(false, { pricing_plan: store?.pricing_plan ?? 'flexible' })
+      await persistStore(false)
       const url = await startStripeBillingCheckout(checkoutRequestId)
       window.location.assign(url)
     }} />}

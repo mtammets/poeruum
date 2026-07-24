@@ -917,8 +917,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       name: editableStoreName,
       is_published: isStoreVisible,
       payment_provider: activePaymentProvider,
-      pricing_plan: billingPlan,
-      trial_started_at: fixedPlanTrialStartedAt?.toISOString() ?? null,
       shipping: enabledShipping,
     })
     onStoreChange?.(savedStore)

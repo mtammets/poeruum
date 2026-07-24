@@ -23,6 +23,16 @@ export type StoreRecord = {
   settings: Record<string, unknown>
 }
 
+export type PublicStoreRecord = Pick<
+  StoreRecord,
+  'id' | 'name' | 'slug' | 'is_published' | 'payment_provider' | 'payment_status' | 'shipping' | 'settings'
+>
+
+export type StoreContentInput = Pick<
+  StoreRecord,
+  'name' | 'slug' | 'is_published' | 'payment_provider' | 'shipping' | 'settings'
+>
+
 export type CustomDomainRecord = {
   id: string
   storeId: string
@@ -64,6 +74,15 @@ const throwIfError = (error: { message: string } | null) => {
   if (error) throw new Error(error.message)
 }
 
+const isMissingDatabaseApi = (error: { code?: string; message: string } | null) => Boolean(
+  error && (
+    ['42P01', '42883', 'PGRST202', 'PGRST205'].includes(error.code ?? '')
+    || /could not find|does not exist/i.test(error.message)
+  ),
+)
+
+const publicStoreColumns = 'id,name,slug,is_published,payment_provider,payment_status,shipping,settings'
+
 // crypto.randomUUID is unavailable in older Safari versions and on non-secure
 // LAN origins (http://192.168... / http://172.16...). getRandomValues remains
 // available there, so image uploads still get collision-resistant names.
@@ -92,9 +111,14 @@ export async function getMyStore() {
 }
 
 export async function getStoreBySlug(slug: string) {
-  const { data, error } = await requireSupabase().from('stores').select('*').eq('slug', slug).eq('is_published', true).maybeSingle()
+  const { data, error } = await requireSupabase().from('public_storefronts').select('*').eq('slug', slug).maybeSingle()
+  if (isMissingDatabaseApi(error)) {
+    const fallback = await requireSupabase().from('stores').select(publicStoreColumns).eq('slug', slug).eq('is_published', true).maybeSingle()
+    throwIfError(fallback.error)
+    return fallback.data as PublicStoreRecord | null
+  }
   throwIfError(error)
-  return data as StoreRecord | null
+  return data as PublicStoreRecord | null
 }
 
 export async function getStoreByHostname(hostname: string) {
@@ -104,13 +128,24 @@ export async function getStoreByHostname(hostname: string) {
   return slug ? getStoreBySlug(String(slug)) : null
 }
 
+export async function getPublicShowcaseStore() {
+  const { data, error } = await requireSupabase().from('public_storefronts').select('*').eq('id', SHOWCASE_STORE_ID).maybeSingle()
+  if (isMissingDatabaseApi(error)) {
+    const fallback = await requireSupabase().from('stores').select(publicStoreColumns).eq('id', SHOWCASE_STORE_ID).eq('is_published', true).maybeSingle()
+    throwIfError(fallback.error)
+    return fallback.data as PublicStoreRecord | null
+  }
+  throwIfError(error)
+  return data as PublicStoreRecord | null
+}
+
 export async function getShowcaseStore() {
   const { data, error } = await requireSupabase().from('stores').select('*').eq('id', SHOWCASE_STORE_ID).maybeSingle()
   throwIfError(error)
   return data as StoreRecord | null
 }
 
-export async function createStore(input: Pick<StoreRecord, 'name' | 'slug' | 'payment_provider' | 'payment_status' | 'pricing_plan' | 'trial_started_at' | 'shipping'> & Partial<Pick<StoreRecord, 'is_published' | 'settings'>>) {
+export async function createStore(input: StoreContentInput) {
   const { data: userData, error: userError } = await requireSupabase().auth.getUser()
   throwIfError(userError)
   if (!userData.user) throw new Error('Poe loomiseks logi sisse.')
@@ -119,7 +154,7 @@ export async function createStore(input: Pick<StoreRecord, 'name' | 'slug' | 'pa
   return data as StoreRecord
 }
 
-export async function updateStore(storeId: string, input: Partial<Omit<StoreRecord, 'id' | 'owner_id'>>) {
+export async function updateStore(storeId: string, input: Partial<StoreContentInput>) {
   const { data, error } = await requireSupabase().from('stores').update(input).eq('id', storeId).select().single()
   throwIfError(error)
   return data as StoreRecord
@@ -414,6 +449,15 @@ export async function listOrders(storeId: string) {
 }
 
 export async function updateOrderStatus(storeId: string, orderNumber: string, status: OrderRecord['status']) {
-  const { error } = await requireSupabase().from('orders').update({ status }).eq('store_id', storeId).eq('order_number', orderNumber)
+  if (status !== 'fulfilled') throw new Error('Seda tellimuse olekut saab muuta ainult turvalise serveritoimingu kaudu.')
+  const { error } = await requireSupabase().rpc('mark_order_fulfilled', {
+    target_store_id: storeId,
+    target_order_number: orderNumber,
+  })
+  if (isMissingDatabaseApi(error)) {
+    const fallback = await requireSupabase().from('orders').update({ status }).eq('store_id', storeId).eq('order_number', orderNumber)
+    throwIfError(fallback.error)
+    return
+  }
   throwIfError(error)
 }
