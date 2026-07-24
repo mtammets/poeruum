@@ -3124,7 +3124,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <div className="account-danger-zone">
               <span className="account-danger-zone__label">OHUTSOON</span>
               <h3>Kustuta konto jäädavalt</h3>
-              <p>Kustutatakse sinu konto, poed, tooted, tellimused ja üles laaditud pildid. Seda toimingut ei saa tagasi võtta.</p>
+              <p>Kustutatakse sinu konto, poe sisu ja üles laaditud pildid. Seadusega nõutud tellimus- ja raamatupidamisandmed säilivad kontost eraldatud kujul.</p>
               <button type="button" onClick={openAccountDeletion}>Kustuta minu konto</button>
             </div>
           </div>}
