@@ -1111,9 +1111,8 @@ function PlatformFlow() {
       <div className="platform-hero__copy">
         <span className="platform-eyebrow">Lihtsaim viis oma e-poeni</span>
         <h1>Sinu e-pood.<br /><em>10 minutiga.</em></h1>
-        <p>Tee pilt, lisa hind ja vajuta „Avalda”. Kõige muu eest hoolitseme meie.</p>
+        <p>Loo, avalda ja halda oma e-poodi otse telefonist.</p>
         <button onClick={() => setScreen('account')}>Alusta tasuta <span>→</span></button>
-        <small>Kaks paketti: 0 € kuutasu + teenustasu või 30 päeva tasuta, seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)} kuus + km ({formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos km-ga)</small>
       </div>
       <div className="platform-phone-stage">
         <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
