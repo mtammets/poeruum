@@ -134,13 +134,13 @@ const getLocalizedAuthError = (error: unknown, fallback: string) => {
 
 export function BrandMark({ className = '' }: { className?: string }) {
   return <span className={`demo-brand__mark${className ? ` ${className}` : ''}`} aria-hidden="true">
-      <svg viewBox="0 0 40 40">
-        <rect x="1" y="1" width="38" height="38" rx="11" />
-        <path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z" />
-        <path d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18" />
-        <path d="M15.5 22.2h9" />
-      </svg>
-    </span>
+    <svg viewBox="0 0 40 40">
+      <rect x="1" y="1" width="38" height="38" rx="11" />
+      <path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z" />
+      <path d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18" />
+      <path d="M15.5 22.2h9" />
+    </svg>
+  </span>
 }
 
 export function Brand() {
@@ -524,14 +524,14 @@ export default function DemoApp() {
     if (!['landing', 'sample'].includes(screen) || !isSupabaseConfigured) return
     let active = true
     const refreshSampleStore = () => getDemoStore().then(async (found) => {
-        if (!found || !active) return
-        const nextProducts = await listProducts(found.id)
-        if (!active) return
-        setSampleStore(found)
-        setSampleProducts(nextProducts)
-      }).catch(() => {
-        // Keep the bundled sample as a safe fallback before the demo-store migration is deployed.
-      })
+      if (!found || !active) return
+      const nextProducts = await listProducts(found.id)
+      if (!active) return
+      setSampleStore(found)
+      setSampleProducts(nextProducts)
+    }).catch(() => {
+      // Keep the bundled sample as a safe fallback before the demo-store migration is deployed.
+    })
     void refreshSampleStore()
     window.addEventListener('focus', refreshSampleStore)
     return () => {
@@ -1073,30 +1073,30 @@ export default function DemoApp() {
         <small>Kaks paketti: 0 € kuutasu + müügitasu või 30 päeva tasuta, seejärel 35,96 € kuus koos käibemaksuga</small>
       </div>
       <div className="demo-phone-stage">
-      <div className={`demo-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
-        <div className="demo-phone__screen"><div className="demo-phone__journey">
-          <section className="demo-phone__story">
-            <div className={`demo-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
-              {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.id}-${index}`} />)}
-            </div>
-            <div className="demo-phone__shade" />
-            <div className="demo-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
-            <header className="demo-phone__header">
-              <div><img src="/images/poeruum-email-logo.svg" alt="" /><strong>POERUUM</strong></div>
-              <aside><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></i><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></svg><b>0</b></i></aside>
-            </header>
-            {phoneProduct.images.length > 1 && <div className="demo-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
-            <div className="demo-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
-          </section>
-          <section className="demo-phone__details">
-            <header><h3>{phoneProduct.name}</h3><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></svg></span></header>
-            <div><small>Kirjeldus</small><p>{phoneProduct.description}</p></div>
-            <div className="demo-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
-            <div className="demo-phone__cart">Lisa ostukorvi</div>
-            <footer><strong>POERUUM</strong><small>Valmistatud hoolega Eestis</small></footer>
-          </section>
-        </div></div>
-      </div>
+        <div className={`demo-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
+          <div className="demo-phone__screen"><div className="demo-phone__journey">
+            <section className="demo-phone__story">
+              <div className={`demo-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
+                {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.id}-${index}`} />)}
+              </div>
+              <div className="demo-phone__shade" />
+              <div className="demo-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
+              <header className="demo-phone__header">
+                <div><img src="/images/poeruum-email-logo.svg" alt="" /><strong>POERUUM</strong></div>
+                <aside><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg></i><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6" /><circle cx="9" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg><b>0</b></i></aside>
+              </header>
+              {phoneProduct.images.length > 1 && <div className="demo-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
+              <div className="demo-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
+            </section>
+            <section className="demo-phone__details">
+              <header><h3>{phoneProduct.name}</h3><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></svg></span></header>
+              <div><small>Kirjeldus</small><p>{phoneProduct.description}</p></div>
+              <div className="demo-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
+              <div className="demo-phone__cart">Lisa ostukorvi</div>
+              <footer><strong>POERUUM</strong><small>Valmistatud hoolega Eestis</small></footer>
+            </section>
+          </div></div>
+        </div>
       </div>
     </section>
     <section className="demo-benefits"><div><b>01</b><strong>Loo konto</strong><span>Alusta vaid mõne minutiga</span></div><div><b>02</b><strong>Seadista oma pood</strong><span>Lisa tooted, maksed ja tarne</span></div><div><b>03</b><strong>Avalda ja hakka müüma</strong><span>Sinu poe veebiaadressil</span></div></section>
@@ -1158,7 +1158,7 @@ export default function DemoApp() {
     </section>
     <footer className="demo-footer">
       <div><Brand /><p>Lihtne e-pood Eesti väikeettevõtjale.</p></div>
-      <div><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span><span>Interaktiivne demo</span></div>
+      <div><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span></div>
     </footer>
   </main>
 
@@ -1312,16 +1312,16 @@ export default function DemoApp() {
 
     {screen === 'payments' && <div className="setup-form">
       {!isStripeOnboardingOpen && <><span className="setup-kicker">Maksete vastuvõtmine</span><h1>Kuidas kliendid maksavad?</h1>
-      <div className="provider-list">
-        <button className={payment === 'stripe' ? 'is-selected' : ''} onClick={() => {
-          setPayment('stripe')
-          setPaymentStatus(store?.stripe_account_id
-            ? store.stripe_account_charges_enabled && store.stripe_account_payouts_enabled ? 'connected' : 'pending'
-            : 'idle')
-        }}>
-          <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe <em>Kõige kiirem</em></strong><small>Kaardid, Apple Pay ja Google Pay</small></span><b>{payment === 'stripe' ? '✓' : ''}</b>
-        </button>
-      </div></>}
+        <div className="provider-list">
+          <button className={payment === 'stripe' ? 'is-selected' : ''} onClick={() => {
+            setPayment('stripe')
+            setPaymentStatus(store?.stripe_account_id
+              ? store.stripe_account_charges_enabled && store.stripe_account_payouts_enabled ? 'connected' : 'pending'
+              : 'idle')
+          }}>
+            <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe <em>Kõige kiirem</em></strong><small>Kaardid, Apple Pay ja Google Pay</small></span><b>{payment === 'stripe' ? '✓' : ''}</b>
+          </button>
+        </div></>}
       {isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
         onExit={finishStripeEmbeddedOnboarding}
         onClose={finishStripeEmbeddedOnboarding}
