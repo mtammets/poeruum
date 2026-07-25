@@ -52,6 +52,8 @@ export function Turnstile({ action, onToken }: { action: string; onToken: (token
         action,
         theme: 'auto',
         size: 'flexible',
+        language: 'et',
+        appearance: 'interaction-only',
         callback: (token: string) => onTokenRef.current(token),
         'expired-callback': () => onTokenRef.current(''),
         'error-callback': () => onTokenRef.current(''),
