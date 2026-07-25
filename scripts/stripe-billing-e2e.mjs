@@ -112,8 +112,8 @@ const openCheckout = async (browser, fixture, checkout) => {
   await page.goto(checkout.url, { waitUntil: 'domcontentloaded' })
   await page.locator('#cardNumber').waitFor({ state: 'visible', timeout: 30_000 })
   const text = await page.locator('body').innerText()
-  if (!text.includes('30 days free') || !text.includes('€35.96')) {
-    throw new Error(`Stripe Checkouti summa või prooviperiood on vale: ${text.slice(0, 900)}`)
+  if (!text.includes('30 days free')) {
+    throw new Error(`Stripe Checkouti prooviperiood on vale: ${text.slice(0, 900)}`)
   }
   return { context, page }
 }
@@ -166,6 +166,39 @@ const recordCheckoutObjects = async (sessionId) => {
   if (typeof session.subscription === 'string') stripeObjects.subscriptions.add(session.subscription)
   if (typeof session.customer === 'string') stripeObjects.customers.add(session.customer)
   return session
+}
+
+const assertCheckoutPricing = async (sessionId) => {
+  const taxRateId = process.env.STRIPE_FIXED_PLAN_TAX_RATE_ID
+  if (!taxRateId) throw new Error('Stripe Billing E2E test nõuab käibemaksumäära ID-d.')
+  const [session, lineItems, taxRate] = await Promise.all([
+    stripeRequest(`checkout/sessions/${sessionId}`),
+    stripeRequest(`checkout/sessions/${sessionId}/line_items?limit=10`),
+    stripeRequest(`tax_rates/${taxRateId}`),
+  ])
+  const line = lineItems.data?.[0]
+  if (session.mode !== 'subscription' || session.currency !== 'eur' || lineItems.data?.length !== 1
+    || line?.currency !== 'eur' || line?.quantity !== 1 || line?.price?.unit_amount !== 2900
+    || line?.price?.recurring?.interval !== 'month' || line?.price?.recurring?.interval_count !== 1) {
+    throw new Error(`Stripe Checkouti kuuhind on vale: ${JSON.stringify({
+      mode: session.mode,
+      currency: session.currency,
+      lineCount: lineItems.data?.length,
+      lineCurrency: line?.currency,
+      quantity: line?.quantity,
+      unitAmount: line?.price?.unit_amount,
+      interval: line?.price?.recurring?.interval,
+      intervalCount: line?.price?.recurring?.interval_count,
+    })}`)
+  }
+  if (!taxRate.active || taxRate.inclusive || taxRate.percentage !== 24 || taxRate.country !== 'EE') {
+    throw new Error(`Stripe Checkouti käibemaksumäär on vale: ${JSON.stringify({
+      active: taxRate.active,
+      inclusive: taxRate.inclusive,
+      percentage: taxRate.percentage,
+      country: taxRate.country,
+    })}`)
+  }
 }
 
 const assertRealCheckoutWebhook = async (sessionId) => {
@@ -221,6 +254,7 @@ const main = async () => {
     const successCheckout = await createCheckout(successFixture)
     const repeatedCheckout = await createCheckout(successFixture)
     if (repeatedCheckout.sessionId !== successCheckout.sessionId) throw new Error('Billingu topeltpäring lõi kaks Checkout Sessionit.')
+    await assertCheckoutPricing(successCheckout.sessionId)
     const successBrowser = await openCheckout(browser, successFixture, successCheckout)
     await fillCheckoutCard(successBrowser.page, '4242424242424242')
     await submitCheckout(successBrowser.page)
@@ -257,6 +291,7 @@ const main = async () => {
     const threeDSFixture = await createFixture('3ds')
     report('3ds fixture created')
     const threeDSCheckout = await createCheckout(threeDSFixture)
+    await assertCheckoutPricing(threeDSCheckout.sessionId)
     const threeDSBrowser = await openCheckout(browser, threeDSFixture, threeDSCheckout)
     await fillCheckoutCard(threeDSBrowser.page, '4000002500003155')
     await submitCheckout(threeDSBrowser.page)
@@ -279,6 +314,7 @@ const main = async () => {
     const declineFixture = await createFixture('decline')
     report('decline fixture created')
     const declineCheckout = await createCheckout(declineFixture)
+    await assertCheckoutPricing(declineCheckout.sessionId)
     const declineBrowser = await openCheckout(browser, declineFixture, declineCheckout)
     await fillCheckoutCard(declineBrowser.page, '4000000000000002')
     await submitCheckout(declineBrowser.page)
