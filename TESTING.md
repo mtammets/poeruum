@@ -15,30 +15,19 @@ npx supabase stop --no-backup
 
 GitHub Actionsi `CI` töövoog teeb need kontrollid iga pull request’i ja `main` haru push’i järel puhtas keskkonnas. Ükski CI põhikontroll ei kasuta tootmise Supabase’i ega Stripe’i võtmeid.
 
-## Staging E2E
+## Ajutine staging E2E
 
-`Staging E2E` on käsitsi käivitatav ja kasutab ainult GitHubi `staging` environment’i saladusi. Töövoos on kaks sõltumatut kaitset:
+`Ephemeral Staging E2E` on käsitsi käivitatav. See loob Micro-suuruses Supabase’i projekti ja Stripe’i testkonfiguratsiooni ainult testi ajaks ning kustutab mõlemad töö lõpus ka vea korral. Iga käivitus kasutab ligikaudu ühe tunni Micro compute’i. Eraldi kahe tunni järel töötav koristaja kustutab üle kolme tunni vanused `poeruum-e2e-*` projektid, mis võisid jääda alles katkestatud GitHub Actionsi job’ist.
 
-- tootmise Supabase’i projektiviide `foctericixquaogwboqg` on keelatud;
+Töövoos on kolm sõltumatut kaitset:
+
+- ajutise projekti nimi peab algama `poeruum-e2e-`;
+- tootmise Supabase’i projektiviidet `foctericixquaogwboqg` ei kustutata kunagi;
 - Stripe’i võti peab algama `sk_test_`.
 
-Eraldi staging-Supabase’i projektile tuleb lisada järgmised environment secrets:
+GitHubi `staging` environment vajab ainult kahte saladust:
 
-- `SUPABASE_ACCESS_TOKEN`
-- `SUPABASE_PROJECT_REF`
-- `SUPABASE_DB_PASSWORD`
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SECRET_KEY`
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_FIXED_PLAN_PRICE_ID`
-- `STRIPE_FIXED_PLAN_TAX_RATE_ID`
+- `SUPABASE_ACCESS_TOKEN`, millel on õigus ajutisi projekte luua ja kustutada;
+- `STRIPE_SECRET_KEY`, mis peab olema Stripe’i testrežiimi `sk_test_` võti.
 
-Stripe’i testrežiimis peab olema webhook endpoint:
-
-`https://<SUPABASE_PROJECT_REF>.supabase.co/functions/v1/stripe-webhook`
-
-Endpoint kuulab vähemalt sündmusi `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid` ja `invoice.payment_failed`. Selle signing secret läheb `STRIPE_WEBHOOK_SECRET` väärtuseks.
-
-Testid loovad ainult ajutisi kasutajaid, poode, Stripe Checkout Sessioneid, kliente ja subscription’e ning koristavad need töö lõpus. Stagingu migratsioonid ja vajalikud Edge Functionid rakendatakse enne iga E2E käivitust.
+Test loob dünaamiliselt webhook endpoint’i, 29 € testhinna ja 24% testmaksumäära. Seejärel rakendatakse värskele Supabase’i projektile kõik migratsioonid ja vajalikud Edge Functionid. Testid loovad ainult ajutisi kasutajaid, poode, Stripe Checkout Sessioneid, kliente ja subscription’e.

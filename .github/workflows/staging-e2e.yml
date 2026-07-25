@@ -1,4 +1,4 @@
-name: Staging E2E
+name: Ephemeral Staging E2E
 
 on:
   workflow_dispatch:
@@ -16,27 +16,20 @@ permissions:
   contents: read
 
 concurrency:
-  group: poeruum-staging-e2e
+  group: poeruum-ephemeral-staging-e2e
   cancel-in-progress: false
 
 jobs:
   staging:
-    name: Supabase and Stripe E2E
+    name: Temporary Supabase and Stripe E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     environment: staging
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_ORGANIZATION_ID: chotrrarsdhcqhvloulo
       STRIPE_MODE: test
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-      STRIPE_FIXED_PLAN_PRICE_ID: ${{ secrets.STRIPE_FIXED_PLAN_PRICE_ID }}
-      STRIPE_FIXED_PLAN_TAX_RATE_ID: ${{ secrets.STRIPE_FIXED_PLAN_TAX_RATE_ID }}
       STRIPE_E2E_APP_URL: http://127.0.0.1:5173
       APP_URL: http://127.0.0.1:5173
       STRIPE_E2E_SCENARIO: ${{ inputs.stripe_scenario }}
@@ -53,41 +46,34 @@ jobs:
       - name: Install exact dependencies
         run: npm ci
 
-      - name: Reject production or incomplete credentials
+      - name: Reject incomplete or live credentials
         shell: bash
         run: |
-          required=(
-            SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD
-            VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY
-            STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET
-            STRIPE_FIXED_PLAN_PRICE_ID STRIPE_FIXED_PLAN_TAX_RATE_ID
-          )
-          for name in "${required[@]}"; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Staging secret $name is missing."
-              exit 1
-            fi
-          done
-          if [ "$SUPABASE_PROJECT_REF" = "foctericixquaogwboqg" ]; then
-            echo "::error::Production Supabase project is forbidden in Staging E2E."
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::Staging secret SUPABASE_ACCESS_TOKEN is missing."
             exit 1
           fi
           if [[ "$STRIPE_SECRET_KEY" != sk_test_* ]]; then
-            echo "::error::Staging E2E accepts only a Stripe test key."
-            exit 1
-          fi
-          if [[ "$VITE_SUPABASE_URL" != "https://${SUPABASE_PROJECT_REF}.supabase.co" ]]; then
-            echo "::error::Staging URL and project ref do not match."
+            echo "::error::Ephemeral E2E accepts only a Stripe sk_test_ key."
             exit 1
           fi
 
-      - name: Link staging Supabase
+      - name: Remove abandoned E2E projects
+        run: node scripts/manage-ephemeral-supabase.mjs cleanup
+
+      - name: Create temporary Supabase project
+        run: node scripts/manage-ephemeral-supabase.mjs create
+
+      - name: Create temporary Stripe configuration
+        run: node scripts/manage-stripe-e2e-resources.mjs create
+
+      - name: Link temporary Supabase
         run: npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
-      - name: Apply staging migrations
+      - name: Apply every migration
         run: npx supabase db push --linked
 
-      - name: Configure staging Edge secrets
+      - name: Configure temporary Edge secrets
         run: |
           npx supabase secrets set \
             STRIPE_MODE="$STRIPE_MODE" \
@@ -100,7 +86,7 @@ jobs:
             POERUUM_SUPABASE_SECRET_KEY="$SUPABASE_SECRET_KEY" \
             --project-ref "$SUPABASE_PROJECT_REF"
 
-      - name: Deploy staging Edge Functions
+      - name: Deploy temporary Edge Functions
         run: |
           npx supabase functions deploy stripe-webhook --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy stripe-billing-checkout --project-ref "$SUPABASE_PROJECT_REF"
@@ -109,17 +95,16 @@ jobs:
           npx supabase functions deploy stripe-reservation-reaper --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy delete-account --project-ref "$SUPABASE_PROJECT_REF"
 
-      - name: Lint staging database
+      - name: Lint temporary database
         run: npx supabase db lint --linked --schema public,extensions --level warning --fail-on warning
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Start staging frontend
+      - name: Start temporary frontend
         shell: bash
         run: |
           npm run dev -- --host 127.0.0.1 > /tmp/poeruum-vite.log 2>&1 &
-          echo "$!" > /tmp/poeruum-vite.pid
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:5173/ > /dev/null; then
               exit 0
@@ -142,7 +127,15 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: staging-vite-log
+          name: ephemeral-staging-vite-log
           path: /tmp/poeruum-vite.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Remove temporary Stripe configuration
+        if: always()
+        run: node scripts/manage-stripe-e2e-resources.mjs delete
+
+      - name: Delete temporary Supabase project
+        if: always()
+        run: node scripts/manage-ephemeral-supabase.mjs delete
