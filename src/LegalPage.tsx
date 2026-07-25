@@ -185,8 +185,8 @@ function Privacy() {
       <h2>6. Säilitamine</h2>
       <ul>
         <li><strong>Konto ja poe sisu:</strong> säilivad konto kasutamise ajal ning kustutatakse konto kustutamisel. Tootepildid, kohandatud domeenid, autentimiskonto ja avatud tugisisu eemaldatakse kustutamistoimingu käigus.</li>
-        <li><strong>Tellimused:</strong> säilivad kuni seitse aastat selle majandusaasta lõpust, mil tehing kajastati. Konto kustutamisel eemaldatakse tellimustest kohe ostja nimi, e-post ja tarneinfo; summad, kaubaread, makseolek ja tehingutunnused säilivad tähtaja lõpuni raamatupidamise ja nõuete kaitsmise eesmärgil.</li>
-        <li><strong>Poeruumi finantskirjed:</strong> säilivad seitse aastat vastava majandusaasta lõpust.</li>
+        <li><strong>Tellimused:</strong> säilivad kaheksa aastat tellimuse kuupäevast. See katab raamatupidamisdokumentide nõutud seitsmeaastase säilitamise ka juhul, kui kaupmehe majandusaasta ei ühti kalendriaastaga. Konto kustutamisel eemaldatakse tellimustest kohe ostja nimi, e-post ja tarneinfo; summad, kaubaread, makseolek ja tehingutunnused säilivad tähtaja lõpuni raamatupidamise ja nõuete kaitsmise eesmärgil.</li>
+        <li><strong>Poeruumi finantskirjed:</strong> säilivad kaheksa aastat tehingu kuupäevast, et katta vähemalt seitse aastat vastava majandusaasta lõpust.</li>
         <li><strong>Tugipöördumised ja manused:</strong> kustutatakse konto kustutamisel või 24 kuud pärast pöördumise lahendamist, olenevalt sellest, kumb saabub varem.</li>
         <li><strong>Tehinguliste e-kirjade kättetoimetamislogid:</strong> kuni 90 päeva; konto omaniku aadressiga seotud logid kustutatakse konto kustutamisel.</li>
         <li><strong>Webhook’i duplikaadikaitse:</strong> Stripe’i tehnilised sündmusetunnused kuni 90 päeva ja Resendi sündmusetunnused kuni 30 päeva.</li>

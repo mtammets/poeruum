@@ -3207,7 +3207,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           <div className="delete-confirm__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></div>
           <span className="delete-confirm__eyebrow">KONTO KUSTUTAMINE</span>
           <h2 id="account-delete-title">Kustuta konto jäädavalt?</h2>
-          <p id="account-delete-description">Konto, poe sisu ja pildid kustutatakse ning aktiivne kuupakett lõpetatakse kohe. Tellimuste ostja nimi, e-post ja tarneinfo eemaldatakse; isikustamata finantskirjed säilivad kuni seitse aastat vastava majandusaasta lõpust. Seda toimingut ei saa tagasi võtta.</p>
+          <p id="account-delete-description">Konto, poe sisu ja pildid kustutatakse ning aktiivne kuupakett lõpetatakse kohe. Tellimuste ostja nimi, e-post ja tarneinfo eemaldatakse; isikustamata finantskirjed säilivad kuni kaheksa aastat tehingu kuupäevast. Seda toimingut ei saa tagasi võtta.</p>
           <label className="account-delete-confirm__field">Kinnitamiseks kirjuta <strong>KUSTUTA</strong>
             <input value={accountDeleteConfirmation} onChange={(event) => { setAccountDeleteConfirmation(event.target.value); setAccountDeleteError('') }} autoComplete="off" autoCapitalize="characters" disabled={isDeletingAccount} placeholder="KUSTUTA" />
           </label>

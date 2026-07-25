@@ -60,6 +60,14 @@ update public.orders
 set retention_hold_until = now() + interval '1 day'
 where order_number = 'RETENTION-HELD';
 
+insert into public.revenue_events (
+  provider, provider_event_id, kind, amount_cents, description, occurred_at,
+  retention_expires_at, retention_hold_until
+) values
+  ('stripe', 'retention-revenue-expired', 'subscription', 100, 'Expired revenue', now(), current_date, null),
+  ('stripe', 'retention-revenue-active', 'subscription', 100, 'Active revenue', now(), current_date + 1, null),
+  ('stripe', 'retention-revenue-held', 'subscription', 100, 'Held revenue', now(), current_date, now() + interval '1 day');
+
 insert into public.email_deliveries (
   resend_email_id, recipient_email, status, sent_at, status_updated_at
 ) values
@@ -78,6 +86,15 @@ begin
   end if;
   if not exists (select 1 from public.orders where order_number = 'RETENTION-HELD') then
     raise exception 'Order under legal hold was deleted';
+  end if;
+  if exists (select 1 from public.revenue_events where provider_event_id = 'retention-revenue-expired') then
+    raise exception 'Expired revenue event was not deleted';
+  end if;
+  if not exists (select 1 from public.revenue_events where provider_event_id = 'retention-revenue-active') then
+    raise exception 'Unexpired revenue event was deleted';
+  end if;
+  if not exists (select 1 from public.revenue_events where provider_event_id = 'retention-revenue-held') then
+    raise exception 'Revenue event under legal hold was deleted';
   end if;
   if exists (select 1 from public.email_deliveries where resend_email_id = 'retention-expired') then
     raise exception 'Expired email delivery log was not deleted';
