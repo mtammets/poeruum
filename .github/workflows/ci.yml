@@ -39,7 +39,7 @@ jobs:
         run: npm run lint
 
       - name: Type-check Edge Functions
-        run: deno check supabase/functions/*/index.ts
+        run: deno check --node-modules-dir=auto --minimum-dependency-age=0 supabase/functions/*/index.ts
 
       - name: Unit tests
         run: npm run test
