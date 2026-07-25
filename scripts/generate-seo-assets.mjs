@@ -60,6 +60,7 @@ if (!Array.isArray(catalog)) throw new Error('SEO kataloog ei ole oodatud kujul.
 const baseHtml = await readFile(path.join(outputDirectory, 'index.html'), 'utf8')
 const seoBlockPattern = /<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/
 const contentBlockPattern = /<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/
+const fallbackLoaderMarkup = '<svg class="seo-fallback__logo" viewBox="0 0 40 40" aria-label="Poeruum laadib" role="img"><rect x="1" y="1" width="38" height="38" rx="11" /><path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z" /><path class="seo-fallback__handle" d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18" /><path d="M15.5 22.2h9" /></svg>'
 
 const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, imageWidth, imageHeight, type = 'website', noIndex = false, structuredData }) => {
   const resolvedImage = absoluteImageUrl(imageUrl)
@@ -87,7 +88,7 @@ const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, imageWidth
 const renderPage = (metadata) => baseHtml
   .replace(seoBlockPattern, renderSeoBlock(metadata))
   .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(metadata.title)}</title>`)
-  .replace(contentBlockPattern, `<!-- poeruum:content:start --><main class="seo-fallback"><div><span>${escapeHtml(metadata.eyebrow || 'Poeruum')}</span><h1>${escapeHtml(metadata.heading || metadata.title)}</h1><p>${escapeHtml(metadata.description)}</p>${metadata.ctaUrl ? `<a href="${escapeHtml(metadata.ctaUrl)}">${escapeHtml(metadata.ctaLabel || 'Ava leht')}</a>` : ''}</div></main><!-- poeruum:content:end -->`)
+  .replace(contentBlockPattern, `<!-- poeruum:content:start --><main class="seo-fallback">${fallbackLoaderMarkup}<div><span>${escapeHtml(metadata.eyebrow || 'Poeruum')}</span><h1>${escapeHtml(metadata.heading || metadata.title)}</h1><p>${escapeHtml(metadata.description)}</p>${metadata.ctaUrl ? `<a href="${escapeHtml(metadata.ctaUrl)}">${escapeHtml(metadata.ctaLabel || 'Ava leht')}</a>` : ''}</div></main><!-- poeruum:content:end -->`)
 
 const writePage = async (relativePath, html) => {
   const directory = path.join(outputDirectory, relativePath)
