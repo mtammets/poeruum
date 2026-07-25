@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    name: Lint, test, build and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Production build
+        run: npm run build:app
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+  database:
+    name: Migrations and database lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Start isolated Supabase database
+        run: npx supabase db start
+
+      - name: Apply every migration from zero
+        run: npx supabase db reset --local --no-seed
+
+      - name: Lint database schemas
+        run: npx supabase db lint --local --schema public,extensions --level warning --fail-on warning
+
+      - name: Stop isolated Supabase database
+        if: always()
+        run: npx supabase stop --no-backup

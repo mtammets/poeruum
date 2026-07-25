@@ -277,7 +277,7 @@ export default function AdminApp() {
   const [latestEmails, setLatestEmails] = useState<Map<string, LatestEmailDelivery>>(() => new Map())
   const [showcaseStore, setShowcaseStore] = useState<StoreRecord | null>(null)
   const [showcaseProducts, setShowcaseProducts] = useState<Product[]>([])
-  const [isShowcaseLoading, setIsShowcaseLoading] = useState(false)
+  const [, setIsShowcaseLoading] = useState(false)
   const [, setShowcaseError] = useState('')
   const [isManagingShowcase, setIsManagingShowcase] = useState(false)
   const [comingSoonEnabled, setComingSoonEnabled] = useState<boolean | null>(null)

@@ -679,7 +679,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [legalView, setLegalView] = useState<'seller' | 'terms' | null>(null)
   const [orderNotificationEmail, setOrderNotificationEmail] = useState('')
   const [billingPlan, setBillingPlan] = useState<PricingPlan>(pricingPlan)
-  const [fixedPlanTrialStartedAt, setFixedPlanTrialStartedAt] = useState<Date | null>(() => pricingPlan === 'fixed' ? new Date(initialFixedPlanTrialStartedAt ?? Date.now()) : null)
+  const [fixedPlanTrialStartedAt] = useState<Date | null>(() => pricingPlan === 'fixed' ? new Date(initialFixedPlanTrialStartedAt ?? Date.now()) : null)
   const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
   const [sellerNotifications, setSellerNotifications] = useState(true)
   const [customerConfirmations, setCustomerConfirmations] = useState(true)
@@ -1589,9 +1589,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     const showNextProduct = () => {
       const track = trackRef.current
       if (!track || !displayProducts.length) return
-      let physicalIndex = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1))
+      const physicalIndex = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1))
       if (physicalIndex >= displayProducts.length + 1) {
-        physicalIndex = 1
         const previousSnap = track.style.scrollSnapType
         track.style.scrollSnapType = 'none'
         track.scrollTo({ left: track.clientWidth, behavior: 'auto' })

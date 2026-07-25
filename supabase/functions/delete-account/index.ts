@@ -105,7 +105,7 @@ Deno.serve(async (request) => {
           }
         } catch (error) {
           if (!isMissingStripeResource(error)) {
-            throw new Error(`Stripe’i subscription’i lõpetamine ebaõnnestus: ${error instanceof Error ? error.message : 'tundmatu viga'}`)
+            throw new Error(`Stripe’i subscription’i lõpetamine ebaõnnestus: ${error instanceof Error ? error.message : 'tundmatu viga'}`, { cause: error })
           }
         }
       }

@@ -29,14 +29,6 @@ const stripeRequest = async (path, options = {}) => {
   if (!response.ok) throw new Error(body?.error?.message || `Stripe vastas ${response.status}.`)
   return body
 }
-const stripePost = (path, values) => {
-  const body = new URLSearchParams()
-  Object.entries(values).forEach(([key, value]) => {
-    if (Array.isArray(value)) value.forEach((item) => body.append(key, String(item)))
-    else if (value !== undefined && value !== null) body.set(key, String(value))
-  })
-  return stripeRequest(path, { method: 'POST', body })
-}
 const invoke = async (name, body, accessToken) => {
   const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
     method: 'POST',
@@ -219,7 +211,9 @@ const cleanup = async () => {
 
 const main = async () => {
   const scenario = process.env.STRIPE_E2E_SCENARIO || 'all'
-  const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' })
+  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH?.trim()
+    || (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : undefined)
+  const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) })
   try {
     if (scenario !== '3ds') {
     const successFixture = await createFixture('success')

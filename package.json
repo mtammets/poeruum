@@ -6,6 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/generate-seo-assets.mjs",
+    "build:app": "tsc -b && vite build",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "check": "npm run lint && npm run test && npm run build:app && npm audit --omit=dev --audit-level=high",
     "seo:generate": "node scripts/generate-seo-assets.mjs",
     "preview": "vite preview",
     "test:stripe-billing": "node scripts/stripe-billing-e2e.mjs",
@@ -39,11 +44,17 @@
     "vite": "^8.1.1"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/ws": "^8.18.1",
     "dotenv": "^17.4.2",
+    "eslint": "10.8.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.4.0",
     "playwright": "^1.61.1",
     "postcss": "8.5.23",
     "supabase": "^2.109.1",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10",
     "ws": "^8.21.1"
   }
 }

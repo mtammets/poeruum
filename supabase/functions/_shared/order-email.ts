@@ -43,7 +43,7 @@ const safeImageUrl = (value: unknown) => {
     return url.protocol === 'https:' ? url.toString() : ''
   } catch { return '' }
 }
-const safeSenderName = (value: unknown) => String(value ?? '').replace(/[\r\n<>\"]/g, '').trim().slice(0, 70) || 'Pood'
+const safeSenderName = (value: unknown) => String(value ?? '').replace(/[\r\n<>"]/g, '').trim().slice(0, 70) || 'Pood'
 const readableInk = (hex: string) => {
   const [red, green, blue] = [hex.slice(1, 3), hex.slice(3, 5), hex.slice(5, 7)].map((part) => Number.parseInt(part, 16))
   return ((red * 299 + green * 587 + blue * 114) / 1000) > 150 ? '#171714' : '#ffffff'
