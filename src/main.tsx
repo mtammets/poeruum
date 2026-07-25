@@ -7,7 +7,10 @@ import { applySeoMetadata } from './lib/seo'
 import { registerGlobalErrorMonitoring } from './lib/errorMonitoring'
 import { getStoreSlugFromHostname } from './lib/storefrontUrl'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import './styles.css'
+import './brand.css'
 import './platform.css'
+import './admin.css'
 
 const AdminApp = lazy(() => import('./AdminApp'))
 const ComingSoon = lazy(() => import('./ComingSoon'))
@@ -41,15 +44,6 @@ const legalDocument: LegalDocument | null = isPlatformHostname && !isStorefrontS
       ? 'privacy'
       : null
   : null
-const isLocalPlatformLanding = /^(?:localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
-  && window.location.pathname === '/' && !hasAppReturnState
-const routeStylesReady = isPoeruumHomepage || isLocalPlatformLanding || legalDocument
-  ? Promise.resolve()
-  : Promise.all([
-      import('./styles.css'),
-      import('./brand.css'),
-      ...(isAdminPath ? [import('./admin.css')] : []),
-    ])
 
 function Homepage() {
   const [comingSoonEnabled, setComingSoonEnabled] = useState<boolean | null>(null)
@@ -146,8 +140,6 @@ function Root() {
 
 registerGlobalErrorMonitoring()
 
-void routeStylesReady.then(() => {
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode><ErrorBoundary><Root /></ErrorBoundary></StrictMode>,
-  )
-})
+createRoot(document.getElementById('root')!).render(
+  <StrictMode><ErrorBoundary><Root /></ErrorBoundary></StrictMode>,
+)

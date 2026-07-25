@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { loadConnectAndInitialize } from '@stripe/connect-js'
+import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
 import BillingPlanDialog from './BillingPlanDialog'
 import { Brand } from './Brand'
 import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
@@ -21,11 +23,9 @@ import {
 } from './storefrontConfig'
 
 const Storefront = lazy(async () => {
-  await Promise.all([import('./styles.css'), import('./brand.css')])
   const module = await import('./App')
   return { default: module.Storefront }
 })
-const StripeEmbeddedOnboarding = lazy(() => import('./StripeEmbeddedOnboarding'))
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
 type OnboardingStep = 'store' | 'business' | 'payments' | 'shipping' | 'publish' | 'complete'
@@ -45,7 +45,8 @@ type RegistryLookupResponse = {
 
 const onboardingSteps = new Set<OnboardingStep>(['store', 'business', 'payments', 'shipping', 'publish', 'complete'])
 const onboardingActivityScreens = new Set<Screen>(['store', 'business', 'payments', 'shipping', 'publish'])
-const homepagePreviewProductIds = new Set(['product-8', 'product-9', 'product-10'])
+const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
+const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
 const isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
@@ -201,6 +202,141 @@ function SetupShell({
   </main>
 }
 
+function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => Promise<void>; onClose: () => Promise<void>; onError: (message: string) => void }) {
+  const [loadPhase, setLoadPhase] = useState<'connecting' | 'loading' | 'ready' | 'error'>('connecting')
+  const [isClosing, setIsClosing] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
+  const [renderAttempt, setRenderAttempt] = useState(0)
+  const [connectInstance] = useState(() => stripePublishableKey ? loadConnectAndInitialize({
+    publishableKey: stripePublishableKey,
+    locale: 'et-EE',
+    appearance: {
+      overlays: 'drawer',
+      variables: {
+        colorPrimary: '#226748',
+        colorBackground: '#ffffff',
+        colorText: '#14261c',
+        colorSecondaryText: '#66736b',
+        colorBorder: '#d7ded7',
+        colorDanger: '#a4433b',
+        formBackgroundColor: '#fcfdfb',
+        formHighlightColorBorder: '#226748',
+        formAccentColor: '#226748',
+        formPlaceholderTextColor: '#7b857e',
+        buttonPrimaryColorBackground: '#226748',
+        buttonPrimaryColorBorder: '#226748',
+        buttonPrimaryColorText: '#ffffff',
+        buttonLabelFontSize: '13px',
+        buttonLabelFontWeight: '700',
+        buttonPaddingX: '12px',
+        buttonPaddingY: '10px',
+        inputFieldPaddingX: '10px',
+        inputFieldPaddingY: '10px',
+        fontSizeBase: '13px',
+        bodyMdFontSize: '13px',
+        bodySmFontSize: '12px',
+        headingXlFontSize: '22px',
+        headingLgFontSize: '18px',
+        headingMdFontSize: '16px',
+        headingSmFontSize: '15px',
+        labelMdFontSize: '13px',
+        labelMdFontWeight: '700',
+        labelSmFontSize: '11px',
+        borderRadius: '12px',
+        formBorderRadius: '10px',
+        buttonBorderRadius: '10px',
+        fontFamily: 'DM Sans, system-ui, sans-serif',
+        spacingUnit: '6px',
+      },
+    },
+    fetchClientSecret: async () => {
+      const result = await invokeStripeConnect('start')
+      if (!result.clientSecret) throw new Error('Stripe ei tagastanud AccountSessioni võtit.')
+      return result.clientSecret
+    },
+  }) : null)
+
+  useEffect(() => {
+    if (!connectInstance) onError('Stripe’i publishable key puudub.')
+  }, [connectInstance, onError])
+
+  useEffect(() => {
+    if (loadPhase !== 'loading') return
+    // StepChange normally reveals the form first. Keep a fallback so a future
+    // Stripe step that omits that event can never leave our loader stuck.
+    const fallback = window.setTimeout(() => setLoadPhase('ready'), 8000)
+    return () => window.clearTimeout(fallback)
+  }, [loadPhase])
+
+  const closeStripeForm = async () => {
+    if (isClosing) return
+    setIsClosing(true)
+    try {
+      await onClose()
+    } finally {
+      setIsClosing(false)
+    }
+  }
+
+  const retryStripeForm = () => {
+    onError('')
+    setLoadPhase('connecting')
+    setRenderAttempt((attempt) => attempt + 1)
+  }
+
+  const completeStripeForm = async () => {
+    if (isCompleting) return
+    setIsCompleting(true)
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
+    try {
+      await onExit()
+    } finally {
+      setIsCompleting(false)
+    }
+  }
+
+  if (!connectInstance) return null
+  return <section className="stripe-embedded" aria-label="Stripe’i konto seadistamine">
+    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
+    <div className={`stripe-embedded__component is-${loadPhase}${isCompleting ? ' is-completing' : ''}`}>
+      {isCompleting && <div className="stripe-completing" role="status" aria-live="polite">
+        <span aria-hidden="true" />
+        <h2>Kontrollime maksete valmisolekut</h2>
+        <p>Stripe salvestas andmed. Hetk palun…</p>
+      </div>}
+      {loadPhase !== 'ready' && <div className={`stripe-preparing${loadPhase === 'error' ? ' is-error' : ''}`} aria-live="polite">
+        {loadPhase === 'error' ? <>
+          <span className="stripe-preparing__error" aria-hidden="true">!</span>
+          <h2>Vormi ei õnnestunud avada</h2>
+          <p>Stripe’i vormi laadimine võttis liiga kaua.</p>
+          <button type="button" onClick={retryStripeForm}>Proovi uuesti</button>
+        </> : <>
+          <span className="stripe-preparing__loader" aria-hidden="true"><i /></span>
+          <h2>{loadPhase === 'connecting' ? 'Ühendame Stripe’iga' : 'Avame Stripe’i vormi'}</h2>
+          <p>Hetk palun…</p>
+        </>}
+      </div>}
+      <ConnectComponentsProvider connectInstance={connectInstance}>
+        <ConnectAccountOnboarding
+          key={renderAttempt}
+          collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
+          onExit={() => void completeStripeForm()}
+          onLoaderStart={() => setLoadPhase((current) => current === 'connecting' ? 'loading' : current)}
+          onStepChange={() => {
+            onError('')
+            setLoadPhase('ready')
+          }}
+          onLoadError={() => {
+            setLoadPhase('error')
+            onError('Stripe’i vormi avamine ebaõnnestus. Proovi uuesti.')
+          }}
+        />
+      </ConnectComponentsProvider>
+    </div>
+  </section>
+}
+
 function PlatformFlow() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [email, setEmail] = useState('')
@@ -233,6 +369,7 @@ function PlatformFlow() {
   const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
   const [phoneSlideIndex, setPhoneSlideIndex] = useState(1)
   const [isPhoneSwipeAnimated, setIsPhoneSwipeAnimated] = useState(true)
+  const [isPhoneDetailsOpen, setIsPhoneDetailsOpen] = useState(false)
   const [store, setStore] = useState<StoreRecord | null>(null)
   const [storedProducts, setStoredProducts] = useState<Product[]>([])
   const [authError, setAuthError] = useState('')
@@ -248,10 +385,7 @@ function PlatformFlow() {
   const requestedProductSlug = getRequestedProductSlug(window.location)
   const [sampleStore, setSampleStore] = useState<PublicStoreRecord | null>(null)
   const [sampleProducts, setSampleProducts] = useState<Product[]>([])
-  const bundledPreviewProducts = screen === 'landing'
-    ? bundledProducts.filter((product) => homepagePreviewProductIds.has(product.id))
-    : bundledProducts
-  const phonePreviewProducts = (screen === 'sample' && sampleStore ? sampleProducts : bundledPreviewProducts)
+  const phonePreviewProducts = (sampleStore ? sampleProducts : bundledProducts)
     .filter((product) => product.searchVisible !== false)
     .map((product) => ({
       id: product.id,
@@ -422,7 +556,7 @@ function PlatformFlow() {
   }, [])
 
   useEffect(() => {
-    if (screen !== 'sample' || !isSupabaseConfigured) return
+    if (!['landing', 'sample'].includes(screen) || !isSupabaseConfigured) return
     let active = true
     const refreshSampleStore = () => getPublicShowcaseStore().then(async (found) => {
       if (!found || !active) return
@@ -831,6 +965,31 @@ function PlatformFlow() {
   }, [isMobileNavOpen])
 
   useEffect(() => {
+    if (screen !== 'landing' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setIsPhoneDetailsOpen(false)
+      return
+    }
+    let closeDetailsTimeout: ReturnType<typeof window.setTimeout> | undefined
+    const showDetails = () => {
+      setIsPhoneDetailsOpen(true)
+      closeDetailsTimeout = window.setTimeout(() => setIsPhoneDetailsOpen(false), 3600)
+    }
+    const firstDetailsTimeout = window.setTimeout(showDetails, 7600)
+    const detailsInterval = window.setInterval(showDetails, 15000)
+    return () => {
+      window.clearInterval(detailsInterval)
+      window.clearTimeout(firstDetailsTimeout)
+      if (closeDetailsTimeout !== undefined) window.clearTimeout(closeDetailsTimeout)
+    }
+  }, [screen])
+
+  useEffect(() => {
+    if (screen !== 'landing' || isPhoneDetailsOpen || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const swipeInterval = window.setInterval(() => setPhoneSlideIndex((index) => index + 1), 3200)
+    return () => window.clearInterval(swipeInterval)
+  }, [screen, isPhoneDetailsOpen])
+
+  useEffect(() => {
     if (!phonePreviewProducts.length || phoneSlideIndex !== phonePreviewProducts.length + 1) return
     const normalizeTimeout = window.setTimeout(() => {
       setIsPhoneSwipeAnimated(false)
@@ -976,26 +1135,11 @@ function PlatformFlow() {
         <button onClick={() => setScreen('account')}>Alusta tasuta <span>→</span></button>
       </div>
       <div className="platform-phone-stage">
-        <div className="platform-phone" role="link" tabIndex={0} onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
-          <span className="sr-only">Ava näidispood</span>
-          <div className="platform-phone__screen" aria-hidden="true"><div className="platform-phone__journey">
+        <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
+          <div className="platform-phone__screen"><div className="platform-phone__journey">
             <section className="platform-phone__story">
               <div className={`platform-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
-                {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => {
-                  const source = screen === 'landing'
-                    ? product.images[0].replace(/\.webp$/i, '-480.webp')
-                    : product.images[0]
-                  return <img
-                    src={source}
-                    alt={product.name}
-                    width={480}
-                    height={720}
-                    loading={index === 1 ? 'eager' : 'lazy'}
-                    fetchPriority={index === 1 ? 'high' : 'low'}
-                    decoding="async"
-                    key={`${product.id}-${index}`}
-                  />
-                })}
+                {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.id}-${index}`} />)}
               </div>
               <div className="platform-phone__shade" />
               <div className="platform-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
@@ -1007,7 +1151,7 @@ function PlatformFlow() {
               <div className="platform-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
             </section>
             <section className="platform-phone__details">
-              <header><p className="platform-phone__title">{phoneProduct.name}</p><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></svg></span></header>
+              <header><h3>{phoneProduct.name}</h3><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></svg></span></header>
               <div><small>Kirjeldus</small><p>{phoneProduct.description}</p></div>
               <div className="platform-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
               <div className="platform-phone__cart">Lisa ostukorvi</div>
@@ -1048,15 +1192,15 @@ function PlatformFlow() {
       </header>
       <div className="platform-testimonials__grid">
         <article className="platform-testimonial platform-testimonial--dark">
-          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" role="img" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>Tegin tootest pildi ja õhtuks oli pood päriselt üleval. Telefonist!</blockquote></div>
+          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>Tegin tootest pildi ja õhtuks oli pood päriselt üleval. Telefonist!</blockquote></div>
           <footer><span className="platform-testimonial__avatar">K</span><p><strong>Kadi</strong><small>Keraamika · Tartu</small></p></footer>
         </article>
         <article className="platform-testimonial platform-testimonial--cream">
-          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" role="img" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>Enam ei otsi ma tellimusi sõnumitest taga. Kõik on ühes kohas ja pilt on kohe selge.</blockquote></div>
+          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>Enam ei otsi ma tellimusi sõnumitest taga. Kõik on ühes kohas ja pilt on kohe selge.</blockquote></div>
           <footer><span className="platform-testimonial__avatar">M</span><p><strong>Maris</strong><small>Vintage-esemed · Tallinn</small></p></footer>
         </article>
         <article className="platform-testimonial platform-testimonial--green">
-          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" role="img" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>5/5 just selle eest, et kuutasu pole. Sain rahulikult proovida, mis päriselt müüb.</blockquote></div>
+          <div className="platform-testimonial__bubble"><div className="platform-testimonial__rating" aria-label="Hinnang 5 punkti 5-st"><span aria-hidden="true">★★★★★</span><small aria-hidden="true">5/5</small></div><blockquote>5/5 just selle eest, et kuutasu pole. Sain rahulikult proovida, mis päriselt müüb.</blockquote></div>
           <footer><span className="platform-testimonial__avatar">R</span><p><strong>Rasmus</strong><small>Väiketootja · Pärnu</small></p></footer>
         </article>
       </div>
@@ -1278,11 +1422,11 @@ function PlatformFlow() {
             <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe <em>Kõige kiirem</em></strong><small>Kaardid, Apple Pay ja Google Pay</small></span><b>{payment === 'stripe' ? '✓' : ''}</b>
           </button>
         </div></>}
-      {isStripeOnboardingOpen ? <Suspense fallback={<div className="stripe-preparing" role="status"><span className="stripe-preparing__loader" aria-hidden="true"><i /></span><h2>Avame Stripe’i vormi</h2><p>Hetk palun…</p></div>}><StripeEmbeddedOnboarding
+      {isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
         onExit={finishStripeEmbeddedOnboarding}
         onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
-      /></Suspense> : <>{paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect()}>
+      /> : <>{paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect()}>
         <strong>{isStripeConnecting ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : 'Seadista Stripe'}</strong><span>→</span>
       </button> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
