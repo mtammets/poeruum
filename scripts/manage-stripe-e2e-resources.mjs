@@ -2,7 +2,7 @@ import { appendFile } from 'node:fs/promises'
 import 'dotenv/config'
 
 const action = process.argv[2]
-const stripeKey = process.env.STRIPE_SECRET_KEY?.trim()
+const stripeKey = process.env.STRIPE_TEST_SECRET_KEY?.trim() || process.env.STRIPE_SECRET_KEY?.trim()
 if (!stripeKey?.startsWith('sk_test_')) throw new Error('Stripe E2E ressursid nõuavad sk_test_ võtit.')
 
 const stripeRequest = async (path, options = {}) => {
