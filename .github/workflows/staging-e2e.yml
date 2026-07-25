@@ -76,7 +76,19 @@ jobs:
         run: npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Apply every migration
-        run: npx supabase db push --linked
+        shell: bash
+        run: |
+          for attempt in {1..12}; do
+            if npx supabase db push --linked; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "::error::Temporary Supabase database did not become reachable."
+              exit 1
+            fi
+            echo "Supabase database is still propagating; retrying in 10 seconds ($attempt/12)."
+            sleep 10
+          done
 
       - name: Configure temporary Edge secrets
         shell: bash
@@ -154,7 +166,7 @@ jobs:
 
       - name: Upload frontend log on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ephemeral-staging-vite-log
           path: /tmp/poeruum-vite.log
