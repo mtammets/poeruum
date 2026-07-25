@@ -17,6 +17,7 @@
     "test:stripe-settlement": "node scripts/test-stripe-store-settlement.mjs",
     "test:reservation-cap": "node scripts/test-reservation-cap.mjs",
     "test:account-deletion": "node scripts/test-account-deletion.mjs",
+    "lighthouse:assert": "node scripts/assert-lighthouse-budget.mjs",
     "supabase:check": "node scripts/supabase-admin.mjs check",
     "supabase:link": "node scripts/supabase-admin.mjs link",
     "supabase:deploy": "node scripts/supabase-admin.mjs deploy",
