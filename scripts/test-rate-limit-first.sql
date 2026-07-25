@@ -1,7 +1,5 @@
 \set ON_ERROR_STOP on
 
-delete from public.rate_limit_windows where action = 'security-ci-test';
-
 do $$
 declare result record;
 begin

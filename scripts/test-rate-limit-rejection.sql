@@ -15,5 +15,3 @@ begin
   end if;
 end
 $$;
-
-delete from public.rate_limit_windows where action = 'security-ci-test';
