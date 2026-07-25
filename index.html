@@ -59,13 +59,20 @@
     <style>
       html, body, #root { min-height: 100%; background: #f4f2e9; }
       body { margin: 0; }
-      .seo-fallback { box-sizing: border-box; display: grid; min-height: 100svh; align-content: center; padding: clamp(2rem, 8vw, 7rem); color: #17231c; font-family: Arial, sans-serif; }
-      .seo-fallback > div { max-width: 46rem; }
+      .seo-fallback { box-sizing: border-box; display: grid; min-height: 100svh; place-items: center; color: #17231c; font-family: Arial, sans-serif; }
+      .seo-fallback::after { width: 1.7rem; height: 1.7rem; border: 2px solid rgba(38, 95, 67, .16); border-top-color: #265f43; border-radius: 50%; animation: seo-fallback-spin .8s linear infinite; content: ""; }
+      .seo-fallback > div { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
       .seo-fallback span { color: #265f43; font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
       .seo-fallback h1 { margin: 1rem 0; font-size: clamp(2.5rem, 7vw, 5.5rem); line-height: .95; letter-spacing: -.06em; }
       .seo-fallback p { max-width: 42rem; color: #58645d; font-size: clamp(1rem, 2vw, 1.2rem); line-height: 1.65; }
       .seo-fallback a { display: inline-block; margin-top: 1rem; padding: .9rem 1.1rem; border-radius: .7rem; background: #265f43; color: white; font-weight: 700; text-decoration: none; }
+      @keyframes seo-fallback-spin { to { transform: rotate(360deg); } }
     </style>
+    <noscript><style>
+      .seo-fallback { align-content: center; justify-items: stretch; padding: clamp(2rem, 8vw, 7rem); }
+      .seo-fallback::after { display: none; }
+      .seo-fallback > div { position: static; width: auto; height: auto; max-width: 46rem; overflow: visible; clip: auto; clip-path: none; white-space: normal; }
+    </style></noscript>
   </head>
   <body><div id="root"><!-- poeruum:content:start --><main class="seo-fallback"><div><span>Eesti e-poeplatvorm</span><h1>Loo oma e-pood 10 minutiga</h1><p>Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.</p><a href="/#hind">Vaata pakette</a></div></main><!-- poeruum:content:end --></div><script type="module" src="/src/main.tsx"></script></body>
 </html>
