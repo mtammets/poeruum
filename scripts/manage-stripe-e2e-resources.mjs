@@ -63,8 +63,16 @@ const deactivateResources = async (resources) => {
 const createResources = async () => {
   const runId = process.env.GITHUB_RUN_ID?.trim() || Date.now().toString()
   try {
+    const bankAccountToken = await stripePost('tokens', {
+      'bank_account[country]': 'EE',
+      'bank_account[currency]': 'eur',
+      'bank_account[account_holder_name]': 'Poeruum E2E',
+      'bank_account[account_holder_type]': 'individual',
+      'bank_account[account_number]': 'EE382200221020145685',
+    })
     const connectedAccount = await stripePost('accounts', {
-      country: 'US',
+      country: 'EE',
+      default_currency: 'eur',
       email: `poeruum-e2e-${runId}@example.com`,
       business_type: 'individual',
       'controller[fees][payer]': 'application',
@@ -83,15 +91,14 @@ const createResources = async () => {
       'individual[dob][month]': 1,
       'individual[dob][year]': 1902,
       'individual[address][line1]': 'address_full_match_sync',
-      'individual[address][city]': 'San Francisco',
-      'individual[address][state]': 'CA',
-      'individual[address][postal_code]': '94107',
-      'individual[address][country]': 'US',
+      'individual[address][city]': 'Tallinn',
+      'individual[address][postal_code]': '10111',
+      'individual[address][country]': 'EE',
       'individual[id_number]': '222222222',
       'individual[verification][document][front]': 'file_identity_document_success',
       'tos_acceptance[date]': Math.floor(Date.now() / 1000),
       'tos_acceptance[ip]': '8.8.8.8',
-      external_account: 'btok_us_verified',
+      external_account: bankAccountToken.id,
       'metadata[poeruum_e2e_run_id]': runId,
     })
     created.connectedAccountId = connectedAccount.id

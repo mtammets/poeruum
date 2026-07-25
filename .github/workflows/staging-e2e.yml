@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload frontend log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ephemeral-staging-vite-log
           path: /tmp/poeruum-vite.log
