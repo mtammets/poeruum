@@ -76,8 +76,14 @@ jobs:
       - name: Test data retention boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-data-retention.sql
 
-      - name: Test atomic rate limits
-        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-rate-limits.sql
+      - name: Test first rate-limit request
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-rate-limit-first.sql
+
+      - name: Test atomic rate-limit increment
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-rate-limit-second.sql
+
+      - name: Test rate-limit rejection
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-rate-limit-rejection.sql
 
       - name: Test error monitoring
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-monitoring.sql
