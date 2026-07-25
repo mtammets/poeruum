@@ -10,7 +10,9 @@ const CSP = [
   "frame-ancestors 'none'",
   "form-action 'self' https://checkout.stripe.com",
   "script-src 'self' https://challenges.cloudflare.com https://connect-js.stripe.com https://js.stripe.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com 'sha256-0hAheEzaMe6uXIKV4EehS9pu1am1lj/KnnzrOYqckXk='",
+  "style-src 'self' https://fonts.googleapis.com",
+  "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src-attr 'unsafe-inline'",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   [
