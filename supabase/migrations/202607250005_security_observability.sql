@@ -26,7 +26,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  current_time timestamptz := clock_timestamp();
+  request_time timestamptz := clock_timestamp();
   window_start timestamptz;
   next_expiry timestamptz;
   current_hits integer;
@@ -40,7 +40,7 @@ begin
   end if;
 
   window_start := to_timestamp(
-    floor(extract(epoch from current_time) / window_seconds_value) * window_seconds_value
+    floor(extract(epoch from request_time) / window_seconds_value) * window_seconds_value
   );
   next_expiry := window_start + make_interval(secs => window_seconds_value);
 
@@ -56,7 +56,7 @@ begin
   return query select
     current_hits <= limit_value,
     greatest(0, limit_value - current_hits),
-    greatest(1, ceil(extract(epoch from next_expiry - current_time))::integer);
+    greatest(1, ceil(extract(epoch from next_expiry - request_time))::integer);
 end;
 $$;
 
