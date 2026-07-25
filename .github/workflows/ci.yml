@@ -65,6 +65,9 @@ jobs:
       - name: Apply every migration from zero
         run: npx supabase db reset --local --no-seed
 
+      - name: Test data retention boundaries
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-data-retention.sql
+
       - name: Lint database schemas
         run: npx supabase db lint --local --schema public,extensions --level warning --fail-on warning
 

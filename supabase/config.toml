@@ -19,6 +19,9 @@ verify_jwt = false
 [functions.stripe-reservation-reaper]
 verify_jwt = false
 
+[functions.data-retention-reaper]
+verify_jwt = false
+
 [functions.stripe-billing-checkout]
 verify_jwt = true
 

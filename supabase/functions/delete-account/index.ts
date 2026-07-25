@@ -122,6 +122,9 @@ Deno.serve(async (request) => {
           } else {
             await recordCleanup('customer', store.stripe_customer_id, store.stripe_billing_mode, 'pending',
               error instanceof Error ? error.message : 'Stripe’i kliendi kustutamine ebaõnnestus.')
+            throw new Error('Stripe’i kliendi kustutamine ebaõnnestus; konto kustutamine peatati ja seda saab uuesti proovida.', {
+              cause: error,
+            })
           }
         }
       }
@@ -151,6 +154,9 @@ Deno.serve(async (request) => {
           } else {
             await recordCleanup('connected_account', store.stripe_account_id, store.stripe_account_mode, 'pending',
               error instanceof Error ? error.message : 'Stripe Connecti konto kustutamine ebaõnnestus.')
+            throw new Error('Stripe Connecti konto eemaldamine ebaõnnestus; konto kustutamine peatati ja seda saab uuesti proovida.', {
+              cause: error,
+            })
           }
         }
       }

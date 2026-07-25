@@ -146,8 +146,19 @@ try {
   ) {
     throw new Error('Tellimusega poe anonüümne tombstone ei vasta nõuetele.')
   }
-  const retainedOrders = await request(`/rest/v1/orders?id=eq.${retainedOrderId}&select=id`, { headers: serviceHeaders })
-  if ((await retainedOrders.json()).length !== 1) throw new Error('Raamatupidamislik tellimus ei säilinud.')
+  const retainedOrders = await request(
+    `/rest/v1/orders?id=eq.${retainedOrderId}&select=id,customer_name,customer_email,delivery,retention_expires_at`,
+    { headers: serviceHeaders },
+  )
+  const retainedOrder = (await retainedOrders.json())[0]
+  if (!retainedOrder
+    || retainedOrder.customer_name !== 'Kustutatud klient'
+    || retainedOrder.customer_email !== `deleted+${retainedOrderId.replaceAll('-', '')}@invalid.poeruum.ee`
+    || retainedOrder.delivery !== 'Tarneandmed eemaldatud konto kustutamisel'
+    || !retainedOrder.retention_expires_at
+  ) {
+    throw new Error('Raamatupidamislik tellimus ei säilinud anonüümitud kujul.')
+  }
 
   for (const [bucket, prefix] of [['product-images', storeId], ['support-attachments', userId]]) {
     const listed = await request(`/storage/v1/object/list/${bucket}`, {
@@ -158,7 +169,7 @@ try {
     if ((await listed.json()).length !== 0) throw new Error(`${bucket} sisaldab pärast kustutamist faile.`)
   }
 
-  console.log('Konto kustutamise E2E läbis: Auth, poe sisu ja failid eemaldati; tellimus säilis anonüümse poe all.')
+  console.log('Konto kustutamise E2E läbis: Auth, poe sisu ja failid eemaldati; tellimus anonüümiti ja säilis tähtajaga poe all.')
   userId = null
   storeId = null
 } finally {

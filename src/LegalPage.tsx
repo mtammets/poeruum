@@ -16,7 +16,7 @@ import './legal.css'
 
 export type LegalDocument = 'terms' | 'privacy'
 
-const EFFECTIVE_DATE = '23. juuli 2026'
+const EFFECTIVE_DATE = '25. juuli 2026'
 
 function ProviderDetails() {
   return <aside className="legal-provider" aria-label="Teenuse osutaja andmed">
@@ -78,30 +78,38 @@ function Terms() {
     </section>
 
     <section>
-      <h2>7. Teenuse toimimine ja muudatused</h2>
+      <h2>7. Andmetöötlus kaupmehe nimel</h2>
+      <p>Ostjate tellimusandmete puhul tegutseb Poeruum kaupmehe volitatud töötlejana. Töötlemise ese on e-poe tellimuste vastuvõtmine, makse- ja tarneoleku edastamine ning kaupmehele tellimuste haldamise võimaldamine teenuse kasutamise ajal. Töödeldakse ostja nime, kontakt-, tellimus-, makseoleku ja tarneandmeid ning nendega seotud tehnilisi tunnuseid.</p>
+      <p>Poeruum töötleb neid andmeid üksnes kaupmehe dokumenteeritud juhiste ja käesolevate tingimuste alusel, tagab andmetele ligi pääsevate isikute konfidentsiaalsuse, rakendab asjakohaseid turvameetmeid ning aitab mõistlikus ulatuses täita andmesubjekti taotlusi, turvaintsidendi kohustusi ja mõjuhinnanguid. Poeruum teeb nõuete täitmise tõendamiseks vajaliku teabe kättesaadavaks ja lubab põhjendatud ulatuses auditit, kaitstes seejuures teiste klientide andmeid ja teenuse turvalisust.</p>
+      <p>Kaupmees annab üldise loa kasutada privaatsuspoliitikas nimetatud alamtöötlejaid. Olulisest uuest alamtöötlejast teatatakse enne selle kasutuselevõttu ning põhjendatud andmekaitsealase vastuväite korral otsivad pooled sobiva lahenduse. Poeruum kohustab alamtöötlejaid kaitsma andmeid vähemalt samaväärselt. Teenuse lõppemisel kustutatakse või anonüümitakse kaupmehe nimel töödeldavad isikuandmed vastavalt privaatsuspoliitika säilitustähtaegadele, välja arvatud juhul, kui säilitamine on seadusest tulenevalt vajalik.</p>
+    </section>
+
+    <section>
+      <h2>8. Teenuse toimimine ja muudatused</h2>
       <p>Poeruum võib teha hooldust, turvaparandusi ja teenuse arendamiseks vajalikke muudatusi. Katkestustest püütakse võimaluse korral ette teatada. Katkematut või veatut teenust ei garanteerita, kuid tõrkeid lahendatakse mõistliku aja jooksul.</p>
       <p>Olulistest tingimuste või tasude muudatustest teatatakse mõistliku aja ette e-posti või teenuse kaudu. Kui kasutaja muudatusega ei nõustu, saab ta teenuse enne muudatuse jõustumist lõpetada.</p>
     </section>
 
     <section>
-      <h2>8. Konto piiramine ja lõpetamine</h2>
+      <h2>9. Konto piiramine ja lõpetamine</h2>
       <p>Kasutaja võib konto teenuses kustutada või paketi lõpetada. Enne kustutamist peab kasutaja eksportima talle vajalikud andmed ning lahendama täitmata tellimused ja maksekohustused.</p>
+      <p>Konto kustutamisel lõpetatakse aktiivne Poeruumi kuupakett, eemaldatakse poe sisu ja failid ning anonüümitakse tellimustes olevad ostja kontakt- ja tarneandmed. Seadusest tuleneva säilituskohustuse täitmiseks vajalikud isikustamata finantskirjed säilivad privaatsuspoliitikas kirjeldatud tähtaja lõpuni.</p>
       <p>Poeruum võib teenust piirata või konto sulgeda, kui kasutaja rikub oluliselt tingimusi või seadust, ohustab teenuse turvalisust või jätab tasud maksmata. Kiiret sekkumist mittevajava rikkumise korral antakse võimalus rikkumine mõistliku aja jooksul kõrvaldada.</p>
     </section>
 
     <section>
-      <h2>9. Vastutus</h2>
+      <h2>10. Vastutus</h2>
       <p>Kumbki pool vastutab enda põhjustatud otsese kahju eest seaduses lubatud ulatuses. Poeruum ei vastuta kaupmehe toodete, ostjaga sõlmitud müügilepingu, kasutaja sisestatud andmete ega kolmanda teenusepakkuja iseseisva tegevuse eest.</p>
       <p>Poeruumi koguvastutus on seaduses lubatud ulatuses piiratud summaga, mille kasutaja tasus Poeruumile kahju tekkimisele eelnenud 12 kuu jooksul. Piirang ei kehti tahtliku rikkumise ega muu vastutuse suhtes, mida seadus ei luba piirata.</p>
     </section>
 
     <section>
-      <h2>10. Kohaldatav õigus</h2>
+      <h2>11. Kohaldatav õigus</h2>
       <p>Tingimustele kohaldatakse Eesti õigust. Vaidlused püütakse esmalt lahendada läbirääkimiste teel. Kui kokkulepet ei saavutata, lahendab vaidluse Eesti pädev kohus.</p>
     </section>
 
     <section>
-      <h2>11. Kontakt</h2>
+      <h2>12. Kontakt</h2>
       <p>Tingimuste, arvelduse või teenuse kohta saab kirjutada aadressil <a href="mailto:mtammets@gmail.com">mtammets@gmail.com</a>. Sisselogitud kasutaja saab pöörduda ka Poeruumi tugikeskuse kaudu.</p>
     </section>
   </>
@@ -154,6 +162,7 @@ function Privacy() {
         <li>Render — veebimajutus, võrguühendus ja domeenide tehniline teenindamine;</li>
         <li>Stripe — maksed, väljamaksed, kaupmehe tuvastamine ja korduv arveldus;</li>
         <li>Resend — tehingulised e-kirjad ja tugisuhtlus;</li>
+        <li>Cloudflare — Turnstile’i kuritarvitusevastane kontroll;</li>
         <li>valitud tarnepakkujad — tarnevalikute ja saadetiste korraldamine;</li>
         <li>ametlikud registrid ja aadressiteenused — ettevõtte- ja aadressiandmete kontrollimine.</li>
       </ul>
@@ -167,8 +176,16 @@ function Privacy() {
 
     <section>
       <h2>6. Säilitamine</h2>
-      <p>Konto- ja poeandmeid säilitatakse konto kasutamise ajal ning need kustutatakse konto kustutamisel, välja arvatud andmed, mida tuleb hoida seaduse, poolelioleva tehingu või õigusnõude tõttu. Raamatupidamise algdokumente säilitatakse seaduses nõutud aja jooksul.</p>
-      <p>Tellimuse säilitamisaja määrab eelkõige vastav müüja. Tugivestlust säilitatakse konto eluea jooksul või kuni selle varasem kustutamine ei kahjusta poolelioleva pöördumise lahendamist. Turva- ja vealoge hoitakse ainult nii kaua, kui on vaja turvalisuse ja tõrkeotsingu eesmärgil. Teenusepakkujate varukoopiad kustuvad nende tavapärase varundustsükli jooksul.</p>
+      <ul>
+        <li><strong>Konto ja poe sisu:</strong> säilivad konto kasutamise ajal ning kustutatakse konto kustutamisel. Tootepildid, kohandatud domeenid, autentimiskonto ja avatud tugisisu eemaldatakse kustutamistoimingu käigus.</li>
+        <li><strong>Tellimused:</strong> säilivad kuni seitse aastat selle majandusaasta lõpust, mil tehing kajastati. Konto kustutamisel eemaldatakse tellimustest kohe ostja nimi, e-post ja tarneinfo; summad, kaubaread, makseolek ja tehingutunnused säilivad tähtaja lõpuni raamatupidamise ja nõuete kaitsmise eesmärgil.</li>
+        <li><strong>Poeruumi finantskirjed:</strong> säilivad seitse aastat vastava majandusaasta lõpust.</li>
+        <li><strong>Tugipöördumised ja manused:</strong> kustutatakse konto kustutamisel või 24 kuud pärast pöördumise lahendamist, olenevalt sellest, kumb saabub varem.</li>
+        <li><strong>Tehinguliste e-kirjade kättetoimetamislogid:</strong> kuni 90 päeva; konto omaniku aadressiga seotud logid kustutatakse konto kustutamisel.</li>
+        <li><strong>Webhook’i duplikaadikaitse:</strong> Stripe’i tehnilised sündmusetunnused kuni 90 päeva ja Resendi sündmusetunnused kuni 30 päeva.</li>
+        <li><strong>Aktiivsuse olek:</strong> kuni 24 tundi pärast viimast signaali.</li>
+      </ul>
+      <p>Kui andmeid on vaja kauem säilitada poolelioleva õigusnõude, ametliku päringu või muu seadusest tuleneva kohustuse tõttu, piiratakse nende kasutamine vastava eesmärgiga ja need kustutatakse vajaduse lõppemisel. Teenusepakkujate varukoopiad kustuvad nende tavapärase varundustsükli jooksul.</p>
     </section>
 
     <section>
