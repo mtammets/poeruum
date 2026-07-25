@@ -54,13 +54,15 @@ jobs:
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           curl --fail --retry 10 --retry-delay 1 --retry-connrefused --silent http://127.0.0.1:4173/ > /dev/null
-          npx --yes lighthouse@12.8.2 http://127.0.0.1:4173/ \
-            --only-categories=performance,accessibility \
-            --output=json \
-            --output-path=/tmp/poeruum-lighthouse.json \
-            --chrome-flags="--headless --no-sandbox" \
-            --quiet
-          npm run lighthouse:assert -- /tmp/poeruum-lighthouse.json
+          for run_number in 1 2 3; do
+            npx --yes lighthouse@12.8.2 http://127.0.0.1:4173/ \
+              --only-categories=performance,accessibility \
+              --output=json \
+              --output-path="/tmp/poeruum-lighthouse-$run_number.json" \
+              --chrome-flags="--headless --no-sandbox" \
+              --quiet
+          done
+          npm run lighthouse:assert -- /tmp/poeruum-lighthouse-1.json /tmp/poeruum-lighthouse-2.json /tmp/poeruum-lighthouse-3.json
 
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
