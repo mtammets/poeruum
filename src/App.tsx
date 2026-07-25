@@ -29,6 +29,13 @@ const getProductPrice = (product: Product) =>
     : product.price ?? 0
 
 const formatEuro = (value: number) => `${value.toFixed(2).replace('.', ',')} €`
+const DEMO_SELLER = {
+  businessName: 'Poeruumi Näidispood',
+  registryCode: 'Näidisandmed',
+  businessAddress: 'Näidise 1, Tallinn',
+  contactEmail: 'naidis@poeruum.ee',
+  contactPhone: 'Näidisandmed',
+}
 const DEFAULT_IMAGE_TRANSFORM: ProductImageTransform = { x: 0, y: 0, scale: 1 }
 const clampImageScale = (scale: number) => Math.min(3, Math.max(1, scale))
 const clampImageOffset = (offset: number, scale: number) => {
@@ -593,6 +600,7 @@ export type StorefrontProps = {
 
 export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isShowcasePreview = Boolean(onExit && !merchantMode)
+  const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
   const isSeoStorefront = Boolean(storeSlug && !merchantMode && !isShowcasePreview)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -2303,9 +2311,13 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     `${product.name} ${product.description ?? ''}`.toLocaleLowerCase('et').includes(searchQuery.trim().toLocaleLowerCase('et')),
   )
   const storeInitial = editableStoreName.trim().charAt(0).toLocaleUpperCase('et') || 'P'
-  const contactLine = [contactEmail, contactPhone].filter(Boolean).join(' · ')
+  const displayedContactEmail = isDemoExperience ? DEMO_SELLER.contactEmail : contactEmail
+  const contactLine = isDemoExperience
+    ? displayedContactEmail
+    : [contactEmail, contactPhone].filter(Boolean).join(' · ')
   const vatDetailsComplete = !vatRegistered || /^EE\d{9}$/.test(vatNumber.trim())
-  const sellerDetailsComplete = Boolean(businessName.trim() && /^\d{8}$/.test(registryCode.trim()) && businessAddress.trim() && contactEmail.trim() && vatDetailsComplete)
+  const sellerDetailsComplete = isDemoExperience
+    || Boolean(businessName.trim() && /^\d{8}$/.test(registryCode.trim()) && businessAddress.trim() && contactEmail.trim() && vatDetailsComplete)
   const newOrderCount = orders.filter((order) => order.status === 'new').length
   const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   const normalizedOrderSearch = orderSearch.trim().toLocaleLowerCase('et')
@@ -2799,7 +2811,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           <button className="login-sheet__close" type="button" onClick={() => setLegalView(null)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
           <span>{legalView === 'seller' ? 'KELLELT SA OSTAD' : 'OSTUINFO'}</span>
           <h2>{legalView === 'seller' ? 'Müüja andmed' : 'Müügitingimused'}</h2>
-          {legalView === 'seller' ? <dl>
+          {isDemoExperience && <p className="store-legal-sheet__demo-notice">See on näidispood. Müüja, toodete ja kontaktide andmed on väljamõeldud ning tellimusi päriselt ei täideta.</p>}
+          {legalView === 'seller' ? isDemoExperience ? <dl>
+            <div><dt>Ettevõte</dt><dd>{DEMO_SELLER.businessName}</dd></div>
+            <div><dt>Registrikood</dt><dd>{DEMO_SELLER.registryCode}</dd></div>
+            <div><dt>Aadress</dt><dd>{DEMO_SELLER.businessAddress}</dd></div>
+            <div><dt>E-post</dt><dd>{DEMO_SELLER.contactEmail}</dd></div>
+            <div><dt>Telefon</dt><dd>{DEMO_SELLER.contactPhone}</dd></div>
+          </dl> : <dl>
             <div><dt>Ettevõte</dt><dd>{businessName || editableStoreName}</dd></div>
             {registryCode && <div><dt>Registrikood</dt><dd>{registryCode} · Eesti äriregister</dd></div>}
             {vatRegistered && vatNumber && <div><dt>KMKR number</dt><dd>{vatNumber}</dd></div>}
@@ -2809,7 +2828,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </dl> : <div className="store-legal-sheet__terms">
             <section><h3>Taganemine ja tagastamine</h3><p>{returnsText || DEFAULT_RETURNS_TEXT}</p></section>
             <section><h3>Tarne ja maksmine</h3><p>Tarneviis, selle hind ja eeldatav kättesaamine kuvatakse ostukorvis enne tellimuse kinnitamist. Makseviisid kuvatakse kassas.</p></section>
-            <section><h3>Pretensioonid</h3><p>Kaubaga seotud küsimuse või pretensiooni korral võta ühendust aadressil {contactEmail || 'poe kontakt-e-post'}. Tarbijal on õigus pöörduda vaidluse lahendamiseks Tarbijavaidluste komisjoni.</p></section>
+            <section><h3>Pretensioonid</h3><p>Kaubaga seotud küsimuse või pretensiooni korral võta ühendust aadressil {displayedContactEmail || 'poe kontakt-e-post'}. Tarbijal on õigus pöörduda vaidluse lahendamiseks Tarbijavaidluste komisjoni.</p></section>
             <button type="button" onClick={() => setLegalView('seller')}>Vaata müüja andmeid →</button>
           </div>}
         </section>

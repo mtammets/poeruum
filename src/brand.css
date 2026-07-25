@@ -1030,6 +1030,7 @@
 }
 
 .store-legal-sheet { max-height: min(82dvh, 46rem); overflow-y: auto; }
+.store-legal-sheet__demo-notice { margin: 0 0 1rem; padding: .85rem .9rem; border: 1px solid color-mix(in srgb, var(--store-accent) 38%, transparent); border-radius: .75rem; background: color-mix(in srgb, var(--store-accent) 9%, transparent); color: var(--store-ink-muted); font-size: .66rem; line-height: 1.55; }
 .store-legal-sheet dl { display: grid; gap: 0; margin: 0; }
 .store-legal-sheet dl > div { display: grid; grid-template-columns: minmax(6rem, .8fr) minmax(0, 1.6fr); gap: 1rem; padding: .9rem 0; border-top: 1px solid var(--store-line); }
 .store-legal-sheet dt { color: var(--store-ink-soft); font-size: .65rem; font-weight: 700; }
