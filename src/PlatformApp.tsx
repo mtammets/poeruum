@@ -696,6 +696,11 @@ function PlatformFlow() {
     return () => { active = false; data.subscription.unsubscribe() }
   }, [])
 
+  useEffect(() => {
+    if (!onlineUserId || !['login', 'forgot-password', 'account'].includes(screen)) return
+    setScreen(store ? getStoreDestination(store) : 'store')
+  }, [onlineUserId, screen, store])
+
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsAuthBusy(true); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false)
@@ -810,6 +815,7 @@ function PlatformFlow() {
         setScreen('login')
         return
       }
+      setOnlineUserId(data.user?.id ?? data.session.user.id)
       setScreen('store')
     } catch (error) { setAuthError(getLocalizedAuthError(error, 'Konto loomine ebaõnnestus.')) }
     finally { setIsAuthBusy(false); setCaptchaToken(''); setCaptchaResetKey((value) => value + 1) }
@@ -1072,6 +1078,23 @@ function PlatformFlow() {
     finally { setIsPublishing(false) }
   }
 
+  const resumeMerchantFlow = () => {
+    setIsMobileNavOpen(false)
+    setAuthError('')
+    setAuthNotice('')
+    setScreen(store ? getStoreDestination(store) : 'store')
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
+
+  const startOrResumeMerchantFlow = (plan?: PricingPlan) => {
+    if (onlineUserId) {
+      resumeMerchantFlow()
+      return
+    }
+    if (plan) selectPricingPlan(plan)
+    setScreen('account')
+  }
+
   const returnNotice = authNotice ? <div className="app-return-notice" role="status" aria-live="polite">
     <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
   </div> : null
@@ -1104,7 +1127,7 @@ function PlatformFlow() {
   />
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={resetPlatformFlow} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
   </>
 
   if (screen === 'landing') return <main className="platform-landing">
@@ -1112,8 +1135,12 @@ function PlatformFlow() {
       <a className="platform-nav-link" href="#hind">Hind</a>
       <a className="platform-nav-link" href="#kkk">KKK</a>
       <button className="platform-nav-link" onClick={() => setScreen('sample')}>Vaata näidispoodi</button>
-      <button className="platform-nav-link platform-nav-login" onClick={() => setScreen('login')}>Logi sisse</button>
-      <button className="platform-nav-cta" onClick={() => setScreen('account')}>Loo pood</button>
+      {onlineUserId
+        ? <button className="platform-nav-cta" onClick={resumeMerchantFlow}>Minu pood</button>
+        : <>
+          <button className="platform-nav-link platform-nav-login" onClick={() => setScreen('login')}>Logi sisse</button>
+          <button className="platform-nav-cta" onClick={() => setScreen('account')}>Loo pood</button>
+        </>}
       <button className="platform-mobile-menu-toggle" type="button" aria-label={isMobileNavOpen ? 'Sulge menüü' : 'Ava menüü'} aria-expanded={isMobileNavOpen} onClick={() => setIsMobileNavOpen((open) => !open)}>
         {isMobileNavOpen
           ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -1123,8 +1150,12 @@ function PlatformFlow() {
         <a href="#hind" onClick={() => setIsMobileNavOpen(false)}><span>Hind</span><b>→</b></a>
         <a href="#kkk" onClick={() => setIsMobileNavOpen(false)}><span>KKK</span><b>→</b></a>
         <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('sample') }}><span>Näidispood</span><b>→</b></button>
-        <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('login') }}><span>Logi sisse</span><b>→</b></button>
-        <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('account') }}><span>Loo pood</span><b>→</b></button>
+        {onlineUserId
+          ? <button type="button" onClick={resumeMerchantFlow}><span>Minu pood</span><b>→</b></button>
+          : <>
+            <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('login') }}><span>Logi sisse</span><b>→</b></button>
+            <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('account') }}><span>Loo pood</span><b>→</b></button>
+          </>}
       </div>}
     </div></nav>
     <section className="platform-hero">
@@ -1132,7 +1163,7 @@ function PlatformFlow() {
         <span className="platform-eyebrow">Lihtsaim viis oma e-poeni</span>
         <h1>Sinu e-pood.<br /><em>10 minutiga.</em></h1>
         <p>Loo, avalda ja halda oma e-poodi otse telefonist.</p>
-        <button onClick={() => setScreen('account')}>Alusta tasuta <span>→</span></button>
+        <button onClick={() => startOrResumeMerchantFlow()}>{onlineUserId ? 'Jätka oma poega' : 'Alusta tasuta'} <span>→</span></button>
       </div>
       <div className="platform-phone-stage">
         <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
@@ -1174,14 +1205,14 @@ function PlatformFlow() {
           <div className="platform-pricing__rate"><strong>0 €</strong><p>kuus<br />teenustasu {formatPricingPercent(PLATFORM_FEE_RATE)} müügilt + km</p></div>
           <dl><div><dt>Müüki pole</dt><dd>0 €</dd></div><div><dt>Koos km-ga</dt><dd>{formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))}</dd></div><div className="is-cap"><dt>Kuulagi</dt><dd>{formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km</dd></div></dl>
           <small>Koos käibemaksuga maksimaalselt {formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus.</small>
-          <button onClick={() => { selectPricingPlan('flexible'); setScreen('account') }}>Vali Paindlik <span>→</span></button>
+          <button onClick={() => startOrResumeMerchantFlow('flexible')}>{onlineUserId ? 'Ava poe haldus' : 'Vali Paindlik'} <span>→</span></button>
         </article>
         <article className="platform-pricing__card">
           <span>KINDEL <b>30 PÄEVA TASUTA</b></span>
           <div className="platform-pricing__rate"><strong>{formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)}</strong><p>kuus + km<br />0% müügilt</p></div>
           <dl><div><dt>Poeruumi müügitasu</dt><dd>0%</dd></div><div><dt>Käibemaks 24%</dt><dd>{formatPricingEuro(FIXED_PLAN_MONTHLY_FEE * VAT_RATE)}</dd></div><div className="is-cap"><dt>Tasutav kokku</dt><dd>{formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)}</dd></div></dl>
           <small>Esimesed 30 päeva tasuta, seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos km-ga.</small>
-          <button onClick={() => { selectPricingPlan('fixed'); setScreen('account') }}>Alusta tasuta <span>→</span></button>
+          <button onClick={() => startOrResumeMerchantFlow('fixed')}>{onlineUserId ? 'Ava poe haldus' : 'Alusta tasuta'} <span>→</span></button>
         </article>
       </div>
       <p className="platform-pricing__note">Paketti saad hiljem mugavalt vahetada. Paketi hind ei sisalda maksete töötlemise tasusid.</p>
@@ -1330,7 +1361,7 @@ function PlatformFlow() {
   const onBack = () => {
     setSetupExitSaveFailed(false)
     setAuthError('')
-    setScreen(backMap[screen] ?? 'landing')
+    setScreen(onlineUserId && screen === 'store' ? 'landing' : backMap[screen] ?? 'landing')
   }
   const signOutOfSetup = async () => {
     const { error: signOutError } = await requireSupabase().auth.signOut({ scope: 'local' })
