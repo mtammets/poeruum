@@ -1,0 +1,40 @@
+name: Production Health
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    name: External production checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public application
+        shell: bash
+        run: |
+          body="$(curl --fail --retry 2 --retry-all-errors --max-time 20 --silent --show-error https://poeruum.ee/)"
+          grep --fixed-strings --quiet 'id="root"' <<< "$body"
+
+      - name: Check database-backed health endpoint
+        shell: bash
+        run: |
+          response="$(curl --fail --retry 2 --retry-all-errors --max-time 20 --silent --show-error \
+            https://foctericixquaogwboqg.supabase.co/functions/v1/health-check)"
+          node -e 'const value=JSON.parse(process.argv[1]); if(value.status !== "ok") process.exit(1)' "$response"
+
+      - name: Check security headers
+        shell: bash
+        run: |
+          headers="$(curl --fail --retry 2 --retry-all-errors --max-time 20 --silent --show-error --head https://poeruum.ee/)"
+          grep --ignore-case --quiet '^content-security-policy:' <<< "$headers"
+          grep --ignore-case --quiet '^strict-transport-security:' <<< "$headers"
+          grep --ignore-case --quiet '^x-frame-options: DENY' <<< "$headers"

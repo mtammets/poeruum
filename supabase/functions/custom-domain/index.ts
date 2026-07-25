@@ -8,6 +8,7 @@ import {
   verifyRenderCustomDomain,
   type RenderCustomDomain,
 } from '../_shared/render-custom-domain.ts'
+import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -123,6 +124,8 @@ Deno.serve(async (request) => {
     if (userError || !user) return json({ error: 'Sessioon on aegunud. Logi uuesti sisse.' }, 401)
 
     const body = await request.json().catch(() => ({})) as DomainBody
+    const rateLimit = await checkRateLimit(request, `custom-domain:${body.action ?? 'unknown'}`, 20, 600, user.id)
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
     const action = body.action
     const storeId = String(body.storeId ?? '')
     if (!action || !storeId) return json({ error: 'Domeenipäringu andmed on puudulikud.' }, 400)
@@ -262,6 +265,7 @@ Deno.serve(async (request) => {
     if (error) throw error
     return json({ domain: publicDomain(data as DomainRow) })
   } catch (error) {
+    await captureEdgeError('custom-domain', error)
     console.error('Kohandatud domeeni haldus ebaõnnestus.', error)
     return json({ error: error instanceof Error ? error.message : 'Domeeni haldus ebaõnnestus.' }, 500)
   }

@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { captureEdgeError } from '../_shared/security.ts'
 
 type ReminderClaim = {
   user_id: string
@@ -132,6 +133,7 @@ Deno.serve(async (request) => {
       sent += 1
     } catch (sendError) {
       failed += 1
+      await captureEdgeError('onboarding-reminders', sendError, { reminder_number: claim.reminder_number })
       console.error(`Onboardingu meeldetuletus kasutajale ${claim.user_id} ebaõnnestus.`, sendError)
       await admin.rpc('release_onboarding_reminder_claim', {
         target_user_id: claim.user_id,

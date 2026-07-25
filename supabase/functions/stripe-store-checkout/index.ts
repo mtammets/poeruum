@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
@@ -66,6 +67,8 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   try {
+    const rateLimit = await checkRateLimit(request, 'store-checkout', 12, 60)
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
     const body = await request.json() as CheckoutBody
     const storeId = String(body.storeId ?? '')
     const checkoutRequestId = String(body.checkoutRequestId ?? '').trim()
@@ -277,6 +280,7 @@ Deno.serve(async (request) => {
     if (!session.url) throw new Error('Stripe ei tagastanud makselehe aadressi.')
     return json({ url: session.url })
   } catch (error) {
+    await captureEdgeError('stripe-store-checkout', error)
     console.error('Stripe poe makse algatamine ebaõnnestus.', error)
     return json({ error: error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.' }, 500)
   }

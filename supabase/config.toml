@@ -22,6 +22,15 @@ verify_jwt = false
 [functions.data-retention-reaper]
 verify_jwt = false
 
+[functions.report-client-error]
+verify_jwt = false
+
+[functions.health-check]
+verify_jwt = false
+
+[functions.monitor-health]
+verify_jwt = false
+
 [functions.stripe-billing-checkout]
 verify_jwt = true
 

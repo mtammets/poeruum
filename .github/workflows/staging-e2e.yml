@@ -74,7 +74,10 @@ jobs:
         run: npx supabase db push --linked
 
       - name: Configure temporary Edge secrets
+        shell: bash
         run: |
+          RATE_LIMIT_SALT="$(openssl rand -hex 32)"
+          ONBOARDING_CRON_SECRET="$(openssl rand -hex 32)"
           npx supabase secrets set \
             STRIPE_MODE="$STRIPE_MODE" \
             STRIPE_SECRET_KEY="$STRIPE_SECRET_KEY" \
@@ -84,6 +87,8 @@ jobs:
             APP_URL="$APP_URL" \
             POERUUM_SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY" \
             POERUUM_SUPABASE_SECRET_KEY="$SUPABASE_SECRET_KEY" \
+            RATE_LIMIT_SALT="$RATE_LIMIT_SALT" \
+            ONBOARDING_CRON_SECRET="$ONBOARDING_CRON_SECRET" \
             --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Deploy temporary Edge Functions

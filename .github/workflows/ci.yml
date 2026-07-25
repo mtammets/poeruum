@@ -30,8 +30,16 @@ jobs:
       - name: Install exact dependencies
         run: npm ci
 
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Lint
         run: npm run lint
+
+      - name: Type-check Edge Functions
+        run: deno check supabase/functions/*/index.ts
 
       - name: Unit tests
         run: npm run test
@@ -67,6 +75,9 @@ jobs:
 
       - name: Test data retention boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-data-retention.sql
+
+      - name: Test rate limits and monitoring
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-security-controls.sql
 
       - name: Lint database schemas
         run: npx supabase db lint --local --schema public,extensions --level warning --fail-on warning

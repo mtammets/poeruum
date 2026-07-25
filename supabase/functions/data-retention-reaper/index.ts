@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { captureEdgeError } from '../_shared/security.ts'
 
 const requiredEnv = (name: string) => {
   const value = Deno.env.get(name)?.trim()
@@ -81,6 +82,7 @@ Deno.serve(async (request) => {
       ...((retained ?? {}) as Record<string, unknown>),
     })
   } catch (error) {
+    await captureEdgeError('data-retention-reaper', error, {}, 'critical')
     console.error(error)
     return json({ error: error instanceof Error ? error.message : 'Säilitustähtaja töö ebaõnnestus.' }, 500)
   }

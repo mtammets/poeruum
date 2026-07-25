@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { Resend } from 'npm:resend'
+import { Resend } from 'npm:resend@^6.18.0'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -42,7 +42,7 @@ Deno.serve(async (request) => {
         signature: request.headers.get('svix-signature') ?? '',
       },
       webhookSecret: requiredEnv('RESEND_WEBHOOK_SECRET'),
-    }) as { type: string; created_at?: string; data: Record<string, unknown> }
+    }) as unknown as { type: string; created_at?: string; data: Record<string, unknown> }
 
     const eventId = request.headers.get('svix-id') ?? ''
     if (!eventId) return json({ error: 'Invalid webhook' }, 400)

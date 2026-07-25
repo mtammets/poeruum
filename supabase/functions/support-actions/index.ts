@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,6 +75,8 @@ Deno.serve(async (request) => {
     })
     const { data: { user }, error: userError } = await userClient.auth.getUser(token)
     if (userError || !user) return json({ error: 'Sinu seanss on aegunud. Palun logi uuesti sisse.' }, 401)
+    const rateLimit = await checkRateLimit(request, 'support-actions', 30, 60, user.id)
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
 
     const admin = createClient(supabaseUrl, requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -197,6 +200,7 @@ Deno.serve(async (request) => {
 
     return json({ error: 'Tundmatu tegevus.' }, 400)
   } catch (error) {
+    await captureEdgeError('support-actions', error)
     console.error(error)
     return json({ error: errorMessage(error) }, 500)
   }

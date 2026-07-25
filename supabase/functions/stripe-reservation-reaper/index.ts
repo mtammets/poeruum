@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { captureEdgeError } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 type PendingOrder = {
@@ -79,6 +80,7 @@ Deno.serve(async (request) => {
       }
     } catch (cleanupError) {
       failed += 1
+      await captureEdgeError('stripe-reservation-reaper', cleanupError, {}, 'critical')
       console.error(`Reserveeringu ${order.id} kontroll ebaõnnestus.`, cleanupError)
     }
   }

@@ -190,6 +190,7 @@ function Privacy() {
         <li><strong>Tugipöördumised ja manused:</strong> kustutatakse konto kustutamisel või 24 kuud pärast pöördumise lahendamist, olenevalt sellest, kumb saabub varem.</li>
         <li><strong>Tehinguliste e-kirjade kättetoimetamislogid:</strong> kuni 90 päeva; konto omaniku aadressiga seotud logid kustutatakse konto kustutamisel.</li>
         <li><strong>Webhook’i duplikaadikaitse:</strong> Stripe’i tehnilised sündmusetunnused kuni 90 päeva ja Resendi sündmusetunnused kuni 30 päeva.</li>
+        <li><strong>Turva- ja vealogid:</strong> rakenduse veasündmused kuni 30 päeva. Päringumahu piiramiseks kasutatav IP-aadress salvestatakse ainult pöördumatu soolatud räsi ning lühiajalise loendurina, mis kustub hiljemalt viie minuti jooksul pärast piiranguakna lõppu.</li>
         <li><strong>Aktiivsuse olek:</strong> kuni 24 tundi pärast viimast signaali.</li>
       </ul>
       <p>Kui andmeid on vaja kauem säilitada poolelioleva õigusnõude, ametliku päringu või muu seadusest tuleneva kohustuse tõttu, piiratakse nende kasutamine vastava eesmärgiga ja need kustutatakse vajaduse lõppemisel. Teenusepakkujate varukoopiad kustuvad nende tavapärase varundustsükli jooksul.</p>

@@ -1,4 +1,5 @@
 import Stripe from 'npm:stripe@^22'
+import { captureEdgeError } from '../_shared/security.ts'
 import {
   claimEvent,
   completeEvent,
@@ -345,6 +346,7 @@ Deno.serve(async (request) => {
     return json({ received: true })
   } catch (error) {
     await releaseEvent(event.id)
+    await captureEdgeError('stripe-webhook', error, { event_type: event.type }, 'critical')
     console.error(`Stripe webhook ${event.id} ebaõnnestus.`, error)
     return json({
       error: 'Webhook processing failed',

@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { deleteRenderCustomDomain } from '../_shared/render-custom-domain.ts'
+import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode, type StripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
@@ -51,6 +52,8 @@ Deno.serve(async (request) => {
     })
     const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) return json({ error: 'Sessioon on aegunud. Logi uuesti sisse.' }, 401)
+    const rateLimit = await checkRateLimit(request, 'delete-account', 3, 3600, user.id)
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -211,6 +214,7 @@ Deno.serve(async (request) => {
     if (deleteError) throw deleteError
     return json({ success: true })
   } catch (error) {
+    await captureEdgeError('delete-account', error, {}, 'critical')
     console.error(error)
     return json({ error: error instanceof Error ? error.message : 'Konto kustutamine ebaõnnestus.' }, 500)
   }

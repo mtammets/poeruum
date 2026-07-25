@@ -1,8 +1,10 @@
 import { lazy, StrictMode, Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ErrorBoundary } from './ErrorBoundary'
 import PlatformApp from './PlatformApp'
 import type { LegalDocument } from './LegalPage'
 import { applySeoMetadata } from './lib/seo'
+import { registerGlobalErrorMonitoring } from './lib/errorMonitoring'
 import { getStoreSlugFromHostname } from './lib/storefrontUrl'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
@@ -136,6 +138,8 @@ function Root() {
   return isPoeruumHomepage ? <Homepage /> : <PlatformWithSupport />
 }
 
+registerGlobalErrorMonitoring()
+
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><Root /></StrictMode>,
+  <StrictMode><ErrorBoundary><Root /></ErrorBoundary></StrictMode>,
 )

@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }
@@ -22,6 +23,8 @@ Deno.serve(async (request) => {
     })
     const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) return json({ error: 'Sessioon on aegunud. Logi uuesti sisse.' }, 401)
+    const rateLimit = await checkRateLimit(request, 'billing-cancel', 6, 600, user.id)
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
     const admin = createClient(supabaseUrl, requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), { auth: { persistSession: false, autoRefreshToken: false } })
     const { data: store, error: storeError } = await admin.from('stores').select('*').eq('owner_id', user.id).order('created_at').limit(1).maybeSingle()
     if (storeError) throw storeError
@@ -38,6 +41,7 @@ Deno.serve(async (request) => {
     const subscription = await stripe.subscriptions.update(store.stripe_subscription_id, { cancel_at_period_end: true })
     return json({ effectiveImmediately: false, cancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null })
   } catch (error) {
+    await captureEdgeError('stripe-billing-cancel', error)
     console.error('Kindla paketi lõpetamine ebaõnnestus.', error)
     return json({ error: error instanceof Error ? error.message : 'Paketi muutmine ebaõnnestus.' }, 500)
   }

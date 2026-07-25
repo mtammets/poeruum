@@ -159,7 +159,7 @@ export const sendPaidOrderEmails = async (admin: SupabaseClient, orderId: string
   ].join(',')).eq('id', orderId).eq('payment_status', 'paid').maybeSingle()
   if (orderError) throw orderError
   if (!orderData) return
-  const order = orderData as OrderRow
+  const order = orderData as unknown as OrderRow
 
   const { data: storeData, error: storeError } = await admin.from('stores').select('id,owner_id,name,settings').eq('id', order.store_id).single()
   if (storeError) throw storeError

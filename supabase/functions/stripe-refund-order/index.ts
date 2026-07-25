@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
@@ -25,6 +26,8 @@ Deno.serve(async (request) => {
     })
     const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) return json({ error: 'Sessioon on aegunud. Logi uuesti sisse.' }, 401)
+    const rateLimit = await checkRateLimit(request, 'order-refund', 10, 3600, user.id)
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
     const body = await request.json().catch(() => ({})) as { storeId?: string; orderNumber?: string }
     const admin = createClient(supabaseUrl, requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), { auth: { persistSession: false, autoRefreshToken: false } })
     const { data: store, error: storeError } = await admin.from('stores').select('id').eq('id', body.storeId ?? '').eq('owner_id', user.id).maybeSingle()
@@ -84,6 +87,7 @@ Deno.serve(async (request) => {
     }
     return json({ refunded: true, status: refund.status })
   } catch (error) {
+    await captureEdgeError('stripe-refund-order', error)
     console.error('Stripe’i tagastus ebaõnnestus.', error)
     return json({ error: error instanceof Error ? error.message : 'Tagastus ebaõnnestus.' }, 500)
   }
