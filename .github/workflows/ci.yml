@@ -76,8 +76,11 @@ jobs:
       - name: Test data retention boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-data-retention.sql
 
-      - name: Test rate limits and monitoring
-        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-security-controls.sql
+      - name: Test atomic rate limits
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-rate-limits.sql
+
+      - name: Test error monitoring
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-monitoring.sql
 
       - name: Lint database schemas
         run: npx supabase db lint --local --schema public,extensions --level warning --fail-on warning
