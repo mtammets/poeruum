@@ -77,7 +77,15 @@ jobs:
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-data-retention.sql
 
       - name: Test first rate-limit request
-        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-rate-limit-first.sql
+        shell: bash
+        run: |
+          if ! output="$(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-rate-limit-first.sql 2>&1)"; then
+            output="${output//'%'/'%25'}"
+            output="${output//$'\n'/'%0A'}"
+            output="${output//$'\r'/'%0D'}"
+            echo "::error file=supabase/migrations/202607250005_security_observability.sql::$output"
+            exit 1
+          fi
 
       - name: Test atomic rate-limit increment
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-rate-limit-second.sql
