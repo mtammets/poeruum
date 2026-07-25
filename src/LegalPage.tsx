@@ -17,15 +17,22 @@ import './legal.css'
 export type LegalDocument = 'terms' | 'privacy'
 
 const EFFECTIVE_DATE = '25. juuli 2026'
+const PROVIDER = {
+  name: 'Animaator OÜ',
+  registryCode: '17135632',
+  address: 'Alle, Pudisoo küla, Kuusalu vald, Harju maakond 74626, Eesti',
+  email: 'info@animaator.ee',
+} as const
 
 function ProviderDetails() {
   return <aside className="legal-provider" aria-label="Teenuse osutaja andmed">
     <strong>Teenuse osutaja</strong>
     <dl>
       <div><dt>Teenuse nimi</dt><dd>Poeruum</dd></div>
-      <div><dt>Ärinimi ja registrikood</dt><dd className="is-missing">Lisatakse enne teenuse avalikku avamist</dd></div>
-      <div><dt>Aadress</dt><dd className="is-missing">Lisatakse enne teenuse avalikku avamist</dd></div>
-      <div><dt>E-post</dt><dd><a href="mailto:mtammets@gmail.com">mtammets@gmail.com</a></dd></div>
+      <div><dt>Ärinimi</dt><dd>{PROVIDER.name}</dd></div>
+      <div><dt>Registrikood</dt><dd>{PROVIDER.registryCode}</dd></div>
+      <div><dt>Aadress</dt><dd>{PROVIDER.address}</dd></div>
+      <div><dt>E-post</dt><dd><a href={`mailto:${PROVIDER.email}`}>{PROVIDER.email}</a></dd></div>
     </dl>
   </aside>
 }
@@ -110,7 +117,7 @@ function Terms() {
 
     <section>
       <h2>12. Kontakt</h2>
-      <p>Tingimuste, arvelduse või teenuse kohta saab kirjutada aadressil <a href="mailto:mtammets@gmail.com">mtammets@gmail.com</a>. Sisselogitud kasutaja saab pöörduda ka Poeruumi tugikeskuse kaudu.</p>
+      <p>Tingimuste, arvelduse või teenuse kohta saab kirjutada aadressil <a href={`mailto:${PROVIDER.email}`}>{PROVIDER.email}</a>. Sisselogitud kasutaja saab pöörduda ka Poeruumi tugikeskuse kaudu.</p>
     </section>
   </>
 }
@@ -196,7 +203,7 @@ function Privacy() {
     <section>
       <h2>8. Inimese õigused</h2>
       <p>Inimesel on tingimuste täitumisel õigus küsida juurdepääsu oma andmetele ja nende parandamist, kustutamist, töötlemise piiramist või andmete ülekandmist ning esitada vastuväide õigustatud huvil põhinevale töötlemisele. Nõusoleku saab alati tagasi võtta, ilma et see muudaks varasema töötlemise õigusvastaseks.</p>
-      <p>Taotluse saab saata aadressile <a href="mailto:mtammets@gmail.com">mtammets@gmail.com</a>. Vastame üldjuhul ühe kuu jooksul ja võime enne vastamist paluda isikusamasust kinnitada. Samuti on õigus esitada kaebus <a href="https://www.aki.ee" target="_blank" rel="noreferrer">Andmekaitse Inspektsioonile</a>.</p>
+      <p>Taotluse saab saata aadressile <a href={`mailto:${PROVIDER.email}`}>{PROVIDER.email}</a>. Vastame üldjuhul ühe kuu jooksul ja võime enne vastamist paluda isikusamasust kinnitada. Samuti on õigus esitada kaebus <a href="https://www.aki.ee" target="_blank" rel="noreferrer">Andmekaitse Inspektsioonile</a>.</p>
       <p>Poe tellimust puudutava taotlusega tuleks esmalt pöörduda poe müüja poole. Poeruum aitab müüjal taotlust tehniliselt täita.</p>
     </section>
 
@@ -208,7 +215,7 @@ function Privacy() {
 
     <section>
       <h2>10. Muudatused ja kontakt</h2>
-      <p>Poliitikat ajakohastatakse, kui teenus või õigusnõuded muutuvad. Olulisest muudatusest teatatakse teenuses või e-posti teel. Küsimuste ja taotluste jaoks kirjuta aadressil <a href="mailto:mtammets@gmail.com">mtammets@gmail.com</a>.</p>
+      <p>Poliitikat ajakohastatakse, kui teenus või õigusnõuded muutuvad. Olulisest muudatusest teatatakse teenuses või e-posti teel. Küsimuste ja taotluste jaoks kirjuta aadressil <a href={`mailto:${PROVIDER.email}`}>{PROVIDER.email}</a>.</p>
     </section>
   </>
 }
@@ -229,6 +236,13 @@ export default function LegalPage({ document }: { document: LegalDocument }) {
         name: `${isTerms ? 'Kasutustingimused' : 'Privaatsuspoliitika'} — Poeruum`,
         url: `https://poeruum.ee/${isTerms ? 'kasutustingimused' : 'privaatsus'}/`,
         isPartOf: { '@type': 'WebSite', name: 'Poeruum', url: 'https://poeruum.ee/' },
+        publisher: {
+          '@type': 'Organization',
+          name: PROVIDER.name,
+          identifier: PROVIDER.registryCode,
+          email: PROVIDER.email,
+          address: PROVIDER.address,
+        },
       },
     })
     window.scrollTo(0, 0)
