@@ -88,9 +88,10 @@ Deno.serve(async (request) => {
     const from = Deno.env.get('RESEND_FROM_EMAIL')?.trim() || 'Poeruum <teavitused@send.poeruum.ee>'
     const fallbackReplyTo = Deno.env.get('SUPPORT_REPLY_TO')?.trim()
     const inboundDomain = Deno.env.get('SUPPORT_INBOUND_DOMAIN')?.trim().replace(/^@/, '')
+    const publicSupportEmail = Deno.env.get('SUPPORT_PUBLIC_EMAIL')?.trim().toLowerCase() || 'info@poeruum.ee'
     const conversationReplyTo = (conversationId: string) => inboundDomain
       ? `Poeruumi klienditugi <vastus+${conversationId}@${inboundDomain}>`
-      : fallbackReplyTo
+      : fallbackReplyTo || publicSupportEmail
 
     if (action === 'create') {
       if (isAdmin) return json({ error: 'Administraatori kontolt ei saa kasutaja päringut luua.' }, 403)
@@ -177,14 +178,19 @@ Deno.serve(async (request) => {
       let resendEmailId: string | null = null
       let deliveryStatus: string | null = null
       if (!isInternal) {
-        const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(conversation.user_id)
-        if (recipientError || !recipient.user.email) return json({ error: 'Kasutaja e-posti aadressi ei leitud.' }, 400)
+        let recipientEmail = String(conversation.external_email ?? '').trim().toLowerCase()
+        if (conversation.origin === 'app') {
+          const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(conversation.user_id)
+          if (recipientError || !recipient.user.email) return json({ error: 'Kasutaja e-posti aadressi ei leitud.' }, 400)
+          recipientEmail = recipient.user.email.trim().toLowerCase()
+        }
+        if (!recipientEmail) return json({ error: 'Saaja e-posti aadressi ei leitud.' }, 400)
         const replyTo = conversationReplyTo(conversation.id)
         resendEmailId = await sendEmail({
-          from, to: [recipient.user.email], ...(replyTo ? { reply_to: replyTo } : {}),
+          from, to: [recipientEmail], reply_to: replyTo || publicSupportEmail,
           subject: `Re: ${conversation.subject}`,
-          html: emailFrame('Vastus Poeruumi klienditoelt', `<p style="margin:0">${escapeHtml(body).replaceAll('\n', '<br>')}</p><p style="margin:24px 0 0;color:#8a857d;font-size:13px">Sinu küsimus: ${escapeHtml(conversation.subject)}</p>`, { label: 'Ava Poeruum', url: appUrl }),
-          text: `${body}\n\nSinu küsimus: ${conversation.subject}\n${appUrl}`,
+          html: emailFrame('Vastus Poeruumi klienditoelt', `<p style="margin:0">${escapeHtml(body).replaceAll('\n', '<br>')}</p><p style="margin:24px 0 0;color:#8a857d;font-size:13px">Sinu küsimus: ${escapeHtml(conversation.subject)}</p>`, conversation.origin === 'app' ? { label: 'Ava Poeruum', url: appUrl } : undefined),
+          text: `${body}\n\nSinu küsimus: ${conversation.subject}${conversation.origin === 'app' ? `\n${appUrl}` : ''}`,
           tags: [{ name: 'email_type', value: 'support_reply' }, { name: 'conversation_id', value: conversation.id }],
         })
         deliveryStatus = 'sent'

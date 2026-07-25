@@ -21,7 +21,7 @@ const PROVIDER = {
   name: 'Animaator OÜ',
   registryCode: '17135632',
   address: 'Alle, Pudisoo küla, Kuusalu vald, Harju maakond 74626, Eesti',
-  email: 'info@animaator.ee',
+  email: 'info@poeruum.ee',
 } as const
 
 function ProviderDetails() {

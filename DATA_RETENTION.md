@@ -7,7 +7,7 @@ Rakenduse avalik privaatsuspoliitika ja tehniline kustutamisloogika kasutavad j�
 | Konto, poe seaded, tooted ja tootepildid | Konto kustutamiseni | `delete-account` ja `handle_account_deletion()` |
 | Ostja nimi, e-post ja tarneinfo | Tellimuse raamatupidamistähtajani; konto kustutamisel kohe anonüümseks | `orders.retention_expires_at` ja `handle_account_deletion()` |
 | Tellimuse ja Poeruumi finantskirje | 8 aastat tehingu kuupäevast; see katab vähemalt 7 aastat majandusaasta lõpust | `apply_data_retention()` |
-| Lahendatud tugipöördumine ja manus | 24 kuud lahendamisest või konto kustutamiseni | `data-retention-reaper` |
+| Lahendatud tugipöördumine ja manus, sh `info@poeruum.ee` kaudu saabunud kiri | 24 kuud lahendamisest või kontoga seotud pöördumisel konto kustutamiseni | `data-retention-reaper` |
 | E-kirja kättetoimetamislogi | 90 päeva | `apply_data_retention()` |
 | Stripe’i webhook’i duplikaadikaitse | 90 päeva | `apply_data_retention()` |
 | Resendi webhook’i duplikaadikaitse | 30 päeva | `apply_data_retention()` |

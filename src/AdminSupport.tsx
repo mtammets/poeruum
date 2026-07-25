@@ -3,11 +3,13 @@ import { requireSupabase } from './lib/supabase'
 
 export type AdminSupportConversation = {
   id: string
-  user_id: string
+  user_id: string | null
   email: string
+  contact_name: string | null
+  origin: 'app' | 'email'
   store_id: string | null
   store_name: string | null
-  pricing_plan: string
+  pricing_plan: string | null
   subject: string
   category: string
   status: 'open' | 'waiting_user' | 'resolved'
@@ -96,6 +98,8 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
     ? item.status !== 'resolved'
     : item.status === filter), [conversations, filter])
   const unreadCount = conversations.filter((item) => item.is_unread).length
+  const contactLabel = (conversation: AdminSupportConversation) =>
+    conversation.store_name || conversation.contact_name || conversation.email
 
   const invoke = async (body: Record<string, unknown>) => {
     const { data, error: invokeError } = await requireSupabase().functions.invoke('support-actions', { body })
@@ -135,25 +139,25 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
   }
 
   return <section className="admin-support" id="klienditugi">
-    <header><div><span>KLIENDITUGI</span><h2>Vestlused</h2><p>Kasutaja küsimus koos poe ja konto kontekstiga.</p></div><b>{unreadCount ? `${unreadCount} uut` : 'Kõik loetud'}</b></header>
+    <header><div><span>KLIENDITUGI</span><h2>Vestlused</h2><p>Poeruumi kasutajate küsimused ja aadressile info@poeruum.ee saabunud kirjad.</p></div><b>{unreadCount ? `${unreadCount} uut` : 'Kõik loetud'}</b></header>
     <div className="admin-support__filters">{([
       ['active', 'Aktiivsed'], ['open', 'Vajavad vastust'], ['waiting_user', 'Ootavad kasutajat'], ['resolved', 'Lahendatud'],
     ] as Array<[Filter, string]>).map(([value, label]) => <button className={filter === value ? 'is-active' : ''} type="button" onClick={() => setFilter(value)} key={value}>{label}<span>{value === 'active' ? conversations.filter((item) => item.status !== 'resolved').length : conversations.filter((item) => item.status === value).length}</span></button>)}</div>
     <div className="admin-support__workspace">
       <div className="admin-support__list">
         {isLoading ? <p className="admin-support__empty">Laadin vestlusi…</p> : error && !conversations.length ? <p className="admin-support__empty is-error">{error}</p> : filtered.length ? filtered.map((conversation) => <button className={`${selected?.id === conversation.id ? 'is-selected' : ''}${conversation.is_unread ? ' is-unread' : ''}`} type="button" onClick={() => void openConversation(conversation)} key={conversation.id}>
-          <i>{(conversation.store_name || conversation.email).charAt(0).toLocaleUpperCase('et')}</i><span><b>{conversation.store_name || conversation.email}</b><strong>{conversation.subject}</strong><small>{conversation.last_message_preview}</small></span><time>{formatTime(conversation.last_message_at)}</time>
+          <i>{contactLabel(conversation).charAt(0).toLocaleUpperCase('et')}</i><span><b>{contactLabel(conversation)}{conversation.origin === 'email' ? ' · E-kiri' : ''}</b><strong>{conversation.subject}</strong><small>{conversation.last_message_preview}</small></span><time>{formatTime(conversation.last_message_at)}</time>
         </button>) : <p className="admin-support__empty">Selles vaates pole vestlusi.</p>}
       </div>
       {selected ? <div className="admin-support__conversation">
-        <header><div><small>{categoryLabel[selected.category] || 'Küsimus'}</small><h3>{selected.subject}</h3><p>{selected.store_name || 'Poodi pole loodud'} · <a href={`mailto:${selected.email}`}>{selected.email}</a> · {selected.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</p></div><select value={selected.status} disabled={isSending} onChange={(event) => void setStatus(event.target.value as AdminSupportConversation['status'])}><option value="open">Vajab vastust</option><option value="waiting_user">Ootab kasutajat</option><option value="resolved">Lahendatud</option></select></header>
+        <header><div><small>{selected.origin === 'email' ? 'E-kiri aadressile info@poeruum.ee' : categoryLabel[selected.category] || 'Küsimus'}</small><h3>{selected.subject}</h3><p>{selected.origin === 'email' ? selected.contact_name || 'Väline saatja' : selected.store_name || 'Poodi pole loodud'} · <a href={`mailto:${selected.email}`}>{selected.email}</a>{selected.origin === 'app' && <> · {selected.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</>}</p></div><select value={selected.status} disabled={isSending} onChange={(event) => void setStatus(event.target.value as AdminSupportConversation['status'])}><option value="open">Vajab vastust</option><option value="waiting_user">Ootab kasutajat</option><option value="resolved">Lahendatud</option></select></header>
         <div className="admin-support__messages">{messages.map((message) => <article className={`is-${message.sender_kind}${message.is_internal ? ' is-internal' : ''}`} key={message.id}>
-          <span>{message.is_internal ? 'Sisemine märkus' : message.sender_kind === 'admin' ? 'Poeruumi tugi' : selected.store_name || selected.email}<time>{formatTime(message.created_at)}</time></span><p>{message.body}</p>
+          <span>{message.is_internal ? 'Sisemine märkus' : message.sender_kind === 'admin' ? 'Poeruumi tugi' : contactLabel(selected)}<time>{formatTime(message.created_at)}</time></span><p>{message.body}</p>
           {message.attachment_path && <button type="button" onClick={() => void openAttachment(message)}>📎 {message.attachment_name || 'Ava manus'}</button>}
           {message.delivery_status && <small className={`is-${message.delivery_status}`}>{message.delivery_status === 'delivered' ? 'Kohale toimetatud' : message.delivery_status === 'sent' ? 'Saadetud' : message.delivery_status === 'bounced' ? 'Ei jõudnud kohale' : message.delivery_status}</small>}
         </article>)}</div>
-        <form className={isInternal ? 'is-internal' : ''} onSubmit={sendReply}><textarea rows={4} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={isInternal ? 'Lisa märkus, mida kasutaja ei näe…' : 'Kirjuta kasutajale vastus…'} /><div><label><input type="checkbox" checked={isInternal} onChange={(event) => setIsInternal(event.target.checked)} /> Sisemine märkus</label>{error && <p>{error}</p>}<button type="submit" disabled={isSending || !reply.trim()}>{isSending ? 'Saadan…' : isInternal ? 'Lisa märkus' : 'Saada vastus'} →</button></div></form>
-      </div> : <div className="admin-support__placeholder"><span>✉</span><strong>Vali vestlus</strong><p>Siin näed kogu vestlust ja kasutaja poe konteksti.</p></div>}
+        <form className={isInternal ? 'is-internal' : ''} onSubmit={sendReply}><textarea rows={4} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={isInternal ? 'Lisa märkus, mida saatja ei näe…' : 'Kirjuta saatjale vastus…'} /><div><label><input type="checkbox" checked={isInternal} onChange={(event) => setIsInternal(event.target.checked)} /> Sisemine märkus</label>{error && <p>{error}</p>}<button type="submit" disabled={isSending || !reply.trim()}>{isSending ? 'Saadan…' : isInternal ? 'Lisa märkus' : 'Saada vastus'} →</button></div></form>
+      </div> : <div className="admin-support__placeholder"><span>✉</span><strong>Vali vestlus</strong><p>Siin näed kogu vestlust ning saatja või poe konteksti.</p></div>}
     </div>
   </section>
 }

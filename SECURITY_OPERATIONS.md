@@ -26,6 +26,17 @@ Alarm saadetakse `SUPPORT_NOTIFICATION_EMAIL` aadressile Resendi kaudu kohe ning
 jätkuva vea korral kõige rohkem kord tunnis. Taastumisel saadetakse eraldi teade.
 Alarmide olekut hoitakse `monitor_alert_states` tabelis.
 
+Poeruumil pole eraldi postkastiteenust, seega võtab Resend Inbound vastu
+juurdomeeni `poeruum.ee` kirjad. `resend-webhook` lubab uue vestluse luua ainult
+`SUPPORT_PUBLIC_EMAIL` või `SUPPORT_INBOUND_ADDRESS` täpsele aadressile saabunud
+kirjast; teised `@poeruum.ee` saajad jäetakse töötlemata. Vestluse
+vastuseaadress sisaldab vestluse UUID-d kujul
+`vastus+<uuid>@poeruum.ee`; webhook kontrollib enne vastuse lisamist, et saatja
+kattub vestluse kontaktiga. Automaatvastajad jäetakse töötlemata ning uute
+väliste vestluste mahule rakendatakse saatja- ja üldpiirang. Kui juurdomeenile
+lisatakse tulevikus eraldi postkastiteenus, tuleb inbound viia alamdomeenile ja
+kasutada postiteenuse edasisuunamist.
+
 Sisemisest seirest sõltumatu GitHub Actionsi `Production Health` töö kontrollib
 iga 15 minuti järel avalehte, andmebaasiga seotud health endpoint'i ja olulisi
 turvapäiseid. Töö ebaõnnestumine on nähtav Actionsi alarmi ning hoidla omaniku
