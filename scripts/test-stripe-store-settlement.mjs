@@ -50,31 +50,73 @@ let order
 let checkoutSessionId
 let testEventId
 let testPaymentIntentId
+let userId
 
 try {
-  const { data: connectedStore, error: storeError } = await admin.from('stores')
-    .select('*')
-    .eq('payment_provider', 'stripe')
-    .eq('payment_status', 'connected')
-    .eq('stripe_account_mode', 'test')
-    .not('stripe_account_id', 'is', null)
-    .limit(1)
-    .maybeSingle()
-  if (storeError) throw storeError
-  if (!connectedStore) throw new Error('Ühendatud Stripe’i testpoodi ei leitud.')
-  store = connectedStore
-  originalStore = { is_published: store.is_published, settings: store.settings }
-
-  const testSettings = {
-    ...(store.settings ?? {}),
-    customerConfirmations: false,
-    sellerNotifications: false,
-    vatRegistered: true,
-    vatNumber: 'EE123456789',
-    deliverySettings: { ...((store.settings ?? {}).deliverySettings ?? {}), pickupEnabled: true },
+  const ephemeralConnectedAccountId = process.env.E2E_STRIPE_CONNECTED_ACCOUNT_ID?.trim()
+  if (ephemeralConnectedAccountId) {
+    const email = `stripe-settlement-${suffix}@example.com`
+    const { data: user, error: userError } = await admin.auth.admin.createUser({
+      email,
+      password: `Settlement-${crypto.randomUUID()}!Aa1`,
+      email_confirm: true,
+    })
+    if (userError || !user.user) throw userError || new Error('Settlement’i testkasutajat ei loodud.')
+    userId = user.user.id
+    const { data: ephemeralStore, error: ephemeralStoreError } = await admin.from('stores').insert({
+      owner_id: userId,
+      name: 'Stripe settlement E2E',
+      slug: `stripe-settlement-${suffix}`.toLowerCase(),
+      is_published: true,
+      payment_provider: 'stripe',
+      payment_status: 'connected',
+      pricing_plan: 'flexible',
+      stripe_account_id: ephemeralConnectedAccountId,
+      stripe_account_mode: 'test',
+      stripe_account_charges_enabled: true,
+      stripe_account_payouts_enabled: true,
+      settings: {
+        customerConfirmations: false,
+        sellerNotifications: false,
+        vatRegistered: true,
+        vatNumber: 'EE123456789',
+        deliverySettings: { pickupEnabled: true },
+      },
+    }).select('*').single()
+    if (ephemeralStoreError || !ephemeralStore) {
+      throw ephemeralStoreError || new Error('Settlement’i testpoodi ei loodud.')
+    }
+    store = ephemeralStore
+  } else {
+    const { data: connectedStore, error: storeError } = await admin.from('stores')
+      .select('*')
+      .eq('payment_provider', 'stripe')
+      .eq('payment_status', 'connected')
+      .eq('stripe_account_mode', 'test')
+      .not('stripe_account_id', 'is', null)
+      .limit(1)
+      .maybeSingle()
+    if (storeError) throw storeError
+    if (!connectedStore) throw new Error('Ühendatud Stripe’i testpoodi ei leitud.')
+    store = connectedStore
+    originalStore = { is_published: store.is_published, settings: store.settings }
   }
-  const { error: prepareStoreError } = await admin.from('stores').update({ is_published: true, settings: testSettings }).eq('id', store.id)
-  if (prepareStoreError) throw prepareStoreError
+
+  if (originalStore) {
+    const testSettings = {
+      ...(store.settings ?? {}),
+      customerConfirmations: false,
+      sellerNotifications: false,
+      vatRegistered: true,
+      vatNumber: 'EE123456789',
+      deliverySettings: { ...((store.settings ?? {}).deliverySettings ?? {}), pickupEnabled: true },
+    }
+    const { error: prepareStoreError } = await admin.from('stores').update({
+      is_published: true,
+      settings: testSettings,
+    }).eq('id', store.id)
+    if (prepareStoreError) throw prepareStoreError
+  }
   const { error: productError } = await admin.from('products').insert({
     id: productId,
     store_id: store.id,
@@ -231,4 +273,5 @@ try {
   if (store && originalStore) {
     await admin.from('stores').update(originalStore).eq('id', store.id)
   }
+  if (userId) await admin.auth.admin.deleteUser(userId).catch(() => null)
 }

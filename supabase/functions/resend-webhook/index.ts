@@ -13,6 +13,14 @@ const requiredEnv = (name: string) => {
   return value
 }
 
+const createAdminClient = () => createClient(
+  requiredEnv('SUPABASE_URL'),
+  requiredEnv('POERUUM_SUPABASE_SECRET_KEY'),
+  { auth: { persistSession: false, autoRefreshToken: false } },
+)
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
 const deliveryStatus: Record<string, string> = {
   'email.sent': 'sent',
   'email.delivered': 'delivered',
@@ -113,7 +121,7 @@ const fetchReceivedEmail = async (emailId: string, apiKey: string) => {
 }
 
 const saveFirstAttachment = async (
-  admin: ReturnType<typeof createClient>,
+  admin: AdminClient,
   received: ReceivedEmail,
   emailId: string,
   conversationId: string,
@@ -233,13 +241,11 @@ Deno.serve(async (request) => {
     return json({ error: 'Invalid webhook' }, 400)
   }
 
-  let receiptAdmin: ReturnType<typeof createClient> | null = null
+  let receiptAdmin: AdminClient | null = null
   let receiptStored = false
   try {
     const apiKey = requiredEnv('RESEND_API_KEY')
-    const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
-      auth: { persistSession: false, autoRefreshToken: false },
-    })
+    const admin = createAdminClient()
     receiptAdmin = admin
     const { error: receiptError } = await admin.from('resend_webhook_events').insert({ id: eventId, event_type: event.type })
     if (receiptError?.code === '23505') return json({ ok: true, duplicate: true })

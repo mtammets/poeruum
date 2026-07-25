@@ -19,10 +19,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -30,16 +30,11 @@ jobs:
       - name: Install exact dependencies
         run: npm ci
 
-      - name: Set up Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
       - name: Lint
         run: npm run lint
 
       - name: Type-check Edge Functions
-        run: deno check --node-modules-dir=auto --minimum-dependency-age=0 supabase/functions/*/index.ts
+        run: npm run check:edge
 
       - name: Unit tests
         run: npm run test
@@ -56,10 +51,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm

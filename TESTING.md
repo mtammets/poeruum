@@ -25,11 +25,20 @@ Töövoos on kolm sõltumatut kaitset:
 - tootmise Supabase’i projektiviidet `foctericixquaogwboqg` ei kustutata kunagi;
 - Stripe’i võti peab algama `sk_test_`.
 
-GitHubi `staging` environment vajab ainult kahte saladust:
+GitHubi `staging` environment vajab kolme saladust:
 
 - `SUPABASE_ACCESS_TOKEN`, millel on õigus ajutisi projekte luua ja kustutada;
 - `STRIPE_SECRET_KEY`, mis peab olema Stripe’i testrežiimi `sk_test_` võti.
+- `RESEND_API_KEY`, mida kasutatakse ainult klienditoe testkirja saatmiseks
+  Resendi kontrollsaajale.
 
 Lokaalses `.env` failis võib testvõtme hoida tootmisvõtmest eraldi nimega `STRIPE_TEST_SECRET_KEY`. Seda väärtust ei tohi vestlusse ega Gitisse kopeerida.
 
-Test loob dünaamiliselt webhook endpoint’i, 29 € testhinna ja 24% testmaksumäära. Seejärel rakendatakse värskele Supabase’i projektile kõik migratsioonid ja vajalikud Edge Functionid. Testid loovad ainult ajutisi kasutajaid, poode, Stripe Checkout Sessioneid, kliente ja subscription’e.
+Test loob dünaamiliselt Stripe’i webhook endpoint’i, Connect testkonto, 29 €
+testhinna ja 24% testmaksumäära. Seejärel rakendatakse värskele Supabase’i
+projektile kõik migratsioonid ja vajalikud Edge Functionid. Testid katavad
+reserveeringute atomaarse limiidi, poe makse ja müüja settlement’i, konto
+kustutamise, Stripe Billingu, klienditoe toimingud ning Resendi webhooki
+allkirja ja kohaletoimetamise oleku. Testid loovad ainult ajutisi kasutajaid,
+poode, Stripe Checkout Sessioneid, kliente, subscription’e ja testrežiimi
+Connect konto.

@@ -30,15 +30,16 @@ jobs:
       SUPABASE_ORGANIZATION_ID: chotrrarsdhcqhvloulo
       STRIPE_MODE: test
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       STRIPE_E2E_APP_URL: http://127.0.0.1:5173
       APP_URL: http://127.0.0.1:5173
       STRIPE_E2E_SCENARIO: ${{ inputs.stripe_scenario }}
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -55,6 +56,10 @@ jobs:
           fi
           if [[ "$STRIPE_SECRET_KEY" != sk_test_* ]]; then
             echo "::error::Ephemeral E2E accepts only a Stripe sk_test_ key."
+            exit 1
+          fi
+          if [[ "$RESEND_API_KEY" != re_* ]]; then
+            echo "::error::Staging secret RESEND_API_KEY is missing or invalid."
             exit 1
           fi
 
@@ -78,6 +83,9 @@ jobs:
         run: |
           RATE_LIMIT_SALT="$(openssl rand -hex 32)"
           ONBOARDING_CRON_SECRET="$(openssl rand -hex 32)"
+          RESEND_WEBHOOK_SECRET="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$RESEND_WEBHOOK_SECRET"
+          echo "RESEND_WEBHOOK_SECRET=$RESEND_WEBHOOK_SECRET" >> "$GITHUB_ENV"
           npx supabase secrets set \
             STRIPE_MODE="$STRIPE_MODE" \
             STRIPE_SECRET_KEY="$STRIPE_SECRET_KEY" \
@@ -89,6 +97,11 @@ jobs:
             POERUUM_SUPABASE_SECRET_KEY="$SUPABASE_SECRET_KEY" \
             RATE_LIMIT_SALT="$RATE_LIMIT_SALT" \
             ONBOARDING_CRON_SECRET="$ONBOARDING_CRON_SECRET" \
+            RESEND_API_KEY="$RESEND_API_KEY" \
+            RESEND_WEBHOOK_SECRET="$RESEND_WEBHOOK_SECRET" \
+            RESEND_FROM_EMAIL="Poeruum <teavitused@send.poeruum.ee>" \
+            SUPPORT_PUBLIC_EMAIL="info@poeruum.ee" \
+            SUPPORT_REPLY_TO="info@poeruum.ee" \
             --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Deploy temporary Edge Functions
@@ -99,6 +112,8 @@ jobs:
           npx supabase functions deploy stripe-store-checkout --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy stripe-reservation-reaper --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy delete-account --project-ref "$SUPABASE_PROJECT_REF"
+          npx supabase functions deploy support-actions --project-ref "$SUPABASE_PROJECT_REF"
+          npx supabase functions deploy resend-webhook --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
 
       - name: Lint temporary database
         run: npx supabase db lint --linked --schema public,extensions --level warning --fail-on warning
@@ -122,11 +137,20 @@ jobs:
       - name: Reservation and fee cap E2E
         run: npm run test:reservation-cap
 
+      - name: Stripe store settlement E2E
+        run: npm run test:stripe-settlement
+
       - name: Account deletion E2E
         run: npm run test:account-deletion
 
       - name: Stripe Billing browser E2E
         run: npm run test:stripe-billing
+
+      - name: Support actions E2E
+        run: npm run supabase:support:test-actions
+
+      - name: Resend webhook signature and delivery-state E2E
+        run: npm run supabase:support:test-webhook:staging
 
       - name: Upload frontend log on failure
         if: failure()

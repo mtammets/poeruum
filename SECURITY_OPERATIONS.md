@@ -48,8 +48,11 @@ GitHubi teavitusena.
 npm run supabase:auth-security
 npm run security:headers:apply
 npm run security:headers:verify
+npm run deploy:gate:verify
 curl --fail https://foctericixquaogwboqg.supabase.co/functions/v1/health-check
 ```
 
 Renderi päiseid haldab `scripts/configure-render-security.mjs`. Muudatuse järel
 tuleb päris vastust kontrollida ka `curl -I https://poeruum.ee/` abil.
+Renderi automaatne deploy peab olema väärtusega `After CI Checks Pass`; seda
+rakendab `npm run deploy:gate:apply` ja kontrollib `npm run deploy:gate:verify`.
