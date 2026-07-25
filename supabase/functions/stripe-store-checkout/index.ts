@@ -32,8 +32,6 @@ type CheckoutBody = {
 const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
 const moneyToCents = (value: unknown) => Math.max(0, Math.round(Number(value ?? 0) * 100))
 const VAT_RATE = 0.24
-const PLATFORM_FEE_RATE = 0.04
-const PLATFORM_FEE_NET_CAP_CENTS = 3900
 const storefrontRootDomain = (configured: string) => (Deno.env.get('STOREFRONT_ROOT_DOMAIN')?.trim()
   || new URL(configured).hostname.replace(/^www\./, '')).toLowerCase().replace(/^\.+|\.+$/g, '')
 
@@ -177,28 +175,6 @@ Deno.serve(async (request) => {
       price_data: { currency: 'eur', unit_amount: deliveryCents, product_data: { name: 'Tarne', description: body.delivery.label } },
     })
 
-    let applicationFeeNetCents = 0
-    let applicationFeeVatCents = 0
-    let applicationFeeCents = 0
-    if (store.pricing_plan === 'flexible') {
-      const monthStart = new Date()
-      monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0)
-      const { data: fees, error: feeError } = await admin.from('revenue_events').select('amount_cents,kind,metadata')
-        .eq('store_id', storeId).gte('occurred_at', monthStart.toISOString()).in('kind', ['transaction_fee', 'transaction_fee_refund'])
-      if (feeError) throw feeError
-      const collectedNetThisMonth = (fees ?? []).reduce((sum, fee) => {
-        const metadata = asRecord(fee.metadata)
-        const recordedNet = Number(metadata.net_amount_cents)
-        return sum + (Number.isFinite(recordedNet) ? recordedNet : Number(fee.amount_cents))
-      }, 0)
-      applicationFeeNetCents = Math.min(
-        Math.round(productSubtotalCents * PLATFORM_FEE_RATE),
-        Math.max(0, PLATFORM_FEE_NET_CAP_CENTS - collectedNetThisMonth),
-      )
-      applicationFeeVatCents = Math.round(applicationFeeNetCents * VAT_RATE)
-      applicationFeeCents = applicationFeeNetCents + applicationFeeVatCents
-    }
-
     const orderNumber = `PR-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`
     const totalCents = productSubtotalCents + deliveryCents
     const reservationExpiresAt = new Date(Date.now() + 35 * 60 * 1000).toISOString()
@@ -222,14 +198,17 @@ Deno.serve(async (request) => {
       if (orderError.message.includes('CHECKOUT_REQUEST_REUSED')) return json({ error: 'Maksepäringu andmed muutusid. Proovi uuesti.' }, 409)
       throw orderError
     }
+    // The database reserves the monthly allowance in the same per-store
+    // transaction as stock, so concurrent checkouts cannot exceed the cap.
+    const applicationFeeNetCents = Math.max(0, Number(order.stripe_platform_fee_net_cents ?? 0))
+    const applicationFeeVatCents = Math.max(0, Number(order.stripe_platform_fee_vat_cents ?? 0))
+    const applicationFeeCents = applicationFeeNetCents + applicationFeeVatCents
     const sellerVatAmount = sellerVatRegistered ? Math.round(totalCents * VAT_RATE / (1 + VAT_RATE)) / 100 : 0
     const { error: vatSnapshotError } = await admin.from('orders').update({
       seller_vat_registered: sellerVatRegistered,
       seller_vat_number: sellerVatRegistered ? sellerVatNumber : null,
       seller_vat_rate: sellerVatRegistered ? VAT_RATE * 100 : null,
       seller_vat_amount: sellerVatAmount,
-      stripe_platform_fee_net_cents: applicationFeeNetCents,
-      stripe_platform_fee_vat_cents: applicationFeeVatCents,
     }).eq('id', order.id)
     if (vatSnapshotError) {
       await admin.rpc('release_stripe_order', { target_order_id: order.id })
