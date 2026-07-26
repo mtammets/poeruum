@@ -1,7 +1,7 @@
 services:
   - type: web
     runtime: node
-    name: poeruum-web
+    name: poeruum
     plan: starter
     buildCommand: npm ci && npm run build
     startCommand: npm start
