@@ -46,6 +46,7 @@ type SetupStep = {
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
 type AdminView = 'overview' | 'homepage' | 'seo' | 'support' | 'users'
+type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
   overview: { path: '/admin', title: 'Ülevaade' },
@@ -330,6 +331,7 @@ export default function AdminApp() {
   const [isSocialImageUpdating, setIsSocialImageUpdating] = useState(false)
   const [socialImageError, setSocialImageError] = useState('')
   const [socialImageNotice, setSocialImageNotice] = useState('')
+  const [socialPreviewPlatform, setSocialPreviewPlatform] = useState<SocialPreviewPlatform>('facebook')
   const [seoSettings, setSeoSettings] = useState<HomepageSeoSettings>(defaultHomepageSeoSettings)
   const [seoDraft, setSeoDraft] = useState<HomepageSeoSettings>(defaultHomepageSeoSettings)
   const [isSeoSaving, setIsSeoSaving] = useState(false)
@@ -824,10 +826,12 @@ export default function AdminApp() {
               <label>
                 <span><strong>Jagamise pealkiri</strong><small>{seoTextLength(seoDraft.social_title)}/95</small></span>
                 <input value={seoDraft.social_title} maxLength={95} onChange={(event) => setSeoDraft((current) => ({ ...current, social_title: event.target.value }))} />
+                <small>Kuvatakse jagamiskaardi pealkirjana pildi all.</small>
               </label>
               <label>
                 <span><strong>Jagamise kirjeldus</strong><small>{seoTextLength(seoDraft.social_description)}/200</small></span>
                 <textarea rows={3} value={seoDraft.social_description} maxLength={200} onChange={(event) => setSeoDraft((current) => ({ ...current, social_description: event.target.value }))} />
+                <small>Kuvatakse pealkirja järel, kui valitud kanal selleks ruumi jätab.</small>
               </label>
             </section>
           </form>
@@ -851,11 +855,57 @@ export default function AdminApp() {
               {socialImageError && <p className="is-error" role="alert">{socialImageError}</p>}
               {socialImageNotice && <p className="is-success" role="status">{socialImageNotice}</p>}
             </div>
-            <div className="admin-social-image__preview">
-              {socialImageUrl
-                ? <img src={socialImageUrl} alt="Poeruumi jagamispildi eelvaade" />
-                : <div className="admin-social-image__empty"><strong>Jagamispilt puudub</strong><span>Laadi pilt üles Supabase Storage’isse.</span></div>}
-              <div><small>poeruum.ee</small><strong>{seoDraft.social_title}</strong><span>{seoDraft.social_description}</span></div>
+            <div className="admin-social-image__previews">
+              <div className="admin-social-image__tabs" role="tablist" aria-label="Jagamiskaardi kanali eelvaade">
+                {([
+                  ['facebook', 'Facebook'],
+                  ['linkedin', 'LinkedIn'],
+                  ['slack', 'Slack'],
+                ] as const).map(([platform, label]) => <button
+                  type="button"
+                  role="tab"
+                  aria-selected={socialPreviewPlatform === platform}
+                  className={socialPreviewPlatform === platform ? 'is-active' : undefined}
+                  key={platform}
+                  onClick={() => setSocialPreviewPlatform(platform)}
+                >{label}</button>)}
+              </div>
+
+              <div className={`admin-social-image__preview is-${socialPreviewPlatform}`} role="tabpanel">
+                {socialPreviewPlatform !== 'slack' && <header>
+                  <i>P</i>
+                  <span><strong>Poeruum</strong><small>{socialPreviewPlatform === 'facebook' ? 'Jagatud link · 🌐' : '1 248 jälgijat · 1 min'}</small></span>
+                  <b aria-hidden="true">•••</b>
+                </header>}
+
+                {socialPreviewPlatform === 'slack' && <header>
+                  <i>P</i>
+                  <span><strong>Poeruum</strong><small>10:11</small></span>
+                </header>}
+
+                <div className="admin-social-image__post-copy">
+                  <span>{socialPreviewPlatform === 'slack' ? 'Jagaja kirjutatud sõnum või link' : 'Jagaja lisatud postituse tekst'}</span>
+                  <small>Seda teksti ei määra veebilehe seaded.</small>
+                </div>
+
+                <div className="admin-social-image__card">
+                  {socialImageUrl
+                    ? <img src={socialImageUrl} alt="Poeruumi jagamispildi eelvaade" />
+                    : <div className="admin-social-image__empty"><strong>Jagamispilt puudub</strong><span>Laadi pilt üles, et näha täielikku eelvaadet.</span></div>}
+                  <div className="admin-social-image__card-copy">
+                    <small>POERUUM.EE</small>
+                    <strong>{seoDraft.social_title || 'Jagamise pealkiri'}</strong>
+                    <span>{seoDraft.social_description || 'Jagamise kirjeldus kuvatakse siin.'}</span>
+                  </div>
+                </div>
+
+                {socialPreviewPlatform !== 'slack' && <footer aria-hidden="true">
+                  <span>{socialPreviewPlatform === 'facebook' ? '♡  Meeldib' : '♡  Meeldib'}</span>
+                  <span>▢  Kommenteeri</span>
+                  <span>↗  Jaga</span>
+                </footer>}
+              </div>
+              <p>Tegelik välimus võib rakenduse ja seadme järgi veidi erineda. Eelvaade näitab, millist pilti ja teksti kanal kasutab.</p>
             </div>
           </section>
 
