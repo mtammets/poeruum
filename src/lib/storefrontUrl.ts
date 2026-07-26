@@ -53,8 +53,21 @@ export function getRequestedProductSlug(location: Pick<Location, 'pathname'>) {
 
 export const getProductUrlSlug = (product: { id: string; slug?: string }) => product.slug || product.id
 
-export function getStorefrontCanonicalUrl(storeSlug: string, product?: { id: string; slug?: string }) {
-  const base = `https://${STOREFRONT_ROOT_DOMAIN}/p/${encodeURIComponent(storeSlug)}`
+export function isDedicatedStorefrontHostname(hostname: string, rootDomain = STOREFRONT_ROOT_DOMAIN) {
+  const normalized = hostname.toLowerCase().replace(/\.$/, '')
+  return getStoreSlugFromHostname(normalized, rootDomain) !== null
+    || (normalized !== rootDomain
+      && normalized !== `www.${rootDomain}`
+      && !['localhost', '127.0.0.1'].includes(normalized))
+}
+
+export function getStorefrontCanonicalUrl(
+  storeSlug: string,
+  product?: { id: string; slug?: string },
+  hostname = `${storeSlug}.${STOREFRONT_ROOT_DOMAIN}`,
+) {
+  const normalizedHostname = hostname.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\.$/, '')
+  const base = `https://${normalizedHostname}`
   return product ? `${base}/toode/${encodeURIComponent(getProductUrlSlug(product))}/` : `${base}/`
 }
 

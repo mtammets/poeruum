@@ -50,7 +50,8 @@ Sitemap: ${platformOrigin}/sitemap.xml
     for (const store of catalog) {
       const storeSlug = String(store.store_slug)
       if (excludedStoreSlugs.has(storeSlug.toLowerCase())) continue
-      const storeUrl = `${platformOrigin}/p/${encodeURIComponent(storeSlug)}/`
+      const primaryHostname = String(store.primary_hostname || `${storeSlug}.poeruum.ee`)
+      const storeUrl = `https://${primaryHostname}/`
       urls.push(storeUrl)
       for (const product of Array.isArray(store.products) ? store.products : []) {
         const productSlug = String(product.slug || product.id)

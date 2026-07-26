@@ -1,0 +1,9 @@
+services:
+  - type: web
+    runtime: node
+    name: poeruum-web
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeployTrigger: checksPass

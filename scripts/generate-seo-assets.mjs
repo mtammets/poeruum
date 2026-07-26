@@ -264,14 +264,15 @@ for (const excludedSlug of excludedStoreSlugs) {
 for (const store of catalog.filter((entry) => !excludedStoreSlugs.has(String(entry.store_slug).toLowerCase()))) {
   const storeSlug = String(store.store_slug)
   const storeName = String(store.store_name)
-  const storeUrl = `${platformOrigin}/p/${encodeURIComponent(storeSlug)}/`
+  const primaryHostname = String(store.primary_hostname || `${storeSlug}.poeruum.ee`)
+  const storeUrl = `https://${primaryHostname}/`
   const storeDescription = cleanDescription(store.store_description, `${storeName} e-pood Poeruumis.`)
   const storeLogo = absoluteImageUrl(store.store_logo)
   const products = Array.isArray(store.products) ? store.products : []
   const storeImage = storeLogo || absoluteImageUrl(products[0]?.image_url)
 
   await writePage(`p/${storeSlug}`, renderPage({
-    title: `${storeName} – e-pood`,
+    title: String(store.store_seo_title || `${storeName} – e-pood`),
     description: storeDescription,
     canonicalUrl: storeUrl,
     imageUrl: storeImage,
@@ -287,12 +288,6 @@ for (const store of catalog.filter((entry) => !excludedStoreSlugs.has(String(ent
     },
   }))
   storePageCount += 1
-  sitemapEntries.push({
-    url: storeUrl,
-    lastModified: store.store_updated_at,
-    changeFrequency: 'daily',
-    priority: '0.8',
-  })
 
   for (const product of products) {
     const productSlug = safeProductSlug(product)
@@ -331,12 +326,6 @@ for (const store of catalog.filter((entry) => !excludedStoreSlugs.has(String(ent
       },
     }))
     productPageCount += 1
-    sitemapEntries.push({
-      url: productUrl,
-      lastModified: product.updated_at,
-      changeFrequency: 'daily',
-      priority: '0.7',
-    })
   }
 }
 

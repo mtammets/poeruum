@@ -5,7 +5,7 @@ import { products, type Product, type ProductImageAsset, type ProductImageTransf
 import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
-import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, getStoreSlugFromHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
+import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
 import {
   createCheckoutRequestId,
@@ -655,6 +655,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [editableStoreName, setEditableStoreName] = useState(storeName)
   const [storeTagline, setStoreTagline] = useState('')
   const [storeDescription, setStoreDescription] = useState(() => storeSlug ? '' : 'Hoolikalt valitud esemed, mis muudavad argipäeva natuke põnevamaks.')
+  const [storeSeoTitle, setStoreSeoTitle] = useState('')
+  const [storeSeoDescription, setStoreSeoDescription] = useState('')
+  const [productBrand, setProductBrand] = useState('')
+  const [searchConsoleVerification, setSearchConsoleVerification] = useState('')
   const [storeAboutImage, setStoreAboutImage] = useState<string | null>(null)
   const [isStoreVisible, setIsStoreVisible] = useState(true)
   const [contactEmail, setContactEmail] = useState('')
@@ -752,6 +756,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [editImageUploads, setEditImageUploads] = useState<EditImageUpload[]>([])
   const [editProductStock, setEditProductStock] = useState('')
   const [editProductOneOfAKind, setEditProductOneOfAKind] = useState(false)
+  const [editProductSeoTitle, setEditProductSeoTitle] = useState('')
+  const [editProductSlug, setEditProductSlug] = useState('')
+  const [editProductAlt, setEditProductAlt] = useState('')
+  const [editProductSearchVisible, setEditProductSearchVisible] = useState(true)
   const [editProductOptionType, setEditProductOptionType] = useState<'none' | 'Suurus' | 'Värv'>('none')
   const [editProductOptionValues, setEditProductOptionValues] = useState('')
   const [isCustomProductOptionOpen, setIsCustomProductOptionOpen] = useState(false)
@@ -787,6 +795,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const settingsSnapshot = JSON.stringify({
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeTagline, storeDescription, storeAboutImage,
+    seoTitle: storeSeoTitle, seoDescription: storeSeoDescription, productBrand, searchConsoleVerification,
     isStoreVisible, contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, vatRegistered, vatNumber, returnsText, orderNotificationEmail,
     billingPlan, sellerNotifications, customerConfirmations,
@@ -813,6 +822,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (value.editableStoreName) setEditableStoreName(value.editableStoreName)
     if (value.storeTagline != null) setStoreTagline(value.storeTagline)
     if (value.storeDescription != null) setStoreDescription(value.storeDescription)
+    if (value.seoTitle != null) setStoreSeoTitle(value.seoTitle)
+    if (value.seoDescription != null) setStoreSeoDescription(value.seoDescription)
+    if (value.productBrand != null) setProductBrand(value.productBrand)
+    if (value.searchConsoleVerification != null) setSearchConsoleVerification(value.searchConsoleVerification)
     if ('storeAboutImage' in value) setStoreAboutImage(value.storeAboutImage)
     if (typeof value.isStoreVisible === 'boolean') setIsStoreVisible(value.isStoreVisible)
     if (value.contactEmail != null) setContactEmail(value.contactEmail)
@@ -1114,6 +1127,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setEditProductImageVariants(activeProduct.imageVariants ?? {})
     setEditProductStock(activeProduct.stock === undefined ? '' : String(activeProduct.stock))
     setEditProductOneOfAKind(Boolean(activeProduct.oneOfAKind))
+    setEditProductSeoTitle(activeProduct.seoTitle ?? '')
+    setEditProductSlug(activeProduct.slug || createUrlSlug(activeProduct.name))
+    setEditProductAlt(activeProduct.alt || activeProduct.name)
+    setEditProductSearchVisible(activeProduct.searchVisible !== false)
     const option = activeProduct.options?.[0]
     setEditProductOptionType(option?.name === 'Suurus' || option?.name === 'Värv' ? option.name : 'none')
     setEditProductOptionValues(option?.values.join(', ') ?? '')
@@ -1653,8 +1670,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     const product = displayProducts[index]
     if (!isSeoStorefront || !storeSlug || !product) return
     const nextSlug = getProductUrlSlug(product)
-    const hostnameStoreSlug = getStoreSlugFromHostname(window.location.hostname)
-    const nextPath = hostnameStoreSlug
+    const nextPath = isDedicatedStorefrontHostname(window.location.hostname)
       ? `/toode/${encodeURIComponent(nextSlug)}/`
       : getStorefrontPath(storeSlug, product)
     window.history.pushState({}, '', `${nextPath}${window.location.search}`)
@@ -1753,17 +1769,21 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     const description = seoProduct
       ? (seoProduct.description || `${seoProduct.name} e-poes ${editableStoreName}.`).trim().slice(0, 160)
       : (storeDescription || `${editableStoreName} e-pood Poeruumis.`).trim().slice(0, 160)
-    const canonicalUrl = getStorefrontCanonicalUrl(storeSlug, seoProduct ?? undefined)
+    const canonicalHostname = isDedicatedStorefrontHostname(window.location.hostname)
+      ? window.location.hostname
+      : `${storeSlug}.${STOREFRONT_ROOT_DOMAIN}`
+    const canonicalUrl = getStorefrontCanonicalUrl(storeSlug, seoProduct ?? undefined, canonicalHostname)
     const price = seoProduct ? getProductPrice(seoProduct) : 0
     const available = seoProduct ? getProductStockLimit(seoProduct) > 0 : false
 
     applySeoMetadata({
-      title: seoProduct ? (seoProduct.seoTitle || `${seoProduct.name} – ${editableStoreName}`) : `${editableStoreName} – e-pood`,
-      description,
+      title: seoProduct ? (seoProduct.seoTitle || `${seoProduct.name} – ${editableStoreName}`) : (storeSeoTitle || `${editableStoreName} – e-pood`),
+      description: seoProduct ? description : (storeSeoDescription || description),
       canonicalUrl,
       imageUrl: seoProduct?.image || storeLogo || undefined,
       type: seoProduct ? 'product' : 'website',
       noIndex: isLocalSeoPreview() || seoProduct?.searchVisible === false,
+      searchConsoleVerification: searchConsoleVerification || undefined,
       structuredData: seoProduct ? {
         '@context': 'https://schema.org',
         '@type': 'Product',
@@ -1773,7 +1793,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           .map((image) => new URL(image, window.location.origin).toString()),
         sku: seoProduct.id,
         url: canonicalUrl,
-        brand: { '@type': 'Brand', name: editableStoreName },
+        brand: { '@type': 'Brand', name: productBrand || editableStoreName },
         offers: {
           '@type': 'Offer',
           priceCurrency: 'EUR',
@@ -1793,7 +1813,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     })
   }, [
     isSeoStorefront, storeSlug, productRouteSlug, displayProducts, editableStoreName,
-    storeDescription, storeLogo,
+    storeDescription, storeLogo, storeSeoTitle, storeSeoDescription, productBrand, searchConsoleVerification,
   ])
   const editOptionValues = editProductOptionValues.split(',').map((value) => value.trim()).filter(Boolean)
   const editOptionPresets = editProductOptionType === 'Suurus' ? ['XS', 'S', 'M', 'L', 'XL'] : ['Must', 'Valge', 'Sinine', 'Roheline', 'Punane']
@@ -1938,7 +1958,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       gallery: editProductImages.length ? editProductImages : (activeProduct.gallery ?? [activeProduct.image]),
       imageTransforms: Object.fromEntries(editProductImages.flatMap((image) => editImageTransforms[image] ? [[image, editImageTransforms[image]]] : [])),
       imageVariants: Object.fromEntries(editProductImages.flatMap((image) => editProductImageVariants[image] ? [[image, editProductImageVariants[image]]] : [])),
-      slug: activeProduct.slug || createUrlSlug(name),
+      slug: createUrlSlug(editProductSlug) || activeProduct.slug || createUrlSlug(name),
+      seoTitle: editProductSeoTitle.trim() || undefined,
+      alt: editProductAlt.trim() || name,
+      searchVisible: editProductSearchVisible,
       stock: editProductOneOfAKind ? 1 : stock,
       oneOfAKind: editProductOneOfAKind,
       options: editProductOptionType !== 'none' && optionValues.length ? [{ name: editProductOptionType, values: optionValues }] : [],
@@ -1977,6 +2000,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setEditProductImageVariants({})
     setEditProductStock('')
     setEditProductOneOfAKind(false)
+    setEditProductSeoTitle('')
+    setEditProductSlug('')
+    setEditProductAlt('')
+    setEditProductSearchVisible(true)
     setEditProductOptionType('none')
     setEditProductOptionValues('')
     setIsEditOpen(false)
@@ -2182,7 +2209,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const shareActiveProduct = async () => {
     if (!activeProduct) return
     const url = new URL(storeSlug
-      ? getStorefrontCanonicalUrl(storeSlug, activeProduct)
+      ? getStorefrontCanonicalUrl(
+        storeSlug,
+        activeProduct,
+        isDedicatedStorefrontHostname(window.location.hostname)
+          ? window.location.hostname
+          : customDomainStatus === 'active' && customDomain
+            ? customDomain
+            : `${storeSlug}.${STOREFRONT_ROOT_DOMAIN}`,
+      )
       : window.location.href)
     const shareData = { title: activeProduct.name, text: activeProduct.description || activeProduct.name, url: url.toString() }
     if (navigator.share) {
@@ -2200,7 +2235,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setShowCopiedToast(true)
   }
 
-  const storePublicUrl = `${storeSlug || createUrlSlug(editableStoreName) || 'minu-pood'}.poeruum.ee`
+  const storePublicUrl = customDomainStatus === 'active' && customDomain
+    ? customDomain
+    : `${storeSlug || createUrlSlug(editableStoreName) || 'minu-pood'}.poeruum.ee`
   const copyStoreUrl = async () => {
     const url = `https://${storePublicUrl}`
     await copyTextToClipboard(url)
@@ -2489,6 +2526,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   return (
     <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
+      {isSeoStorefront && storeSlug && <nav className="storefront-product-links" aria-label="Kõik poe tooted">
+        <a href="/">Poe avaleht</a>
+        {displayProducts.filter((product) => product.searchVisible !== false).map((product) =>
+          <a href={`/toode/${encodeURIComponent(getProductUrlSlug(product))}/`} key={product.id}>{product.name}</a>)}
+      </nav>}
       <input ref={desktopGalleryInputRef} className="source-file-input" type="file" accept="image/*" multiple onChange={(event) => { chooseAddProductImages(event.target.files); event.target.value = '' }} />
       <section className="story-stage">
         {hasPreviewBar && onExit && <div className={`platform-preview-bar${isExitAttentionActive ? ' is-exit-blocked' : ''}`}>
@@ -2718,6 +2760,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             {isCustomProductOptionOpen && <div><input autoFocus value={customProductOption} onChange={(event) => setCustomProductOption(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addCustomProductOption() } }} placeholder="Lisa valik" /><button type="button" onClick={addCustomProductOption} aria-label="Lisa valik">+</button></div>}
           </div>}
         </div>}
+        {isEditOpen && <details className="product-inline-seo">
+          <summary><span><strong>Google ja jagamine</strong><small>Pealkiri, aadress ja nähtavus</small></span><b>Muuda</b></summary>
+          <div>
+            <label>Otsingu pealkiri<input value={editProductSeoTitle} maxLength={60} onChange={(event) => setEditProductSeoTitle(event.target.value)} placeholder={`${activeProduct.name} – ${editableStoreName}`} /></label>
+            <label>Lehe aadress<span className="product-inline-seo__slug">/toode/<input value={editProductSlug} onChange={(event) => setEditProductSlug(createUrlSlug(event.target.value))} /></span></label>
+            <label>Pildi kirjeldus<input value={editProductAlt} maxLength={160} onChange={(event) => setEditProductAlt(event.target.value)} placeholder={activeProduct.name} /></label>
+            <label className="settings-toggle"><span><strong>Nähtav otsingumootorites</strong><small>Peitmisel eemaldatakse toode sitemap’ist ja lisatakse noindex.</small></span><input type="checkbox" checked={editProductSearchVisible} onChange={(event) => setEditProductSearchVisible(event.target.checked)} /><i /></label>
+          </div>
+        </details>}
         {!isEditOpen && activeProduct.options?.map((option) => <fieldset className="product-option" key={option.name}>
           <legend><span>{option.name}</span><small>{activeProductSelections[option.name]}</small></legend>
           <div>{option.values.map((value) => <button
@@ -2921,6 +2972,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
               <label>Poe slogan<input value={storeTagline} maxLength={100} onChange={(event) => setStoreTagline(event.target.value)} placeholder="Lühike lause sinu poe kohta" /><small className="settings-field-note">Valikuline · kuvatakse poe nime all jaluses · {storeTagline.length}/100</small></label>
               <label>Poe tutvustus<textarea ref={storeDescriptionInputRef} rows={4} maxLength={600} value={storeDescription} onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu pood pakub ja miks see eriline on." /><small className="settings-field-note">Kuvatakse ostjale poe jaluses · {storeDescription.length}/600</small></label>
+              <details className="settings-seo-editor">
+                <summary><span><strong>Google ja jagamine</strong><small>Vaikimisi kasutab Poeruum poe nime ja tutvustust</small></span><b>Muuda</b></summary>
+                <div>
+                  <label>Otsingu pealkiri<input value={storeSeoTitle} maxLength={70} onChange={(event) => setStoreSeoTitle(event.target.value)} placeholder={`${editableStoreName} – e-pood`} /><small>{(storeSeoTitle || `${editableStoreName} – e-pood`).length}/60 soovituslikku tähemärki</small></label>
+                  <label>Meta kirjeldus<textarea rows={3} value={storeSeoDescription} maxLength={200} onChange={(event) => setStoreSeoDescription(event.target.value)} placeholder={storeDescription || `${editableStoreName} e-pood.`} /><small>{(storeSeoDescription || storeDescription).length}/160 soovituslikku tähemärki</small></label>
+                  <label>Toodete vaikimisi bränd<input value={productBrand} maxLength={120} onChange={(event) => setProductBrand(event.target.value)} placeholder={editableStoreName} /><small>Kui müüd enda valmistatud tooteid, kasuta oma brändi nime.</small></label>
+                  <label>Google Search Console’i kinnituskood<input value={searchConsoleVerification} maxLength={200} onChange={(event) => setSearchConsoleVerification(event.target.value.trim())} placeholder="Google’i HTML tagi content-väärtus" /><small>Valikuline. Kleebi ainult meta tagi content-väärtus.</small></label>
+                </div>
+              </details>
               <div className="settings-about-image">
                 <span className="settings-section-label">Tutvustuse pilt <small>valikuline</small></span>
                 <div>
@@ -2981,7 +3041,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 </div>}
               </div>
             </div>
-            <div className="settings-seo-status"><span>✓</span><div><strong>Otsingumootoritele valmis</strong><small>Indekseeritavad tootelehed, metaandmed, canonical ja sitemap luuakse automaatselt.</small></div><b>Automaatne</b></div>
+            <div className="settings-seo-status"><span>✓</span><div><strong>Otsingumootoritele valmis</strong><small>Avaliku poe indekseeritavad tootelehed, metaandmed, canonical, structured data ja ajakohane sitemap luuakse automaatselt. Google otsustab indekseerimise ja positsiooni.</small></div><b>Automaatne</b></div>
           </div>}
           {settingsSection === 'appearance' && <div className="settings-panel" role="tabpanel">
             <header><span>VÄLIMUS</span><p>Kohanda poe ilmet ja toodete esitlemist.</p></header>
@@ -3396,7 +3456,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                   <label>Otsingu pealkiri <small>{(addProductSeoTitle || `${addProductName || 'Toote nimi'} – ${editableStoreName}`).length}/60</small><input value={addProductSeoTitle} maxLength={60} onChange={(event) => setAddProductSeoTitle(event.target.value)} placeholder={`${addProductName || 'Toote nimi'} – ${editableStoreName}`} /></label>
                   <label>Lehe aadress<div className="product-seo__slug"><span>/toode/</span><input value={addProductSlug} onChange={(event) => { setIsAddProductSlugCustom(true); setAddProductSlug(createUrlSlug(event.target.value)) }} placeholder="toote-nimi" /></div></label>
                   <label className="settings-toggle product-seo__toggle"><span><strong>Nähtav otsingumootorites</strong><small>Väljalülitamisel toodet Google’isse ei lisata</small></span><input type="checkbox" checked={isAddProductSearchVisible} onChange={(event) => setIsAddProductSearchVisible(event.target.checked)} /><i /></label>
-                  <div className="product-seo__automatic"><span>✓</span><p><strong>Tehniline SEO on automaatne</strong><small>Tooteleht, Open Graph, canonical ja sitemap ei vaja eraldi seadistamist.</small></p></div>
+                  <div className="product-seo__automatic"><span>✓</span><p><strong>Tehniline SEO on automaatne</strong><small>Avaldamisel uuenevad tooteleht, Open Graph, canonical, structured data ja sitemap ilma eraldi seadistamiseta. Google otsustab indekseerimise ja positsiooni.</small></p></div>
                 </div>
               </details>
               {addProductError && <p className="add-product-error" role="alert">{addProductError}</p>}

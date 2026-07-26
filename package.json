@@ -14,6 +14,7 @@
     "check": "npm run lint && npm run check:edge && npm run test && npm run build:app && npm audit --omit=dev --audit-level=high",
     "seo:generate": "node scripts/generate-seo-assets.mjs",
     "preview": "vite preview",
+    "start": "node server.mjs",
     "test:stripe-billing": "node scripts/stripe-billing-e2e.mjs",
     "test:stripe-settlement": "node scripts/test-stripe-store-settlement.mjs",
     "test:reservation-cap": "node scripts/test-reservation-cap.mjs",

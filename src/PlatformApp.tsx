@@ -1254,6 +1254,7 @@ function PlatformFlow() {
         <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Stripe’i kaudu saavad kliendid maksta kaardiga ning toetatud seadmetes Apple Pay või Google Payga.</p></details>
         <details><summary>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Toetatud on Omniva, DPD ja SmartPosti pakiautomaadid, kuller ning ise järele tulemine. Tarneviisid ja hinnad valid ise.</p></details>
         <details><summary>Kas saan kasutada oma domeeni ja kujundust?<span>+</span></summary><p>Jah. Võid kasutada Poeruumi aadressi või ühendada oma domeeni. Poe välimuse jaoks saad valida kujunduse, aktsentvärvi, logo ja ostunupu suuruse.</p></details>
+        <details><summary>Kas minu pood ja tooted on Google’is leitavad?<span>+</span></summary><p>Poeruum loob avaldatud poe ja iga otsingus nähtava toote jaoks automaatselt otsingu pealkirja ja kirjelduse, unikaalse aadressi, canonical-viite, sotsiaaljagamise metaandmed, struktureeritud tooteandmed ning ajakohase sitemap’i. Sina saad tulemust parandada täpse tootenime, sisuka kirjelduse ja kvaliteetsete piltidega. Google otsustab ise, millal ja millisel kohal leht otsingus kuvatakse, mistõttu indekseerimist või kindlat positsiooni ei saa garanteerida. Sama tehniline SEO rakendub ka oma domeeni kasutamisel.</p></details>
         <details><summary>Kas saan paketti vahetada?<span>+</span></summary><p>Jah. Paketti saad hiljem mugavalt vahetada. Paindliku paketiga ei ole müügita kuul Poeruumi tasu.</p></details>
       </div>
     </section>

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   getRequestedProductSlug,
   getRequestedStoreSlug,
+  getStorefrontCanonicalUrl,
   getStorefrontPath,
+  isDedicatedStorefrontHostname,
   getStoreSlugFromHostname,
   isReservedStoreSlug,
 } from './storefrontUrl'
@@ -40,5 +42,17 @@ describe('storefront URL parsing', () => {
   it('builds canonical storefront paths', () => {
     expect(getStorefrontPath('minu-pood')).toBe('/p/minu-pood/')
     expect(getStorefrontPath('minu-pood', { id: '1', slug: 'kruus' })).toBe('/p/minu-pood/toode/kruus/')
+  })
+
+  it('builds canonical URLs on the dedicated storefront hostname', () => {
+    expect(getStorefrontCanonicalUrl('minu-pood')).toBe('https://minu-pood.poeruum.ee/')
+    expect(getStorefrontCanonicalUrl('minu-pood', { id: '1', slug: 'kruus' }, 'minupood.ee'))
+      .toBe('https://minupood.ee/toode/kruus/')
+  })
+
+  it('recognizes both Poeruum subdomains and merchant-owned domains', () => {
+    expect(isDedicatedStorefrontHostname('minu-pood.poeruum.ee')).toBe(true)
+    expect(isDedicatedStorefrontHostname('minupood.ee')).toBe(true)
+    expect(isDedicatedStorefrontHostname('poeruum.ee')).toBe(false)
   })
 })

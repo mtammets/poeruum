@@ -167,6 +167,24 @@ button, a, summary { touch-action: manipulation; }
 .platform-faq summary span { display: grid; flex: 0 0 auto; width: 2rem; height: 2rem; place-items: center; border: 1px solid #c7cec5; border-radius: 50%; color: var(--platform-green); font-size: 1.2rem; font-weight: 500; transition: transform 180ms ease, background 180ms ease; }
 .platform-faq details[open] summary span { background: var(--platform-green); color: #fff; transform: rotate(45deg); }
 .platform-faq details p { max-width: 40rem; margin: -.25rem 3.5rem 1.35rem 0; color: #667068; font-size: .86rem; line-height: 1.7; }
+.storefront-product-links { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+.settings-seo-editor { border: 1px solid rgba(23, 35, 28, .12); border-radius: 1rem; }
+.settings-seo-editor summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; cursor: pointer; list-style: none; }
+.settings-seo-editor summary::-webkit-details-marker { display: none; }
+.settings-seo-editor summary span { display: grid; gap: .2rem; }
+.settings-seo-editor summary small, .settings-seo-editor label small { color: #667068; font-size: .72rem; font-weight: 500; }
+.settings-seo-editor summary b { color: var(--platform-green); font-size: .78rem; }
+.settings-seo-editor > div { display: grid; gap: 1rem; padding: 0 1rem 1rem; }
+.product-inline-seo { width: 100%; margin-top: 1rem; border-top: 1px solid rgba(255, 255, 255, .16); }
+.product-inline-seo summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 0; cursor: pointer; list-style: none; }
+.product-inline-seo summary::-webkit-details-marker { display: none; }
+.product-inline-seo summary span { display: grid; gap: .2rem; }
+.product-inline-seo summary small { opacity: .65; font-size: .72rem; }
+.product-inline-seo summary b { font-size: .75rem; }
+.product-inline-seo > div { display: grid; gap: .8rem; padding-bottom: 1rem; }
+.product-inline-seo label { display: grid; gap: .35rem; font-size: .72rem; font-weight: 700; }
+.product-inline-seo input { box-sizing: border-box; width: 100%; padding: .75rem; border: 1px solid rgba(255, 255, 255, .2); border-radius: .65rem; background: rgba(255, 255, 255, .08); color: inherit; }
+.product-inline-seo__slug { display: flex; align-items: center; gap: .35rem; opacity: .8; }
 .platform-footer { display: flex; align-items: center; justify-content: space-between; max-width: 76rem; margin: auto; padding: 2rem; border-top: 1px solid #d7dbd1; color: #7b847e; }
 .platform-footer > div:first-child { display: flex; align-items: center; gap: 1.2rem; }
 .platform-footer p { margin: 0; font-size: .76rem; }

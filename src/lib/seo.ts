@@ -10,6 +10,7 @@ type SeoMetadata = {
   imageType?: string
   type?: 'website' | 'product'
   noIndex?: boolean
+  searchConsoleVerification?: string
   structuredData?: Record<string, unknown>
 }
 
@@ -40,6 +41,7 @@ export const applySeoMetadata = ({
   imageType,
   type = 'website',
   noIndex = false,
+  searchConsoleVerification,
   structuredData,
 }: SeoMetadata) => {
   const resolvedSocialTitle = socialTitle || title
@@ -61,6 +63,14 @@ export const applySeoMetadata = ({
   })
   upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: resolvedSocialTitle })
   upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: resolvedSocialDescription })
+  if (searchConsoleVerification) {
+    upsertMeta('meta[name="google-site-verification"]', {
+      name: 'google-site-verification',
+      content: searchConsoleVerification,
+    })
+  } else {
+    document.head.querySelector('meta[name="google-site-verification"]')?.remove()
+  }
 
   if (imageUrl) {
     const resolvedImageUrl = absoluteUrl(imageUrl)
