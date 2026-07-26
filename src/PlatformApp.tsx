@@ -339,6 +339,7 @@ function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => 
 
 function PlatformFlow() {
   const [screen, setScreen] = useState<Screen>('landing')
+  const [showAllFaq, setShowAllFaq] = useState(false)
   const [email, setEmail] = useState('')
   const [onlineUserId, setOnlineUserId] = useState<string | null>(null)
   const onlinePresenceSessionIdRef = useRef(crypto.randomUUID())
@@ -1252,17 +1253,22 @@ function PlatformFlow() {
         <details open><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Valida saad kahe paketi vahel. Paindlikul paketil kuutasu ei ole: Poeruumi teenustasu on {formatPricingPercent(PLATFORM_FEE_RATE)} toodete müügisummalt + käibemaks ehk kokku {formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))}. Tasu ei arvestata tarnelt ja see ei ületa {formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus koos käibemaksuga. Kui müüki ei ole, on Poeruumi tasu 0 €. Kindel pakett algab 30-päevase tasuta prooviperioodiga ja maksab seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga; Poeruumi müügitasu selle paketiga ei ole. Stripe’i maksetöötlustasu lisandub mõlemas paketis.</p></details>
         <details><summary>Kas paketid erinevad võimaluste poolest?<span>+</span></summary><p>Ei. Mõlemas paketis saad kasutada Poeruumi põhivõimalusi, sealhulgas oma domeeni. Erineb ainult hinnastamise viis: Paindlik pakett sobib müügipõhise tasuga alustamiseks ja Kindel pakett püsiva kuutasu eelistajale.</p></details>
         <details><summary>Mida vajan poe avamiseks?<span>+</span></summary><p>Vajad Poeruumi kontot, ettevõtte kontakt- ja registriandmeid, vähemalt üht toodet, valitud tarneviisi ning ühendatud Stripe’i kontot. Poe saad enne avaldamist rahulikult valmis seadistada ja üle vaadata.</p></details>
-        <details><summary>Kas saan kogu poe telefonis valmis teha?<span>+</span></summary><p>Jah. Telefonis saad luua konto, pildistada ja lisada tooted, määrata hinnad, seadistada tarne, kujundada poe ning selle avaldada.</p></details>
         <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Pärast Stripe’i ühendamist saavad ostjad maksta Stripe’i turvalisel makselehel pangakaardiga ning sobivas seadmes Apple Pay või Google Payga. Poeruum ei salvesta ostjate kaardiandmeid.</p></details>
-        <details><summary>Kas ostjal peab olema Poeruumi konto?<span>+</span></summary><p>Ei. Ostja lisab kassas kontakt- ja tarneandmed, tasub Stripe’is ning saab tellimuse kinnituse e-postile.</p></details>
         <details><summary>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Saad pakkuda Omniva, DPD ja SmartPosti pakiautomaate, kullerit ning ise järele tulemist. Sina valid kasutatavad tarneviisid, hinnad ja tasuta tarne piiri. Ostja valib kassas sobiva pakiautomaadi; paki saatmise korraldad sina.</p></details>
-        <details><summary>Kuidas saan tellimusest teada ja millal raha laekub?<span>+</span></summary><p>Pärast kinnitatud makset ilmub tellimus poe haldusesse ja soovi korral saadetakse sulle e-kiri. Ostjale saadetakse tellimuse kinnitus. Makset töötleb Stripe ning raha jõuab sinu pangakontole Stripe’i väljamaksegraafiku järgi.</p></details>
-        <details><summary>Kas saan ostjale makse tagastada?<span>+</span></summary><p>Jah. Stripe’iga tasutud tellimuse makse saad tellimuste vaates täielikult tagastada. Kauba tagastamise ja kliendisuhtluse korraldad oma müügitingimuste järgi.</p></details>
         <details><summary>Kas saan kasutada oma domeeni?<span>+</span></summary><p>Jah. Poeruum annab poele automaatselt aadressi kujul poenimi.poeruum.ee, kuid soovi korral saad ühendada juba olemasoleva domeeni. Poeruum selle eest lisatasu ei küsi; domeeni teenusepakkuja tasu jääb sulle.</p></details>
-        <details><summary>Kui palju saan poe kujundust muuta?<span>+</span></summary><p>Poe ilme saad kohandada oma brändile sobivaks. Näiteks saad valida kujunduse ja värvid, lisada logo, muuta nuppude ja soodushindade välimust ning lisada teateriba. Valikuid saad hiljem alati muuta.</p></details>
         <details><summary>Kas minu pood ja tooted on Google’is leitavad?<span>+</span></summary><p>Jah. Poeruum hoolitseb automaatselt selle eest, et avaldatud pood ja otsingus nähtavad tooted oleksid Google’ile leitavad. Iga poe ja toote jaoks luuakse otsingusõbralik aadress, pealkiri, kirjeldus ning Google’ile vajalik tehniline info. Sina saad nähtavust parandada täpsete tootenimede, sisukate kirjelduste ja kvaliteetsete piltidega. Kõik see toimib ka oma domeeni kasutamisel.</p></details>
-        <details><summary>Kas saan paketti hiljem vahetada?<span>+</span></summary><p>Jah. Paindlikult paketilt saad Kindlale üle minna poe halduses. Kindlalt paketilt Paindlikule minnes jääb senine pakett kehtima Stripe’is näidatud perioodi lõpuni ja seejärel rakendub Paindlik pakett.</p></details>
-        <details><summary>Kust saan abi?<span>+</span></summary><p>Pärast sisselogimist saad küsimuse saata Abi-nupu kaudu. Vastuseid ja varasemat vestlust näed samas kohas ning vastus saadetakse ka sinu konto e-postile.</p></details>
+        <div className="platform-faq__more" id="faq-more" hidden={!showAllFaq}>
+          <details><summary>Kas saan kogu poe telefonis valmis teha?<span>+</span></summary><p>Jah. Telefonis saad luua konto, pildistada ja lisada tooted, määrata hinnad, seadistada tarne, kujundada poe ning selle avaldada.</p></details>
+          <details><summary>Kas ostjal peab olema Poeruumi konto?<span>+</span></summary><p>Ei. Ostja lisab kassas kontakt- ja tarneandmed, tasub Stripe’is ning saab tellimuse kinnituse e-postile.</p></details>
+          <details><summary>Kuidas saan tellimusest teada ja millal raha laekub?<span>+</span></summary><p>Pärast kinnitatud makset ilmub tellimus poe haldusesse ja soovi korral saadetakse sulle e-kiri. Ostjale saadetakse tellimuse kinnitus. Makset töötleb Stripe ning raha jõuab sinu pangakontole Stripe’i väljamaksegraafiku järgi.</p></details>
+          <details><summary>Kas saan ostjale makse tagastada?<span>+</span></summary><p>Jah. Stripe’iga tasutud tellimuse makse saad tellimuste vaates täielikult tagastada. Kauba tagastamise ja kliendisuhtluse korraldad oma müügitingimuste järgi.</p></details>
+          <details><summary>Kui palju saan poe kujundust muuta?<span>+</span></summary><p>Poe ilme saad kohandada oma brändile sobivaks. Näiteks saad valida kujunduse ja värvid, lisada logo, muuta nuppude ja soodushindade välimust ning lisada teateriba. Valikuid saad hiljem alati muuta.</p></details>
+          <details><summary>Kas saan paketti hiljem vahetada?<span>+</span></summary><p>Jah. Paindlikult paketilt saad Kindlale üle minna poe halduses. Kindlalt paketilt Paindlikule minnes jääb senine pakett kehtima Stripe’is näidatud perioodi lõpuni ja seejärel rakendub Paindlik pakett.</p></details>
+          <details><summary>Kust saan abi?<span>+</span></summary><p>Pärast sisselogimist saad küsimuse saata Abi-nupu kaudu. Vastuseid ja varasemat vestlust näed samas kohas ning vastus saadetakse ka sinu konto e-postile.</p></details>
+        </div>
+        <button className="platform-faq__toggle" type="button" aria-expanded={showAllFaq} aria-controls="faq-more" onClick={() => setShowAllFaq((current) => !current)}>
+          {showAllFaq ? 'Näita vähem' : 'Vaata veel 7 küsimust'} <span aria-hidden="true">{showAllFaq ? '−' : '+'}</span>
+        </button>
       </div>
     </section>
     <footer className="platform-footer">

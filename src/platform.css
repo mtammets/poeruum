@@ -167,6 +167,11 @@ button, a, summary { touch-action: manipulation; }
 .platform-faq summary span { display: grid; flex: 0 0 auto; width: 2rem; height: 2rem; place-items: center; border: 1px solid #c7cec5; border-radius: 50%; color: var(--platform-green); font-size: 1.2rem; font-weight: 500; transition: transform 180ms ease, background 180ms ease; }
 .platform-faq details[open] summary span { background: var(--platform-green); color: #fff; transform: rotate(45deg); }
 .platform-faq details p { max-width: 40rem; margin: -.25rem 3.5rem 1.35rem 0; color: #667068; font-size: .86rem; line-height: 1.7; }
+.platform-faq__more[hidden] { display: none; }
+.platform-faq__toggle { display: flex; width: 100%; align-items: center; justify-content: center; gap: .65rem; margin-top: 1.15rem; padding: .9rem 1.1rem; border: 1px solid #c7cec5; border-radius: 999px; background: transparent; color: var(--platform-green); font: inherit; font-size: .82rem; font-weight: 850; cursor: pointer; transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease; }
+.platform-faq__toggle:hover { border-color: var(--platform-green); background: #e9efdf; transform: translateY(-1px); }
+.platform-faq__toggle:focus-visible { outline: 3px solid #265f4326; outline-offset: 3px; }
+.platform-faq__toggle span { display: grid; width: 1.45rem; height: 1.45rem; place-items: center; border-radius: 50%; background: var(--platform-green); color: #fff; font-size: 1rem; font-weight: 500; line-height: 1; }
 .storefront-product-links { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 .settings-seo-editor { border: 1px solid rgba(23, 35, 28, .12); border-radius: 1rem; }
 .settings-seo-editor summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; cursor: pointer; list-style: none; }
