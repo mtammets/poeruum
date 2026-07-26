@@ -384,8 +384,11 @@ export default function AdminApp() {
   }
 
   const logOut = async () => {
-    const { error: signOutError } = await requireSupabase().auth.signOut()
-    if (!signOutError) window.location.replace('/')
+    try {
+      await requireSupabase().auth.signOut({ scope: 'local' })
+    } finally {
+      window.location.replace('/')
+    }
   }
 
   const loadRevenue = async () => {
