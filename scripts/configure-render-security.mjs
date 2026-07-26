@@ -60,6 +60,7 @@ if (!['apply', 'verify'].includes(action)) {
 }
 
 const endpoint = `https://api.render.com/v1/services/${required('RENDER_SERVICE_ID')}/headers`
+const serviceEndpoint = `https://api.render.com/v1/services/${required('RENDER_SERVICE_ID')}`
 const request = async (method, body) => {
   const response = await fetch(endpoint, {
     method,
@@ -76,15 +77,29 @@ const request = async (method, body) => {
   return response.json()
 }
 
-if (action === 'apply') {
-  await request('PUT', SECURITY_HEADERS)
-}
+const serviceResponse = await fetch(serviceEndpoint, {
+  headers: {
+    Authorization: `Bearer ${required('RENDER_API_KEY')}`,
+    Accept: 'application/json',
+  },
+})
+if (!serviceResponse.ok) throw new Error(`Renderi teenuse päring ebaõnnestus (${serviceResponse.status}).`)
+const service = await serviceResponse.json()
 
-const actual = await request('GET')
-if (JSON.stringify(normalize(actual)) !== expected) {
-  throw new Error('Renderi turvapäised ei vasta hoidlas määratud seadistusele.')
+if (service.type === 'static_site') {
+  if (action === 'apply') await request('PUT', SECURITY_HEADERS)
+  const actual = await request('GET')
+  if (JSON.stringify(normalize(actual)) !== expected) {
+    throw new Error('Renderi turvapäised ei vasta hoidlas määratud seadistusele.')
+  }
+} else {
+  const response = await fetch('https://poeruum.ee/', { method: 'HEAD', redirect: 'manual' })
+  if (!response.ok) throw new Error(`Poeruumi turvapäiste kontroll ebaõnnestus (${response.status}).`)
+  for (const header of SECURITY_HEADERS.filter((item) => item.path === '/*')) {
+    if (!response.headers.get(header.name)) throw new Error(`Poeruumil puudub turvapäis ${header.name}.`)
+  }
 }
 
 console.log(action === 'apply'
-  ? 'Renderi turvapäised rakendati ja kontrolliti.'
-  : 'Renderi turvapäised vastavad hoidla seadistusele.')
+  ? 'Poeruumi turvapäised rakendati või kinnitati ja kontrolliti.'
+  : 'Poeruumi turvapäised vastavad hoidla seadistusele.')
