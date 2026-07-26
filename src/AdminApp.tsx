@@ -9,6 +9,7 @@ import { isCaptchaConfigured, Turnstile } from './Turnstile'
 import type { Product } from './products'
 import AdminSupport from './AdminSupport'
 import { applySeoMetadata } from './lib/seo'
+import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 
 type AdminUserRow = {
   user_id: string
@@ -44,16 +45,18 @@ type SetupStep = {
 
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
-type AdminView = 'overview' | 'seo' | 'support' | 'users'
+type AdminView = 'overview' | 'homepage' | 'seo' | 'support' | 'users'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
   overview: { path: '/admin', title: 'Ülevaade' },
-  seo: { path: '/admin/seo', title: 'Avaleht & SEO' },
+  homepage: { path: '/admin/homepage', title: 'Avaleht' },
+  seo: { path: '/admin/seo', title: 'SEO' },
   support: { path: '/admin/support', title: 'Klienditugi' },
   users: { path: '/admin/users', title: 'Kasutajad' },
 }
 
 const getAdminView = (pathname = window.location.pathname): AdminView => {
+  if (/^\/admin\/homepage\/?$/i.test(pathname)) return 'homepage'
   if (/^\/admin\/seo\/?$/i.test(pathname)) return 'seo'
   if (/^\/admin\/support\/?$/i.test(pathname)) return 'support'
   if (/^\/admin\/users\/?$/i.test(pathname)) return 'users'
@@ -102,6 +105,27 @@ const emptyRevenueDashboard: RevenueDashboard = {
 const DEFAULT_SOCIAL_IMAGE_URL = '/images/poeruum-social.png'
 const SOCIAL_IMAGE_WIDTH = 1200
 const SOCIAL_IMAGE_HEIGHT = 630
+const DEFAULT_SEO_TITLE = 'Poeruum – loo Eesti e-pood 10 minutiga'
+const DEFAULT_SEO_DESCRIPTION = 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.'
+const DEFAULT_SOCIAL_DESCRIPTION = 'Loo professionaalne e-pood umbes 10 minutiga.'
+
+type HomepageSeoSettings = {
+  seo_title: string
+  seo_description: string
+  social_title: string
+  social_description: string
+  search_indexing_enabled: boolean
+  seo_updated_at: string | null
+}
+
+const defaultHomepageSeoSettings: HomepageSeoSettings = {
+  seo_title: DEFAULT_SEO_TITLE,
+  seo_description: DEFAULT_SEO_DESCRIPTION,
+  social_title: DEFAULT_SEO_TITLE,
+  social_description: DEFAULT_SOCIAL_DESCRIPTION,
+  search_indexing_enabled: true,
+  seo_updated_at: null,
+}
 
 const prepareSocialImage = async (file: File) => {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
@@ -190,11 +214,12 @@ const isStalled = (row: AdminUserRow) => {
   return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
-type AdminIconName = 'home' | 'seo' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
+type AdminIconName = 'home' | 'homepage' | 'seo' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
     home: <><path d="M4 11.5 12 5l8 6.5" /><path d="M6.5 10.5V20h11v-9.5M10 20v-5h4v5" /></>,
+    homepage: <><rect x="3.5" y="5" width="17" height="14" rx="2" /><path d="M3.5 9h17M7 7h.01M10 7h.01" /></>,
     seo: <><circle cx="11" cy="11" r="7" /><path d="M4 11h14M11 4a11 11 0 0 1 0 14M11 4a11 11 0 0 0 0 14M16.5 16.5 21 21" /></>,
     users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.4-3.5 2.2-5.3 5.5-5.3s5.1 1.8 5.5 5.3" /><circle cx="17" cy="9" r="2.2" /><path d="M15.5 14.2c3.1-.4 4.8 1.2 5 4" /></>,
     store: <><path d="M4 9h16l-1-4H5L4 9Z"/><path d="M5 9v10h14V9M9 19v-5h6v5"/><path d="M4 9a3 3 0 0 0 5 2 3 3 0 0 0 6 0 3 3 0 0 0 5-2"/></>,
@@ -305,6 +330,11 @@ export default function AdminApp() {
   const [isSocialImageUpdating, setIsSocialImageUpdating] = useState(false)
   const [socialImageError, setSocialImageError] = useState('')
   const [socialImageNotice, setSocialImageNotice] = useState('')
+  const [seoSettings, setSeoSettings] = useState<HomepageSeoSettings>(defaultHomepageSeoSettings)
+  const [seoDraft, setSeoDraft] = useState<HomepageSeoSettings>(defaultHomepageSeoSettings)
+  const [isSeoSaving, setIsSeoSaving] = useState(false)
+  const [seoError, setSeoError] = useState('')
+  const [seoNotice, setSeoNotice] = useState('')
   const dashboardRefreshTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -389,7 +419,7 @@ export default function AdminApp() {
   const loadHomepageMode = async () => {
     const { data, error: queryError } = await requireSupabase()
       .from('platform_settings')
-      .select('coming_soon_enabled,social_image_path')
+      .select('coming_soon_enabled,social_image_path,seo_title,seo_description,social_title,social_description,search_indexing_enabled,seo_updated_at')
       .eq('id', 'homepage')
       .maybeSingle()
     if (queryError) {
@@ -398,7 +428,66 @@ export default function AdminApp() {
     }
     setComingSoonEnabled(data?.coming_soon_enabled ?? true)
     setSocialImagePath(data?.social_image_path ?? null)
+    const nextSeoSettings: HomepageSeoSettings = {
+      seo_title: data?.seo_title ?? DEFAULT_SEO_TITLE,
+      seo_description: data?.seo_description ?? DEFAULT_SEO_DESCRIPTION,
+      social_title: data?.social_title ?? DEFAULT_SEO_TITLE,
+      social_description: data?.social_description ?? DEFAULT_SOCIAL_DESCRIPTION,
+      search_indexing_enabled: data?.search_indexing_enabled ?? true,
+      seo_updated_at: data?.seo_updated_at ?? null,
+    }
+    setSeoSettings(nextSeoSettings)
+    setSeoDraft(nextSeoSettings)
     setHomepageModeError('')
+  }
+
+  const saveSeoSettings = async () => {
+    const cleaned: HomepageSeoSettings = {
+      seo_title: seoDraft.seo_title.trim(),
+      seo_description: seoDraft.seo_description.trim(),
+      social_title: seoDraft.social_title.trim(),
+      social_description: seoDraft.social_description.trim(),
+      search_indexing_enabled: seoDraft.search_indexing_enabled,
+      seo_updated_at: seoDraft.seo_updated_at,
+    }
+    const validationError = getHomepageSeoValidationError({
+      seoTitle: cleaned.seo_title,
+      seoDescription: cleaned.seo_description,
+      socialTitle: cleaned.social_title,
+      socialDescription: cleaned.social_description,
+    })
+    if (validationError) {
+      setSeoError(validationError)
+      return
+    }
+
+    setIsSeoSaving(true)
+    setSeoError('')
+    setSeoNotice('')
+    const { data, error: updateError } = await requireSupabase().functions.invoke('admin-homepage-seo', {
+      body: {
+        seoTitle: cleaned.seo_title,
+        seoDescription: cleaned.seo_description,
+        socialTitle: cleaned.social_title,
+        socialDescription: cleaned.social_description,
+        searchIndexingEnabled: cleaned.search_indexing_enabled,
+      },
+    })
+    if (updateError) {
+      setSeoError(updateError.message || 'SEO seadistuste salvestamine ebaõnnestus.')
+    } else {
+      const result = data as {
+        settings: HomepageSeoSettings
+        deploy?: { status: 'queued' | 'failed'; warning?: string }
+      }
+      const saved = result.settings
+      setSeoSettings(saved)
+      setSeoDraft(saved)
+      setSeoNotice(result.deploy?.status === 'failed'
+        ? 'SEO seadistused on salvestatud, kuid automaatne tootmisdeploy ei käivitunud. Käivita Renderis deploy käsitsi.'
+        : 'SEO seadistused on salvestatud ja tootmisdeploy on järjekorras.')
+    }
+    setIsSeoSaving(false)
   }
 
   const socialImageUrl = socialImagePath
@@ -629,13 +718,28 @@ export default function AdminApp() {
   const unpublishedCount = rows.filter((row) => setupPercent(row) > 0 && !row.has_published).length
   const stalledCount = rows.filter(isStalled).length
   const openSupportCount = rows.reduce((total, row) => total + row.open_support_count, 0)
+  const seoIsDirty = seoDraft.seo_title !== seoSettings.seo_title
+    || seoDraft.seo_description !== seoSettings.seo_description
+    || seoDraft.social_title !== seoSettings.social_title
+    || seoDraft.social_description !== seoSettings.social_description
+    || seoDraft.search_indexing_enabled !== seoSettings.search_indexing_enabled
+  const seoChecks = [
+    seoTextLength(seoDraft.seo_title) >= 30 && seoTextLength(seoDraft.seo_title) <= 60,
+    seoTextLength(seoDraft.seo_description) >= 120 && seoTextLength(seoDraft.seo_description) <= 160,
+    seoTextLength(seoDraft.social_title) >= 10 && seoTextLength(seoDraft.social_title) <= 95,
+    seoTextLength(seoDraft.social_description) >= 20 && seoTextLength(seoDraft.social_description) <= 200,
+    Boolean(socialImagePath || DEFAULT_SOCIAL_IMAGE_URL),
+    seoDraft.search_indexing_enabled,
+  ]
+  const seoScore = Math.round(seoChecks.filter(Boolean).length / seoChecks.length * 100)
 
   return <main className="admin-shell">
     <aside className="admin-sidebar">
       <a href="/" aria-label="Poeruumi avaleht"><Brand /></a>
       <nav aria-label="Administraatori menüü">
         <a className={activeView === 'overview' ? 'is-active' : undefined} href="/admin" aria-current={activeView === 'overview' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'overview')}><span><AdminIcon name="home" /></span>Ülevaade</a>
-        <a className={activeView === 'seo' ? 'is-active' : undefined} href="/admin/seo" aria-current={activeView === 'seo' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'seo')}><span><AdminIcon name="seo" /></span>Avaleht &amp; SEO</a>
+        <a className={activeView === 'homepage' ? 'is-active' : undefined} href="/admin/homepage" aria-current={activeView === 'homepage' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'homepage')}><span><AdminIcon name="homepage" /></span>Avaleht</a>
+        <a className={activeView === 'seo' ? 'is-active' : undefined} href="/admin/seo" aria-current={activeView === 'seo' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'seo')}><span><AdminIcon name="seo" /></span>SEO</a>
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
         <a className={activeView === 'support' ? 'is-active' : undefined} href="/admin/support" aria-current={activeView === 'support' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'support')}><span><AdminIcon name="message" /></span>Klienditugi</a>
         <a className={activeView === 'users' ? 'is-active' : undefined} href="/admin/users" aria-current={activeView === 'users' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'users')}><span><AdminIcon name="users" /></span>Kasutajad</a>
@@ -649,8 +753,7 @@ export default function AdminApp() {
       {error && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
-        {activeView === 'seo' && <>
-        <section className={`admin-homepage-mode${comingSoonEnabled === false ? ' is-public' : ''}`} aria-label="Avaliku avalehe olek">
+        {activeView === 'homepage' && <section className={`admin-homepage-mode${comingSoonEnabled === false ? ' is-public' : ''}`} aria-label="Avaliku avalehe olek">
           <div>
             <span>AVALIK AVALEHT</span>
             <strong>{comingSoonEnabled === null ? 'Kontrollin olekut…' : comingSoonEnabled ? '„Varsti avame” on aktiivne' : 'Poeruum on avalik'}</strong>
@@ -666,33 +769,111 @@ export default function AdminApp() {
             </button>
             <a href="/" target="_blank" rel="noreferrer">Vaata avalehte ↗</a>
           </div>
-        </section>
+        </section>}
 
-        <section className="admin-social-image" aria-labelledby="admin-social-image-title">
-          <div className="admin-social-image__copy">
-            <span>SEO JA JAGAMINE</span>
-            <h2 id="admin-social-image-title">Avalehe jagamispilt</h2>
-            <p>Seda pilti näidatakse, kui keegi jagab poeruum.ee linki Facebookis, LinkedInis, Slackis või sõnumirakenduses.</p>
-            <div className="admin-social-image__actions">
-              <label className={isSocialImageUpdating ? 'is-disabled' : undefined}>
-                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={isSocialImageUpdating} onChange={(event) => {
-                  void changeSocialImage(event.target.files?.[0])
-                  event.target.value = ''
-                }} />
-                {isSocialImageUpdating ? 'Töötlen pilti…' : socialImagePath ? 'Asenda pilt' : 'Laadi uus pilt'}
-              </label>
-              {socialImagePath && <button type="button" disabled={isSocialImageUpdating} onClick={() => void restoreDefaultSocialImage()}>Taasta vaikimisi</button>}
+        {activeView === 'seo' && <div className="admin-seo">
+          <section className="admin-seo__summary">
+            <div>
+              <span>AVALEHE LEITAVUS</span>
+              <h2>SEO juhtpaneel</h2>
+              <p>Halda Google’i otsingutulemust ja linkide eelvaateid ühest kohast.</p>
+              {seoSettings.seo_updated_at && <small>Viimati salvestatud {formatRelativeTime(seoSettings.seo_updated_at)}</small>}
             </div>
-            <small>Pilt lõigatakse automaatselt mõõtu 1200 × 630 px. Hoia oluline sisu pildi keskel.</small>
-            {socialImageError && <p className="is-error" role="alert">{socialImageError}</p>}
-            {socialImageNotice && <p className="is-success" role="status">{socialImageNotice}</p>}
-          </div>
-          <div className="admin-social-image__preview">
-            <img src={socialImageUrl} alt="Poeruumi jagamispildi eelvaade" />
-            <div><small>poeruum.ee</small><strong>Poeruum – loo Eesti e-pood 10 minutiga</strong><span>Loo professionaalne e-pood umbes 10 minutiga.</span></div>
-          </div>
-        </section>
-        </>}
+            <div className="admin-seo__score" aria-label={`SEO valmisolek ${seoScore}%`}>
+              <strong>{seoScore}%</strong><span>valmis</span>
+            </div>
+            <button type="submit" form="admin-seo-form" disabled={!seoIsDirty || isSeoSaving}>
+              {isSeoSaving ? 'Salvestan…' : seoIsDirty ? 'Salvesta muudatused' : 'Salvestatud'}
+            </button>
+          </section>
+
+          {(seoError || seoNotice) && <div className={`admin-seo__notice${seoError ? ' is-error' : ''}`} role={seoError ? 'alert' : 'status'}>{seoError || seoNotice}</div>}
+
+          <form className="admin-seo__editor" id="admin-seo-form" onSubmit={(event) => {
+            event.preventDefault()
+            void saveSeoSettings()
+          }}>
+            <section>
+              <header><div><span>GOOGLE</span><h2>Otsingutulemus</h2><p>Need tekstid määravad, kuidas Poeruumi avaleht Google’is kirjeldatakse.</p></div></header>
+              <label>
+                <span><strong>SEO pealkiri</strong><small className={seoTextLength(seoDraft.seo_title) > 60 ? 'is-warning' : undefined}>{seoTextLength(seoDraft.seo_title)}/70</small></span>
+                <input value={seoDraft.seo_title} maxLength={70} onChange={(event) => setSeoDraft((current) => ({ ...current, seo_title: event.target.value }))} />
+                <small>Parim pikkus on 30–60 tähemärki.</small>
+              </label>
+              <label>
+                <span><strong>Meta kirjeldus</strong><small className={seoTextLength(seoDraft.seo_description) > 160 ? 'is-warning' : undefined}>{seoTextLength(seoDraft.seo_description)}/200</small></span>
+                <textarea rows={4} value={seoDraft.seo_description} maxLength={200} onChange={(event) => setSeoDraft((current) => ({ ...current, seo_description: event.target.value }))} />
+                <small>Google kuvab tavaliselt umbes 120–160 tähemärki.</small>
+              </label>
+              <label className="admin-seo__toggle">
+                <span><strong>Luba otsingumootoritel avalehte indekseerida</strong><small>Väljalülitamisel lisatakse avalehele noindex ja see eemaldatakse sitemapist.</small></span>
+                <input type="checkbox" checked={seoDraft.search_indexing_enabled} onChange={(event) => setSeoDraft((current) => ({ ...current, search_indexing_enabled: event.target.checked }))} />
+                <i aria-hidden="true" />
+              </label>
+            </section>
+
+            <aside className="admin-seo__google-preview" aria-label="Google’i otsingutulemuse eelvaade">
+              <span>EELVAADE</span>
+              <div><i>P</i><p><small>Poeruum</small><b>https://poeruum.ee</b></p></div>
+              <h3>{seoDraft.seo_title || 'Avalehe pealkiri'}</h3>
+              <p>{seoDraft.seo_description || 'Avalehe kirjeldus kuvatakse siin.'}</p>
+            </aside>
+
+            <section>
+              <header><div><span>SOTSIAALMEEDIA</span><h2>Lingi tekstid</h2><p>Facebook, Messenger, LinkedIn ja Slack kasutavad neid tekste koos jagamispildiga.</p></div></header>
+              <label>
+                <span><strong>Jagamise pealkiri</strong><small>{seoTextLength(seoDraft.social_title)}/95</small></span>
+                <input value={seoDraft.social_title} maxLength={95} onChange={(event) => setSeoDraft((current) => ({ ...current, social_title: event.target.value }))} />
+              </label>
+              <label>
+                <span><strong>Jagamise kirjeldus</strong><small>{seoTextLength(seoDraft.social_description)}/200</small></span>
+                <textarea rows={3} value={seoDraft.social_description} maxLength={200} onChange={(event) => setSeoDraft((current) => ({ ...current, social_description: event.target.value }))} />
+              </label>
+            </section>
+          </form>
+
+          <section className="admin-social-image" aria-labelledby="admin-social-image-title">
+            <div className="admin-social-image__copy">
+              <span>SEO JA JAGAMINE</span>
+              <h2 id="admin-social-image-title">Avalehe jagamispilt</h2>
+              <p>Seda pilti näidatakse, kui keegi jagab poeruum.ee linki Facebookis, LinkedInis, Slackis või sõnumirakenduses.</p>
+              <div className="admin-social-image__actions">
+                <label className={isSocialImageUpdating ? 'is-disabled' : undefined}>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" disabled={isSocialImageUpdating} onChange={(event) => {
+                    void changeSocialImage(event.target.files?.[0])
+                    event.target.value = ''
+                  }} />
+                  {isSocialImageUpdating ? 'Töötlen pilti…' : socialImagePath ? 'Asenda pilt' : 'Laadi uus pilt'}
+                </label>
+                {socialImagePath && <button type="button" disabled={isSocialImageUpdating} onClick={() => void restoreDefaultSocialImage()}>Taasta vaikimisi</button>}
+              </div>
+              <small>Pilt lõigatakse automaatselt mõõtu 1200 × 630 px. Hoia oluline sisu pildi keskel.</small>
+              {socialImageError && <p className="is-error" role="alert">{socialImageError}</p>}
+              {socialImageNotice && <p className="is-success" role="status">{socialImageNotice}</p>}
+            </div>
+            <div className="admin-social-image__preview">
+              <img src={socialImageUrl} alt="Poeruumi jagamispildi eelvaade" />
+              <div><small>poeruum.ee</small><strong>{seoDraft.social_title}</strong><span>{seoDraft.social_description}</span></div>
+            </div>
+          </section>
+
+          <section className="admin-seo__technical">
+            <header><div><span>TEHNILINE SEO</span><h2>Automaatne kontroll</h2></div><small>Poeruumi build loob need väljundid automaatselt.</small></header>
+            <div>
+              <article className={seoDraft.search_indexing_enabled ? 'is-ready' : 'is-warning'}><i>{seoDraft.search_indexing_enabled ? '✓' : '!'}</i><span><strong>Indekseerimine</strong><small>{seoDraft.search_indexing_enabled ? 'index, follow · suured pildieelvaated lubatud' : 'noindex, nofollow'}</small></span></article>
+              <article className="is-ready"><i>✓</i><span><strong>Canonical URL</strong><small>https://poeruum.ee/</small></span></article>
+              <article className="is-ready"><i>✓</i><span><strong>Sitemap</strong><small>Automaatselt genereeritud</small></span><a href="https://poeruum.ee/sitemap.xml" target="_blank" rel="noreferrer">Ava ↗</a></article>
+              <article className="is-ready"><i>✓</i><span><strong>robots.txt</strong><small>Otsingurobotite reeglid</small></span><a href="https://poeruum.ee/robots.txt" target="_blank" rel="noreferrer">Ava ↗</a></article>
+              <article className="is-ready"><i>✓</i><span><strong>Struktureeritud andmed</strong><small>WebSite + SoftwareApplication</small></span></article>
+              <article className={socialImagePath ? 'is-ready' : 'is-neutral'}><i>✓</i><span><strong>Open Graph</strong><small>1200 × 630 PNG · versioonitud URL</small></span></article>
+            </div>
+          </section>
+
+          <section className="admin-seo__search-console">
+            <div><span>GOOGLE SEARCH CONSOLE</span><h2>Otsingu tulemuslikkus</h2><p>Search Console’i ühendamisel saab siin tulevikus näidata klikke, kuvamisi, positsioone ja enim otsitud märksõnu.</p></div>
+            <a href="https://search.google.com/search-console" target="_blank" rel="noreferrer">Ava Search Console ↗</a>
+          </section>
+        </div>}
 
         {activeView === 'overview' && <>
         <section className={`admin-revenue${liveRevenueEventId ? ' is-live-update' : ''}`} aria-label="Poeruumi tulu">

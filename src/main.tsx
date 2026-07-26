@@ -36,7 +36,7 @@ const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostna
   && window.location.pathname === '/' && !hasAppReturnState
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
 const isPlatformHostname = /^(?:localhost|127\.0\.0\.1|(?:[a-z0-9-]+\.)?poeruum\.ee)$/i.test(window.location.hostname)
-const isAdminPath = isPlatformHostname && !isStorefrontSubdomain && /^\/admin(?:\/(?:seo|users|support))?\/?$/i.test(window.location.pathname)
+const isAdminPath = isPlatformHostname && !isStorefrontSubdomain && /^\/admin(?:\/(?:homepage|seo|users|support))?\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformHostname && !isStorefrontSubdomain
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
     ? 'terms'
@@ -46,22 +46,47 @@ const legalDocument: LegalDocument | null = isPlatformHostname && !isStorefrontS
   : null
 
 function Homepage() {
-  const [comingSoonEnabled, setComingSoonEnabled] = useState<boolean | null>(null)
+  const [homepageSettings, setHomepageSettings] = useState<{
+    comingSoonEnabled: boolean
+    seoTitle: string
+    seoDescription: string
+    socialTitle: string
+    socialDescription: string
+    searchIndexingEnabled: boolean
+    socialImagePath: string | null
+  } | null>(null)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      setComingSoonEnabled(true)
+      setHomepageSettings({
+        comingSoonEnabled: true,
+        seoTitle: 'Poeruum – loo Eesti e-pood 10 minutiga',
+        seoDescription: 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
+        socialTitle: 'Poeruum – loo Eesti e-pood 10 minutiga',
+        socialDescription: 'Loo professionaalne e-pood umbes 10 minutiga.',
+        searchIndexingEnabled: true,
+        socialImagePath: null,
+      })
       return
     }
 
     let active = true
     const client = requireSupabase()
     client.from('platform_settings')
-      .select('coming_soon_enabled')
+      .select('coming_soon_enabled,seo_title,seo_description,social_title,social_description,search_indexing_enabled,social_image_path')
       .eq('id', 'homepage')
       .maybeSingle()
       .then(({ data, error }) => {
-        if (active) setComingSoonEnabled(error ? true : data?.coming_soon_enabled ?? true)
+        if (!active) return
+        setHomepageSettings({
+          comingSoonEnabled: error ? true : data?.coming_soon_enabled ?? true,
+          seoTitle: data?.seo_title ?? 'Poeruum – loo Eesti e-pood 10 minutiga',
+          seoDescription: data?.seo_description ?? 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
+          socialTitle: data?.social_title ?? data?.seo_title ?? 'Poeruum – loo Eesti e-pood 10 minutiga',
+          socialDescription: data?.social_description ?? data?.seo_description ?? 'Loo professionaalne e-pood umbes 10 minutiga.',
+          searchIndexingEnabled: data?.search_indexing_enabled ?? true,
+          socialImagePath: data?.social_image_path ?? null,
+        })
       })
 
     const channel = client.channel('public-homepage-mode')
@@ -71,9 +96,16 @@ function Homepage() {
         table: 'platform_settings',
         filter: 'id=eq.homepage',
       }, (payload) => {
-        if (active && typeof payload.new.coming_soon_enabled === 'boolean') {
-          setComingSoonEnabled(payload.new.coming_soon_enabled)
-        }
+        if (!active) return
+        setHomepageSettings((current) => current ? {
+          comingSoonEnabled: typeof payload.new.coming_soon_enabled === 'boolean' ? payload.new.coming_soon_enabled : current.comingSoonEnabled,
+          seoTitle: typeof payload.new.seo_title === 'string' ? payload.new.seo_title : current.seoTitle,
+          seoDescription: typeof payload.new.seo_description === 'string' ? payload.new.seo_description : current.seoDescription,
+          socialTitle: typeof payload.new.social_title === 'string' ? payload.new.social_title : current.socialTitle,
+          socialDescription: typeof payload.new.social_description === 'string' ? payload.new.social_description : current.socialDescription,
+          searchIndexingEnabled: typeof payload.new.search_indexing_enabled === 'boolean' ? payload.new.search_indexing_enabled : current.searchIndexingEnabled,
+          socialImagePath: typeof payload.new.social_image_path === 'string' ? payload.new.social_image_path : payload.new.social_image_path === null ? null : current.socialImagePath,
+        } : current)
       })
       .subscribe()
 
@@ -83,12 +115,32 @@ function Homepage() {
     }
   }, [])
 
-  if (comingSoonEnabled === null) {
+  useEffect(() => {
+    if (!homepageSettings) return
+    const supabaseOrigin = import.meta.env.VITE_SUPABASE_URL?.trim()?.replace(/\/$/, '')
+    const imageVersion = homepageSettings.socialImagePath || 'default-v1'
+    applySeoMetadata({
+      title: homepageSettings.seoTitle,
+      description: homepageSettings.seoDescription,
+      socialTitle: homepageSettings.socialTitle,
+      socialDescription: homepageSettings.socialDescription,
+      canonicalUrl: 'https://poeruum.ee/',
+      imageUrl: supabaseOrigin
+        ? `${supabaseOrigin}/functions/v1/homepage-social-image?v=${encodeURIComponent(imageVersion)}`
+        : '/images/poeruum-social.png',
+      imageWidth: 1200,
+      imageHeight: 630,
+      imageType: homepageSettings.socialImagePath?.endsWith('.webp') ? 'image/webp' : 'image/png',
+      noIndex: !homepageSettings.searchIndexingEnabled,
+    })
+  }, [homepageSettings])
+
+  if (homepageSettings === null) {
     return <main className="homepage-mode-loading" aria-label="Laadin Poeruumi avalehte"><span /></main>
   }
 
   return <Suspense fallback={<LoadingScreen />}>
-    {comingSoonEnabled ? <ComingSoon /> : <PlatformWithSupport />}
+    {homepageSettings.comingSoonEnabled ? <ComingSoon /> : <PlatformWithSupport />}
   </Suspense>
 }
 

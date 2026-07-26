@@ -1,6 +1,8 @@
 type SeoMetadata = {
   title: string
   description: string
+  socialTitle?: string
+  socialDescription?: string
   canonicalUrl: string
   imageUrl?: string
   imageWidth?: number
@@ -29,6 +31,8 @@ const absoluteUrl = (value: string) => {
 export const applySeoMetadata = ({
   title,
   description,
+  socialTitle,
+  socialDescription,
   canonicalUrl,
   imageUrl,
   imageWidth,
@@ -38,14 +42,16 @@ export const applySeoMetadata = ({
   noIndex = false,
   structuredData,
 }: SeoMetadata) => {
+  const resolvedSocialTitle = socialTitle || title
+  const resolvedSocialDescription = socialDescription || description
   document.title = title
   upsertMeta('meta[name="description"]', { name: 'description', content: description })
   upsertMeta('meta[name="robots"]', {
     name: 'robots',
     content: noIndex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large',
   })
-  upsertMeta('meta[property="og:title"]', { property: 'og:title', content: title })
-  upsertMeta('meta[property="og:description"]', { property: 'og:description', content: description })
+  upsertMeta('meta[property="og:title"]', { property: 'og:title', content: resolvedSocialTitle })
+  upsertMeta('meta[property="og:description"]', { property: 'og:description', content: resolvedSocialDescription })
   upsertMeta('meta[property="og:type"]', { property: 'og:type', content: type })
   upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonicalUrl })
   upsertMeta('meta[property="og:locale"]', { property: 'og:locale', content: 'et_EE' })
@@ -53,8 +59,8 @@ export const applySeoMetadata = ({
     name: 'twitter:card',
     content: imageUrl ? 'summary_large_image' : 'summary',
   })
-  upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: title })
-  upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: description })
+  upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: resolvedSocialTitle })
+  upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: resolvedSocialDescription })
 
   if (imageUrl) {
     const resolvedImageUrl = absoluteUrl(imageUrl)
@@ -68,7 +74,7 @@ export const applySeoMetadata = ({
             : undefined)
     upsertMeta('meta[property="og:image"]', { property: 'og:image', content: resolvedImageUrl })
     upsertMeta('meta[property="og:image:secure_url"]', { property: 'og:image:secure_url', content: resolvedImageUrl })
-    upsertMeta('meta[property="og:image:alt"]', { property: 'og:image:alt', content: title })
+    upsertMeta('meta[property="og:image:alt"]', { property: 'og:image:alt', content: resolvedSocialTitle })
     upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: resolvedImageUrl })
     if (resolvedImageType) {
       upsertMeta('meta[property="og:image:type"]', { property: 'og:image:type', content: resolvedImageType })

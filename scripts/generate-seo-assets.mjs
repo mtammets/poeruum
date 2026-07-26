@@ -23,7 +23,7 @@ const escapeHtml = (value) => String(value ?? '')
   .replaceAll("'", '&#39;')
 
 const escapeXml = escapeHtml
-const cleanDescription = (value, fallback) => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, 160)
+const cleanDescription = (value, fallback, maxLength = 160) => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, maxLength)
 const absoluteImageUrl = (value) => {
   if (!value) return null
   try { return new URL(value, platformOrigin).toString() }
@@ -65,7 +65,7 @@ const catalog = await response.json()
 if (!Array.isArray(catalog)) throw new Error('SEO kataloog ei ole oodatud kujul.')
 
 const homepageSettingsResponse = await fetch(
-  `${supabaseUrl}/rest/v1/platform_settings?select=social_image_path&id=eq.homepage`,
+  `${supabaseUrl}/rest/v1/platform_settings?select=social_image_path,seo_title,seo_description,social_title,social_description,search_indexing_enabled,seo_updated_at&id=eq.homepage`,
   {
     headers: {
       apikey: supabaseKey,
@@ -83,32 +83,43 @@ const homepageSocialPath = typeof homepageSettings.social_image_path === 'string
   : ''
 const homepageSocialVersion = homepageSocialPath || 'default-v1'
 const homepageSocialType = homepageSocialPath.endsWith('.webp') ? 'image/webp' : 'image/png'
+const homepageSeoTitle = String(homepageSettings.seo_title || 'Poeruum – loo Eesti e-pood 10 minutiga')
+const homepageSeoDescription = cleanDescription(
+  homepageSettings.seo_description,
+  'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
+  200,
+)
+const homepageSocialTitle = String(homepageSettings.social_title || homepageSeoTitle)
+const homepageSocialDescription = cleanDescription(homepageSettings.social_description, homepageSeoDescription, 200)
+const homepageIndexingEnabled = homepageSettings.search_indexing_enabled !== false
 
 const baseHtml = await readFile(path.join(outputDirectory, 'index.html'), 'utf8')
 const seoBlockPattern = /<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/
 const contentBlockPattern = /<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/
 const fallbackLoaderMarkup = '<svg class="seo-fallback__logo" viewBox="0 0 40 40" aria-label="Poeruum laadib" role="img"><rect x="1" y="1" width="38" height="38" rx="11" /><path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z" /><path class="seo-fallback__handle" d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18" /><path d="M15.5 22.2h9" /></svg>'
 
-const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, imageWidth, imageHeight, imageType, type = 'website', noIndex = false, structuredData }) => {
+const renderSeoBlock = ({ title, description, socialTitle, socialDescription, canonicalUrl, imageUrl, imageWidth, imageHeight, imageType, type = 'website', noIndex = false, structuredData }) => {
   const resolvedImage = absoluteImageUrl(imageUrl)
   const resolvedImageType = imageMimeType(resolvedImage, imageType)
+  const resolvedSocialTitle = socialTitle || title
+  const resolvedSocialDescription = socialDescription || description
   return `<!-- poeruum:seo:start -->
     <meta name="description" content="${escapeHtml(description)}" />
     <meta name="robots" content="${noIndex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large'}" />
-    <meta property="og:title" content="${escapeHtml(title)}" />
-    <meta property="og:description" content="${escapeHtml(description)}" />
+    <meta property="og:title" content="${escapeHtml(resolvedSocialTitle)}" />
+    <meta property="og:description" content="${escapeHtml(resolvedSocialDescription)}" />
     <meta property="og:type" content="${type}" />
     <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
     <meta property="og:locale" content="et_EE" />
     ${resolvedImage ? `<meta property="og:image" content="${escapeHtml(resolvedImage)}" />
     <meta property="og:image:secure_url" content="${escapeHtml(resolvedImage)}" />
-    <meta property="og:image:alt" content="${escapeHtml(title)}" />
+    <meta property="og:image:alt" content="${escapeHtml(resolvedSocialTitle)}" />
     ${resolvedImageType ? `<meta property="og:image:type" content="${resolvedImageType}" />` : ''}
     ${imageWidth && imageHeight ? `<meta property="og:image:width" content="${imageWidth}" />
     <meta property="og:image:height" content="${imageHeight}" />` : ''}` : ''}
     <meta name="twitter:card" content="${resolvedImage ? 'summary_large_image' : 'summary'}" />
-    <meta name="twitter:title" content="${escapeHtml(title)}" />
-    <meta name="twitter:description" content="${escapeHtml(description)}" />
+    <meta name="twitter:title" content="${escapeHtml(resolvedSocialTitle)}" />
+    <meta name="twitter:description" content="${escapeHtml(resolvedSocialDescription)}" />
     ${resolvedImage ? `<meta name="twitter:image" content="${escapeHtml(resolvedImage)}" />` : ''}
     <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
     ${structuredData ? `<script type="application/ld+json" data-poeruum-structured-data>${JSON.stringify(structuredData).replace(/</g, '\\u003c')}</script>` : ''}
@@ -126,24 +137,27 @@ const writePage = async (relativePath, html) => {
   await writeFile(path.join(directory, 'index.html'), html)
 }
 
-const sitemapEntries = [{
+const sitemapEntries = homepageIndexingEnabled ? [{
   url: `${platformOrigin}/`,
-  lastModified: new Date().toISOString(),
+  lastModified: homepageSettings.seo_updated_at || new Date().toISOString(),
   changeFrequency: 'weekly',
   priority: '1.0',
-}]
+}] : []
 
 let storePageCount = 0
 let productPageCount = 0
 
 const homepageMetadata = {
-  title: 'Poeruum – loo Eesti e-pood 10 minutiga',
-  description: 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
+  title: homepageSeoTitle,
+  description: homepageSeoDescription,
+  socialTitle: homepageSocialTitle,
+  socialDescription: homepageSocialDescription,
   canonicalUrl: `${platformOrigin}/`,
   imageUrl: `${supabaseUrl}/functions/v1/homepage-social-image?v=${encodeURIComponent(homepageSocialVersion)}`,
   imageType: homepageSocialType,
   imageWidth: 1200,
   imageHeight: 630,
+  noIndex: !homepageIndexingEnabled,
   eyebrow: 'Eesti e-poeplatvorm',
   heading: 'Loo oma e-pood 10 minutiga',
   ctaUrl: '/#hind',
@@ -156,7 +170,7 @@ const homepageMetadata = {
         '@id': `${platformOrigin}/#website`,
         url: `${platformOrigin}/`,
         name: 'Poeruum',
-        description: 'Lihtne Eesti e-poeplatvorm toodete, maksete, tarne ja tellimuste haldamiseks.',
+        description: homepageSeoDescription,
         inLanguage: 'et',
       },
       {
@@ -164,7 +178,7 @@ const homepageMetadata = {
         '@id': `${platformOrigin}/#software`,
         url: `${platformOrigin}/`,
         name: 'Poeruum',
-        description: 'Loo professionaalne e-pood umbes 10 minutiga ning halda tooteid, makseid, tellimusi ja tarnet ühest keskkonnast.',
+        description: homepageSeoDescription,
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web browser',
         inLanguage: 'et',
