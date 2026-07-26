@@ -206,6 +206,15 @@ createServer(async (req, res) => {
     if (!slug) {
       const isPlatformRequest = host === platformHost || host === `www.${platformHost}` || host.endsWith('.onrender.com')
       if (isPlatformRequest) {
+        const isAdminRequest = /^\/admin(?:\/(?:homepage|seo|users|support))?\/?$/i.test(url.pathname)
+        if (isAdminRequest) {
+          const body = await templatePromise
+          return send(res, 200, req.method === 'HEAD' ? null : body, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'private, no-store',
+            'X-Robots-Tag': 'noindex, nofollow',
+          })
+        }
         const relative = url.pathname === '/' ? 'index.html' : path.join(url.pathname.replace(/^\/+|\/+$/g, ''), 'index.html')
         const platformFile = path.join(dist, relative)
         const platformStat = await stat(platformFile).catch(() => null)
