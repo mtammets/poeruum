@@ -308,6 +308,7 @@ export default function AdminApp() {
   const [activeView, setActiveView] = useState<AdminView>(() => getAdminView())
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [rows, setRows] = useState<AdminUserRow[]>([])
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set())
   const [isLoading, setIsLoading] = useState(false)
@@ -384,6 +385,7 @@ export default function AdminApp() {
   }
 
   const logOut = async () => {
+    setIsSigningOut(true)
     try {
       await requireSupabase().auth.signOut({ scope: 'local' })
     } finally {
@@ -697,7 +699,7 @@ export default function AdminApp() {
       })
   }, [rows, filter, search, sort, onlineUserIds])
 
-  if (!authReady) return <main className="admin-loading"><span /><p>Avan administraatori töölauda…</p></main>
+  if (!authReady || isSigningOut) return <main className="admin-loading"><span /><p>{isSigningOut ? 'Login välja…' : 'Avan administraatori töölauda…'}</p></main>
   if (!isSupabaseConfigured) return <main className="admin-auth"><section className="admin-auth__card"><span>SEADISTUS PUUDUB</span><h1>Supabase pole ühendatud</h1><p>Lisa lokaalsesse <code>.env</code> faili Supabase’i võtmed ja laadi leht uuesti.</p><a href="/">Tagasi Poeruumi</a></section></main>
   if (!session) return <AdminLogin onSignedIn={() => void loadDashboard()} />
 
