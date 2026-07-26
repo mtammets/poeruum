@@ -62,8 +62,8 @@ function Homepage() {
         comingSoonEnabled: true,
         seoTitle: 'Poeruum – loo Eesti e-pood 10 minutiga',
         seoDescription: 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
-        socialTitle: 'Poeruum – loo Eesti e-pood 10 minutiga',
-        socialDescription: 'Loo professionaalne e-pood umbes 10 minutiga.',
+        socialTitle: 'Lihtne e-pood Eesti väikeettevõtjale',
+        socialDescription: 'Lisa tooted, võta vastu makseid ja halda tellimusi ühest kohast.',
         searchIndexingEnabled: true,
         socialImagePath: null,
       })
@@ -82,8 +82,8 @@ function Homepage() {
           comingSoonEnabled: error ? true : data?.coming_soon_enabled ?? true,
           seoTitle: data?.seo_title ?? 'Poeruum – loo Eesti e-pood 10 minutiga',
           seoDescription: data?.seo_description ?? 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
-          socialTitle: data?.social_title ?? data?.seo_title ?? 'Poeruum – loo Eesti e-pood 10 minutiga',
-          socialDescription: data?.social_description ?? data?.seo_description ?? 'Loo professionaalne e-pood umbes 10 minutiga.',
+          socialTitle: data?.social_title ?? 'Lihtne e-pood Eesti väikeettevõtjale',
+          socialDescription: data?.social_description ?? 'Lisa tooted, võta vastu makseid ja halda tellimusi ühest kohast.',
           searchIndexingEnabled: data?.search_indexing_enabled ?? true,
           socialImagePath: data?.social_image_path ?? null,
         })

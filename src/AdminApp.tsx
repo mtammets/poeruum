@@ -106,7 +106,8 @@ const SOCIAL_IMAGE_WIDTH = 1200
 const SOCIAL_IMAGE_HEIGHT = 630
 const DEFAULT_SEO_TITLE = 'Poeruum – loo Eesti e-pood 10 minutiga'
 const DEFAULT_SEO_DESCRIPTION = 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.'
-const DEFAULT_SOCIAL_DESCRIPTION = 'Loo professionaalne e-pood umbes 10 minutiga.'
+const DEFAULT_SOCIAL_TITLE = 'Lihtne e-pood Eesti väikeettevõtjale'
+const DEFAULT_SOCIAL_DESCRIPTION = 'Lisa tooted, võta vastu makseid ja halda tellimusi ühest kohast.'
 
 type HomepageSeoSettings = {
   seo_title: string
@@ -120,7 +121,7 @@ type HomepageSeoSettings = {
 const defaultHomepageSeoSettings: HomepageSeoSettings = {
   seo_title: DEFAULT_SEO_TITLE,
   seo_description: DEFAULT_SEO_DESCRIPTION,
-  social_title: DEFAULT_SEO_TITLE,
+  social_title: DEFAULT_SOCIAL_TITLE,
   social_description: DEFAULT_SOCIAL_DESCRIPTION,
   search_indexing_enabled: true,
   seo_updated_at: null,
@@ -430,7 +431,7 @@ export default function AdminApp() {
     const nextSeoSettings: HomepageSeoSettings = {
       seo_title: data?.seo_title ?? DEFAULT_SEO_TITLE,
       seo_description: data?.seo_description ?? DEFAULT_SEO_DESCRIPTION,
-      social_title: data?.social_title ?? DEFAULT_SEO_TITLE,
+      social_title: data?.social_title ?? DEFAULT_SOCIAL_TITLE,
       social_description: data?.social_description ?? DEFAULT_SOCIAL_DESCRIPTION,
       search_indexing_enabled: data?.search_indexing_enabled ?? true,
       seo_updated_at: data?.seo_updated_at ?? null,

@@ -91,8 +91,12 @@ const homepageSeoDescription = cleanDescription(
   'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
   200,
 )
-const homepageSocialTitle = String(homepageSettings.social_title || homepageSeoTitle)
-const homepageSocialDescription = cleanDescription(homepageSettings.social_description, homepageSeoDescription, 200)
+const homepageSocialTitle = String(homepageSettings.social_title || 'Lihtne e-pood Eesti väikeettevõtjale')
+const homepageSocialDescription = cleanDescription(
+  homepageSettings.social_description,
+  'Lisa tooted, võta vastu makseid ja halda tellimusi ühest kohast.',
+  200,
+)
 const homepageIndexingEnabled = homepageSettings.search_indexing_enabled !== false
 
 const baseHtml = await readFile(path.join(outputDirectory, 'index.html'), 'utf8')
