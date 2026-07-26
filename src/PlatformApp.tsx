@@ -1169,24 +1169,36 @@ function PlatformFlow() {
         <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
           <div className="platform-phone__screen"><div className="platform-phone__journey">
             <section className="platform-phone__story">
-              <div className={`platform-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
-                {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.id}-${index}`} />)}
-              </div>
-              <div className="platform-phone__shade" />
-              <div className="platform-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
-              <header className="platform-phone__header">
-                <div><img src="/images/poeruum-email-logo.svg" alt="" /><strong>POERUUM</strong></div>
-                <aside><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg></i><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6" /><circle cx="9" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg><b>0</b></i></aside>
-              </header>
-              {phoneProduct.images.length > 1 && <div className="platform-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
-              <div className="platform-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
+              {phoneProduct
+                ? <>
+                  <div className={`platform-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
+                    {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.id}-${index}`} />)}
+                  </div>
+                  <div className="platform-phone__shade" />
+                  <div className="platform-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
+                  <header className="platform-phone__header">
+                    <div><img src="/images/poeruum-email-logo.svg" alt="" /><strong>POERUUM</strong></div>
+                    <aside><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg></i><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6" /><circle cx="9" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg><b>0</b></i></aside>
+                  </header>
+                  {phoneProduct.images.length > 1 && <div className="platform-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
+                  <div className="platform-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
+                </>
+                : <div className="platform-phone__empty">
+                  <span>POERUUM</span>
+                  <strong>Näidistooted tulevad Supabasest</strong>
+                  <small>Lisa näidispoodi esimene tootepilt.</small>
+                </div>}
             </section>
             <section className="platform-phone__details">
-              <header><h3>{phoneProduct.name}</h3><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></svg></span></header>
-              <div><small>Kirjeldus</small><p>{phoneProduct.description}</p></div>
-              <div className="platform-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
-              <div className="platform-phone__cart">Lisa ostukorvi</div>
-              <footer><strong>POERUUM</strong><small>Valmistatud hoolega Eestis</small></footer>
+              {phoneProduct
+                ? <>
+                  <header><h3>{phoneProduct.name}</h3><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></svg></span></header>
+                  <div><small>Kirjeldus</small><p>{phoneProduct.description}</p></div>
+                  <div className="platform-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
+                  <div className="platform-phone__cart">Lisa ostukorvi</div>
+                  <footer><strong>POERUUM</strong><small>Valmistatud hoolega Eestis</small></footer>
+                </>
+                : <div className="platform-phone__empty-details"><strong>Tooteid pole veel lisatud</strong><small>Näidispoe sisu laetakse Supabasest.</small></div>}
             </section>
           </div></div>
         </div>

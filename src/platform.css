@@ -70,6 +70,10 @@ button, a, summary { touch-action: manipulation; }
 .platform-phone__slides { display: flex; width: 100%; height: 100%; transition: transform 520ms cubic-bezier(.22, .7, .2, 1); will-change: transform; }
 .platform-phone__slides.is-jumping { transition: none; }
 .platform-phone__slides img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; }
+.platform-phone__empty { display: grid; height: 100%; place-content: center; gap: .55rem; padding: 2rem; background: radial-gradient(circle at 50% 38%, #304d39, #0d1711 62%); color: #fff; text-align: center; }
+.platform-phone__empty span { color: #e5f25a; font-size: .52rem; font-weight: 850; letter-spacing: .14em; }
+.platform-phone__empty strong { max-width: 10rem; font-size: 1.15rem; line-height: 1.08; letter-spacing: -.035em; }
+.platform-phone__empty small { color: #ffffff8f; font-size: .55rem; line-height: 1.45; }
 .platform-phone__shade { position: absolute; inset: 0; border-radius: 2rem; background: linear-gradient(180deg, #0007 0%, transparent 32%, #0001 62%, #000a 100%); pointer-events: none; }
 .platform-phone__progress { position: absolute; z-index: 3; top: 1.2rem; right: 1.15rem; left: 1.15rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: .2rem; }
 .platform-phone__progress i { height: .12rem; border-radius: 999px; background: #ffffff50; }
@@ -103,6 +107,8 @@ button, a, summary { touch-action: manipulation; }
 .platform-phone__details > footer { display: grid; gap: .1rem; margin-top: .2rem; padding-top: 1rem; border-top: 1px solid #ffffff1f; }
 .platform-phone__details > footer strong { font-size: .52rem; letter-spacing: .08em; }
 .platform-phone__details > footer small { font-size: .46rem; }
+.platform-phone__empty-details { align-self: center; justify-items: center; gap: .35rem !important; text-align: center; }
+.platform-phone__empty-details strong { font-size: .88rem; }
 .platform-benefits { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 76rem; margin: auto; border-top: 1px solid #d7dbd1; }
 .platform-benefits div { display: grid; grid-template-columns: auto 1fr; gap: .1rem .8rem; padding: 1.6rem 2rem; border-right: 1px solid #d7dbd1; }
 .platform-benefits b { grid-row: span 2; color: #9aa39b; font-size: .7rem; }
