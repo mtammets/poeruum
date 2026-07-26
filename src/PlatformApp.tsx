@@ -1183,11 +1183,7 @@ function PlatformFlow() {
                   {phoneProduct.images.length > 1 && <div className="platform-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
                   <div className="platform-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
                 </>
-                : <div className="platform-phone__empty">
-                  <span>POERUUM</span>
-                  <strong>Näidistooted tulevad Supabasest</strong>
-                  <small>Lisa näidispoodi esimene tootepilt.</small>
-                </div>}
+                : <div className="platform-phone__empty" aria-hidden="true" />}
             </section>
             <section className="platform-phone__details">
               {phoneProduct
@@ -1198,7 +1194,7 @@ function PlatformFlow() {
                   <div className="platform-phone__cart">Lisa ostukorvi</div>
                   <footer><strong>POERUUM</strong><small>Valmistatud hoolega Eestis</small></footer>
                 </>
-                : <div className="platform-phone__empty-details"><strong>Tooteid pole veel lisatud</strong><small>Näidispoe sisu laetakse Supabasest.</small></div>}
+                : null}
             </section>
           </div></div>
         </div>
