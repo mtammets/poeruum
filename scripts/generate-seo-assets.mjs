@@ -29,6 +29,13 @@ const absoluteImageUrl = (value) => {
   try { return new URL(value, platformOrigin).toString() }
   catch { return null }
 }
+const imageMimeType = (url, explicitType) => {
+  if (explicitType) return explicitType
+  if (/\.png(?:[?#]|$)/i.test(url || '')) return 'image/png'
+  if (/\.jpe?g(?:[?#]|$)/i.test(url || '')) return 'image/jpeg'
+  if (/\.webp(?:[?#]|$)/i.test(url || '')) return 'image/webp'
+  return null
+}
 const safeProductSlug = (product) => {
   const slug = String(product.slug || '')
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ? slug : String(product.id)
@@ -57,13 +64,34 @@ if (!response.ok) {
 const catalog = await response.json()
 if (!Array.isArray(catalog)) throw new Error('SEO kataloog ei ole oodatud kujul.')
 
+const homepageSettingsResponse = await fetch(
+  `${supabaseUrl}/rest/v1/platform_settings?select=social_image_path&id=eq.homepage`,
+  {
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+    },
+  },
+)
+if (!homepageSettingsResponse.ok) {
+  const details = await homepageSettingsResponse.text()
+  throw new Error(`Avalehe SEO seadistuse laadimine ebaõnnestus (${homepageSettingsResponse.status}): ${details.slice(0, 300)}`)
+}
+const homepageSettings = (await homepageSettingsResponse.json())?.[0] ?? {}
+const homepageSocialPath = typeof homepageSettings.social_image_path === 'string'
+  ? homepageSettings.social_image_path
+  : ''
+const homepageSocialVersion = homepageSocialPath || 'default-v1'
+const homepageSocialType = homepageSocialPath.endsWith('.webp') ? 'image/webp' : 'image/png'
+
 const baseHtml = await readFile(path.join(outputDirectory, 'index.html'), 'utf8')
 const seoBlockPattern = /<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/
 const contentBlockPattern = /<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/
 const fallbackLoaderMarkup = '<svg class="seo-fallback__logo" viewBox="0 0 40 40" aria-label="Poeruum laadib" role="img"><rect x="1" y="1" width="38" height="38" rx="11" /><path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z" /><path class="seo-fallback__handle" d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18" /><path d="M15.5 22.2h9" /></svg>'
 
-const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, imageWidth, imageHeight, type = 'website', noIndex = false, structuredData }) => {
+const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, imageWidth, imageHeight, imageType, type = 'website', noIndex = false, structuredData }) => {
   const resolvedImage = absoluteImageUrl(imageUrl)
+  const resolvedImageType = imageMimeType(resolvedImage, imageType)
   return `<!-- poeruum:seo:start -->
     <meta name="description" content="${escapeHtml(description)}" />
     <meta name="robots" content="${noIndex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large'}" />
@@ -73,7 +101,9 @@ const renderSeoBlock = ({ title, description, canonicalUrl, imageUrl, imageWidth
     <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
     <meta property="og:locale" content="et_EE" />
     ${resolvedImage ? `<meta property="og:image" content="${escapeHtml(resolvedImage)}" />
+    <meta property="og:image:secure_url" content="${escapeHtml(resolvedImage)}" />
     <meta property="og:image:alt" content="${escapeHtml(title)}" />
+    ${resolvedImageType ? `<meta property="og:image:type" content="${resolvedImageType}" />` : ''}
     ${imageWidth && imageHeight ? `<meta property="og:image:width" content="${imageWidth}" />
     <meta property="og:image:height" content="${imageHeight}" />` : ''}` : ''}
     <meta name="twitter:card" content="${resolvedImage ? 'summary_large_image' : 'summary'}" />
@@ -110,7 +140,8 @@ const homepageMetadata = {
   title: 'Poeruum – loo Eesti e-pood 10 minutiga',
   description: 'Loo professionaalne e-pood umbes 10 minutiga. Lisa tooted telefonist, võta vastu makseid ning halda tellimusi ja tarnet ühest lihtsast keskkonnast.',
   canonicalUrl: `${platformOrigin}/`,
-  imageUrl: `${supabaseUrl}/functions/v1/homepage-social-image`,
+  imageUrl: `${supabaseUrl}/functions/v1/homepage-social-image?v=${encodeURIComponent(homepageSocialVersion)}`,
+  imageType: homepageSocialType,
   imageWidth: 1200,
   imageHeight: 630,
   eyebrow: 'Eesti e-poeplatvorm',

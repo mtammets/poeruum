@@ -36,7 +36,7 @@ const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostna
   && window.location.pathname === '/' && !hasAppReturnState
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
 const isPlatformHostname = /^(?:localhost|127\.0\.0\.1|(?:[a-z0-9-]+\.)?poeruum\.ee)$/i.test(window.location.hostname)
-const isAdminPath = isPlatformHostname && !isStorefrontSubdomain && /^\/admin\/?$/i.test(window.location.pathname)
+const isAdminPath = isPlatformHostname && !isStorefrontSubdomain && /^\/admin(?:\/(?:seo|users|support))?\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformHostname && !isStorefrontSubdomain
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
     ? 'terms'

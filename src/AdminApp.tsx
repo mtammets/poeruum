@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Brand } from './Brand'
 import { Storefront } from './App'
@@ -43,6 +44,21 @@ type SetupStep = {
 
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
+type AdminView = 'overview' | 'seo' | 'support' | 'users'
+
+const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
+  overview: { path: '/admin', title: 'Ülevaade' },
+  seo: { path: '/admin/seo', title: 'Avaleht & SEO' },
+  support: { path: '/admin/support', title: 'Klienditugi' },
+  users: { path: '/admin/users', title: 'Kasutajad' },
+}
+
+const getAdminView = (pathname = window.location.pathname): AdminView => {
+  if (/^\/admin\/seo\/?$/i.test(pathname)) return 'seo'
+  if (/^\/admin\/support\/?$/i.test(pathname)) return 'support'
+  if (/^\/admin\/users\/?$/i.test(pathname)) return 'users'
+  return 'overview'
+}
 
 type RevenueEvent = {
   id: string
@@ -111,7 +127,7 @@ const prepareSocialImage = async (file: File) => {
   context.drawImage(bitmap, (SOCIAL_IMAGE_WIDTH - width) / 2, (SOCIAL_IMAGE_HEIGHT - height) / 2, width, height)
   bitmap.close()
 
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', .88))
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('Pildi optimeerimine ebaõnnestus.')
   return blob
 }
@@ -174,11 +190,12 @@ const isStalled = (row: AdminUserRow) => {
   return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
-type AdminIconName = 'home' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
+type AdminIconName = 'home' | 'seo' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
     home: <><path d="M4 11.5 12 5l8 6.5" /><path d="M6.5 10.5V20h11v-9.5M10 20v-5h4v5" /></>,
+    seo: <><circle cx="11" cy="11" r="7" /><path d="M4 11h14M11 4a11 11 0 0 1 0 14M11 4a11 11 0 0 0 0 14M16.5 16.5 21 21" /></>,
     users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.4-3.5 2.2-5.3 5.5-5.3s5.1 1.8 5.5 5.3" /><circle cx="17" cy="9" r="2.2" /><path d="M15.5 14.2c3.1-.4 4.8 1.2 5 4" /></>,
     store: <><path d="M4 9h16l-1-4H5L4 9Z"/><path d="M5 9v10h14V9M9 19v-5h6v5"/><path d="M4 9a3 3 0 0 0 5 2 3 3 0 0 0 6 0 3 3 0 0 0 5-2"/></>,
     message: <><path d="M4.5 5.5h15v10h-10l-5 3.5V5.5Z"/><path d="M8 9h8M8 12h5"/></>,
@@ -262,6 +279,7 @@ function ProgressBar({ row }: { row: AdminUserRow }) {
 }
 
 export default function AdminApp() {
+  const [activeView, setActiveView] = useState<AdminView>(() => getAdminView())
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [rows, setRows] = useState<AdminUserRow[]>([])
@@ -290,13 +308,31 @@ export default function AdminApp() {
   const dashboardRefreshTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
+    const view = adminViewConfig[activeView]
     applySeoMetadata({
-      title: 'Administraatori töölaud — Poeruum',
+      title: `${view.title} — Poeruumi admin`,
       description: 'Poeruumi administraatori turvaline sisselogimine.',
-      canonicalUrl: 'https://poeruum.ee/admin/',
+      canonicalUrl: `https://poeruum.ee${view.path}`,
       noIndex: true,
     })
+  }, [activeView])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveView(getAdminView())
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  const navigateToView = (event: ReactMouseEvent<HTMLAnchorElement>, view: AdminView) => {
+    event.preventDefault()
+    const nextPath = adminViewConfig[view].path
+    if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath)
+    setActiveView(view)
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }
 
   const openShowcaseManager = async () => {
     setIsShowcaseLoading(true)
@@ -381,10 +417,10 @@ export default function AdminApp() {
       const randomPart = typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-      uploadedPath = `social/homepage-${randomPart}.webp`
+      uploadedPath = `social/homepage-${randomPart}.png`
       const client = requireSupabase()
       const { error: uploadError } = await client.storage.from('platform-assets').upload(uploadedPath, blob, {
-        contentType: 'image/webp',
+        contentType: 'image/png',
         cacheControl: '300',
         upsert: false,
       })
@@ -592,25 +628,28 @@ export default function AdminApp() {
   const paymentMissingCount = rows.filter((row) => row.store_id && !row.has_payments).length
   const unpublishedCount = rows.filter((row) => setupPercent(row) > 0 && !row.has_published).length
   const stalledCount = rows.filter(isStalled).length
+  const openSupportCount = rows.reduce((total, row) => total + row.open_support_count, 0)
 
   return <main className="admin-shell">
     <aside className="admin-sidebar">
       <a href="/" aria-label="Poeruumi avaleht"><Brand /></a>
       <nav aria-label="Administraatori menüü">
-        <a className="is-active" href="/admin" aria-current="page"><span><AdminIcon name="home" /></span>Ülevaade</a>
+        <a className={activeView === 'overview' ? 'is-active' : undefined} href="/admin" aria-current={activeView === 'overview' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'overview')}><span><AdminIcon name="home" /></span>Ülevaade</a>
+        <a className={activeView === 'seo' ? 'is-active' : undefined} href="/admin/seo" aria-current={activeView === 'seo' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'seo')}><span><AdminIcon name="seo" /></span>Avaleht &amp; SEO</a>
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
-        <a href="#klienditugi"><span><AdminIcon name="message" /></span>Klienditugi</a>
-        <a href="#kasutajad"><span><AdminIcon name="users" /></span>Kasutajad</a>
+        <a className={activeView === 'support' ? 'is-active' : undefined} href="/admin/support" aria-current={activeView === 'support' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'support')}><span><AdminIcon name="message" /></span>Klienditugi</a>
+        <a className={activeView === 'users' ? 'is-active' : undefined} href="/admin/users" aria-current={activeView === 'users' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'users')}><span><AdminIcon name="users" /></span>Kasutajad</a>
       </nav>
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
     </aside>
 
     <section className="admin-main">
-      <header className="admin-topbar"><div><h1>Ülevaade</h1></div><button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button></header>
+      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div><button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button></header>
 
       {error && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
+        {activeView === 'seo' && <>
         <section className={`admin-homepage-mode${comingSoonEnabled === false ? ' is-public' : ''}`} aria-label="Avaliku avalehe olek">
           <div>
             <span>AVALIK AVALEHT</span>
@@ -653,7 +692,9 @@ export default function AdminApp() {
             <div><small>poeruum.ee</small><strong>Poeruum – loo Eesti e-pood 10 minutiga</strong><span>Loo professionaalne e-pood umbes 10 minutiga.</span></div>
           </div>
         </section>
+        </>}
 
+        {activeView === 'overview' && <>
         <section className={`admin-revenue${liveRevenueEventId ? ' is-live-update' : ''}`} aria-label="Poeruumi tulu">
           <div className="admin-revenue__summary">
             <header><span><AdminIcon name="revenue" /></span><div><small>SELLE KUU TEENUSTASUD</small><strong>{formatMoney(revenue.month_total_cents)}</strong></div><b><i /> REAALAJAS</b></header>
@@ -683,9 +724,34 @@ export default function AdminApp() {
           <article><span>VAJAVAD TÄHELEPANU</span><strong>{stalledCount}</strong><small>üle 7 päeva muutuseta</small><i className="is-danger"><AdminIcon name="alert" /></i></article>
         </section>
 
-        <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />
+        <nav className="admin-overview-shortcuts" aria-label="Admini kiirlingid">
+          <a href="/admin/users" onClick={(event) => navigateToView(event, 'users')}>
+            <span><AdminIcon name="users" /></span>
+            <div><small>KASUTAJAD</small><strong>Halda kasutajaid</strong><p>Otsi kontosid, jälgi poodide edenemist ja leia tähelepanu vajavad kasutajad.</p></div>
+            <b>{rows.length}<i>→</i></b>
+          </a>
+          <a href="/admin/support" onClick={(event) => navigateToView(event, 'support')}>
+            <span><AdminIcon name="message" /></span>
+            <div><small>KLIENDITUGI</small><strong>Ava vestlused</strong><p>Vasta küsimustele ja vaata kogu kliendisuhtlust ühes kohas.</p></div>
+            <b className={openSupportCount ? 'has-unread' : undefined}>{openSupportCount}<i>→</i></b>
+          </a>
+        </nav>
 
-        <section className="admin-users" id="kasutajad">
+        <section className="admin-setup-overview">
+          <header><div><h2>Seadistuse seis</h2></div><small>{unpublishedCount} alustatud poodi on veel avaldamata</small></header>
+          <div className="admin-setup-overview__bars">
+            {setupSteps.map((step) => {
+              const count = rows.filter((row) => row[step.key]).length
+              const percent = rows.length ? Math.round(count / rows.length * 100) : 0
+              return <div key={step.key}><span><strong>{step.label}</strong><small>{count} kasutajat</small></span><i><b style={{ width: `${percent}%` }} /></i><em>{percent}%</em></div>
+            })}
+          </div>
+        </section>
+        </>}
+
+        {activeView === 'support' && <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />}
+
+        {activeView === 'users' && <section className="admin-users">
           <header><div><h2>Seadistuse edenemine</h2></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
           <div className="admin-filters" role="group" aria-label="Filtreeri kasutajaid">
             {filters.map((item) => <button type="button" className={filter === item.id ? 'is-active' : ''} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} key={item.id}>{item.label}</button>)}
@@ -703,23 +769,12 @@ export default function AdminApp() {
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
                 <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
-                <div className={`admin-user-row__support${latestEmail && ['failed', 'bounced', 'complained'].includes(latestEmail.status) ? ' is-error' : ''}`}>{row.open_support_count > 0 ? <a href="#klienditugi"><strong>{row.open_support_count} avatud vestlus{row.open_support_count === 1 ? '' : 't'}</strong><small>{formatRelativeTime(row.last_support_at)}</small></a> : latestEmail ? <span><strong>{latestEmail.email_type === 'onboarding_reminder' ? 'Seadistuse meeldetuletus' : latestEmail.email_type === 'support_reply' ? 'Klienditoe vastus' : latestEmail.email_type === 'support_confirmation' ? 'Küsimuse kinnitus' : latestEmail.subject || 'Poeruumi kiri'}</strong><small>{latestEmail.status === 'delivered' ? 'Kohale toimetatud' : latestEmail.status === 'sent' ? 'Saadetud' : latestEmail.status === 'bounced' ? 'Ei jõudnud kohale' : latestEmail.status === 'complained' ? 'Märgiti rämpspostiks' : 'Saatmine ebaõnnestus'} · {formatRelativeTime(latestEmail.status_updated_at)}</small></span> : <span>Suhtlust pole</span>}</div>
+                <div className={`admin-user-row__support${latestEmail && ['failed', 'bounced', 'complained'].includes(latestEmail.status) ? ' is-error' : ''}`}>{row.open_support_count > 0 ? <a href="/admin/support" onClick={(event) => navigateToView(event, 'support')}><strong>{row.open_support_count} avatud vestlus{row.open_support_count === 1 ? '' : 't'}</strong><small>{formatRelativeTime(row.last_support_at)}</small></a> : latestEmail ? <span><strong>{latestEmail.email_type === 'onboarding_reminder' ? 'Seadistuse meeldetuletus' : latestEmail.email_type === 'support_reply' ? 'Klienditoe vastus' : latestEmail.email_type === 'support_confirmation' ? 'Küsimuse kinnitus' : latestEmail.subject || 'Poeruumi kiri'}</strong><small>{latestEmail.status === 'delivered' ? 'Kohale toimetatud' : latestEmail.status === 'sent' ? 'Saadetud' : latestEmail.status === 'bounced' ? 'Ei jõudnud kohale' : latestEmail.status === 'complained' ? 'Märgiti rämpspostiks' : 'Saatmine ebaõnnestus'} · {formatRelativeTime(latestEmail.status_updated_at)}</small></span> : <span>Suhtlust pole</span>}</div>
                 <div className="admin-user-row__activity"><strong className={isOnline ? 'is-online' : undefined}>{isOnline ? 'Online' : formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
               </article>
             }) : <div className="admin-table__empty"><span>⌕</span><strong>Kasutajaid ei leitud</strong><p>Muuda otsingut või vali teine filter.</p></div>}
           </div>
-        </section>
-
-        <section className="admin-setup-overview">
-          <header><div><h2>Seadistuse seis</h2></div><small>{unpublishedCount} alustatud poodi on veel avaldamata</small></header>
-          <div className="admin-setup-overview__bars">
-            {setupSteps.map((step) => {
-              const count = rows.filter((row) => row[step.key]).length
-              const percent = rows.length ? Math.round(count / rows.length * 100) : 0
-              return <div key={step.key}><span><strong>{step.label}</strong><small>{count} kasutajat</small></span><i><b style={{ width: `${percent}%` }} /></i><em>{percent}%</em></div>
-            })}
-          </div>
-        </section>
+        </section>}
       </>}
     </section>
   </main>

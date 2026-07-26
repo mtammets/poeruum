@@ -5,6 +5,7 @@ type SeoMetadata = {
   imageUrl?: string
   imageWidth?: number
   imageHeight?: number
+  imageType?: string
   type?: 'website' | 'product'
   noIndex?: boolean
   structuredData?: Record<string, unknown>
@@ -32,6 +33,7 @@ export const applySeoMetadata = ({
   imageUrl,
   imageWidth,
   imageHeight,
+  imageType,
   type = 'website',
   noIndex = false,
   structuredData,
@@ -56,18 +58,32 @@ export const applySeoMetadata = ({
 
   if (imageUrl) {
     const resolvedImageUrl = absoluteUrl(imageUrl)
+    const resolvedImageType = imageType
+      ?? (/\.png(?:[?#]|$)/i.test(resolvedImageUrl)
+        ? 'image/png'
+        : /\.jpe?g(?:[?#]|$)/i.test(resolvedImageUrl)
+          ? 'image/jpeg'
+          : /\.webp(?:[?#]|$)/i.test(resolvedImageUrl)
+            ? 'image/webp'
+            : undefined)
     upsertMeta('meta[property="og:image"]', { property: 'og:image', content: resolvedImageUrl })
+    upsertMeta('meta[property="og:image:secure_url"]', { property: 'og:image:secure_url', content: resolvedImageUrl })
     upsertMeta('meta[property="og:image:alt"]', { property: 'og:image:alt', content: title })
     upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: resolvedImageUrl })
+    if (resolvedImageType) {
+      upsertMeta('meta[property="og:image:type"]', { property: 'og:image:type', content: resolvedImageType })
+    } else {
+      document.head.querySelector('meta[property="og:image:type"]')?.remove()
+    }
     if (imageWidth && imageHeight) {
       upsertMeta('meta[property="og:image:width"]', { property: 'og:image:width', content: String(imageWidth) })
       upsertMeta('meta[property="og:image:height"]', { property: 'og:image:height', content: String(imageHeight) })
     } else {
-      document.head.querySelectorAll('meta[property="og:image:width"], meta[property="og:image:height"], meta[property="og:image:type"]')
+      document.head.querySelectorAll('meta[property="og:image:width"], meta[property="og:image:height"]')
         .forEach((element) => element.remove())
     }
   } else {
-    document.head.querySelectorAll('meta[property="og:image"], meta[property="og:image:alt"], meta[property="og:image:width"], meta[property="og:image:height"], meta[property="og:image:type"], meta[name="twitter:image"]')
+    document.head.querySelectorAll('meta[property="og:image"], meta[property="og:image:secure_url"], meta[property="og:image:alt"], meta[property="og:image:width"], meta[property="og:image:height"], meta[property="og:image:type"], meta[name="twitter:image"]')
       .forEach((element) => element.remove())
   }
 
