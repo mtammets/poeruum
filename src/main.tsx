@@ -118,19 +118,19 @@ function Homepage() {
   useEffect(() => {
     if (!homepageSettings) return
     const supabaseOrigin = import.meta.env.VITE_SUPABASE_URL?.trim()?.replace(/\/$/, '')
-    const imageVersion = homepageSettings.socialImagePath || 'default-v1'
+    const imageVersion = homepageSettings.socialImagePath
     applySeoMetadata({
       title: homepageSettings.seoTitle,
       description: homepageSettings.seoDescription,
       socialTitle: homepageSettings.socialTitle,
       socialDescription: homepageSettings.socialDescription,
       canonicalUrl: 'https://poeruum.ee/',
-      imageUrl: supabaseOrigin
+      imageUrl: supabaseOrigin && imageVersion
         ? `${supabaseOrigin}/functions/v1/homepage-social-image?v=${encodeURIComponent(imageVersion)}`
-        : '/images/poeruum-social.png',
-      imageWidth: 1200,
-      imageHeight: 630,
-      imageType: homepageSettings.socialImagePath?.endsWith('.webp') ? 'image/webp' : 'image/png',
+        : undefined,
+      imageWidth: imageVersion ? 1200 : undefined,
+      imageHeight: imageVersion ? 630 : undefined,
+      imageType: imageVersion ? (imageVersion.endsWith('.webp') ? 'image/webp' : 'image/png') : undefined,
       noIndex: !homepageSettings.searchIndexingEnabled,
     })
   }, [homepageSettings])

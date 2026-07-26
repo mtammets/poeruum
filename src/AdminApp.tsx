@@ -102,7 +102,6 @@ const emptyRevenueDashboard: RevenueDashboard = {
   recent_events: [],
 }
 
-const DEFAULT_SOCIAL_IMAGE_URL = '/images/poeruum-social.png'
 const SOCIAL_IMAGE_WIDTH = 1200
 const SOCIAL_IMAGE_HEIGHT = 630
 const DEFAULT_SEO_TITLE = 'Poeruum – loo Eesti e-pood 10 minutiga'
@@ -492,7 +491,7 @@ export default function AdminApp() {
 
   const socialImageUrl = socialImagePath
     ? requireSupabase().storage.from('platform-assets').getPublicUrl(socialImagePath).data.publicUrl
-    : DEFAULT_SOCIAL_IMAGE_URL
+    : null
 
   const changeSocialImage = async (file: File | undefined) => {
     if (!file || isSocialImageUpdating) return
@@ -530,9 +529,9 @@ export default function AdminApp() {
     }
   }
 
-  const restoreDefaultSocialImage = async () => {
+  const removeSocialImage = async () => {
     if (!socialImagePath || isSocialImageUpdating) return
-    if (!window.confirm('Kas taastada Poeruumi vaikimisi jagamispilt?')) return
+    if (!window.confirm('Kas eemaldada avalehe jagamispilt?')) return
     setIsSocialImageUpdating(true)
     setSocialImageError('')
     setSocialImageNotice('')
@@ -540,10 +539,10 @@ export default function AdminApp() {
     const client = requireSupabase()
     const { error: updateError } = await client.rpc('admin_set_homepage_social_image', { next_path: null })
     if (updateError) {
-      setSocialImageError(updateError.message || 'Vaikimisi pildi taastamine ebaõnnestus.')
+      setSocialImageError(updateError.message || 'Jagamispildi eemaldamine ebaõnnestus.')
     } else {
       setSocialImagePath(null)
-      setSocialImageNotice('Vaikimisi jagamispilt on taastatud.')
+      setSocialImageNotice('Jagamispilt on eemaldatud.')
       void client.storage.from('platform-assets').remove([previousPath])
     }
     setIsSocialImageUpdating(false)
@@ -728,7 +727,7 @@ export default function AdminApp() {
     seoTextLength(seoDraft.seo_description) >= 120 && seoTextLength(seoDraft.seo_description) <= 160,
     seoTextLength(seoDraft.social_title) >= 10 && seoTextLength(seoDraft.social_title) <= 95,
     seoTextLength(seoDraft.social_description) >= 20 && seoTextLength(seoDraft.social_description) <= 200,
-    Boolean(socialImagePath || DEFAULT_SOCIAL_IMAGE_URL),
+    Boolean(socialImagePath),
     seoDraft.search_indexing_enabled,
   ]
   const seoScore = Math.round(seoChecks.filter(Boolean).length / seoChecks.length * 100)
@@ -845,14 +844,16 @@ export default function AdminApp() {
                   }} />
                   {isSocialImageUpdating ? 'Töötlen pilti…' : socialImagePath ? 'Asenda pilt' : 'Laadi uus pilt'}
                 </label>
-                {socialImagePath && <button type="button" disabled={isSocialImageUpdating} onClick={() => void restoreDefaultSocialImage()}>Taasta vaikimisi</button>}
+                {socialImagePath && <button type="button" disabled={isSocialImageUpdating} onClick={() => void removeSocialImage()}>Eemalda pilt</button>}
               </div>
               <small>Pilt lõigatakse automaatselt mõõtu 1200 × 630 px. Hoia oluline sisu pildi keskel.</small>
               {socialImageError && <p className="is-error" role="alert">{socialImageError}</p>}
               {socialImageNotice && <p className="is-success" role="status">{socialImageNotice}</p>}
             </div>
             <div className="admin-social-image__preview">
-              <img src={socialImageUrl} alt="Poeruumi jagamispildi eelvaade" />
+              {socialImageUrl
+                ? <img src={socialImageUrl} alt="Poeruumi jagamispildi eelvaade" />
+                : <div className="admin-social-image__empty"><strong>Jagamispilt puudub</strong><span>Laadi pilt üles Supabase Storage’isse.</span></div>}
               <div><small>poeruum.ee</small><strong>{seoDraft.social_title}</strong><span>{seoDraft.social_description}</span></div>
             </div>
           </section>
@@ -865,7 +866,7 @@ export default function AdminApp() {
               <article className="is-ready"><i>✓</i><span><strong>Sitemap</strong><small>Automaatselt genereeritud</small></span><a href="https://poeruum.ee/sitemap.xml" target="_blank" rel="noreferrer">Ava ↗</a></article>
               <article className="is-ready"><i>✓</i><span><strong>robots.txt</strong><small>Otsingurobotite reeglid</small></span><a href="https://poeruum.ee/robots.txt" target="_blank" rel="noreferrer">Ava ↗</a></article>
               <article className="is-ready"><i>✓</i><span><strong>Struktureeritud andmed</strong><small>WebSite + SoftwareApplication</small></span></article>
-              <article className={socialImagePath ? 'is-ready' : 'is-neutral'}><i>✓</i><span><strong>Open Graph</strong><small>1200 × 630 PNG · versioonitud URL</small></span></article>
+              <article className={socialImagePath ? 'is-ready' : 'is-warning'}><i>{socialImagePath ? '✓' : '!'}</i><span><strong>Open Graph</strong><small>{socialImagePath ? '1200 × 630 · Supabase Storage · versioonitud URL' : 'Jagamispilt puudub'}</small></span></article>
             </div>
           </section>
 

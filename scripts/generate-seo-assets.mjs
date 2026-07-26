@@ -81,8 +81,10 @@ const homepageSettings = (await homepageSettingsResponse.json())?.[0] ?? {}
 const homepageSocialPath = typeof homepageSettings.social_image_path === 'string'
   ? homepageSettings.social_image_path
   : ''
-const homepageSocialVersion = homepageSocialPath || 'default-v1'
-const homepageSocialType = homepageSocialPath.endsWith('.webp') ? 'image/webp' : 'image/png'
+const homepageSocialVersion = homepageSocialPath
+const homepageSocialType = homepageSocialPath
+  ? (homepageSocialPath.endsWith('.webp') ? 'image/webp' : 'image/png')
+  : undefined
 const homepageSeoTitle = String(homepageSettings.seo_title || 'Poeruum – loo Eesti e-pood 10 minutiga')
 const homepageSeoDescription = cleanDescription(
   homepageSettings.seo_description,
@@ -153,10 +155,12 @@ const homepageMetadata = {
   socialTitle: homepageSocialTitle,
   socialDescription: homepageSocialDescription,
   canonicalUrl: `${platformOrigin}/`,
-  imageUrl: `${supabaseUrl}/functions/v1/homepage-social-image?v=${encodeURIComponent(homepageSocialVersion)}`,
+  imageUrl: homepageSocialVersion
+    ? `${supabaseUrl}/functions/v1/homepage-social-image?v=${encodeURIComponent(homepageSocialVersion)}`
+    : undefined,
   imageType: homepageSocialType,
-  imageWidth: 1200,
-  imageHeight: 630,
+  imageWidth: homepageSocialVersion ? 1200 : undefined,
+  imageHeight: homepageSocialVersion ? 630 : undefined,
   noIndex: !homepageIndexingEnabled,
   eyebrow: 'Eesti e-poeplatvorm',
   heading: 'Loo oma e-pood 10 minutiga',

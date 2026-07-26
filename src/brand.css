@@ -2966,7 +2966,7 @@
   height: 5.4rem;
   overflow: hidden;
   border-radius: .68rem;
-  background: #080808 url('/images/showcase/kaktus_1.jpg') center 48% / cover;
+  background: #080808 linear-gradient(135deg, rgba(229, 242, 90, .14), transparent 44%, rgba(255, 255, 255, .08));
 }
 
 .settings-theme__preview::after { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .4), transparent 42%, rgba(0, 0, 0, .55)); content: ''; }

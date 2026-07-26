@@ -83,6 +83,19 @@ const isMissingDatabaseApi = (error: { code?: string; message: string } | null) 
 
 const publicStoreColumns = 'id,name,slug,is_published,payment_provider,payment_status,shipping,settings'
 
+const isSupabaseProductImageUrl = (value: unknown) => {
+  if (typeof value !== 'string' || !value) return false
+  const configuredOrigin = import.meta.env.VITE_SUPABASE_URL?.trim()?.replace(/\/$/, '')
+  if (!configuredOrigin) return false
+  try {
+    const url = new URL(value)
+    return url.origin === new URL(configuredOrigin).origin
+      && url.pathname.startsWith('/storage/v1/object/public/product-images/')
+  } catch {
+    return false
+  }
+}
+
 // crypto.randomUUID is unavailable in older Safari versions and on non-secure
 // LAN origins (http://192.168... / http://172.16...). getRandomValues remains
 // available there, so image uploads still get collision-resistant names.
@@ -248,7 +261,7 @@ export async function cancelStripeBilling() {
 export async function listProducts(storeId: string) {
   const { data, error } = await requireSupabase().from('products').select('*').eq('store_id', storeId).order('sort_order').order('created_at')
   throwIfError(error)
-  return (data ?? []).map(productFromRow)
+  return (data ?? []).filter((row) => isSupabaseProductImageUrl(row.image_url)).map(productFromRow)
 }
 
 const productFromRow = (row: Record<string, unknown>): Product => ({
@@ -274,6 +287,9 @@ const productToRow = (storeId: string, product: Product) => ({
 })
 
 export async function saveProduct(storeId: string, product: Product) {
+  if (!isSupabaseProductImageUrl(product.image)) {
+    throw new Error('Tootepilt peab olema üles laaditud Supabase Storage’isse.')
+  }
   const { data, error } = await requireSupabase().from('products').upsert(productToRow(storeId, product)).select().single()
   if (error?.message.toLowerCase().includes('row-level security')) {
     throw new Error('Sul puudub selle poe muutmise õigus. Logi uuesti sisse ja proovi uuesti.')

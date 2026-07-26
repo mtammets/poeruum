@@ -311,7 +311,7 @@ button, a, summary { touch-action: manipulation; }
 .theme-choice.is-selected { border-color: var(--platform-green); }
 .theme-choice > div { position: relative; height: 9.5rem; padding: .75rem; overflow: hidden; border-radius: .6rem; }
 .theme-choice > div span { font-size: .43rem; font-weight: 800; letter-spacing: .1em; }
-.theme-choice > div i { display: block; width: 70%; height: 5rem; margin: .4rem auto; border-radius: .3rem; background: url('/images/showcase/kaktus_1.jpg') center/cover; }
+.theme-choice > div i { display: block; width: 70%; height: 5rem; margin: .4rem auto; border-radius: .3rem; background: linear-gradient(145deg, currentColor 0 38%, transparent 38% 55%, currentColor 55% 100%); opacity: .18; }
 .theme-choice > div strong, .theme-choice > div b { display: block; font-size: .52rem; }
 .theme-choice--midnight > div { background: #111; color: #fff; }
 .theme-choice--paper > div { background: #eee4d2; color: #3d342b; }

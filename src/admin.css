@@ -56,6 +56,9 @@
 .admin-social-image__copy > small { color: #939b95; font-size: .5rem; line-height: 1.45; }
 .admin-social-image__preview { overflow: hidden; border: 1px solid #dfe2dc; border-radius: .72rem; background: #f8f8f5; box-shadow: 0 8px 20px #26352a0c; }
 .admin-social-image__preview > img { display: block; width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; background: #f4f2e9; }
+.admin-social-image__preview > .admin-social-image__empty { display: grid; min-height: 12rem; place-content: center; gap: .35rem; padding: 1.5rem; background: #f0f2ec; color: #758078; text-align: center; }
+.admin-social-image__preview > .admin-social-image__empty strong { color: #35423a; font-size: .82rem; }
+.admin-social-image__preview > .admin-social-image__empty span { font-size: .58rem; }
 .admin-social-image__preview > div { display: grid; gap: .12rem; padding: .68rem .75rem .72rem; border-top: 1px solid #e3e5df; }
 .admin-social-image__preview small { color: #929a95; font-size: .47rem; text-transform: uppercase; }
 .admin-social-image__preview strong { font-size: .64rem; }

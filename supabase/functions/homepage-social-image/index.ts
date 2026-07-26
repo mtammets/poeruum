@@ -1,5 +1,3 @@
-const platformFallbackImage = 'https://poeruum.ee/images/poeruum-social.png'
-
 const requiredEnv = (name: string) => {
   const value = Deno.env.get(name)?.trim()
   if (!value) throw new Error(`Puudub ${name}.`)
@@ -34,10 +32,7 @@ Deno.serve(async (request) => {
     const path = typeof settings?.[0]?.social_image_path === 'string' ? settings[0].social_image_path : ''
 
     if (!path) {
-      return new Response(null, {
-        status: 302,
-        headers: { ...responseHeaders, Location: platformFallbackImage },
-      })
+      return new Response(null, { status: 404, headers: responseHeaders })
     }
 
     const encodedPath = path.split('/').map(encodeURIComponent).join('/')
@@ -59,9 +54,6 @@ Deno.serve(async (request) => {
     })
   } catch (error) {
     console.error('Avalehe jagamispildi laadimine ebaõnnestus.', error)
-    return new Response(null, {
-      status: 302,
-      headers: { ...responseHeaders, Location: platformFallbackImage },
-    })
+    return new Response(null, { status: 502, headers: responseHeaders })
   }
 })

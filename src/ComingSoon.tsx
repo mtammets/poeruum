@@ -1,15 +1,19 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Brand, BrandMark } from './Brand'
 import { applySeoMetadata } from './lib/seo'
+import { getPublicShowcaseStore, listProducts } from './lib/database'
+import { isSupabaseConfigured } from './lib/supabase'
+import type { Product } from './products'
 import './coming-soon.css'
 
-const showcaseProducts = [
-  { name: 'Lamp Sammal', price: '79 €', image: '/images/showcase/lamp_sammal.webp' },
-  { name: 'Vaas Laine', price: '49 €', image: '/images/showcase/vaas_laine.webp' },
-  { name: 'Alus Täpe', price: '39 €', image: '/images/showcase/alus_tape.webp' },
-]
+const isSupabaseImage = (value: string) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim()?.replace(/\/$/, '')
+  return Boolean(supabaseUrl && value.startsWith(`${supabaseUrl}/storage/v1/`))
+}
 
 export default function ComingSoon() {
+  const [showcaseProducts, setShowcaseProducts] = useState<Product[]>([])
+
   useEffect(() => {
     applySeoMetadata({
       title: 'Poeruum — varsti avame',
@@ -22,6 +26,20 @@ export default function ComingSoon() {
         url: 'https://poeruum.ee/',
       },
     })
+  }, [])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    let active = true
+    getPublicShowcaseStore()
+      .then((store) => store ? listProducts(store.id) : [])
+      .then((items) => {
+        if (active) setShowcaseProducts(items.filter((product) => isSupabaseImage(product.image)).slice(0, 3))
+      })
+      .catch(() => {
+        if (active) setShowcaseProducts([])
+      })
+    return () => { active = false }
   }, [])
 
   return <main className="coming-soon">
@@ -48,7 +66,7 @@ export default function ComingSoon() {
         </button>
         <footer>
           <div><small>UUS LEID</small><strong>{product.name}</strong></div>
-          <span>{product.price}</span>
+          <span>{product.price == null ? '' : `${product.price.toFixed(0)} €`}</span>
         </footer>
       </article>)}
     </section>
