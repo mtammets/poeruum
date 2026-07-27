@@ -9,21 +9,20 @@ test('landing page opens and login navigation works', async ({ page }) => {
       value: undefined,
     })
     const turnstileWindow = window as typeof window & {
+      __completeTurnstile?: () => void
+      __turnstileOptions?: Record<string, unknown>
       turnstile: {
         render: (container: HTMLElement, options: Record<string, unknown>) => string
         remove: (widgetId: string) => void
       }
     }
     turnstileWindow.turnstile = {
-      render: (container, options) => {
-        const button = document.createElement('button')
-        button.type = 'button'
-        button.textContent = 'Kinnita test-botikaitse'
-        button.addEventListener('click', () => {
+      render: (_container, options) => {
+        turnstileWindow.__turnstileOptions = options
+        turnstileWindow.__completeTurnstile = () => {
           const callback = options.callback
           if (typeof callback === 'function') callback('playwright-captcha-token')
-        })
-        container.append(button)
+        }
         return 'playwright-widget'
       },
       remove: () => undefined,
@@ -48,7 +47,19 @@ test('landing page opens and login navigation works', async ({ page }) => {
   await expect(page.getByLabel('Parool')).toBeVisible()
   const submitButton = page.getByRole('button', { name: /Jätka oma poega/ })
   await expect(submitButton).toBeDisabled()
-  await page.locator('.turnstile-field button').click()
+  expect(await page.evaluate(() => {
+    const turnstileWindow = window as typeof window & {
+      __turnstileOptions?: Record<string, unknown>
+    }
+    return {
+      appearance: turnstileWindow.__turnstileOptions?.appearance,
+      language: turnstileWindow.__turnstileOptions?.language,
+    }
+  })).toEqual({ appearance: 'interaction-only', language: 'auto' })
+  await page.evaluate(() => {
+    const turnstileWindow = window as typeof window & { __completeTurnstile?: () => void }
+    turnstileWindow.__completeTurnstile?.()
+  })
   await expect(submitButton).toBeEnabled()
   expect(pageErrors).toEqual([])
 })
