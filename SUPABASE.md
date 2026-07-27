@@ -70,6 +70,8 @@ Checkout kasutab kliendi päringu ID-d, Stripe’i idempotentsusvõtit ja atomaa
 
 Reserveeringu aegumise ja kuutasu konkurentsikontrolli saab käivitada käsuga `npm run test:reservation-cap`. Test loob ajutise poe, käivitab kaks paralleelset checkout’i, kontrollib 39 € atomaarset ülempiiri ja aegunud laoreserveeringu vabastamist ning koristab testandmed.
 
+Arvelduse armuaja serveripoolse jõustamise kontroll käivitub käsuga `npm run test:billing-delinquency`. Test kinnitab, et aktiivse Kindla paketi ja kehtiva armuaja jooksul on müügitasu 0%, kuid lõppenud armuaja järel rakendub uuele tellimusele automaatselt Paindliku paketi 4% netotasu ning käibemaks.
+
 Billingu brauseritest käivitub käsuga `npm run test:stripe-billing`, kui rakendus töötab aadressil `http://127.0.0.1:5173`. Test kasutab süsteemi Google Chrome’i, Stripe’i testkaarte ning ajutisi Supabase’i kasutajaid ja poode. See kontrollib edukat kaarti, 3D Secure’i, tagasilükatud kaarti, tagasisuunamist, päris webhooki, prooviperioodi, korduskaitset ja paketi lõpetamist ning koristab ajutised andmed.
 
 Stripe’i platvormikonto webhook peab saatma `stripe-webhook` funktsioonile järgmised sündmused:
@@ -84,6 +86,12 @@ Stripe’i platvormikonto webhook peab saatma `stripe-webhook` funktsioonile jä
 - `invoice.payment_failed`
 - `application_fee.created`
 - `application_fee.refunded`
+
+Kindla paketi korduva makse ebaõnnestumisel algab rakenduse enda 7-päevane armuaeg. `stripe-billing-delinquency` töötab iga 15 minuti järel sama Vault URL-i ja cron-saladusega nagu teised hooldusfunktsioonid. Armuaeg ei lähtestu Stripe’i korduskatsetel. Selle lõppedes lõpetab funktsioon tellimuse, tühistab avatud tasumata arve ja viib poe Paindlikule paketile. Ostu teenustasu arvutav andmebaasifunktsioon kontrollib armuaja tähtaega iseseisvalt, nii et pärast tähtaega rakendub Paindliku paketi tasu ka siis, kui cron-töö hilineb.
+
+Stripe Billing Portal peab olema Stripe Dashboardis aktiveeritud, et kaupmees saaks rakendusest makseviisi ja arveid hallata. Stripe’i automaatsed korduskatsed ning ebaõnnestunud makse e-kirjad võib jätta sisse; Poeruum saadab lisaks oma teavituse makse ebaõnnestumisel, vähem kui 24 tundi enne armuaja lõppu ja automaatse paketivahetuse järel.
+
+Portaali kontrollitud konfiguratsiooni loob või uuendab käsk `npm run stripe:billing-portal -- apply`; kontrollimiseks kasuta `npm run stripe:billing-portal -- verify`. Portaal lubab makseviisi uuendada ja arveajalugu vaadata, kuid paketi muutmine ning tühistamine jäävad Poeruumi enda voo kontrolli alla.
 
 Connecti webhook peab saatma `stripe-connect-webhook` funktsioonile connected account sündmused `account.updated` ja `account.application.deauthorized`.
 

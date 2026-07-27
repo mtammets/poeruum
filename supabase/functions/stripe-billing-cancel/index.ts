@@ -29,8 +29,18 @@ Deno.serve(async (request) => {
     const { data: store, error: storeError } = await admin.from('stores').select('*').eq('owner_id', user.id).order('created_at').limit(1).maybeSingle()
     if (storeError) throw storeError
     if (!store) return json({ error: 'Poodi ei leitud.' }, 404)
-    if (!store.stripe_subscription_id || !['active', 'trialing', 'past_due'].includes(String(store.stripe_subscription_status))) {
-      const { error } = await admin.from('stores').update({ pricing_plan: 'flexible', stripe_subscription_status: null }).eq('id', store.id)
+    const status = String(store.stripe_subscription_status)
+    if (!store.stripe_subscription_id || !['active', 'trialing', 'past_due', 'unpaid'].includes(status)) {
+      const { error } = await admin.from('stores').update({
+        pricing_plan: 'flexible',
+        stripe_subscription_status: status === 'canceled' ? 'canceled' : null,
+        billing_delinquent_at: null,
+        billing_grace_ends_at: null,
+        billing_last_failed_invoice_id: null,
+        billing_last_failed_invoice_url: null,
+        billing_failure_notified_at: null,
+        billing_grace_reminder_sent_at: null,
+      }).eq('id', store.id)
       if (error) throw error
       return json({ effectiveImmediately: true })
     }
@@ -38,6 +48,27 @@ Deno.serve(async (request) => {
     const stripeMode = assertStripeMode(stripeSecretKey)
     assertStoredStripeMode(store.stripe_billing_mode, stripeMode, 'Poe Stripe Billing')
     const stripe = new Stripe(stripeSecretKey)
+    if (status === 'past_due' || status === 'unpaid') {
+      await stripe.subscriptions.cancel(store.stripe_subscription_id, { invoice_now: false, prorate: false })
+      if (store.billing_last_failed_invoice_id) {
+        const invoice = await stripe.invoices.retrieve(store.billing_last_failed_invoice_id)
+        if (invoice.status === 'open') await stripe.invoices.voidInvoice(invoice.id)
+      }
+      const changedAt = new Date().toISOString()
+      const { error } = await admin.from('stores').update({
+        pricing_plan: 'flexible',
+        stripe_subscription_status: 'canceled',
+        billing_delinquent_at: null,
+        billing_grace_ends_at: null,
+        billing_last_failed_invoice_url: null,
+        billing_failure_notified_at: null,
+        billing_grace_reminder_sent_at: null,
+        billing_downgraded_at: changedAt,
+        billing_downgrade_notified_at: changedAt,
+      }).eq('id', store.id)
+      if (error) throw error
+      return json({ effectiveImmediately: true })
+    }
     const subscription = await stripe.subscriptions.update(store.stripe_subscription_id, { cancel_at_period_end: true })
     return json({ effectiveImmediately: false, cancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null })
   } catch (error) {

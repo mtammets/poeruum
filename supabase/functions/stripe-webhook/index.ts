@@ -12,12 +12,20 @@ import {
 } from '../_shared/stripe-webhook.ts'
 import { assertStoredStripeMode } from '../_shared/stripe-mode.ts'
 import { sendPaidOrderEmails } from '../_shared/order-email.ts'
+import { sendBillingEmail, type BillingEmailStore } from '../_shared/billing-email.ts'
 
 type StripeRecord = Record<string, unknown>
 
 type StoreLookup = {
   id: string
   name: string
+  owner_id: string | null
+  billing_delinquent_at: string | null
+  billing_grace_ends_at: string | null
+  billing_last_failed_invoice_id: string | null
+  billing_last_failed_invoice_url: string | null
+  billing_downgraded_at: string | null
+  billing_downgrade_notified_at: string | null
 }
 
 const unixDate = (value: unknown) => new Date((typeof value === 'number' ? value : Math.floor(Date.now() / 1000)) * 1000).toISOString()
@@ -36,7 +44,11 @@ const getSubscriptionState = async (subscriptionId: string | null) => {
 
 const findStore = async (filters: { storeId?: string | null; customerId?: string | null; subscriptionId?: string | null; connectedAccountId?: string | null }) => {
   const admin = getAdminClient()
-  let query = admin.from('stores').select('id,name').limit(1)
+  let query = admin.from('stores').select([
+    'id', 'name', 'owner_id', 'billing_delinquent_at', 'billing_grace_ends_at',
+    'billing_last_failed_invoice_id', 'billing_last_failed_invoice_url',
+    'billing_downgraded_at', 'billing_downgrade_notified_at',
+  ].join(',')).limit(1)
   if (filters.storeId) query = query.eq('id', filters.storeId)
   else if (filters.subscriptionId) query = query.eq('stripe_subscription_id', filters.subscriptionId)
   else if (filters.customerId) query = query.eq('stripe_customer_id', filters.customerId)
@@ -50,7 +62,7 @@ const findStore = async (filters: { storeId?: string | null; customerId?: string
 const recordRevenue = async (input: {
   event: Stripe.Event
   objectId: string | null
-  store: StoreLookup | null
+  store: Pick<StoreLookup, 'id' | 'name'> | null
   kind: 'subscription' | 'transaction_fee' | 'transaction_fee_refund'
   amountCents: number
   currency: string
@@ -82,6 +94,62 @@ const updateStore = async (values: Record<string, unknown>, filters: { storeId?:
   else return
   const { error } = await query
   if (error) throw error
+}
+
+const clearedDelinquency = {
+  billing_delinquent_at: null,
+  billing_grace_ends_at: null,
+  billing_last_failed_invoice_id: null,
+  billing_last_failed_invoice_url: null,
+  billing_failure_notified_at: null,
+  billing_grace_reminder_sent_at: null,
+  billing_downgraded_at: null,
+  billing_downgrade_notified_at: null,
+}
+
+const markStoreDelinquent = async (input: {
+  storeId?: string | null
+  customerId?: string | null
+  subscriptionId?: string | null
+  status: string
+  invoiceId?: string | null
+  invoiceUrl?: string | null
+}) => {
+  const store = await findStore(input)
+  if (!store) return
+  const isNewEpisode = !store.billing_delinquent_at
+  const delinquentAt = store.billing_delinquent_at ?? new Date().toISOString()
+  const graceEndsAt = store.billing_grace_ends_at
+    ?? new Date(new Date(delinquentAt).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const nextStore: BillingEmailStore = {
+    ...store,
+    billing_grace_ends_at: graceEndsAt,
+    billing_last_failed_invoice_id: input.invoiceId ?? store.billing_last_failed_invoice_id,
+    billing_last_failed_invoice_url: input.invoiceUrl ?? store.billing_last_failed_invoice_url,
+  }
+  await updateStore({
+    stripe_subscription_status: input.status,
+    billing_delinquent_at: delinquentAt,
+    billing_grace_ends_at: graceEndsAt,
+    billing_last_failed_invoice_id: nextStore.billing_last_failed_invoice_id,
+    billing_last_failed_invoice_url: nextStore.billing_last_failed_invoice_url,
+    ...(isNewEpisode ? {
+      billing_failure_notified_at: null,
+      billing_grace_reminder_sent_at: null,
+      billing_downgraded_at: null,
+      billing_downgrade_notified_at: null,
+    } : {}),
+  }, { storeId: store.id })
+
+  if (isNewEpisode) {
+    try {
+      await sendBillingEmail(getAdminClient(), nextStore, 'payment_failed')
+      await updateStore({ billing_failure_notified_at: new Date().toISOString() }, { storeId: store.id })
+    } catch (error) {
+      // The scheduled delinquency worker retries unsent billing notifications.
+      console.error(`Poe ${store.id} maksevea teavituse saatmine ebaõnnestus.`, error)
+    }
+  }
 }
 
 const completeStorePayment = async (event: Stripe.Event, object: StripeRecord, orderId: string, storeId: string | null) => {
@@ -197,6 +265,7 @@ const handleEvent = async (event: Stripe.Event) => {
       await updateStore({
         pricing_plan: 'fixed',
         stripe_billing_mode: event.livemode ? 'live' : 'test',
+        ...clearedDelinquency,
         ...(subscription?.trialStartedAt ? { trial_started_at: subscription.trialStartedAt } : {}),
         stripe_customer_id: stripeId(object.customer),
         stripe_subscription_id: subscription?.id ?? stripeId(object.subscription),
@@ -237,11 +306,45 @@ const handleEvent = async (event: Stripe.Event) => {
 
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
     const subscriptionId = stripeId(object)
+    const status = event.type === 'customer.subscription.deleted' ? 'canceled' : String(object.status ?? 'unknown')
+    if (event.type === 'customer.subscription.deleted') {
+      const store = await findStore({
+        storeId: metadataStoreId(object),
+        subscriptionId,
+        customerId: stripeId(object.customer),
+      })
+      const wasDowngradedForNonpayment = Boolean(store?.billing_delinquent_at || store?.billing_downgraded_at)
+      await updateStore({
+        pricing_plan: 'flexible',
+        ...clearedDelinquency,
+        ...(wasDowngradedForNonpayment ? {
+          billing_downgraded_at: store?.billing_downgraded_at ?? new Date().toISOString(),
+          billing_downgrade_notified_at: store?.billing_downgrade_notified_at,
+        } : {}),
+        stripe_customer_id: stripeId(object.customer),
+        stripe_subscription_id: subscriptionId,
+        stripe_subscription_status: status,
+      }, {
+        storeId: metadataStoreId(object),
+        subscriptionId,
+        customerId: stripeId(object.customer),
+      })
+      return
+    }
+    if (status === 'past_due' || status === 'unpaid') {
+      await markStoreDelinquent({
+        storeId: metadataStoreId(object),
+        subscriptionId,
+        customerId: stripeId(object.customer),
+        status,
+      })
+      return
+    }
     await updateStore({
-      ...(event.type === 'customer.subscription.deleted' ? { pricing_plan: 'flexible' } : {}),
+      ...(['active', 'trialing', 'canceled'].includes(status) ? clearedDelinquency : {}),
       stripe_customer_id: stripeId(object.customer),
       stripe_subscription_id: subscriptionId,
-      stripe_subscription_status: event.type === 'customer.subscription.deleted' ? 'canceled' : String(object.status ?? 'unknown'),
+      stripe_subscription_status: status,
     }, {
       storeId: metadataStoreId(object),
       subscriptionId,
@@ -257,14 +360,27 @@ const handleEvent = async (event: Stripe.Event) => {
       : null
     const subscriptionId = stripeId(subscriptionDetails?.subscription ?? object.subscription)
     const subscription = await getSubscriptionState(subscriptionId)
-    await updateStore({
-      stripe_subscription_status: subscription?.status ?? (event.type === 'invoice.paid' ? 'active' : 'past_due'),
-      ...(subscription?.trialStartedAt ? { trial_started_at: subscription.trialStartedAt } : {}),
-    }, {
-      storeId: metadataStoreId(object),
-      subscriptionId,
-      customerId: stripeId(object.customer),
-    })
+    const subscriptionStatus = subscription?.status ?? (event.type === 'invoice.paid' ? 'active' : 'past_due')
+    if (event.type === 'invoice.payment_failed') {
+      await markStoreDelinquent({
+        storeId: metadataStoreId(object),
+        subscriptionId,
+        customerId: stripeId(object.customer),
+        status: subscriptionStatus,
+        invoiceId: stripeId(object),
+        invoiceUrl: typeof object.hosted_invoice_url === 'string' ? object.hosted_invoice_url : null,
+      })
+    } else {
+      await updateStore({
+        stripe_subscription_status: subscriptionStatus,
+        ...(subscriptionStatus === 'active' ? clearedDelinquency : {}),
+        ...(subscription?.trialStartedAt ? { trial_started_at: subscription.trialStartedAt } : {}),
+      }, {
+        storeId: metadataStoreId(object),
+        subscriptionId,
+        customerId: stripeId(object.customer),
+      })
+    }
     if (event.type === 'invoice.paid') {
       const store = await findStore({
         storeId: metadataStoreId(object),

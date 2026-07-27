@@ -40,6 +40,12 @@ verify_jwt = true
 [functions.stripe-billing-cancel]
 verify_jwt = true
 
+[functions.stripe-billing-portal]
+verify_jwt = true
+
+[functions.stripe-billing-delinquency]
+verify_jwt = false
+
 [functions.custom-domain]
 verify_jwt = true
 

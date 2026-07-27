@@ -19,6 +19,11 @@ export type StoreRecord = {
   stripe_subscription_status: string | null
   pricing_plan: 'flexible' | 'fixed'
   trial_started_at: string | null
+  billing_delinquent_at: string | null
+  billing_grace_ends_at: string | null
+  billing_last_failed_invoice_id: string | null
+  billing_last_failed_invoice_url: string | null
+  billing_downgraded_at: string | null
   shipping: string[]
   settings: Record<string, unknown>
 }
@@ -231,6 +236,10 @@ export async function startStripeStoreCheckout(input: {
 
 export async function startStripeBillingCheckout(checkoutRequestId: string) {
   return invokeCheckoutFunction('stripe-billing-checkout', { checkoutRequestId, returnUrl: window.location.origin })
+}
+
+export async function openStripeBillingPortal() {
+  return invokeCheckoutFunction('stripe-billing-portal', { returnUrl: window.location.origin })
 }
 
 export async function refundStripeOrder(storeId: string, orderNumber: string) {

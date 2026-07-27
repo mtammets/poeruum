@@ -72,6 +72,7 @@ function Terms() {
       <p><strong>Kindel:</strong> esimesed 30 päeva tasuta, seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)} kuus + 24% käibemaks ehk kokku {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} ({formatPricingEuro(FIXED_PLAN_MONTHLY_VAT)} käibemaks). Poeruumi müügitasu on 0%.</p>
       <p>Mõlemas paketis saab oma olemasoleva domeeni ühendada ilma Poeruumi lisatasuta. Domeeni registreerimise ja teenusepakkuja tasud maksab kasutaja ise. Maksevahendaja tehingutasud ei sisaldu Poeruumi hinnas.</p>
       <p>Jooksev hind, arveldusperiood ja kohaldatavad maksud kuvatakse enne tasulise paketi kinnitamist. Korduv tellimus kestab kuni tühistamiseni. Tühistamine jõustub arveldusvaates näidatud ajal ning juba alanud perioodi eest tasutud summat ei tagastata, välja arvatud juhul, kui seadus nõuab teisiti.</p>
+      <p>Kui Kindla paketi korduv makse ebaõnnestub, antakse kasutajale makse parandamiseks seitse päeva armuaega. Selle aja jooksul jätkub Kindla paketi 0% müügitasu. Kui makse armuaja jooksul ei õnnestu, lõpetatakse Kindel pakett, tasumata kuuarve tühistatakse ja pood liigub automaatselt Paindlikule paketile. Pood jääb avalikuks ning Paindliku paketi müügitasu rakendub ainult pärast armuaja lõppu tehtud uutele müükidele.</p>
     </section>
 
     <section>

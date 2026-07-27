@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
-import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
+import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
@@ -587,6 +587,10 @@ export type StorefrontProps = {
   adminShowcaseMode?: boolean
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
+  stripeSubscriptionStatus?: string | null
+  billingGraceEndsAt?: string | null
+  billingInvoiceUrl?: string | null
+  billingDowngradedAt?: string | null
   initialProductSlug?: string | null
   onConnectPaymentProvider?: (provider: PaymentProvider) => void
   onStoreChange?: (store: StoreRecord) => void
@@ -598,7 +602,7 @@ export type StorefrontProps = {
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
@@ -693,6 +697,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [billingPlan, setBillingPlan] = useState<PricingPlan>(pricingPlan)
   const [fixedPlanTrialStartedAt] = useState<Date | null>(() => pricingPlan === 'fixed' ? new Date(initialFixedPlanTrialStartedAt ?? Date.now()) : null)
   const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
+  const [isBillingPortalBusy, setIsBillingPortalBusy] = useState(false)
   const [sellerNotifications, setSellerNotifications] = useState(true)
   const [customerConfirmations, setCustomerConfirmations] = useState(true)
   const [customDomain, setCustomDomain] = useState('')
@@ -842,7 +847,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (value.vatNumber != null) setVatNumber(value.vatNumber)
     if (value.returnsText != null) setReturnsText(value.returnsText)
     if (value.orderNotificationEmail != null) setOrderNotificationEmail(value.orderNotificationEmail)
-    if (value.billingPlan) setBillingPlan(value.billingPlan)
     if (typeof value.sellerNotifications === 'boolean') setSellerNotifications(value.sellerNotifications)
     if (typeof value.customerConfirmations === 'boolean') setCustomerConfirmations(value.customerConfirmations)
     if (typeof value.autoSwipeEnabled === 'boolean') setAutoSwipeEnabled(value.autoSwipeEnabled)
@@ -910,6 +914,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }, [storeId, merchantMode])
 
   useEffect(() => setActivePaymentProvider(paymentProvider), [paymentProvider])
+  useEffect(() => setBillingPlan(pricingPlan), [pricingPlan])
   useEffect(() => { editImageTransformsRef.current = editImageTransforms }, [editImageTransforms])
   useEffect(() => {
     if (ownerEmail && !loginEmail.trim()) setLoginEmail(ownerEmail)
@@ -2372,17 +2377,36 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const isFixedPlanTrialActive = billingPlan === 'fixed' && Boolean(fixedPlanTrialEndsAt && now < fixedPlanTrialEndsAt)
   const fixedPlanTrialDaysLeft = fixedPlanTrialEndsAt ? Math.max(0, Math.ceil((fixedPlanTrialEndsAt.getTime() - now.getTime()) / 86_400_000)) : 0
   const fixedPlanTrialEndLabel = fixedPlanTrialEndsAt?.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
+  const billingGraceDate = billingGraceEndsAt ? new Date(billingGraceEndsAt) : null
+  const isBillingDelinquent = billingPlan === 'fixed' && ['past_due', 'unpaid'].includes(String(stripeSubscriptionStatus))
+  const isBillingGraceActive = isBillingDelinquent && Boolean(billingGraceDate && now < billingGraceDate)
+  const billingGraceHoursLeft = billingGraceDate ? Math.max(0, Math.ceil((billingGraceDate.getTime() - now.getTime()) / 3_600_000)) : 0
+  const billingGraceLabel = billingGraceDate?.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
+  const effectiveBillingPlan: PricingPlan = isBillingDelinquent && !isBillingGraceActive ? 'flexible' : billingPlan
   const recordedMonthlyPlatformFee = currentMonthOrders.reduce((sum, order) => order.status === 'refunded' ? sum : sum + (order.stripePlatformFee ?? 0), 0)
   const estimatedFlexibleFeeNet = Math.min(monthlyProductSales * PLATFORM_FEE_RATE, PLATFORM_FEE_NET_CAP)
   const estimatedFlexibleFeeTotal = estimatedFlexibleFeeNet * (1 + VAT_RATE)
-  const monthlyPlatformFee = billingPlan === 'fixed'
+  const monthlyPlatformFee = effectiveBillingPlan === 'fixed'
     ? isFixedPlanTrialActive ? 0 : FIXED_PLAN_MONTHLY_TOTAL
     : storeId ? recordedMonthlyPlatformFee : estimatedFlexibleFeeTotal
   const monthlyPlatformFeeNet = monthlyPlatformFee / (1 + VAT_RATE)
   const monthlyPlatformFeeVat = monthlyPlatformFee - monthlyPlatformFeeNet
-  const remainingPlatformFee = billingPlan === 'fixed' ? 0 : Math.max(0, PLATFORM_FEE_GROSS_CAP - monthlyPlatformFee)
-  const platformFeeProgress = billingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, monthlyPlatformFee / PLATFORM_FEE_GROSS_CAP * 100)
+  const remainingPlatformFee = effectiveBillingPlan === 'fixed' ? 0 : Math.max(0, PLATFORM_FEE_GROSS_CAP - monthlyPlatformFee)
+  const platformFeeProgress = effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, monthlyPlatformFee / PLATFORM_FEE_GROSS_CAP * 100)
   const billingMonth = now.toLocaleDateString('et-EE', { month: 'long', year: 'numeric' })
+  const manageBilling = async () => {
+    if (billingInvoiceUrl) {
+      window.location.assign(billingInvoiceUrl)
+      return
+    }
+    setIsBillingPortalBusy(true)
+    try {
+      window.location.assign(await openStripeBillingPortal())
+    } catch (error) {
+      setAuthToast(error instanceof Error ? error.message : 'Arveldusportaali avamine ebaõnnestus')
+      setIsBillingPortalBusy(false)
+    }
+  }
   const selectBillingPlan = async (plan: PricingPlan) => {
     if (plan === 'fixed' && billingPlan !== 'fixed') {
       setIsBillingCardOpen(true)
@@ -2429,7 +2453,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       return count ? `${count} ${count === 1 ? 'link' : 'linki'}` : 'Lisa lingid'
     }
     if (section === 'notifications') return `${Number(sellerNotifications) + Number(customerConfirmations)} aktiivset`
-    if (section === 'billing') return billingPlan === 'fixed' ? 'Kindel' : 'Paindlik'
+    if (section === 'billing') return isBillingDelinquent
+      ? isBillingGraceActive ? 'Makse ootel' : 'Paindlik'
+      : billingPlan === 'fixed' ? 'Kindel' : 'Paindlik'
     return null
   }
 
@@ -3199,6 +3225,22 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </div>}
           {settingsSection === 'billing' && <div className="settings-panel billing-panel" role="tabpanel">
             <header><span>ARVELDUS</span><p>Vali müügimahule sobiv pakett. Vahetada saad igal ajal.</p></header>
+            {isBillingDelinquent && <div className={`billing-alert${isBillingGraceActive ? '' : ' is-expired'}`} role="alert">
+              <span aria-hidden="true">!</span>
+              <div>
+                <strong>{isBillingGraceActive ? 'Kindla paketi makse ebaõnnestus' : 'Kindla paketi armuaeg lõppes'}</strong>
+                <p>{isBillingGraceActive
+                  ? `0% müügitasu kehtib veel ${billingGraceHoursLeft > 24 ? `${Math.ceil(billingGraceHoursLeft / 24)} päeva` : `${billingGraceHoursLeft} tundi`}${billingGraceLabel ? `, kuni ${billingGraceLabel}` : ''}. Paranda makse, et Kindel pakett jätkuks.`
+                  : 'Pood jääb avatuks ja uutele müükidele rakendub Paindliku paketi tasu. Paketi olek uueneb automaatselt.'}</p>
+                {isBillingGraceActive && <button type="button" disabled={isBillingPortalBusy} onClick={() => void manageBilling()}>
+                  {isBillingPortalBusy ? 'Avan…' : 'Paranda makse'}
+                </button>}
+              </div>
+            </div>}
+            {!isBillingDelinquent && billingPlan === 'flexible' && billingDowngradedAt && <div className="billing-alert is-resolved" role="status">
+              <span aria-hidden="true">✓</span>
+              <div><strong>Paindlik pakett on aktiivne</strong><p>Kindla paketi makse ei õnnestunud armuaja jooksul. Pood jäi avatuks ja tasumata kuuarve tühistati.</p></div>
+            </div>}
             <div className="billing-plan-options" role="radiogroup" aria-label="Poeruumi pakett">
               <button type="button" className={billingPlan === 'flexible' ? 'is-selected' : ''} role="radio" aria-checked={billingPlan === 'flexible'} onClick={() => selectBillingPlan('flexible')}>
                 <span>PAINDLIK</span><strong>0 € <small>/ kuu</small></strong><p>Teenustasu 4% müügilt + km</p><em>Kuni {formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km ({formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} koos km-ga)</em><b>{billingPlan === 'flexible' ? '✓ Valitud' : 'Vali pakett'}</b>
@@ -3210,16 +3252,19 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <div className="billing-current">
               <header><span>{billingMonth}</span><strong>{formatEuro(monthlyPlatformFee)}</strong></header>
               <div className="billing-current__progress"><i style={{ width: `${platformFeeProgress}%` }} /></div>
-              <div><span>Toodete müük <strong>{formatEuro(monthlyProductSales)}</strong></span><span>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `${fixedPlanTrialDaysLeft} päeva tasuta` : '0% müügitasu' : remainingPlatformFee > 0 ? `Kuulaeni ${formatEuro(remainingPlatformFee)}` : 'Hinnalagi täis'}</span></div>
+              <div><span>Toodete müük <strong>{formatEuro(monthlyProductSales)}</strong></span><span>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `${fixedPlanTrialDaysLeft} päeva tasuta` : '0% müügitasu' : remainingPlatformFee > 0 ? `Kuulaeni ${formatEuro(remainingPlatformFee)}` : 'Hinnalagi täis'}</span></div>
               {monthlyPlatformFee > 0 && <small>Netotasu {formatEuro(monthlyPlatformFeeNet)} · käibemaks 24% {formatEuro(monthlyPlatformFeeVat)}</small>}
-              <small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga.` : 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_GROSS_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
+              <small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga.` : 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_GROSS_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
             </div>
             <div className="billing-rules">
-              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg></span><p><strong>{billingPlan === 'fixed' ? 'Müügilt 0% Poeruumile' : 'Tarne ei kuulu arvestusse'}</strong><small>{billingPlan === 'fixed' ? 'Müügimahu kasv ei suurenda kuutasu.' : '4% arvutatakse ainult toodete summalt.'}</small></p></div>
-              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8H4V4"/><path d="M4.5 8a8 8 0 1 1-.1 7"/></svg></span><p><strong>{billingPlan === 'fixed' ? 'Paketti saad vahetada' : 'Tagastuse tasu krediteeritakse'}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Prooviperiood algas Kindla paketi esmakordsel valimisel.' : 'Uus valik hakkab kehtima järgmisest arvelduskuust.' : 'Tagastatud toodete müük vähendatakse arvestusest.'}</small></p></div>
-              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : `${formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km hinnalagi`}</strong><small>{billingPlan === 'fixed' ? isFixedPlanTrialActive ? `Pärast prooviperioodi on kuutasu ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Poeruumi kuutasu on ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Koos käibemaksuga maksimaalselt ${formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus.`}</small></p></div>
+              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg></span><p><strong>{effectiveBillingPlan === 'fixed' ? 'Müügilt 0% Poeruumile' : 'Tarne ei kuulu arvestusse'}</strong><small>{effectiveBillingPlan === 'fixed' ? 'Müügimahu kasv ei suurenda kuutasu.' : '4% arvutatakse ainult toodete summalt.'}</small></p></div>
+              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8H4V4"/><path d="M4.5 8a8 8 0 1 1-.1 7"/></svg></span><p><strong>{effectiveBillingPlan === 'fixed' ? 'Paketti saad vahetada' : 'Tagastuse tasu krediteeritakse'}</strong><small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Prooviperiood algas Kindla paketi esmakordsel valimisel.' : 'Uus valik hakkab kehtima järgmisest arvelduskuust.' : 'Tagastatud toodete müük vähendatakse arvestusest.'}</small></p></div>
+              <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : `${formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km hinnalagi`}</strong><small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `Pärast prooviperioodi on kuutasu ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Poeruumi kuutasu on ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Koos käibemaksuga maksimaalselt ${formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus.`}</small></p></div>
             </div>
             <div className="settings-info-note"><span>i</span><p>Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.</p></div>
+            {billingPlan === 'fixed' && !isBillingDelinquent && <button className="billing-manage-button" type="button" disabled={isBillingPortalBusy} onClick={() => void manageBilling()}>
+              {isBillingPortalBusy ? 'Avan Stripe’i…' : 'Halda makseviisi ja arveid'}
+            </button>}
           </div>}
           {settingsSection === 'account' && <div className="settings-panel account-panel" role="tabpanel">
             <header><span>KONTO</span><p>Halda oma Poeruumi kontot ja sisselogimist.</p></header>

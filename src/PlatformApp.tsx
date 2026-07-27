@@ -642,6 +642,11 @@ function PlatformFlow() {
           setAuthNotice(existing.stripe_subscription_id
             ? 'Kindel pakett ja 30-päevane prooviperiood on aktiveeritud.'
             : 'Stripe kinnitas valiku. Paketi olek uueneb mõne hetke pärast.')
+        } else if (billingResult === 'manage') {
+          existing = await getMyStore() ?? existing
+          setAuthNotice(['active', 'trialing'].includes(String(existing.stripe_subscription_status))
+            ? 'Arveldus on korras ja Kindel pakett on aktiivne.'
+            : 'Arveldusandmed on uuendatud. Stripe proovib makset uuesti.')
         } else {
           setAuthNotice('Kindla paketi aktiveerimine katkestati. Sinu senine pakett jäi kehtima.')
         }
@@ -1128,7 +1133,7 @@ function PlatformFlow() {
   />
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
   </>
 
   if (screen === 'landing') return <main className="platform-landing">

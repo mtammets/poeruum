@@ -52,8 +52,12 @@ Deno.serve(async (request) => {
     const { data: store, error: storeError } = await admin.from('stores').select('*').eq('owner_id', user.id).order('created_at').limit(1).maybeSingle()
     if (storeError) throw storeError
     if (!store) return json({ error: 'Pood tuleb enne paketi valimist salvestada.' }, 404)
-    if (store.stripe_subscription_id && ['active', 'trialing'].includes(String(store.stripe_subscription_status))) {
-      return json({ error: 'Kindel pakett on juba aktiivne.' }, 409)
+    if (store.stripe_subscription_id && !['canceled', 'incomplete_expired'].includes(String(store.stripe_subscription_status))) {
+      return json({
+        error: ['past_due', 'unpaid'].includes(String(store.stripe_subscription_status))
+          ? 'Kindla paketi makse vajab parandamist. Ava arveldusportaal.'
+          : 'Kindel pakett on juba aktiivne.',
+      }, 409)
     }
 
     const body = await request.json().catch(() => ({})) as { returnUrl?: string; checkoutRequestId?: string }

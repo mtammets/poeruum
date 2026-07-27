@@ -23,6 +23,14 @@ set stripe_account_id = null,
     stripe_subscription_id = null,
     stripe_subscription_status = null,
     stripe_billing_mode = null,
+    billing_delinquent_at = null,
+    billing_grace_ends_at = null,
+    billing_last_failed_invoice_id = null,
+    billing_last_failed_invoice_url = null,
+    billing_failure_notified_at = null,
+    billing_grace_reminder_sent_at = null,
+    billing_downgraded_at = null,
+    billing_downgrade_notified_at = null,
     pricing_plan = case when pricing_plan = 'fixed' then 'flexible' else pricing_plan end
 where stripe_account_mode = 'test'
    or stripe_billing_mode = 'test'
