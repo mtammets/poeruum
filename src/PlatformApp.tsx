@@ -169,7 +169,7 @@ function FlowHeader({
     <Brand />
     <div className="flow-header__actions">
       {onExit && <button className="flow-header__exit" type="button" disabled={isExiting} onClick={onExit}>
-        {isExiting ? 'Salvestan…' : <><span className="flow-header__exit-long">Salvesta ja logi välja</span><span className="flow-header__exit-short">Salvesta</span></>}
+        {isExiting ? 'Salvestan ja väljun…' : <><span className="flow-header__exit-long">Salvesta ja välju</span><span className="flow-header__exit-short">Salvesta ja välju</span></>}
       </button>}
       {onDiscardExit && <button className="flow-header__discard" type="button" disabled={isExiting} onClick={onDiscardExit}>
         <span className="flow-header__exit-long">Logi välja salvestamata</span><span className="flow-header__exit-short">Välju</span>
