@@ -81,4 +81,17 @@ test('admin route fails closed when backend configuration is absent', async ({ p
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
   await expect(page.getByText('SEADISTUS PUUDUB')).toBeVisible()
+  expect(await page.evaluate(() => ({
+    surface: document.documentElement.dataset.appSurface,
+    rootBackground: getComputedStyle(document.documentElement).backgroundColor,
+    bodyBackground: getComputedStyle(document.body).backgroundColor,
+    colorScheme: getComputedStyle(document.documentElement).colorScheme,
+    themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content,
+  }))).toEqual({
+    surface: 'platform',
+    rootBackground: 'rgb(244, 242, 233)',
+    bodyBackground: 'rgb(244, 242, 233)',
+    colorScheme: 'light',
+    themeColor: '#f4f2e9',
+  })
 })

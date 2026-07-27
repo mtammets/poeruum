@@ -37,6 +37,10 @@ const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostna
   && window.location.pathname === '/' && !hasAppReturnState
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
 const isPlatformHostname = /^(?:localhost|127\.0\.0\.1|(?:[a-z0-9-]+\.)?poeruum\.ee)$/i.test(window.location.hostname)
+const appSurface = isPlatformHostname && !isStorefrontSubdomain ? 'platform' : 'storefront'
+document.documentElement.dataset.appSurface = appSurface
+document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+  ?.setAttribute('content', appSurface === 'platform' ? '#f4f2e9' : '#000000')
 const isAdminPath = isPlatformHostname && !isStorefrontSubdomain && /^\/admin(?:\/(?:homepage|seo|users|support))?\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformHostname && !isStorefrontSubdomain
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
