@@ -8,7 +8,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
   },
   projects: [{
@@ -17,14 +17,14 @@ export default defineConfig({
   }],
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 4173',
-    url: 'http://127.0.0.1:4173',
+    url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     env: {
       ...process.env,
       VITE_SUPABASE_URL: '',
       VITE_SUPABASE_PUBLISHABLE_KEY: '',
       VITE_STRIPE_PUBLISHABLE_KEY: '',
-      VITE_TURNSTILE_SITE_KEY: '',
+      VITE_TURNSTILE_SITE_KEY: 'playwright-test-site-key',
     },
   },
 })

@@ -1659,9 +1659,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const requestLoginPasswordReset = async () => {
     setLoginRecoveryMessage('')
     if (!loginEmail.trim()) { setAuthToast('Sisesta esmalt e-posti aadress'); return }
+    if (isCaptchaConfigured && !loginCaptchaToken) {
+      setAuthToast(getCaptchaRequiredMessage())
+      return
+    }
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
-      if (isCaptchaConfigured && !loginCaptchaToken) throw new Error(getCaptchaRequiredMessage())
       const { error } = await requireSupabase().auth.resetPasswordForEmail(loginEmail.trim(), {
         redirectTo: window.location.origin,
         captchaToken: loginCaptchaToken || undefined,
@@ -2992,12 +2995,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <form onSubmit={async (event) => {
               event.preventDefault()
               if (isOwnerLoginBusy) return
+              if (isCaptchaConfigured && !loginCaptchaToken) {
+                setAuthToast(getCaptchaRequiredMessage())
+                return
+              }
               const form = new FormData(event.currentTarget)
               const normalizedEmail = loginEmail.trim().toLowerCase()
               const password = String(form.get('password') ?? '')
               setIsOwnerLoginBusy(true)
               try {
-                if (isCaptchaConfigured && !loginCaptchaToken) throw new Error(getCaptchaRequiredMessage())
                 if (onOwnerLogin) await onOwnerLogin(normalizedEmail, password, loginCaptchaToken)
                 else if (storeId && isSupabaseConfigured) {
                   const { error } = await requireSupabase().auth.signInWithPassword({
@@ -3023,7 +3029,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <button className="login-forgot-password" type="button" onClick={requestLoginPasswordReset}>Unustasid parooli?</button>
               <Turnstile key={`owner-login-${loginCaptchaResetKey}`} action="login" onToken={setLoginCaptchaToken} />
               {loginRecoveryMessage && <p className="login-recovery-message" role="status">{loginRecoveryMessage}</p>}
-              <button type="submit" disabled={isOwnerLoginBusy}>{isOwnerLoginBusy ? 'Login sisse…' : 'Logi sisse'}</button>
+              <button type="submit" disabled={isOwnerLoginBusy || (isCaptchaConfigured && !loginCaptchaToken)}>{isOwnerLoginBusy ? 'Login sisse…' : 'Logi sisse'}</button>
             </form>
           </section>
         </div>

@@ -270,6 +270,12 @@ function PlatformFlow() {
     setBusinessEmail((currentEmail) => currentEmail || email)
   }, [screen, email])
 
+  const isCaptchaReady = !isCaptchaConfigured || Boolean(captchaToken)
+  const handleCaptchaToken = (token: string) => {
+    setCaptchaToken(token)
+    if (token && authError === getCaptchaRequiredMessage()) setAuthError('')
+  }
+
   useEffect(() => {
     if (!onlineUserId || !isSupabaseConfigured || !onboardingActivityScreens.has(screen)) return
     let active = true
@@ -573,10 +579,13 @@ function PlatformFlow() {
 
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!isCaptchaReady) {
+      setAuthError(getCaptchaRequiredMessage())
+      return
+    }
     setIsAuthBusy(true); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false)
     try {
       const form = new FormData(event.currentTarget)
-      if (isCaptchaConfigured && !captchaToken) throw new Error(getCaptchaRequiredMessage())
       const existing = await authenticateOwner(email, String(form.get('password') ?? ''), captchaToken)
       if (existing === 'admin') {
         window.location.assign('/admin')
@@ -603,10 +612,13 @@ function PlatformFlow() {
   }
 
   const resendConfirmation = async () => {
+    if (!isCaptchaReady) {
+      setAuthError(getCaptchaRequiredMessage())
+      return
+    }
     setIsAuthBusy(true); setAuthError(''); setAuthNotice('')
     try {
       const normalizedEmail = email.trim().toLowerCase()
-      if (isCaptchaConfigured && !captchaToken) throw new Error(getCaptchaRequiredMessage())
       const { error } = await requireSupabase().auth.resend({
         type: 'signup',
         email: normalizedEmail,
@@ -663,6 +675,10 @@ function PlatformFlow() {
 
   const signUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!isCaptchaReady) {
+      setAuthError(getCaptchaRequiredMessage())
+      return
+    }
     setIsAuthBusy(true); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false)
     try {
       if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
@@ -671,7 +687,6 @@ function PlatformFlow() {
       const password = String(form.get('password') ?? '')
       const passwordError = getPasswordPolicyError(password)
       if (passwordError) throw new Error(passwordError)
-      if (isCaptchaConfigured && !captchaToken) throw new Error(getCaptchaRequiredMessage())
       const { data, error } = await requireSupabase().auth.signUp({
         email: normalizedEmail,
         password,
@@ -693,10 +708,13 @@ function PlatformFlow() {
 
   const requestPasswordReset = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!isCaptchaReady) {
+      setAuthError(getCaptchaRequiredMessage())
+      return
+    }
     setIsAuthBusy(true); setAuthError(''); setAuthNotice('')
     try {
       if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
-      if (isCaptchaConfigured && !captchaToken) throw new Error(getCaptchaRequiredMessage())
       const { error } = await requireSupabase().auth.resetPasswordForEmail(email.trim(), {
         redirectTo: window.location.origin,
         captchaToken: captchaToken || undefined,
@@ -1160,16 +1178,16 @@ function PlatformFlow() {
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false); setConfirmationResendCooldown(0); setIsConfirmationRateLimited(false) }} onBlur={restoreLoginScrollAfterKeyboard} placeholder="sina@ettevote.ee" autoComplete="username" enterKeyHint="next" autoFocus /></label>
             <label>Parool<input required name="password" type="password" placeholder="Sinu parool" autoComplete="current-password" enterKeyHint="done" onBlur={restoreLoginScrollAfterKeyboard} /></label>
             <button className="auth-password-link" type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setScreen('forgot-password') }}>Unustasid parooli?</button>
-            <Turnstile key={`login-${captchaResetKey}`} action="login" onToken={setCaptchaToken} />
+            <Turnstile key={`login-${captchaResetKey}`} action="login" onToken={handleCaptchaToken} />
             {needsEmailConfirmation && <div className="auth-confirmation-prompt" role="alert">
               <span><strong>{authError || 'Kinnita e-posti aadress'}</strong><small>{isConfirmationRateLimited ? 'Kasuta kõige uuemat saabunud kirja või proovi umbes tunni pärast uuesti.' : 'Kasuta kõige uuemat kirja, mille Poeruum sulle saatis.'}</small></span>
-              <button type="button" disabled={isAuthBusy || isConfirmationRateLimited || confirmationResendCooldown > 0} onClick={resendConfirmation}>
+              <button type="button" disabled={isAuthBusy || !isCaptchaReady || isConfirmationRateLimited || confirmationResendCooldown > 0} onClick={resendConfirmation}>
                 {isAuthBusy ? 'Saadan…' : isConfirmationRateLimited ? 'Proovi hiljem' : confirmationResendCooldown > 0 ? `Proovi ${confirmationResendCooldown} s pärast` : 'Saada kiri uuesti'}
               </button>
             </div>}
             {authError && !needsEmailConfirmation && <p className="add-product-error" role="alert">{authError}</p>}
             {authNotice && !needsEmailConfirmation && <p className="auth-notice" role="status">{authNotice}</p>}
-            <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Login sisse…' : 'Jätka oma poega'} <span>→</span></button>
+            <button type="submit" disabled={isAuthBusy || !isCaptchaReady}>{isAuthBusy ? 'Login sisse…' : 'Jätka oma poega'} <span>→</span></button>
           </form>
           <div className="auth-switch"><span>Pole veel kontot?</span><button type="button" onClick={() => setScreen('account')}>Loo pood</button></div>
           <small>Turvaline sisselogimine. Sinu andmed on kaitstud.</small>
@@ -1186,10 +1204,10 @@ function PlatformFlow() {
         <h1>Unustasid parooli?</h1><p>Sisesta oma konto e-posti aadress.</p>
         <form onSubmit={requestPasswordReset}>
           <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice('') }} placeholder="sina@ettevote.ee" autoComplete="email" autoFocus /></label>
-          <Turnstile key={`password-reset-${captchaResetKey}`} action="password_reset" onToken={setCaptchaToken} />
+          <Turnstile key={`password-reset-${captchaResetKey}`} action="password_reset" onToken={handleCaptchaToken} />
           {authError && <p className="add-product-error" role="alert">{authError}</p>}
           {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
-          <button type="submit" disabled={isAuthBusy || !email.trim()}>{isAuthBusy ? 'Saadan…' : 'Saada taastamislink'} <span>→</span></button>
+          <button type="submit" disabled={isAuthBusy || !email.trim() || !isCaptchaReady}>{isAuthBusy ? 'Saadan…' : 'Saada taastamislink'} <span>→</span></button>
         </form>
         <div className="auth-switch"><span>Parool tuli meelde?</span><button type="button" onClick={() => setScreen('login')}>Logi sisse</button></div>
       </section>
@@ -1238,9 +1256,9 @@ function PlatformFlow() {
               <span className="auth-checkbox" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 2.8 2.8 6.2-6.2" /></svg></span>
               <span>Nõustun <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a> ja olen tutvunud <a href="/privaatsus" target="_blank" rel="noreferrer">privaatsuspoliitikaga</a>.</span>
             </label>
-            <Turnstile key={`signup-${captchaResetKey}`} action="signup" onToken={setCaptchaToken} />
+            <Turnstile key={`signup-${captchaResetKey}`} action="signup" onToken={handleCaptchaToken} />
             {authError && <p className="add-product-error" role="alert">{authError}</p>}
-            <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Loon kontot…' : 'Loo konto ja jätka'} <span>→</span></button>
+            <button type="submit" disabled={isAuthBusy || !isCaptchaReady}>{isAuthBusy ? 'Loon kontot…' : 'Loo konto ja jätka'} <span>→</span></button>
           </form>
           <div className="auth-switch"><span>Konto juba olemas?</span><button type="button" onClick={() => setScreen('login')}>Logi sisse</button></div>
           <small>Konto luuakse Supabase Authis.</small>

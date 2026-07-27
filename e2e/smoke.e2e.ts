@@ -8,6 +8,26 @@ test('landing page opens and login navigation works', async ({ page }) => {
       configurable: true,
       value: undefined,
     })
+    const turnstileWindow = window as typeof window & {
+      turnstile: {
+        render: (container: HTMLElement, options: Record<string, unknown>) => string
+        remove: (widgetId: string) => void
+      }
+    }
+    turnstileWindow.turnstile = {
+      render: (container, options) => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.textContent = 'Kinnita test-botikaitse'
+        button.addEventListener('click', () => {
+          const callback = options.callback
+          if (typeof callback === 'function') callback('playwright-captcha-token')
+        })
+        container.append(button)
+        return 'playwright-widget'
+      },
+      remove: () => undefined,
+    }
   })
 
   await page.goto('/')
@@ -26,6 +46,10 @@ test('landing page opens and login navigation works', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
   await expect(page.getByLabel('E-posti aadress')).toBeVisible()
   await expect(page.getByLabel('Parool')).toBeVisible()
+  const submitButton = page.getByRole('button', { name: /Jätka oma poega/ })
+  await expect(submitButton).toBeDisabled()
+  await page.locator('.turnstile-field button').click()
+  await expect(submitButton).toBeEnabled()
   expect(pageErrors).toEqual([])
 })
 
