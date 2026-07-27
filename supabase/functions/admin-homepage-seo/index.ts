@@ -79,7 +79,7 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('admin-homepage-seo', error)
     return json({
-      error: error instanceof Error ? error.message : 'SEO seadistuste salvestamine ebaõnnestus.',
+      error: 'SEO seadistuste salvestamine ebaõnnestus. Palun proovi uuesti.',
     }, 400)
   }
 })

@@ -1,6 +1,4 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { loadConnectAndInitialize } from '@stripe/connect-js'
-import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
 import BillingPlanDialog from './BillingPlanDialog'
 import { Brand } from './Brand'
 import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
@@ -8,7 +6,8 @@ import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { products as bundledProducts, type Product } from './products'
-import { isCaptchaConfigured, Turnstile } from './Turnstile'
+import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
+import { createRandomId } from './lib/randomId'
 import {
   DEFAULT_RETURNS_TEXT,
   FIXED_PLAN_MONTHLY_FEE,
@@ -21,11 +20,13 @@ import {
   VAT_RATE,
   type PricingPlan,
 } from './storefrontConfig'
+import './platform.css'
 
 const Storefront = lazy(async () => {
   const module = await import('./App')
   return { default: module.Storefront }
 })
+const StripeEmbeddedOnboarding = lazy(() => import('./StripeEmbeddedOnboarding'))
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
 type OnboardingStep = 'store' | 'business' | 'payments' | 'shipping' | 'publish' | 'complete'
@@ -45,8 +46,6 @@ type RegistryLookupResponse = {
 
 const onboardingSteps = new Set<OnboardingStep>(['store', 'business', 'payments', 'shipping', 'publish', 'complete'])
 const onboardingActivityScreens = new Set<Screen>(['store', 'business', 'payments', 'shipping', 'publish'])
-const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
-const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
 const isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
@@ -202,147 +201,12 @@ function SetupShell({
   </main>
 }
 
-function StripeEmbeddedOnboarding({ onExit, onClose, onError }: { onExit: () => Promise<void>; onClose: () => Promise<void>; onError: (message: string) => void }) {
-  const [loadPhase, setLoadPhase] = useState<'connecting' | 'loading' | 'ready' | 'error'>('connecting')
-  const [isClosing, setIsClosing] = useState(false)
-  const [isCompleting, setIsCompleting] = useState(false)
-  const [renderAttempt, setRenderAttempt] = useState(0)
-  const [connectInstance] = useState(() => stripePublishableKey ? loadConnectAndInitialize({
-    publishableKey: stripePublishableKey,
-    locale: 'et-EE',
-    appearance: {
-      overlays: 'drawer',
-      variables: {
-        colorPrimary: '#226748',
-        colorBackground: '#ffffff',
-        colorText: '#14261c',
-        colorSecondaryText: '#66736b',
-        colorBorder: '#d7ded7',
-        colorDanger: '#a4433b',
-        formBackgroundColor: '#fcfdfb',
-        formHighlightColorBorder: '#226748',
-        formAccentColor: '#226748',
-        formPlaceholderTextColor: '#7b857e',
-        buttonPrimaryColorBackground: '#226748',
-        buttonPrimaryColorBorder: '#226748',
-        buttonPrimaryColorText: '#ffffff',
-        buttonLabelFontSize: '13px',
-        buttonLabelFontWeight: '700',
-        buttonPaddingX: '12px',
-        buttonPaddingY: '10px',
-        inputFieldPaddingX: '10px',
-        inputFieldPaddingY: '10px',
-        fontSizeBase: '13px',
-        bodyMdFontSize: '13px',
-        bodySmFontSize: '12px',
-        headingXlFontSize: '22px',
-        headingLgFontSize: '18px',
-        headingMdFontSize: '16px',
-        headingSmFontSize: '15px',
-        labelMdFontSize: '13px',
-        labelMdFontWeight: '700',
-        labelSmFontSize: '11px',
-        borderRadius: '12px',
-        formBorderRadius: '10px',
-        buttonBorderRadius: '10px',
-        fontFamily: 'DM Sans, system-ui, sans-serif',
-        spacingUnit: '6px',
-      },
-    },
-    fetchClientSecret: async () => {
-      const result = await invokeStripeConnect('start')
-      if (!result.clientSecret) throw new Error('Stripe ei tagastanud AccountSessioni võtit.')
-      return result.clientSecret
-    },
-  }) : null)
-
-  useEffect(() => {
-    if (!connectInstance) onError('Stripe’i publishable key puudub.')
-  }, [connectInstance, onError])
-
-  useEffect(() => {
-    if (loadPhase !== 'loading') return
-    // StepChange normally reveals the form first. Keep a fallback so a future
-    // Stripe step that omits that event can never leave our loader stuck.
-    const fallback = window.setTimeout(() => setLoadPhase('ready'), 8000)
-    return () => window.clearTimeout(fallback)
-  }, [loadPhase])
-
-  const closeStripeForm = async () => {
-    if (isClosing) return
-    setIsClosing(true)
-    try {
-      await onClose()
-    } finally {
-      setIsClosing(false)
-    }
-  }
-
-  const retryStripeForm = () => {
-    onError('')
-    setLoadPhase('connecting')
-    setRenderAttempt((attempt) => attempt + 1)
-  }
-
-  const completeStripeForm = async () => {
-    if (isCompleting) return
-    setIsCompleting(true)
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
-    try {
-      await onExit()
-    } finally {
-      setIsCompleting(false)
-    }
-  }
-
-  if (!connectInstance) return null
-  return <section className="stripe-embedded" aria-label="Stripe’i konto seadistamine">
-    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
-    <div className={`stripe-embedded__component is-${loadPhase}${isCompleting ? ' is-completing' : ''}`}>
-      {isCompleting && <div className="stripe-completing" role="status" aria-live="polite">
-        <span aria-hidden="true" />
-        <h2>Kontrollime maksete valmisolekut</h2>
-        <p>Stripe salvestas andmed. Hetk palun…</p>
-      </div>}
-      {loadPhase !== 'ready' && <div className={`stripe-preparing${loadPhase === 'error' ? ' is-error' : ''}`} aria-live="polite">
-        {loadPhase === 'error' ? <>
-          <span className="stripe-preparing__error" aria-hidden="true">!</span>
-          <h2>Vormi ei õnnestunud avada</h2>
-          <p>Stripe’i vormi laadimine võttis liiga kaua.</p>
-          <button type="button" onClick={retryStripeForm}>Proovi uuesti</button>
-        </> : <>
-          <span className="stripe-preparing__loader" aria-hidden="true"><i /></span>
-          <h2>{loadPhase === 'connecting' ? 'Ühendame Stripe’iga' : 'Avame Stripe’i vormi'}</h2>
-          <p>Hetk palun…</p>
-        </>}
-      </div>}
-      <ConnectComponentsProvider connectInstance={connectInstance}>
-        <ConnectAccountOnboarding
-          key={renderAttempt}
-          collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
-          onExit={() => void completeStripeForm()}
-          onLoaderStart={() => setLoadPhase((current) => current === 'connecting' ? 'loading' : current)}
-          onStepChange={() => {
-            onError('')
-            setLoadPhase('ready')
-          }}
-          onLoadError={() => {
-            setLoadPhase('error')
-            onError('Stripe’i vormi avamine ebaõnnestus. Proovi uuesti.')
-          }}
-        />
-      </ConnectComponentsProvider>
-    </div>
-  </section>
-}
-
 function PlatformFlow() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [showAllFaq, setShowAllFaq] = useState(false)
   const [email, setEmail] = useState('')
   const [onlineUserId, setOnlineUserId] = useState<string | null>(null)
-  const onlinePresenceSessionIdRef = useRef(crypto.randomUUID())
+  const onlinePresenceSessionIdRef = useRef(createRandomId())
   const [storeName, setStoreName] = useState('')
   const [slug, setSlug] = useState('')
   const [payment, setPayment] = useState<'stripe'>('stripe')
@@ -712,7 +576,7 @@ function PlatformFlow() {
     setIsAuthBusy(true); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false)
     try {
       const form = new FormData(event.currentTarget)
-      if (isCaptchaConfigured && !captchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      if (isCaptchaConfigured && !captchaToken) throw new Error(getCaptchaRequiredMessage())
       const existing = await authenticateOwner(email, String(form.get('password') ?? ''), captchaToken)
       if (existing === 'admin') {
         window.location.assign('/admin')
@@ -742,7 +606,7 @@ function PlatformFlow() {
     setIsAuthBusy(true); setAuthError(''); setAuthNotice('')
     try {
       const normalizedEmail = email.trim().toLowerCase()
-      if (isCaptchaConfigured && !captchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      if (isCaptchaConfigured && !captchaToken) throw new Error(getCaptchaRequiredMessage())
       const { error } = await requireSupabase().auth.resend({
         type: 'signup',
         email: normalizedEmail,
@@ -807,7 +671,7 @@ function PlatformFlow() {
       const password = String(form.get('password') ?? '')
       const passwordError = getPasswordPolicyError(password)
       if (passwordError) throw new Error(passwordError)
-      if (isCaptchaConfigured && !captchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      if (isCaptchaConfigured && !captchaToken) throw new Error(getCaptchaRequiredMessage())
       const { data, error } = await requireSupabase().auth.signUp({
         email: normalizedEmail,
         password,
@@ -832,7 +696,7 @@ function PlatformFlow() {
     setIsAuthBusy(true); setAuthError(''); setAuthNotice('')
     try {
       if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
-      if (isCaptchaConfigured && !captchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      if (isCaptchaConfigured && !captchaToken) throw new Error(getCaptchaRequiredMessage())
       const { error } = await requireSupabase().auth.resetPasswordForEmail(email.trim(), {
         redirectTo: window.location.origin,
         captchaToken: captchaToken || undefined,

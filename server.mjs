@@ -3,6 +3,12 @@ import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import {
+  decodePathname,
+  getProductSlugFromPath,
+  getStoreSlugFromHostname,
+  getStoreSlugFromPath,
+} from './shared/storefront-route.mjs'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 const dist = path.join(root, 'dist')
@@ -26,15 +32,11 @@ const escapeHtml = (value) => String(value ?? '')
   .replaceAll('"', '&quot;').replaceAll("'", '&#39;')
 const cleanText = (value, fallback, length = 160) =>
   String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, length)
-const slugFromHost = (host) => {
-  const normalized = host.toLowerCase().split(':')[0].replace(/\.$/, '')
-  const match = normalized.match(/^([a-z0-9]+(?:-[a-z0-9]+)*)\.poeruum\.ee$/)
-  return match?.[1] && !['www', 'admin'].includes(match[1]) ? match[1] : null
-}
 const routeFromPath = (pathname) => {
-  const pathStore = pathname.match(/^\/p\/([^/]+)(?:\/|$)/)?.[1]
-  const product = pathname.match(/(?:^|\/)toode\/([^/]+)\/?$/)?.[1]
-  return { pathStore: pathStore ? decodeURIComponent(pathStore).toLowerCase() : null, product: product ? decodeURIComponent(product).toLowerCase() : null }
+  return {
+    pathStore: getStoreSlugFromPath(pathname),
+    product: getProductSlugFromPath(pathname),
+  }
 }
 const absoluteImage = (value) => {
   if (!value) return null
@@ -183,7 +185,14 @@ createServer(async (req, res) => {
   try {
     const host = String(req.headers['x-forwarded-host'] || req.headers.host || platformHost).split(',')[0].trim().toLowerCase().split(':')[0]
     const url = new URL(req.url || '/', `https://${host}`)
-    const assetPath = path.normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.(\/|\\|$))+/, '')
+    const decodedPathname = decodePathname(url.pathname)
+    if (decodedPathname === null) {
+      return send(res, 400, 'Vigane veebiaadress.', {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Robots-Tag': 'noindex',
+      })
+    }
+    const assetPath = path.normalize(decodedPathname).replace(/^(\.\.(\/|\\|$))+/, '')
     const file = path.join(dist, assetPath)
     const isStaticAsset = ['/assets/', '/images/', '/data/'].some((prefix) => url.pathname.startsWith(prefix))
       || ['/favicon.ico', '/manifest.webmanifest'].includes(url.pathname)
@@ -199,7 +208,7 @@ createServer(async (req, res) => {
     }
 
     const { pathStore, product: productSlug } = routeFromPath(url.pathname)
-    let slug = pathStore || slugFromHost(host)
+    let slug = pathStore || getStoreSlugFromHostname(host, platformHost)
     if (!slug && host !== platformHost && host !== `www.${platformHost}` && !host.endsWith('.onrender.com')) {
       slug = await resolveCustomDomain(host)
     }

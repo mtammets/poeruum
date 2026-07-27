@@ -216,6 +216,6 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('delete-account', error, {}, 'critical')
     console.error(error)
-    return json({ error: error instanceof Error ? error.message : 'Konto kustutamine ebaõnnestus.' }, 500)
+    return json({ error: 'Konto kustutamine ebaõnnestus. Palun võta ühendust klienditoega.' }, 500)
   }
 })

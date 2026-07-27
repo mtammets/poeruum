@@ -4,6 +4,12 @@
 
 `npm run check` käivitab ESLinti, Vitesti üksustestid, rakenduse production-mode build’i ja production-sõltuvuste turvaauditi. CI build ei genereeri SEO-kataloogi, sest see nõuab välist Supabase’i keskkonda; väljalaskekäsk `npm run build` genereerib ka SEO-lehed.
 
+`npm run test:smoke` käivitab Playwrighti Chromiumi testid ilma Supabase'i või
+Stripe'i võtmeteta. Testid kontrollivad avalehe ja sisselogimise põhivoogu,
+juriidilisi marsruute ning seda, et admini vaade jääb puuduva
+backend-seadistuse korral turvaliselt suletuks. CI paigaldab Chromiumi ja
+käivitab smoke-testid automaatselt iga pull request'i ning `main` push'i järel.
+
 Andmebaasi täielikuks kontrolliks peab Docker töötama:
 
 ```sh

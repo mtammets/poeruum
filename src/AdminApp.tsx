@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import './admin.css'
+import { createRandomId } from './lib/randomId'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Brand } from './Brand'
 import { Storefront } from './App'
 import { getShowcaseStore, listProducts, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
-import { isCaptchaConfigured, Turnstile } from './Turnstile'
+import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import type { Product } from './products'
 import AdminSupport from './AdminSupport'
 import { applySeoMetadata } from './lib/seo'
@@ -249,7 +251,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
     setError('')
     setIsBusy(true)
     if (isCaptchaConfigured && !captchaToken) {
-      setError('Kinnita enne jätkamist, et sa ei ole robot.')
+      setError(getCaptchaRequiredMessage())
       setIsBusy(false)
       return
     }
@@ -510,9 +512,7 @@ export default function AdminApp() {
     let uploadedPath = ''
     try {
       const blob = await prepareSocialImage(file)
-      const randomPart = typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const randomPart = createRandomId()
       uploadedPath = `social/homepage-${randomPart}.png`
       const client = requireSupabase()
       const { error: uploadError } = await client.storage.from('platform-assets').upload(uploadedPath, blob, {

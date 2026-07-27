@@ -75,6 +75,6 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('stripe-billing-portal', error)
     console.error('Stripe’i arveldusportaali avamine ebaõnnestus.', error)
-    return json({ error: error instanceof Error ? error.message : 'Arveldusportaali avamine ebaõnnestus.' }, 500)
+    return json({ error: 'Arveldusportaali avamine ebaõnnestus. Palun proovi uuesti.' }, 500)
   }
 })

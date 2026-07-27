@@ -2,13 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
-import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, startStripeStoreCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
+import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
 import {
-  createCheckoutRequestId,
   DEFAULT_RETURNS_TEXT,
   FIXED_PLAN_MONTHLY_FEE,
   FIXED_PLAN_MONTHLY_TOTAL,
@@ -21,12 +20,30 @@ import {
   type PricingPlan,
 } from './storefrontConfig'
 import BillingPlanDialog from './BillingPlanDialog'
-import { isCaptchaConfigured, Turnstile } from './Turnstile'
-
-const getProductPrice = (product: Product) =>
-  product.salePrice !== undefined && product.price !== undefined && product.salePrice < product.price
-    ? product.salePrice
-    : product.price ?? 0
+import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
+import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
+import StorefrontCart from './StorefrontCart'
+import {
+  createCartItem,
+  createCartKey,
+  getDefaultProductOptions,
+  getProductPrice,
+  getProductStockLimit,
+  getResponsiveImageProps,
+  SHIPPING_PROVIDERS,
+  SHIPPING_PROVIDER_LABELS,
+  type AnnouncementDirection,
+  type AnnouncementSpeed,
+  type BuyButtonSize,
+  type CartItem,
+  type CustomDomainStatus,
+  type DeliverySettings,
+  type PaymentProvider,
+  type SaleBadgeStyle,
+  type SettingsSection,
+  type StoreOrder,
+  type StoreTheme,
+} from './storefrontModel'
 
 const formatEuro = (value: number) => `${value.toFixed(2).replace('.', ',')} €`
 const DEMO_SELLER = {
@@ -43,18 +60,6 @@ const clampImageOffset = (offset: number, scale: number) => {
   return Math.min(limit, Math.max(-limit, offset))
 }
 const isImageFile = (file: File) => file.type.startsWith('image/') || /\.(?:heic|heif)$/i.test(file.name)
-const getResponsiveImageProps = (product: Product, image: string, preferred: 'thumb' | 'medium' | 'large' = 'large') => {
-  const asset = product.imageVariants?.[image]
-  if (!asset) return { src: image }
-  const variants = Object.values(asset.variants)
-    .filter((variant, index, all) => all.findIndex((candidate) => candidate.url === variant.url) === index)
-    .sort((left, right) => left.width - right.width)
-  return {
-    src: asset.variants[preferred].url,
-    srcSet: variants.map((variant) => `${variant.url} ${variant.width}w`).join(', '),
-  }
-}
-
 const copyTextToClipboard = async (text: string) => {
   if (navigator.clipboard?.writeText) {
     try {
@@ -133,55 +138,7 @@ const getReadableTextColor = (hex: string) => {
 const ACCENT_PRESETS = ['#e5f25a', '#ff7a59', '#73e2a7', '#77d4ff', '#d3a6ff', '#ff8fbd']
 const EMPTY_PRODUCT_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1200'%3E%3Crect width='900' height='1200' fill='%2315171a'/%3E%3Cg fill='none' stroke='%236b7682' stroke-width='18' stroke-linecap='round' stroke-linejoin='round' opacity='.8'%3E%3Crect x='310' y='460' width='280' height='220' rx='32'/%3E%3Cpath d='m342 638 82-82 62 62 38-38 38 38'/%3E%3Ccircle cx='506' cy='526' r='24'/%3E%3C/g%3E%3C/svg%3E"
 
-type OmnivaLocation = { ZIP: string; NAME: string; TYPE: string; A0_NAME: string; A1_NAME: string; A2_NAME: string; A3_NAME: string }
-type ShippingProvider = 'omniva' | 'dpd' | 'smartposti'
-type ParcelMachine = { provider: ShippingProvider; id: string; name: string; city: string; address?: string; searchText: string }
-type AksAddress = { adr_id: string; aadresstekst: string; ipikkaadress: string; omavalitsus: string; asustusyksus: string; sihtnumber: string; liikVal: string }
-type StoreOrder = {
-  id: string
-  items: CartItem[]
-  customerName: string
-  customerEmail: string
-  delivery: string
-  productSubtotal: number
-  total: number
-  createdAt: string
-  status: 'new' | 'fulfilled' | 'refunded'
-  stripeProcessingFee?: number
-  stripePlatformFee?: number
-  stripePlatformFeeNet?: number
-  stripePlatformFeeVat?: number
-  stripeSellerNet?: number
-}
-
-type CartItem = Product & {
-  cartKey: string
-  quantity: number
-  selectedOptions: Record<string, string>
-}
-
-const createCartKey = (productId: string, selectedOptions: Record<string, string>) =>
-  `${productId}:${Object.entries(selectedOptions).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join('|')}`
-
-const createCartItem = (product: Product, quantity = 1, selectedOptions: Record<string, string> = {}): CartItem => ({
-  ...product,
-  cartKey: createCartKey(product.id, selectedOptions),
-  quantity,
-  selectedOptions,
-})
-
-const getDefaultProductOptions = (product: Product) => Object.fromEntries(
-  (product.options ?? []).map((option) => [option.name, option.values[0] ?? '']),
-)
-
-const getProductStockLimit = (product: Product) => product.oneOfAKind ? 1 : product.stock ?? Number.POSITIVE_INFINITY
-
 const MAX_PRODUCT_IMAGES = 3
-type StoreTheme = 'midnight' | 'paper' | 'pop'
-type BuyButtonSize = 'small' | 'medium' | 'large'
-type SaleBadgeStyle = 'quirky' | 'classic' | 'price' | 'elegant' | 'minimal'
-type AnnouncementSpeed = 'slow' | 'normal' | 'fast'
-type AnnouncementDirection = 'left' | 'right'
 type EditImageUpload = {
   id: string
   file: File
@@ -192,50 +149,7 @@ type EditImageUpload = {
   slow: boolean
   error?: string
 }
-export type PaymentProvider = 'stripe' | 'montonio'
-type SettingsSection = 'store' | 'appearance' | 'payments' | 'delivery' | 'business' | 'links' | 'notifications' | 'billing' | 'account'
-type CustomDomainStatus = 'idle' | CustomDomainRecord['status']
-const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string }> = [
-  { id: 'store', label: 'Pood', description: 'Põhiandmed ja nähtavus' },
-  { id: 'appearance', label: 'Kujundus', description: 'Logo, värvid ja stiil' },
-  { id: 'payments', label: 'Maksed', description: 'Makseviisid ja ühendused' },
-  { id: 'delivery', label: 'Tarne', description: 'Pakiautomaadid ja hinnad' },
-  { id: 'business', label: 'Müüja', description: 'Ettevõtte andmed' },
-  { id: 'links', label: 'Lingid', description: 'Kontakt ja sotsiaalmeedia' },
-  { id: 'notifications', label: 'Teavitused', description: 'E-kirjad ja märguanded' },
-  { id: 'billing', label: 'Plaan ja tasud', description: 'Pakett ja tasude arvestus' },
-  { id: 'account', label: 'Konto', description: 'Väljalogimine ja kustutamine' },
-]
-
-function SettingsSectionIcon({ section }: { section: SettingsSection }) {
-  const paths: Record<SettingsSection, string> = {
-    store: 'M3 10 12 3l9 7v10H3V10Zm6 10v-6h6v6',
-    appearance: 'M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a2 2 0 0 1 0-4h5.5A3.5 3.5 0 0 0 21 9.5C21 5.9 17 3 12 3Z',
-    payments: 'M3 6h18v12H3V6Zm0 4h18M7 15h4',
-    delivery: 'M3 7h11v10H3V7Zm11 4h4l3 3v3h-7v-6ZM7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
-    business: 'M4 21V7l8-4 8 4v14M8 10h2m4 0h2m-8 4h2m4 0h2m-5 7v-4h2v4',
-    links: 'M10 13a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7L11.2 6M14 11a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 1 0 5.7 5.7l1.6-1.5',
-    notifications: 'M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Zm-8 12h4',
-    billing: 'M5 3h14v18l-2-1.5L15 21l-3-1.5L9 21l-2-1.5L5 21V3Zm4 5h6m-6 4h6m-6 4h4',
-    account: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 9a7 7 0 0 0-14 0',
-  }
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[section]} /></svg>
-}
-type DeliverySettings = {
-  parcelProviders: Record<ShippingProvider, { enabled: boolean; price: number }>
-  courierEnabled: boolean
-  pickupEnabled: boolean
-  courierPrice: number
-  freeShippingFrom: number
-  pickupAddress: string
-}
-
-const SHIPPING_PROVIDERS: ShippingProvider[] = ['omniva', 'dpd', 'smartposti']
-const SHIPPING_PROVIDER_LABELS: Record<ShippingProvider, string> = {
-  omniva: 'Omniva',
-  dpd: 'DPD',
-  smartposti: 'SmartPosti',
-}
+export type { PaymentProvider } from './storefrontModel'
 
 const normalizeSearch = (value: string) => value
   .toLocaleLowerCase('et')
@@ -247,331 +161,10 @@ const createUrlSlug = (value: string) => normalizeSearch(value)
   .replace(/^-|-$/g, '')
   .slice(0, 60)
 
-const createParcelMachine = (provider: ShippingProvider, id: string, city: string, name: string, address?: string): ParcelMachine => ({
-  provider,
-  id,
-  city,
-  name,
-  address,
-  searchText: normalizeSearch(`${SHIPPING_PROVIDER_LABELS[provider]} ${city} ${name} ${address ?? ''} ${id}`),
-})
-
-const fallbackParcelMachines: ParcelMachine[] = [
-  createParcelMachine('omniva', 'omniva:fallback-1', 'Tallinn', 'Viru Keskuse pakiautomaat'),
-  createParcelMachine('dpd', 'dpd:fallback-1', 'Tallinn', 'Kristiine Keskuse pakiautomaat'),
-  createParcelMachine('smartposti', 'smartposti:fallback-1', 'Tallinn', 'Ülemiste Keskuse pakiautomaat'),
-  createParcelMachine('omniva', 'omniva:fallback-2', 'Tartu', 'Lõunakeskuse pakiautomaat'),
-  createParcelMachine('dpd', 'dpd:fallback-2', 'Tartu', 'Kvartali pakiautomaat'),
-  createParcelMachine('smartposti', 'smartposti:fallback-2', 'Pärnu', 'Kaubamajaka pakiautomaat'),
-]
-
 const normalizeExternalUrl = (value: string) => {
   const url = value.trim()
   if (!url) return ''
   return /^https?:\/\//i.test(url) ? url : `https://${url}`
-}
-
-const findParcelMachines = (machines: ParcelMachine[], query: string) => {
-  const terms = normalizeSearch(query).trim().split(/\s+/).filter(Boolean)
-  if (!terms.length) return machines.slice(0, 8)
-
-  return machines
-    .filter((machine) => terms.every((term) => machine.searchText.includes(term)))
-    .sort((a, b) => {
-      const queryStart = terms[0]
-      const aStarts = normalizeSearch(a.city).startsWith(queryStart) || normalizeSearch(a.name).startsWith(queryStart)
-      const bStarts = normalizeSearch(b.city).startsWith(queryStart) || normalizeSearch(b.name).startsWith(queryStart)
-      return Number(bStarts) - Number(aStarts) || a.city.localeCompare(b.city, 'et') || a.name.localeCompare(b.name, 'et')
-    })
-    .slice(0, 8)
-}
-
-function Cart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, vatRegistered, onRemove, onQuantityChange, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; vatRegistered: boolean; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onClose: () => void }) {
-  const checkoutRef = useRef<HTMLElement>(null)
-  const checkoutRequestIdRef = useRef(createCheckoutRequestId())
-  const [step, setStep] = useState<'cart' | 'checkout'>(initialStep)
-  const enabledParcelProviders = SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled)
-  const enabledParcelProviderKey = enabledParcelProviders.join(',')
-  const parcelEnabled = enabledParcelProviders.length > 0
-  const [delivery, setDelivery] = useState<'parcel' | 'courier' | 'pickup'>(() => parcelEnabled ? 'parcel' : deliverySettings.courierEnabled ? 'courier' : 'pickup')
-  const [parcelMachines, setParcelMachines] = useState<ParcelMachine[]>(() => fallbackParcelMachines.filter((machine) => enabledParcelProviders.includes(machine.provider)))
-  const [parcelQuery, setParcelQuery] = useState('')
-  const [selectedParcelId, setSelectedParcelId] = useState('')
-  const [isParcelSearchOpen, setIsParcelSearchOpen] = useState(false)
-  const [activeParcelIndex, setActiveParcelIndex] = useState(0)
-  const [parcelLoadFailed, setParcelLoadFailed] = useState(false)
-  const [courierAddress, setCourierAddress] = useState('')
-  const [courierCity, setCourierCity] = useState('')
-  const [courierPostalCode, setCourierPostalCode] = useState('')
-  const [courierAddressResults, setCourierAddressResults] = useState<AksAddress[]>([])
-  const [isCourierAddressOpen, setIsCourierAddressOpen] = useState(false)
-  const [selectedCourierAddressId, setSelectedCourierAddressId] = useState('')
-  const [isPaying, setIsPaying] = useState(false)
-  const [paymentError, setPaymentError] = useState('')
-  const itemTotal = items.reduce((sum, item) => sum + getProductPrice(item) * item.quantity, 0)
-  const selectedParcelMachine = parcelMachines.find((machine) => machine.id === selectedParcelId)
-  const defaultParcelPrice = enabledParcelProviders.length
-    ? Math.min(...enabledParcelProviders.map((provider) => deliverySettings.parcelProviders[provider].price))
-    : 0
-  const baseDeliveryPrice = delivery === 'parcel'
-    ? selectedParcelMachine ? deliverySettings.parcelProviders[selectedParcelMachine.provider].price : defaultParcelPrice
-    : delivery === 'courier' ? deliverySettings.courierPrice : 0
-  const deliveryPrice = deliverySettings.freeShippingFrom > 0 && itemTotal >= deliverySettings.freeShippingFrom ? 0 : baseDeliveryPrice
-  const orderTotal = itemTotal + deliveryPrice
-  const vatAmount = vatRegistered ? orderTotal * VAT_RATE / (1 + VAT_RATE) : 0
-
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [])
-
-  useEffect(() => {
-    if (step !== 'checkout' || delivery !== 'parcel') return
-    const controller = new AbortController()
-    const requests: Promise<ParcelMachine[]>[] = []
-
-    if (enabledParcelProviders.includes('omniva')) requests.push(fetch('https://www.omniva.ee/locations.json', { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Omniva vastas ${response.status}`)
-        return response.json()
-      })
-      .then((locations: OmnivaLocation[]) => locations
-        .filter((location) => location.A0_NAME === 'EE' && location.TYPE === '0' && !location.NAME.toLowerCase().includes('picapac'))
-        .map((location) => {
-          const city = location.A3_NAME || location.A2_NAME || location.A1_NAME
-          return createParcelMachine('omniva', `omniva:${location.ZIP}`, city, location.NAME)
-        })))
-
-    if (enabledParcelProviders.some((provider) => provider !== 'omniva')) requests.push(fetch('/data/parcel-machines.json', { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Pakiautomaatide nimekiri vastas ${response.status}`)
-        return response.json()
-      })
-      .then((machines: Array<Omit<ParcelMachine, 'searchText'>>) => machines
-        .filter((machine) => enabledParcelProviders.includes(machine.provider))
-        .map((machine) => createParcelMachine(machine.provider, machine.id, machine.city, machine.name, machine.address))))
-
-    Promise.allSettled(requests).then((results) => {
-      if (controller.signal.aborted) return
-      const machines = results.flatMap((result) => result.status === 'fulfilled' ? result.value : [])
-        .sort((a, b) => a.city.localeCompare(b.city, 'et') || a.name.localeCompare(b.name, 'et'))
-      setParcelLoadFailed(results.some((result) => result.status === 'rejected'))
-      setParcelMachines(machines.length ? machines : fallbackParcelMachines.filter((machine) => enabledParcelProviders.includes(machine.provider)))
-    })
-    return () => controller.abort()
-  }, [step, delivery, enabledParcelProviderKey])
-
-  useEffect(() => {
-    if (delivery !== 'courier' || courierAddress.trim().length < 3 || selectedCourierAddressId) {
-      setCourierAddressResults([])
-      return
-    }
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => {
-      const params = new URLSearchParams({ address: courierAddress.trim(), results: '8' })
-      fetch(`https://aks.geoportaal.ee/inaks/inaadress/gazetteer?${params}`, { signal: controller.signal })
-        .then((response) => response.json())
-        .then((data: { addresses?: AksAddress[] }) => setCourierAddressResults((data.addresses ?? [])
-          .filter((address) => ['EHITISHOONE', 'EHITISHOONEOSA', 'HOONEOSA'].includes(address.liikVal))
-          .slice(0, 6)))
-        .catch((error) => { if (error.name !== 'AbortError') setCourierAddressResults([]) })
-    }, 280)
-    return () => { window.clearTimeout(timeout); controller.abort() }
-  }, [delivery, courierAddress, selectedCourierAddressId])
-
-  const parcelResults = findParcelMachines(parcelMachines, parcelQuery)
-  const selectParcelMachine = (machine: ParcelMachine) => {
-    setSelectedParcelId(machine.id)
-    setParcelQuery(`${SHIPPING_PROVIDER_LABELS[machine.provider]} · ${machine.city} · ${machine.name}`)
-    setIsParcelSearchOpen(false)
-  }
-
-  const keepContactFieldVisible = (field: HTMLInputElement) => {
-    const revealField = () => {
-      const checkout = checkoutRef.current
-      if (!checkout || !field.isConnected) return
-
-      const checkoutRect = checkout.getBoundingClientRect()
-      const fieldRect = field.getBoundingClientRect()
-      const viewport = window.visualViewport
-      const visibleTop = Math.max(checkoutRect.top, viewport?.offsetTop ?? 0) + 16
-      const visibleBottom = Math.min(checkoutRect.bottom, (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)) - 20
-
-      if (fieldRect.top < visibleTop) checkout.scrollTop -= visibleTop - fieldRect.top
-      else if (fieldRect.bottom > visibleBottom) checkout.scrollTop += fieldRect.bottom - visibleBottom
-    }
-
-    window.requestAnimationFrame(() => window.requestAnimationFrame(revealField))
-    window.setTimeout(revealField, 180)
-    window.setTimeout(revealField, 420)
-  }
-
-  const completeCheckout = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (isPaying) return
-    const data = new FormData(event.currentTarget)
-    const deliveryLabel = delivery === 'parcel' ? parcelQuery : delivery === 'courier' ? [courierAddress, courierCity, courierPostalCode].filter(Boolean).join(', ') : 'Tulen ise järele'
-    if (paymentProvider !== 'stripe') {
-      setPaymentError('See makseviis ei ole praegu saadaval.')
-      return
-    }
-    if (!storeId) { setPaymentError('Päris makse jaoks peab pood olema serverisse salvestatud.'); return }
-    setIsPaying(true)
-    setPaymentError('')
-    try {
-      const url = await startStripeStoreCheckout({
-        storeId,
-        checkoutRequestId: checkoutRequestIdRef.current,
-        items: items.map((item) => ({ id: item.id, quantity: item.quantity, selectedOptions: item.selectedOptions })),
-        customer: { name: String(data.get('customerName')), email: String(data.get('customerEmail')), phone: String(data.get('customerPhone')) },
-        delivery: { type: delivery, provider: selectedParcelMachine?.provider, label: deliveryLabel },
-      })
-      window.location.assign(url)
-    } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.')
-      checkoutRequestIdRef.current = createCheckoutRequestId()
-      setIsPaying(false)
-    }
-  }
-
-  return (
-    <div className="overlay cart-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section ref={checkoutRef} className="checkout" role="dialog" aria-modal="true" aria-label="Ostukorv">
-        <button className="checkout__close" onClick={onClose} aria-label="Sulge">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-        </button>
-        <h2>{step === 'cart' ? 'Ostukorv' : 'Vormista tellimus'}</h2>
-        {items.length === 0 ? <p className="cart-empty">Ostukorv on tühi.</p> : <>
-          {step === 'cart' ? <>
-            <div className="cart-items">
-              {items.map((item) => (
-                <div className="cart-item" key={item.cartKey}>
-                  <img {...getResponsiveImageProps(item, item.image, 'thumb')} sizes="8rem" alt={item.alt} />
-                  <div className="cart-item__copy">
-                    <strong>{item.name}</strong>
-                    {Object.keys(item.selectedOptions).length > 0 && <small>{Object.entries(item.selectedOptions).map(([name, value]) => `${name}: ${value}`).join(' · ')}</small>}
-                    <span>{formatEuro(getProductPrice(item) * item.quantity)}</span>
-                    <div className="cart-item__quantity" role="group" aria-label={`${item.name} kogus`}>
-                      <button type="button" onClick={() => onQuantityChange(item.cartKey, item.quantity - 1)} aria-label="Vähenda kogust">−</button>
-                      <output aria-live="polite">{item.quantity}</output>
-                      <button type="button" disabled={items.filter((candidate) => candidate.id === item.id).reduce((sum, candidate) => sum + candidate.quantity, 0) >= getProductStockLimit(item)} onClick={() => onQuantityChange(item.cartKey, item.quantity + 1)} aria-label="Suurenda kogust">+</button>
-                    </div>
-                  </div>
-                  <button className="cart-item__remove" onClick={() => onRemove(item.cartKey)} aria-label="Eemalda ostukorvist">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="cart-total"><span>Kokku</span><strong>{itemTotal} €</strong></div>
-            <button className="pay" type="button" onClick={() => setStep('checkout')}>Vormista tellimus</button>
-          </> : <form onSubmit={completeCheckout}>
-            <label>Nimi<input required name="customerName" autoComplete="name" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
-            <label>E-post<input required name="customerEmail" type="email" autoComplete="email" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
-            <label>Telefon<input required name="customerPhone" type="tel" autoComplete="tel" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
-            <fieldset className="payment delivery">
-              <legend>Tarneviis</legend>
-              <div className="payment-tabs">
-                {parcelEnabled && <button type="button" className={delivery === 'parcel' ? 'is-selected' : ''} onClick={() => setDelivery('parcel')}>Pakiautomaat</button>}
-                {deliverySettings.courierEnabled && <button type="button" className={delivery === 'courier' ? 'is-selected' : ''} onClick={() => setDelivery('courier')}>Kuller</button>}
-                {deliverySettings.pickupEnabled && <button type="button" className={delivery === 'pickup' ? 'is-selected' : ''} onClick={() => setDelivery('pickup')}>Tulen ise järele</button>}
-              </div>
-              {delivery === 'parcel' ? <div className="parcel-select">
-                <label htmlFor="parcel-search">Pakiautomaat</label>
-                <div className="parcel-combobox">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-                  <input
-                    id="parcel-search"
-                    value={parcelQuery}
-                    autoComplete="off"
-                    placeholder="Otsi linna või pakiautomaati"
-                    role="combobox"
-                    aria-expanded={isParcelSearchOpen}
-                    aria-controls="parcel-results"
-                    aria-autocomplete="list"
-                    onFocus={() => setIsParcelSearchOpen(true)}
-                    onBlur={() => window.setTimeout(() => setIsParcelSearchOpen(false), 150)}
-                    onChange={(event) => {
-                      setParcelQuery(event.target.value)
-                      setSelectedParcelId('')
-                      setActiveParcelIndex(0)
-                      setIsParcelSearchOpen(true)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'ArrowDown') { event.preventDefault(); setActiveParcelIndex((index) => Math.min(index + 1, parcelResults.length - 1)) }
-                      if (event.key === 'ArrowUp') { event.preventDefault(); setActiveParcelIndex((index) => Math.max(index - 1, 0)) }
-                      if (event.key === 'Enter' && isParcelSearchOpen && parcelResults[activeParcelIndex]) { event.preventDefault(); selectParcelMachine(parcelResults[activeParcelIndex]) }
-                      if (event.key === 'Escape') setIsParcelSearchOpen(false)
-                    }}
-                  />
-                  {parcelQuery && <button type="button" aria-label="Tühjenda otsing" onMouseDown={(event) => event.preventDefault()} onClick={() => { setParcelQuery(''); setSelectedParcelId(''); setActiveParcelIndex(0); setIsParcelSearchOpen(true) }}>×</button>}
-                  <select className="parcel-required" required value={selectedParcelId} onChange={() => undefined} aria-label="Valitud pakiautomaat" tabIndex={-1}>
-                    <option value="" />
-                    {selectedParcelId && <option value={selectedParcelId}>{selectedParcelId}</option>}
-                  </select>
-                </div>
-                {isParcelSearchOpen && <div className="parcel-results" id="parcel-results" role="listbox">
-                  {parcelResults.length ? parcelResults.map((machine, index) => <button
-                    type="button"
-                    role="option"
-                    aria-selected={machine.id === selectedParcelId}
-                    className={index === activeParcelIndex ? 'is-active' : ''}
-                    key={machine.id}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => setActiveParcelIndex(index)}
-                    onClick={() => selectParcelMachine(machine)}
-                  ><strong>{machine.city}</strong><span>{machine.name}</span><small>{SHIPPING_PROVIDER_LABELS[machine.provider]} · {formatEuro(deliverySettings.parcelProviders[machine.provider].price)}</small></button>) : <p>Sellist pakiautomaati ei leidnud.</p>}
-                </div>}
-                {parcelLoadFailed && <p className="parcel-status">Kõiki pakiautomaate ei õnnestunud laadida.</p>}
-                {!selectedParcelId && parcelMachines.length > 0 && <small>Kirjuta näiteks „Tartu Lõunakeskus“.</small>}
-              </div> : delivery === 'courier' ? <div className="courier-fields">
-                <label className="courier-address">Aadress<input required autoComplete="off" placeholder="Tänav, maja ja korter" value={courierAddress} onFocus={() => setIsCourierAddressOpen(true)} onBlur={() => window.setTimeout(() => setIsCourierAddressOpen(false), 150)} onChange={(event) => { setCourierAddress(event.target.value); setSelectedCourierAddressId(''); setIsCourierAddressOpen(true) }} />
-                  <select className="parcel-required" required value={selectedCourierAddressId} onChange={() => undefined} aria-label="Kinnitatud kulleriaadress" tabIndex={-1}>
-                    <option value="" />
-                    {selectedCourierAddressId && <option value={selectedCourierAddressId}>{selectedCourierAddressId}</option>}
-                  </select>
-                  {isCourierAddressOpen && courierAddressResults.length > 0 && <div className="courier-address__results">
-                    {courierAddressResults.map((address) => <button type="button" key={address.adr_id} onMouseDown={(event) => event.preventDefault()} onClick={() => {
-                      setCourierAddress(address.ipikkaadress || address.aadresstekst)
-                      setCourierCity(address.omavalitsus || address.asustusyksus)
-                      setCourierPostalCode(address.sihtnumber)
-                      setSelectedCourierAddressId(address.adr_id)
-                      setIsCourierAddressOpen(false)
-                    }}><strong>{address.aadresstekst}</strong><span>{[address.asustusyksus, address.omavalitsus, address.sihtnumber].filter(Boolean).join(' · ')}</span></button>)}
-                  </div>}
-                </label>
-                <div><label>Linn<input required autoComplete="address-level2" value={courierCity} onChange={(event) => setCourierCity(event.target.value)} /></label><label>Sihtnumber<input required inputMode="numeric" autoComplete="postal-code" value={courierPostalCode} onChange={(event) => setCourierPostalCode(event.target.value)} /></label></div>
-                <small>Vali täpne aadress soovituste seast · {deliverySettings.courierPrice.toFixed(2).replace('.', ',')} €</small>
-              </div> : <div className="pickup-note"><strong>{deliverySettings.pickupAddress || 'Järeletulemise aadress täpsustamisel'}</strong><span>Järeletulemise aeg lepitakse kokku pärast tellimust.</span></div>}
-            </fieldset>
-            {!paymentsReady || paymentProvider !== 'stripe' ? <div className="payment-pending"><span>…</span><div><strong>Maksed pole veel aktiivsed</strong><small>Poe omanik peab enne ostude vastuvõtmist Stripe’i ühendama.</small></div></div> : <fieldset className="payment stripe-payment">
-              <legend>Makseviis</legend>
-              <div className="stripe-payment__card">
-                <div className="stripe-secure"><span>⌁</span><strong>Turvaline makse Stripe’is</strong><small>Kaart · Apple Pay · Google Pay</small></div>
-                <small>Pärast tellimuse kinnitamist avaneb Stripe’i turvaline makseleht. Poeruum ei näe ega salvesta sinu kaardiandmeid.</small>
-              </div>
-            </fieldset>}
-            <div className="checkout-summary">
-              {items.map((item) => (
-                <div className="summary-item" key={item.cartKey}>
-                  <span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? ` · ${Object.values(item.selectedOptions).join(', ')}` : ''}</span>
-                  <span>{formatEuro(getProductPrice(item) * item.quantity)}</span>
-                </div>
-              ))}
-              <div><span>Tarne</span><span>{deliveryPrice.toFixed(2).replace('.', ',')} €</span></div>
-              <strong><span>Kokku</span><span>{orderTotal.toFixed(2).replace('.', ',')} €</span></strong>
-              {vatRegistered
-                ? <><div className="vat-row"><span>sh käibemaks 24%</span><span>{vatAmount.toFixed(2).replace('.', ',')} €</span></div><small>Hinnad sisaldavad käibemaksu.</small></>
-                : <small>Müüja ei ole käibemaksukohustuslane.</small>}
-            </div>
-            {paymentError && <p className="add-product-error" role="alert">{paymentError}</p>}
-            <button className="pay" type="submit" disabled={isPaying || !paymentsReady || paymentProvider !== 'stripe'}>{!paymentsReady || paymentProvider !== 'stripe' ? 'Maksed pole aktiivsed' : isPaying ? 'Töötlen makset…' : `Maksa ${orderTotal.toFixed(2).replace('.', ',')} €`}</button>
-            <button className="checkout-back" type="button" onClick={() => setStep('cart')}>Tagasi ostukorvi</button>
-          </form>}
-        </>}
-      </section>
-    </div>
-  )
 }
 
 export type StorefrontProps = {
@@ -2068,7 +1661,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (!loginEmail.trim()) { setAuthToast('Sisesta esmalt e-posti aadress'); return }
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
-      if (isCaptchaConfigured && !loginCaptchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      if (isCaptchaConfigured && !loginCaptchaToken) throw new Error(getCaptchaRequiredMessage())
       const { error } = await requireSupabase().auth.resetPasswordForEmail(loginEmail.trim(), {
         redirectTo: window.location.origin,
         captchaToken: loginCaptchaToken || undefined,
@@ -2131,7 +1724,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setEmailChangeError('')
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
-      if (isCaptchaConfigured && !accountCaptchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      if (isCaptchaConfigured && !accountCaptchaToken) throw new Error(getCaptchaRequiredMessage())
       const supabase = requireSupabase()
       const { error: verificationError } = await supabase.auth.signInWithPassword({
         email: accountEmail,
@@ -2163,7 +1756,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setPasswordChangeError('')
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
-      if (isCaptchaConfigured && !accountCaptchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+      if (isCaptchaConfigured && !accountCaptchaToken) throw new Error(getCaptchaRequiredMessage())
       const supabase = requireSupabase()
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user?.email) throw new Error('Sessioon on aegunud. Logi uuesti sisse.')
@@ -2911,7 +2504,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         </section>
       </div>}
 
-      {isCartOpen && <Cart storeId={storeId} items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} vatRegistered={vatRegistered} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
+      {isCartOpen && <StorefrontCart storeId={storeId} items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} vatRegistered={vatRegistered} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
         const target = items.find((item) => item.cartKey === cartKey)
         if (!target || quantity <= 0) return items.filter((item) => item.cartKey !== cartKey)
         const otherQuantity = items.filter((item) => item.id === target.id && item.cartKey !== cartKey).reduce((sum, item) => sum + item.quantity, 0)
@@ -3404,7 +2997,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               const password = String(form.get('password') ?? '')
               setIsOwnerLoginBusy(true)
               try {
-                if (isCaptchaConfigured && !loginCaptchaToken) throw new Error('Kinnita enne jätkamist, et sa ei ole robot.')
+                if (isCaptchaConfigured && !loginCaptchaToken) throw new Error(getCaptchaRequiredMessage())
                 if (onOwnerLogin) await onOwnerLogin(normalizedEmail, password, loginCaptchaToken)
                 else if (storeId && isSupabaseConfigured) {
                   const { error } = await requireSupabase().auth.signInWithPassword({

@@ -125,7 +125,7 @@ Deno.serve(async (request) => {
     .limit(100)
   if (error) {
     await captureEdgeError('stripe-billing-delinquency', error, {}, 'critical')
-    return json({ error: error.message }, 500)
+    return json({ error: 'Arveldusolekute kontroll ebaõnnestus.' }, 500)
   }
 
   let recovered = 0

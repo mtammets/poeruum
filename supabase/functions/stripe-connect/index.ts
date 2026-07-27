@@ -182,6 +182,6 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('stripe-connect', error)
     console.error('Stripe Connecti käivitamine ebaõnnestus.', error)
-    return json({ error: error instanceof Error ? error.message : 'Stripe’i ühendamine ebaõnnestus.' }, 500)
+    return json({ error: 'Stripe’i ühendamine ebaõnnestus. Palun proovi uuesti.' }, 500)
   }
 })

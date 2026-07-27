@@ -1,7 +1,6 @@
 import { lazy, StrictMode, Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from './ErrorBoundary'
-import PlatformApp from './PlatformApp'
 import type { LegalDocument } from './LegalPage'
 import { applySeoMetadata } from './lib/seo'
 import { registerGlobalErrorMonitoring } from './lib/errorMonitoring'
@@ -9,16 +8,18 @@ import { getStoreSlugFromHostname } from './lib/storefrontUrl'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
 import './brand.css'
-import './platform.css'
-import './admin.css'
 
 const AdminApp = lazy(() => import('./AdminApp'))
 const ComingSoon = lazy(() => import('./ComingSoon'))
 const LegalPage = lazy(() => import('./LegalPage'))
+const PlatformApp = lazy(() => import('./PlatformApp'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
 
 const LoadingScreen = () => <main className="homepage-mode-loading" aria-label="Laadin Poeruumi"><span /></main>
-const PlatformWithSupport = () => <><PlatformApp /><Suspense fallback={null}><SupportCenter /></Suspense></>
+const PlatformWithSupport = () => <Suspense fallback={<LoadingScreen />}>
+  <PlatformApp />
+  <Suspense fallback={null}><SupportCenter /></Suspense>
+</Suspense>
 
 const hasAppReturnState = ['billing', 'checkout'].some((key) => new URLSearchParams(window.location.search).has(key))
 const isDeindexedTestStorePath = /^\/p\/test(?:\/|$)/i.test(window.location.pathname)

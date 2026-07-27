@@ -21,7 +21,11 @@ export class ErrorBoundary extends Component<Props, State> {
         <span>POERUUM</span>
         <h1>Midagi läks valesti</h1>
         <p>Viga saadeti automaatselt Poeruumi tehnilisele toele. Palun laadi leht uuesti.</p>
-        <button type="button" onClick={() => window.location.reload()}>Laadi uuesti</button>
+        <button type="button" onClick={() => {
+          if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
+          window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+          window.location.reload()
+        }}>Laadi uuesti</button>
       </main>
     }
     return this.props.children

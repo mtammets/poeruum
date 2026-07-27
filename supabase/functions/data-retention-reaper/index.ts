@@ -84,6 +84,6 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('data-retention-reaper', error, {}, 'critical')
     console.error(error)
-    return json({ error: error instanceof Error ? error.message : 'Säilitustähtaja töö ebaõnnestus.' }, 500)
+    return json({ error: 'Säilitustähtaja töö ebaõnnestus.' }, 500)
   }
 })

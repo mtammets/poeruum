@@ -101,6 +101,6 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('stripe-billing-checkout', error)
     console.error('Stripe Billingu makse algatamine ebaõnnestus.', error)
-    return json({ error: error instanceof Error ? error.message : 'Arvelduse algatamine ebaõnnestus.' }, 500)
+    return json({ error: 'Arvelduse algatamine ebaõnnestus. Palun proovi uuesti.' }, 500)
   }
 })

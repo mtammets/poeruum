@@ -2,6 +2,14 @@ import { useEffect, useRef } from 'react'
 
 const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim()
 export const isCaptchaConfigured = Boolean(siteKey)
+const ipHostname = /^(?:\d{1,3}\.){3}\d{1,3}$|^\[[0-9a-f:]+\]$/i
+
+export const isCaptchaUnsupportedHost = () =>
+  Boolean(siteKey && ipHostname.test(window.location.hostname))
+
+export const getCaptchaRequiredMessage = () => isCaptchaUnsupportedHost()
+  ? 'Botikaitse ei tööta IP-aadressil. Ava arvutis localhost või kasuta lubatud HTTPS-arendusdomeeni.'
+  : 'Kinnita enne jätkamist, et sa ei ole robot.'
 
 type TurnstileApi = {
   render: (container: HTMLElement, options: Record<string, unknown>) => string
@@ -42,7 +50,7 @@ export function Turnstile({ action, onToken }: { action: string; onToken: (token
   onTokenRef.current = onToken
 
   useEffect(() => {
-    if (!siteKey || !containerRef.current) return
+    if (!siteKey || isCaptchaUnsupportedHost() || !containerRef.current) return
     let active = true
     let widgetId: string | null = null
     loadTurnstile().then((turnstile) => {
@@ -52,7 +60,7 @@ export function Turnstile({ action, onToken }: { action: string; onToken: (token
         action,
         theme: 'auto',
         size: 'flexible',
-        language: 'et',
+        language: 'auto',
         appearance: 'interaction-only',
         callback: (token: string) => onTokenRef.current(token),
         'expired-callback': () => onTokenRef.current(''),
@@ -66,5 +74,8 @@ export function Turnstile({ action, onToken }: { action: string; onToken: (token
   }, [action])
 
   if (!siteKey) return null
+  if (isCaptchaUnsupportedHost()) {
+    return <p className="turnstile-host-error" role="alert">{getCaptchaRequiredMessage()}</p>
+  }
   return <div className="turnstile-field" ref={containerRef} aria-label="Botikaitse" />
 }

@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "npm:@eslint/js@10.0.1": "10.0.1_eslint@10.8.0",
+    "npm:@playwright/test@^1.62.0": "1.62.0",
     "npm:@stripe/connect-js@^3.4.6": "3.4.6",
     "npm:@stripe/react-connect-js@^3.4.4": "3.4.4_@stripe+connect-js@3.4.6_react@19.2.8_react-dom@19.2.8__react@19.2.8",
     "npm:@supabase/supabase-js@2": "2.110.8",
@@ -9,13 +10,12 @@
     "npm:@types/react-dom@^19.2.3": "19.2.3_@types+react@19.2.17",
     "npm:@types/react@^19.2.17": "19.2.17",
     "npm:@types/ws@^8.18.1": "8.18.1",
-    "npm:@vitejs/plugin-react@^6.0.3": "6.0.4_vite@8.1.5",
+    "npm:@vitejs/plugin-react@^6.0.4": "6.0.4_vite@8.1.5",
     "npm:deno@2.9.4": "2.9.4",
     "npm:dotenv@^17.4.2": "17.4.2",
     "npm:eslint-plugin-react-hooks@7.1.1": "7.1.1_eslint@10.8.0",
     "npm:eslint@10.8.0": "10.8.0",
     "npm:globals@17.4.0": "17.4.0",
-    "npm:playwright@^1.61.1": "1.62.0",
     "npm:postcss@8.5.23": "8.5.23",
     "npm:react-dom@^19.2.7": "19.2.8_react@19.2.8",
     "npm:react@^19.2.7": "19.2.8",
@@ -24,7 +24,7 @@
     "npm:supabase@^2.109.1": "2.109.1",
     "npm:typescript-eslint@8.65.0": "8.65.0_eslint@10.8.0_typescript@6.0.3",
     "npm:typescript@~6.0.2": "6.0.3",
-    "npm:vite@^8.1.1": "8.1.5",
+    "npm:vite@^8.1.5": "8.1.5",
     "npm:vitest@4.1.10": "4.1.10_vite@8.1.5",
     "npm:ws@^8.21.1": "8.21.1"
   },
@@ -325,6 +325,13 @@
     },
     "@oxc-project/types@0.139.0": {
       "integrity": "sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw=="
+    },
+    "@playwright/test@1.62.0": {
+      "integrity": "sha512-9zOJ6ZQRAena31MpOH9VSzIz8Ou3YJ/wtY/eQm5T2uhfhG7/U3COrMS8xOtUrZrp9OgdmzEnIYODye3nY1VqzA==",
+      "dependencies": [
+        "playwright"
+      ],
+      "bin": true
     },
     "@rolldown/binding-android-arm64@1.1.5": {
       "integrity": "sha512-lZg8fqIv2v7FF237bwMgzGZEJvGL79/s5knJ/i6FmsGF4XXlzccZ4jb+TrFIxtSSxFtIpdsgrPZeMk1I9AFcyQ==",
@@ -1497,26 +1504,26 @@
     "packageJson": {
       "dependencies": [
         "npm:@eslint/js@10.0.1",
+        "npm:@playwright/test@^1.62.0",
         "npm:@stripe/connect-js@^3.4.6",
         "npm:@stripe/react-connect-js@^3.4.4",
         "npm:@supabase/supabase-js@^2.109.0",
         "npm:@types/react-dom@^19.2.3",
         "npm:@types/react@^19.2.17",
         "npm:@types/ws@^8.18.1",
-        "npm:@vitejs/plugin-react@^6.0.3",
+        "npm:@vitejs/plugin-react@^6.0.4",
         "npm:deno@2.9.4",
         "npm:dotenv@^17.4.2",
         "npm:eslint-plugin-react-hooks@7.1.1",
         "npm:eslint@10.8.0",
         "npm:globals@17.4.0",
-        "npm:playwright@^1.61.1",
         "npm:postcss@8.5.23",
         "npm:react-dom@^19.2.7",
         "npm:react@^19.2.7",
         "npm:supabase@^2.109.1",
         "npm:typescript-eslint@8.65.0",
         "npm:typescript@~6.0.2",
-        "npm:vite@^8.1.1",
+        "npm:vite@^8.1.5",
         "npm:vitest@4.1.10",
         "npm:ws@^8.21.1"
       ]

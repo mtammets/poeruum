@@ -89,6 +89,6 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('stripe-refund-order', error)
     console.error('Stripe’i tagastus ebaõnnestus.', error)
-    return json({ error: error instanceof Error ? error.message : 'Tagastus ebaõnnestus.' }, 500)
+    return json({ error: 'Tagastus ebaõnnestus. Palun proovi uuesti.' }, 500)
   }
 })

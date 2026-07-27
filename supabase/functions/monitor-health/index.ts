@@ -138,6 +138,6 @@ Deno.serve(async (request) => {
     return json({ status: 'ok', checks: results })
   } catch (error) {
     console.error('Poeruumi tervisemonitor ebaõnnestus.', error)
-    return json({ error: error instanceof Error ? error.message : 'Tervisemonitor ebaõnnestus.' }, 500)
+    return json({ error: 'Tervisemonitor ebaõnnestus.' }, 500)
   }
 })

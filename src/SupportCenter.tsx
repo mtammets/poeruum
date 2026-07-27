@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { BrandMark } from './Brand'
+import { createRandomId } from './lib/randomId'
 
 type SupportConversation = {
   id: string
@@ -152,7 +153,7 @@ export default function SupportCenter() {
   const uploadAttachment = async () => {
     if (!attachment || !user) return null
     const extension = attachment.name.includes('.') ? `.${attachment.name.split('.').pop()?.toLowerCase()}` : ''
-    const path = `${user.id}/${crypto.randomUUID()}${extension}`
+    const path = `${user.id}/${createRandomId()}${extension}`
     const { error: uploadError } = await requireSupabase().storage.from('support-attachments').upload(path, attachment, {
       contentType: attachment.type,
       upsert: false,

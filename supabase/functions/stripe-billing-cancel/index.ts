@@ -74,6 +74,6 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('stripe-billing-cancel', error)
     console.error('Kindla paketi lõpetamine ebaõnnestus.', error)
-    return json({ error: error instanceof Error ? error.message : 'Paketi muutmine ebaõnnestus.' }, 500)
+    return json({ error: 'Paketi muutmine ebaõnnestus. Palun proovi uuesti.' }, 500)
   }
 })

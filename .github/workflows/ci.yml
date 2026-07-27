@@ -42,6 +42,12 @@ jobs:
       - name: Production build
         run: npm run build:app
 
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke tests
+        run: npm run test:smoke
+
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
 

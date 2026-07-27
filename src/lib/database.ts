@@ -1,4 +1,5 @@
 import type { Product, ProductImageAsset } from '../products'
+import { createRandomId } from './randomId'
 import { requireSupabase } from './supabase'
 
 export const SHOWCASE_STORE_ID = '00000000-0000-4000-8000-000000000001'
@@ -99,17 +100,6 @@ const isSupabaseProductImageUrl = (value: unknown) => {
   } catch {
     return false
   }
-}
-
-// crypto.randomUUID is unavailable in older Safari versions and on non-secure
-// LAN origins (http://192.168... / http://172.16...). getRandomValues remains
-// available there, so image uploads still get collision-resistant names.
-const createRandomId = () => {
-  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
-  const bytes = new Uint8Array(16)
-  globalThis.crypto?.getRandomValues?.(bytes)
-  if (bytes.some(Boolean)) return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
 export async function getMyStore() {

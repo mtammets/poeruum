@@ -267,6 +267,6 @@ Deno.serve(async (request) => {
   } catch (error) {
     await captureEdgeError('custom-domain', error)
     console.error('Kohandatud domeeni haldus ebaõnnestus.', error)
-    return json({ error: error instanceof Error ? error.message : 'Domeeni haldus ebaõnnestus.' }, 500)
+    return json({ error: 'Domeeni haldus ebaõnnestus. Palun proovi uuesti.' }, 500)
   }
 })
