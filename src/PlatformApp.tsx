@@ -974,6 +974,23 @@ function PlatformFlow() {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
+  const signOutFromLanding = async () => {
+    if (isAuthBusy) return
+    setIsAuthBusy(true)
+    setIsMobileNavOpen(false)
+    setAuthError('')
+    setAuthNotice('')
+    try {
+      const { error } = await requireSupabase().auth.signOut({ scope: 'local' })
+      if (error) throw error
+      resetPlatformFlow()
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    } catch (error) {
+      setAuthNotice(error instanceof Error ? error.message : 'Väljalogimine ebaõnnestus.')
+      setIsAuthBusy(false)
+    }
+  }
+
   const startOrResumeMerchantFlow = (plan?: PricingPlan) => {
     if (onlineUserId) {
       resumeMerchantFlow()
@@ -1024,7 +1041,10 @@ function PlatformFlow() {
       <a className="platform-nav-link" href="#kkk">KKK</a>
       <button className="platform-nav-link" onClick={() => setScreen('sample')}>Vaata näidispoodi</button>
       {onlineUserId
-        ? <button className="platform-nav-cta" onClick={resumeMerchantFlow}>Minu pood</button>
+        ? <>
+          <button className="platform-nav-link platform-nav-login" type="button" onClick={() => void signOutFromLanding()} disabled={isAuthBusy}>{isAuthBusy ? 'Login välja…' : 'Logi välja'}</button>
+          <button className="platform-nav-cta" onClick={resumeMerchantFlow}>Minu pood</button>
+        </>
         : <>
           <button className="platform-nav-link platform-nav-login" onClick={() => setScreen('login')}>Logi sisse</button>
           <button className="platform-nav-cta" onClick={() => setScreen('account')}>Loo pood</button>
@@ -1039,13 +1059,17 @@ function PlatformFlow() {
         <a href="#kkk" onClick={() => setIsMobileNavOpen(false)}><span>KKK</span><b>→</b></a>
         <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('sample') }}><span>Näidispood</span><b>→</b></button>
         {onlineUserId
-          ? <button type="button" onClick={resumeMerchantFlow}><span>Minu pood</span><b>→</b></button>
+          ? <>
+            <button type="button" onClick={resumeMerchantFlow}><span>Minu pood</span><b>→</b></button>
+            <button type="button" onClick={() => void signOutFromLanding()} disabled={isAuthBusy}><span>{isAuthBusy ? 'Login välja…' : 'Logi välja'}</span><b>→</b></button>
+          </>
           : <>
             <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('login') }}><span>Logi sisse</span><b>→</b></button>
             <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('account') }}><span>Loo pood</span><b>→</b></button>
           </>}
       </div>}
     </div></nav>
+    {returnNotice}
     <section className="platform-hero">
       <div className="platform-hero__copy">
         <span className="platform-eyebrow">Lihtsaim viis oma e-poeni</span>
