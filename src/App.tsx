@@ -23,6 +23,7 @@ import BillingPlanDialog from './BillingPlanDialog'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
 import StorefrontCart from './StorefrontCart'
+import './storefrontPreview.css'
 import {
   createCartItem,
   createCartKey,

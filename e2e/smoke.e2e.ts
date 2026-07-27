@@ -63,6 +63,20 @@ test('legal routes render their dedicated documents', async ({ page }) => {
   await expect(page).toHaveTitle(/Privaatsus/)
 })
 
+test('storefront preview owns its toolbar styles independently', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Vaata näidispoodi' }).click()
+
+  const previewBar = page.locator('.platform-preview-bar')
+  await expect(previewBar).toBeVisible()
+  await page.locator('style[data-vite-dev-id$="/src/platform.css"]').evaluate((style) => style.remove())
+
+  await expect(previewBar).toHaveCSS('position', 'fixed')
+  await expect(previewBar).toHaveCSS('display', 'flex')
+  await expect(previewBar).toHaveCSS('background-color', 'rgb(229, 242, 90)')
+  await expect(previewBar.getByRole('button')).toHaveCSS('border-radius', '10.4px')
+})
+
 test('admin route fails closed when backend configuration is absent', async ({ page }) => {
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
