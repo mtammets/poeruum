@@ -1,5 +1,28 @@
 import { expect, test } from '@playwright/test'
 
+test('initial platform document is light before application JavaScript runs', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false })
+  const page = await context.newPage()
+
+  await page.goto(baseURL ?? '/')
+
+  expect(await page.evaluate(() => ({
+    surface: document.documentElement.dataset.appSurface,
+    rootBackground: getComputedStyle(document.documentElement).backgroundColor,
+    bodyBackground: getComputedStyle(document.body).backgroundColor,
+    colorScheme: getComputedStyle(document.documentElement).colorScheme,
+    themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content,
+  }))).toEqual({
+    surface: 'platform',
+    rootBackground: 'rgb(244, 242, 233)',
+    bodyBackground: 'rgb(244, 242, 233)',
+    colorScheme: 'light',
+    themeColor: '#f4f2e9',
+  })
+
+  await context.close()
+})
+
 test('landing page opens and login navigation works', async ({ page }) => {
   const pageErrors: Error[] = []
   page.on('pageerror', (error) => pageErrors.push(error))
@@ -65,6 +88,7 @@ test('landing page opens and login navigation works', async ({ page }) => {
 })
 
 test('legal routes render their dedicated documents', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/kasutustingimused')
   await expect(page.getByRole('heading', { name: /Poeruumi teenuse/ })).toBeVisible()
   await expect(page).toHaveTitle(/Kasutustingimused/)
@@ -72,6 +96,24 @@ test('legal routes render their dedicated documents', async ({ page }) => {
   await page.goto('/privaatsus')
   await expect(page.getByRole('heading', { name: /Kuidas Poeruum/ })).toBeVisible()
   await expect(page).toHaveTitle(/Privaatsus/)
+
+  const brand = page.locator('.legal-nav .platform-brand')
+  const mark = brand.locator('.platform-brand__mark')
+  await expect(brand).toHaveCSS('display', 'inline-flex')
+  await expect(mark.locator('rect')).toHaveCSS('fill', 'rgb(38, 95, 67)')
+  await expect(mark.locator('path').first()).toHaveCSS('fill', 'none')
+  await expect(mark.locator('path').first()).toHaveCSS('stroke', 'rgb(229, 242, 90)')
+
+  const [markBox, nameBox] = await Promise.all([
+    mark.boundingBox(),
+    brand.locator('strong').boundingBox(),
+  ])
+  expect(markBox).not.toBeNull()
+  expect(nameBox).not.toBeNull()
+  expect(Math.abs(
+    (markBox?.y ?? 0) + (markBox?.height ?? 0) / 2
+      - ((nameBox?.y ?? 0) + (nameBox?.height ?? 0) / 2),
+  )).toBeLessThan(2)
 })
 
 test('storefront preview owns its toolbar styles independently', async ({ page }) => {

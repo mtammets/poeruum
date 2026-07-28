@@ -166,6 +166,8 @@ function renderStorefront(template, store, product) {
     : `<a href="/">Tagasi poodi ${escapeHtml(store.store_name)}</a>`
   const fallback = `<main class="seo-fallback"><div><span>${escapeHtml(product ? store.store_name : 'E-pood')}</span><h1>${escapeHtml(product?.name || store.store_name)}</h1><p>${escapeHtml(description)}</p>${links}</div></main>`
   return template
+    .replace('<html lang="et" data-app-surface="platform">', '<html lang="et" data-app-surface="storefront">')
+    .replace('<meta name="theme-color" content="#f4f2e9" />', '<meta name="theme-color" content="#000000" />')
     .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
       title, description, canonical, image, type: product ? 'product' : 'website',
       noIndex: product?.search_visible === false, schema, verification: settings.searchConsoleVerification,

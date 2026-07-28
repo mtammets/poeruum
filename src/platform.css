@@ -31,14 +31,6 @@ button { font-family: inherit; }
 button, a, summary, label { -webkit-tap-highlight-color: transparent; }
 button, a, summary { touch-action: manipulation; }
 
-.platform-brand { display: inline-flex; align-items: center; gap: .62rem; color: var(--platform-ink); }
-.platform-brand__mark { display: block; flex: 0 0 auto; width: 2.2rem; height: 2.2rem; filter: drop-shadow(0 5px 10px #265f4324); }
-.platform-brand__mark svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.platform-brand__mark rect { fill: var(--platform-green); }
-.platform-brand__mark path { fill: none; stroke: var(--platform-lime); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.platform-brand strong { font-family: Manrope, sans-serif; font-size: 1.08rem; font-weight: 800; letter-spacing: -.055em; line-height: 1; }
-.platform-brand strong span { color: var(--platform-green); font-weight: 600; }
-
 .platform-landing { overflow: hidden; background: var(--platform-cream); }
 .platform-landing > nav { position: relative; z-index: 10; display: flex; align-items: center; justify-content: space-between; max-width: 76rem; margin: auto; padding: 1.4rem 2rem; }
 .platform-landing > nav > div { display: flex; gap: .7rem; }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="et">
+<html lang="et" data-app-surface="platform">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, viewport-fit=cover" />
@@ -51,7 +51,10 @@
     <!-- poeruum:seo:end -->
     <title>Poeruum – loo Eesti e-pood 10 minutiga</title>
     <style>
-      html, body, #root { min-height: 100%; background: #f4f2e9; }
+      html, body, #root { min-height: 100%; background: #f4f2e9; color-scheme: light; }
+      html[data-app-surface="storefront"],
+      html[data-app-surface="storefront"] body,
+      html[data-app-surface="storefront"] #root { background: #000; color-scheme: dark; }
       body { margin: 0; }
       .seo-fallback { box-sizing: border-box; display: grid; min-height: 100svh; place-items: center; color: #17231c; font-family: Arial, sans-serif; }
       .seo-fallback__logo { width: 3.5rem; height: 3.5rem; overflow: visible; filter: drop-shadow(0 8px 16px rgba(38, 95, 67, .2)); animation: seo-logo-breathe 1.6s ease-in-out infinite; }

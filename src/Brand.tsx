@@ -1,3 +1,5 @@
+import './poeruumBrand.css'
+
 export function BrandMark({ className = '' }: { className?: string }) {
   return <span className={`platform-brand__mark${className ? ` ${className}` : ''}`} aria-hidden="true">
     <svg viewBox="0 0 40 40">
