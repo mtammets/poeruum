@@ -138,8 +138,15 @@ const escapeHtml = (value: unknown) => String(value ?? '')
   .replaceAll("'", '&#039;')
 
 const errorMessage = (error: unknown) => {
-  if (error instanceof Error) return error.message
-  if (error && typeof error === 'object' && 'message' in error) return String(error.message)
+  const message = error instanceof Error
+    ? error.message
+    : error && typeof error === 'object' && 'message' in error
+      ? String(error.message)
+      : ''
+  if (/signal timed out|timed out/i.test(message)) {
+    return 'OpenAI veebiuuring võttis liiga kaua. Proovi väiksema tulemuste arvuga uuesti.'
+  }
+  if (message) return message
   return 'Kliendiotsingu toiming ebaõnnestus.'
 }
 
@@ -276,8 +283,8 @@ Deno.serve(async (request) => {
       if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
 
       const query = textValue(input.query, 1000) || defaultSearchQuery
-      const requestedLimit = Math.min(10, Math.max(1, Number(input.limit) || 8))
-      const model = Deno.env.get('OPENAI_LEAD_MODEL')?.trim() || 'gpt-5.6-sol'
+      const requestedLimit = Math.min(8, Math.max(1, Number(input.limit) || 6))
+      const model = Deno.env.get('OPENAI_LEAD_MODEL')?.trim() || 'gpt-5.6-terra'
       const { data: run, error: runError } = await admin.from('lead_search_runs').insert({
         created_by: user.id,
         query,
@@ -293,10 +300,10 @@ Deno.serve(async (request) => {
           model,
           store: false,
           safety_identifier: safetyIdentifier,
-          reasoning: { effort: 'medium' },
+          reasoning: { effort: 'low' },
           tools: [{
             type: 'web_search',
-            search_context_size: 'high',
+            search_context_size: 'medium',
             user_location: {
               type: 'approximate',
               country: 'EE',
@@ -304,7 +311,7 @@ Deno.serve(async (request) => {
             },
           }],
           tool_choice: 'auto',
-          max_tool_calls: 12,
+          max_tool_calls: 8,
           include: ['web_search_call.action.sources'],
           instructions: [
             'Roll: oled Poeruumi hoolikas B2B kliendiuurija.',
@@ -482,7 +489,7 @@ Deno.serve(async (request) => {
       if (!['new', 'ready'].includes(lead.status)) return json({ error: 'Selle kontakti kirja ei saa enam uuesti koostada.' }, 409)
       const rateLimit = await checkRateLimit(request, 'lead-outreach-draft', 30, 3600, user.id)
       if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
-      const model = Deno.env.get('OPENAI_LEAD_MODEL')?.trim() || 'gpt-5.6-sol'
+      const model = Deno.env.get('OPENAI_LEAD_MODEL')?.trim() || 'gpt-5.6-terra'
       const senderName = textValue(Deno.env.get('OUTREACH_SENDER_NAME'), 80) || 'Marek'
       const response = await callOpenAI({
         model,

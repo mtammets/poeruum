@@ -140,7 +140,15 @@ export default function AdminLeads() {
       const { data, error: invokeError } = await requireSupabase().functions.invoke('lead-outreach', {
         body: { action, ...body },
       })
-      if (invokeError) throw invokeError
+      if (invokeError) {
+        let message = invokeError.message
+        const context = (invokeError as { context?: Response }).context
+        if (context) {
+          const payload = await context.clone().json().catch(() => null) as { error?: unknown } | null
+          if (payload?.error) message = String(payload.error)
+        }
+        throw new Error(message)
+      }
       if (data?.error) throw new Error(String(data.error))
       return data as Record<string, unknown>
     } finally {
@@ -233,7 +241,7 @@ export default function AdminLeads() {
         <textarea rows={3} maxLength={1000} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
       </label>
       <div className="admin-leads__research-actions">
-        <label><span>Tulemusi</span><select value={researchLimit} onChange={(event) => setResearchLimit(Number(event.target.value))}>{[4, 6, 8, 10].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
+        <label><span>Tulemusi</span><select value={researchLimit} onChange={(event) => setResearchLimit(Number(event.target.value))}>{[4, 6, 8].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
         <button type="button" onClick={() => void runResearch()} disabled={Boolean(busyAction) || researchQuery.trim().length < 10}>
           {busyAction === 'search' ? 'OpenAI otsib…' : 'Otsi uusi kliente'}
         </button>
