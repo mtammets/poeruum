@@ -66,6 +66,26 @@ Poe Stripe’i ostud kasutavad destination charge’i. Toodete summa pealt arvut
 5. Laadi Edge Functionite serverisaladused Supabase’i: `STRIPE_MODE`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_FIXED_PLAN_PRICE_ID`, `STRIPE_FIXED_PLAN_TAX_RATE_ID` ja `APP_URL`.
 6. Rakenda andmebaas `npm run supabase:deploy` ning funktsioonid `npm run supabase:functions:deploy`.
 
+## OpenAI kliendiotsing
+
+Administraatori aadressil `/admin/leads` saab OpenAI abil avalikest veebiallikatest sobivaid Eesti ettevõtteid otsida, allikaid kontrollida, kirjamustandit muuta ja kirja käsitsi kinnitada. Automaatset saatmist ei toimu: iga kiri nõuab eraldi administraatori klõpsu.
+
+Kui Supabase, Resend ja nende webhook on juba seadistatud, lisa lokaalsesse `.env` faili ainult järgmine uus kohustuslik võti:
+
+```dotenv
+OPENAI_API_KEY=sk-...
+```
+
+Valikulised seaded on `OPENAI_LEAD_MODEL` (vaikimisi `gpt-5.6-sol`), `OUTREACH_SENDER_NAME`, `OUTREACH_FROM_EMAIL`, `OUTREACH_REPLY_TO` ja `OUTREACH_DAILY_SEND_LIMIT` (vaikimisi 20). Saatja domeen peab olema Resendis kinnitatud. Funktsioon kasutab ka olemasolevaid `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `APP_URL`, `RATE_LIMIT_SALT`, `POERUUM_SUPABASE_PUBLISHABLE_KEY` ja `POERUUM_SUPABASE_SECRET_KEY` väärtusi.
+
+Pärast võtme lisamist teeb üks käsk kõik ülejäänu: sünkroonib kliendiotsingu seaded Supabase Edge Functionite secret’ideks, rakendab migratsioonid ning paigaldab kliendiotsingu, loobumise, Resendi webhooki ja säilitustähtaja funktsioonid.
+
+```bash
+npm run supabase:leads:deploy
+```
+
+Resendi webhook peab kuulama vähemalt sündmusi `email.sent`, `email.delivered`, `email.failed`, `email.bounced`, `email.complained` ja `email.received`. Bounce ja kaebus lisavad aadressi automaatselt blokeerimisnimekirja; vastus märgitakse administraatori vaates.
+
 Checkout kasutab kliendi päringu ID-d, Stripe’i idempotentsusvõtit ja atomaarset 30-minutilist laoreservatsiooni. Stripe’i aegumise või makse ebaõnnestumise webhook vabastab kauba; viieminutiline varukoristaja kontrollib aegunud reserveeringu Stripe’i sessiooni enne vabastamist ning asünkroonse pangamakse puhul hoitakse reserveeringut lõpliku succeeded/failed sündmuseni. Paindliku paketi 39 € neto-kuulimiit reserveeritakse samas poe-põhises andmebaasitehingus kui laoseis, mistõttu paralleelsed checkout’id ei saa limiiti ületada. Õnnestunud makse järel loetakse Stripe’i tegelik töötlemistasu ja müüjale tehakse eraldi ülekanne summas `ostusumma − Stripe’i tasu − Poeruumi teenustasu`. Ostjale eraldi maksetasu ei lisata.
 
 Reserveeringu aegumise ja kuutasu konkurentsikontrolli saab käivitada käsuga `npm run test:reservation-cap`. Test loob ajutise poe, käivitab kaks paralleelset checkout’i, kontrollib 39 € atomaarset ülempiiri ja aegunud laoreserveeringu vabastamist ning koristab testandmed.

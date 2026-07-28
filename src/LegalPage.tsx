@@ -149,6 +149,7 @@ function Privacy() {
         <li><strong>Arveldus- ja makseandmed:</strong> valitud pakett, arvelduse olek, summad ning Stripe’i kliendi-, konto-, tellimuse ja tehingu tunnused. Täielikke kaardiandmeid töötleb Stripe.</li>
         <li><strong>Tellimuse andmed:</strong> ostja nimi ja kontaktandmed, tarne- või pakiautomaadi valik, aadress, ostukorv, summad ning tellimuse ja makse olek.</li>
         <li><strong>Toeandmed:</strong> tugivestlused, manused, vastused ning tõrke lahendamiseks vajalik lehe aadress ja brauseri tehniline teave.</li>
+        <li><strong>Ettevõtetele suunatud kliendiotsingu andmed:</strong> ettevõtte avalik nimi, veebileht, üldpostkast, kontakti avalik allikas, sobivuse põhjendus, kirjamustand ning kirja saatmise, kättetoimetamise, vastamise ja loobumise olek. Inimese isiklikke aadresse ei kasutata selleks töövooks teadlikult.</li>
         <li><strong>Tehnilised andmed:</strong> IP-aadress, seadme ja brauseri andmed, ajatemplid, turva- ja vealogid ning DNS-i ja TLS-i kontrolli tulemused.</li>
       </ul>
     </section>
@@ -159,6 +160,7 @@ function Privacy() {
         <li><strong>Lepingu täitmine:</strong> konto ja poe loomine, majutamine, tellimuste edastamine, maksete ja pakettide haldus, domeeni ühendamine ning kasutajatugi.</li>
         <li><strong>Seadusest tulenev kohustus:</strong> raamatupidamis-, maksu-, pettuse tõkestamise ja õigustatud päringute täitmine.</li>
         <li><strong>Õigustatud huvi:</strong> teenuse turvalisus, väärkasutuse ennetamine, tõrkeotsing, nõuete kaitsmine ning kasutajale teenusega seotud oluliste teadete saatmine. Enne töötlemist kaalutakse Poeruumi huvi ja inimese õigusi.</li>
+        <li><strong>Õigustatud huvi ettevõtete kliendiotsingul:</strong> Poeruumi tutvustamine ettevõtetele avalike ettevõtteandmete ja üldpostkastide kaudu. Kandidaadid ning kirjad vaatab enne saatmist üle administraator, igas kirjas selgitatakse kontakti allikat ja pakutakse lihtsat tasuta loobumist.</li>
         <li><strong>Nõusolek:</strong> ainult siis, kui küsime seda eraldi vabatahtliku funktsiooni, turunduse või mittevajaliku küpsise jaoks. Nõusoleku saab igal ajal tagasi võtta.</li>
       </ul>
     </section>
@@ -171,6 +173,7 @@ function Privacy() {
         <li>Render — veebimajutus, võrguühendus ja domeenide tehniline teenindamine;</li>
         <li>Stripe — maksed, väljamaksed, kaupmehe tuvastamine ja korduv arveldus;</li>
         <li>Resend — tehingulised e-kirjad ja tugisuhtlus;</li>
+        <li>OpenAI — avalike ettevõtteallikate otsing, sobivuse kokkuvõte ja kirjamustandi koostamine; päringutes välditakse teadlikult eraisikute andmeid;</li>
         <li>Cloudflare — Turnstile’i kuritarvitusevastane kontroll;</li>
         <li>valitud tarnepakkujad — tarnevalikute ja saadetiste korraldamine;</li>
         <li>ametlikud registrid ja aadressiteenused — ettevõtte- ja aadressiandmete kontrollimine.</li>
@@ -191,6 +194,7 @@ function Privacy() {
         <li><strong>Poeruumi finantskirjed:</strong> säilivad kaheksa aastat tehingu kuupäevast, et katta vähemalt seitse aastat vastava majandusaasta lõpust.</li>
         <li><strong>Tugipöördumised ja manused:</strong> kustutatakse konto kustutamisel või 24 kuud pärast pöördumise lahendamist, olenevalt sellest, kumb saabub varem.</li>
         <li><strong>Tehinguliste e-kirjade kättetoimetamislogid:</strong> kuni 90 päeva; konto omaniku aadressiga seotud logid kustutatakse konto kustutamisel.</li>
+        <li><strong>Ettevõtete kliendiotsing:</strong> saatmata kandidaadid ja veebiuuringu tehnilised kirjed kuni 90 päeva; ettevõtted, kellele kiri saadeti, kuni 12 kuud viimasest tegevusest. Loobunud, rämpspostikaebuse esitanud või püsivalt mittetoimiva aadressi minimaalne blokeerimiskirje võib säilida kauem üksnes selleks, et uut kirja mitte saata.</li>
         <li><strong>Webhook’i duplikaadikaitse:</strong> Stripe’i tehnilised sündmusetunnused kuni 90 päeva ja Resendi sündmusetunnused kuni 30 päeva.</li>
         <li><strong>Turva- ja vealogid:</strong> rakenduse veasündmused kuni 30 päeva. Päringumahu piiramiseks kasutatav IP-aadress salvestatakse ainult pöördumatu soolatud räsi ning lühiajalise loendurina, mis kustub hiljemalt viie minuti jooksul pärast piiranguakna lõppu.</li>
         <li><strong>Aktiivsuse olek:</strong> kuni 24 tundi pärast viimast signaali.</li>

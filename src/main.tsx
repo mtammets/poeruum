@@ -12,6 +12,7 @@ import './brand.css'
 const AdminApp = lazy(() => import('./AdminApp'))
 const ComingSoon = lazy(() => import('./ComingSoon'))
 const LegalPage = lazy(() => import('./LegalPage'))
+const OutreachUnsubscribe = lazy(() => import('./OutreachUnsubscribe'))
 const PlatformApp = lazy(() => import('./PlatformApp'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
 
@@ -41,7 +42,8 @@ const appSurface = isPlatformSurface ? 'platform' : 'storefront'
 document.documentElement.dataset.appSurface = appSurface
 document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   ?.setAttribute('content', appSurface === 'platform' ? '#f4f2e9' : '#000000')
-const isAdminPath = isPlatformSurface && /^\/admin(?:\/(?:homepage|seo|users|support))?\/?$/i.test(window.location.pathname)
+const isAdminPath = isPlatformSurface && /^\/admin(?:\/(?:homepage|seo|leads|users|support))?\/?$/i.test(window.location.pathname)
+const isOutreachUnsubscribePath = isPlatformSurface && /^\/loobu\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformSurface
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
     ? 'terms'
@@ -191,6 +193,7 @@ function Root() {
   }, [])
 
   if (isAdminPath) return <Suspense fallback={<LoadingScreen />}><AdminApp /></Suspense>
+  if (isOutreachUnsubscribePath) return <Suspense fallback={<LoadingScreen />}><OutreachUnsubscribe /></Suspense>
   if (legalDocument) return <Suspense fallback={<LoadingScreen />}><LegalPage document={legalDocument} /></Suspense>
   return isPoeruumHomepage ? <Homepage /> : <PlatformWithSupport />
 }

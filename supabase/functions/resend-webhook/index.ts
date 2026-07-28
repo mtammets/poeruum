@@ -54,6 +54,11 @@ type SupportConversation = {
   external_email: string | null
 }
 
+type SalesLeadDelivery = {
+  id: string
+  contact_email: string | null
+}
+
 type ResendWebhookEvent = {
   type: string
   created_at?: string
@@ -63,6 +68,32 @@ type ResendWebhookEvent = {
 const normalizeEmail = (value: unknown) => {
   const raw = String(value ?? '').trim().toLowerCase()
   return raw.match(/<([^<>\s@]+@[^<>\s@]+)>/)?.[1] || raw
+}
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const markLeadReply = async (admin: AdminClient, sender: string, receivedAt: string) => {
+  const { data, error } = await admin.from('sales_leads')
+    .select('id')
+    .eq('contact_email', sender)
+    .eq('status', 'sent')
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (!data?.id) return
+
+  const { error: updateError } = await admin.from('sales_leads').update({
+    status: 'replied',
+    replied_at: receivedAt,
+  }).eq('id', data.id).eq('status', 'sent')
+  if (updateError) throw updateError
+  const { error: eventError } = await admin.from('lead_events').insert({
+    lead_id: data.id,
+    event_type: 'replied',
+    details: { source: 'resend_inbound' },
+  })
+  if (eventError) throw eventError
 }
 
 const displayNameFromHeader = (value: string | undefined, email: string) => {
@@ -259,20 +290,58 @@ Deno.serve(async (request) => {
       const tags = Array.isArray(rawTags)
         ? Object.fromEntries(rawTags.map((tag) => [String(tag?.name ?? ''), String(tag?.value ?? '')]))
         : (rawTags && typeof rawTags === 'object' ? rawTags as Record<string, unknown> : {})
+      const status = deliveryStatus[event.type]
       if (recipients[0]) {
         const { error: deliveryError } = await admin.from('email_deliveries').upsert({
           resend_email_id: emailId,
           recipient_email: recipients[0].toLowerCase(),
           subject: String(event.data.subject ?? ''),
           email_type: tags.email_type ? String(tags.email_type) : null,
-          status: deliveryStatus[event.type],
+          status,
           sent_at: String(event.data.created_at ?? event.created_at ?? new Date().toISOString()),
           status_updated_at: event.created_at ?? new Date().toISOString(),
         }, { onConflict: 'resend_email_id' })
         if (deliveryError) throw deliveryError
       }
+      if (String(tags.email_type ?? '') === 'lead_outreach') {
+        const taggedLeadId = String(tags.lead_id ?? '')
+        let leadQuery = admin.from('sales_leads').select('id,contact_email')
+        leadQuery = uuidPattern.test(taggedLeadId)
+          ? leadQuery.eq('id', taggedLeadId)
+          : leadQuery.eq('resend_email_id', emailId)
+        const { data: leadData, error: leadError } = await leadQuery.maybeSingle()
+        if (leadError) throw leadError
+        const lead = leadData as SalesLeadDelivery | null
+        if (lead) {
+          const leadUpdate: Record<string, unknown> = { delivery_status: status }
+          if (status === 'bounced' || status === 'complained') {
+            leadUpdate.status = status
+            leadUpdate.suppressed_at = event.created_at ?? new Date().toISOString()
+            leadUpdate.suppression_reason = status
+          }
+          const { error: leadUpdateError } = await admin.from('sales_leads').update(leadUpdate).eq('id', lead.id)
+          if (leadUpdateError) throw leadUpdateError
+
+          const contactEmail = normalizeEmail(lead.contact_email || recipients[0])
+          if ((status === 'bounced' || status === 'complained') && contactEmail) {
+            const { error: suppressionError } = await admin.from('lead_suppressions').upsert({
+              email: contactEmail,
+              reason: status,
+              lead_id: lead.id,
+              source: 'resend_webhook',
+            }, { onConflict: 'email' })
+            if (suppressionError) throw suppressionError
+          }
+          const { error: eventError } = await admin.from('lead_events').insert({
+            lead_id: lead.id,
+            event_type: `delivery_${status}`,
+            details: { resend_email_id: emailId },
+          })
+          if (eventError) throw eventError
+        }
+      }
       const { error } = await admin.from('support_messages').update({
-        delivery_status: deliveryStatus[event.type],
+        delivery_status: status,
         delivery_updated_at: event.created_at ?? new Date().toISOString(),
       }).eq('resend_email_id', emailId)
       if (error) throw error
@@ -409,6 +478,7 @@ Deno.serve(async (request) => {
         throw error
       }
 
+      await markLeadReply(admin, sender, event.created_at ?? new Date().toISOString())
       await sendNewConversationNotification({
         apiKey,
         sender,

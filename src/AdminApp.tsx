@@ -9,6 +9,7 @@ import { getShowcaseStore, listProducts, type StoreRecord } from './lib/database
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import type { Product } from './products'
+import AdminLeads from './AdminLeads'
 import AdminSupport from './AdminSupport'
 import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
@@ -47,13 +48,14 @@ type SetupStep = {
 
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
-type AdminView = 'overview' | 'homepage' | 'seo' | 'support' | 'users'
+type AdminView = 'overview' | 'homepage' | 'seo' | 'leads' | 'support' | 'users'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
   overview: { path: '/admin', title: 'Ülevaade' },
   homepage: { path: '/admin/homepage', title: 'Avaleht' },
   seo: { path: '/admin/seo', title: 'SEO' },
+  leads: { path: '/admin/leads', title: 'Kliendiotsing' },
   support: { path: '/admin/support', title: 'Klienditugi' },
   users: { path: '/admin/users', title: 'Kasutajad' },
 }
@@ -61,6 +63,7 @@ const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
 const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/homepage\/?$/i.test(pathname)) return 'homepage'
   if (/^\/admin\/seo\/?$/i.test(pathname)) return 'seo'
+  if (/^\/admin\/leads\/?$/i.test(pathname)) return 'leads'
   if (/^\/admin\/support\/?$/i.test(pathname)) return 'support'
   if (/^\/admin\/users\/?$/i.test(pathname)) return 'users'
   return 'overview'
@@ -217,13 +220,14 @@ const isStalled = (row: AdminUserRow) => {
   return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
-type AdminIconName = 'home' | 'homepage' | 'seo' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
+type AdminIconName = 'home' | 'homepage' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
     home: <><path d="M4 11.5 12 5l8 6.5" /><path d="M6.5 10.5V20h11v-9.5M10 20v-5h4v5" /></>,
     homepage: <><rect x="3.5" y="5" width="17" height="14" rx="2" /><path d="M3.5 9h17M7 7h.01M10 7h.01" /></>,
     seo: <><circle cx="11" cy="11" r="7" /><path d="M4 11h14M11 4a11 11 0 0 1 0 14M11 4a11 11 0 0 0 0 14M16.5 16.5 21 21" /></>,
+    leads: <><path d="M4 18.5V14l4-2 3 1.5 4-5 5-2.5" /><path d="m16.5 5.5 3.5.5-.5 3.5" /><circle cx="6" cy="7" r="2.5" /></>,
     users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.4-3.5 2.2-5.3 5.5-5.3s5.1 1.8 5.5 5.3" /><circle cx="17" cy="9" r="2.2" /><path d="M15.5 14.2c3.1-.4 4.8 1.2 5 4" /></>,
     store: <><path d="M4 9h16l-1-4H5L4 9Z"/><path d="M5 9v10h14V9M9 19v-5h6v5"/><path d="M4 9a3 3 0 0 0 5 2 3 3 0 0 0 6 0 3 3 0 0 0 5-2"/></>,
     message: <><path d="M4.5 5.5h15v10h-10l-5 3.5V5.5Z"/><path d="M8 9h8M8 12h5"/></>,
@@ -747,6 +751,7 @@ export default function AdminApp() {
         <a className={activeView === 'overview' ? 'is-active' : undefined} href="/admin" aria-current={activeView === 'overview' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'overview')}><span><AdminIcon name="home" /></span>Ülevaade</a>
         <a className={activeView === 'homepage' ? 'is-active' : undefined} href="/admin/homepage" aria-current={activeView === 'homepage' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'homepage')}><span><AdminIcon name="homepage" /></span>Avaleht</a>
         <a className={activeView === 'seo' ? 'is-active' : undefined} href="/admin/seo" aria-current={activeView === 'seo' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'seo')}><span><AdminIcon name="seo" /></span>SEO</a>
+        <a className={activeView === 'leads' ? 'is-active' : undefined} href="/admin/leads" aria-current={activeView === 'leads' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'leads')}><span><AdminIcon name="leads" /></span>Kliendiotsing</a>
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
         <a className={activeView === 'support' ? 'is-active' : undefined} href="/admin/support" aria-current={activeView === 'support' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'support')}><span><AdminIcon name="message" /></span>Klienditugi</a>
         <a className={activeView === 'users' ? 'is-active' : undefined} href="/admin/users" aria-current={activeView === 'users' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'users')}><span><AdminIcon name="users" /></span>Kasutajad</a>
@@ -755,7 +760,7 @@ export default function AdminApp() {
     </aside>
 
     <section className="admin-main">
-      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div><button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button></header>
+      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>
 
       {error && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
@@ -973,6 +978,11 @@ export default function AdminApp() {
             <div><small>KLIENDITUGI</small><strong>Ava vestlused</strong><p>Vasta küsimustele ja vaata kogu kliendisuhtlust ühes kohas.</p></div>
             <b className={openSupportCount ? 'has-unread' : undefined}>{openSupportCount}<i>→</i></b>
           </a>
+          <a href="/admin/leads" onClick={(event) => navigateToView(event, 'leads')}>
+            <span><AdminIcon name="leads" /></span>
+            <div><small>KLIENDIOTSING</small><strong>Leia uusi kasutajaid</strong><p>Uuri avalikke allikaid, vaata OpenAI mustandid üle ja saada kinnitatud kiri.</p></div>
+            <b><i>→</i></b>
+          </a>
         </nav>
 
         <section className="admin-setup-overview">
@@ -988,6 +998,8 @@ export default function AdminApp() {
         </>}
 
         {activeView === 'support' && <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />}
+
+        {activeView === 'leads' && <AdminLeads />}
 
         {activeView === 'users' && <section className="admin-users">
           <header><div><h2>Seadistuse edenemine</h2></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>

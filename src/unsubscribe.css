@@ -1,0 +1,22 @@
+.unsubscribe-page { display: grid; min-height: 100dvh; grid-template-rows: auto 1fr auto; padding: 1.5rem clamp(1rem, 5vw, 4rem); background: #f3f1e9; color: #17231c; }
+.unsubscribe-page__brand { justify-self: start; color: inherit; text-decoration: none; }
+.unsubscribe-page > section { width: min(100%, 34rem); align-self: center; justify-self: center; padding: clamp(1.5rem, 5vw, 3rem); border: 1px solid #dde1d8; border-radius: 1.5rem; background: #fff; box-shadow: 0 24px 80px #17231c12; text-align: center; }
+.unsubscribe-page__mark { display: grid; width: 3.7rem; height: 3.7rem; margin: 0 auto 1.3rem; place-items: center; border-radius: 1rem; background: #edf0eb; color: #5e6b62; font-size: 1.55rem; font-weight: 900; }
+.unsubscribe-page__mark.is-success { background: #d9ff43; color: #17231c; }
+.unsubscribe-page__mark.is-loading { animation: unsubscribe-pulse 1s ease-in-out infinite alternate; }
+.unsubscribe-page > section > span { color: #718078; font-size: .7rem; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+.unsubscribe-page h1 { margin: .55rem 0 .75rem; font-size: clamp(1.7rem, 5vw, 2.5rem); letter-spacing: -.04em; }
+.unsubscribe-page p { margin: 0 auto 1.5rem; color: #667169; font-size: .92rem; line-height: 1.65; }
+.unsubscribe-page section > a, .unsubscribe-page button { display: inline-flex; min-height: 2.6rem; align-items: center; justify-content: center; padding: 0 1rem; border: 0; border-radius: 999px; background: #17231c; color: #fff; font: inherit; font-size: .78rem; font-weight: 800; text-decoration: none; cursor: pointer; }
+.unsubscribe-page button { margin-right: .45rem; background: #d9ff43; color: #17231c; }
+.unsubscribe-page footer { align-self: end; justify-self: center; padding-top: 1.5rem; color: #8a918b; font-size: .7rem; }
+
+@keyframes unsubscribe-pulse {
+  to { opacity: .45; transform: scale(.95); }
+}
+
+@media (max-width: 480px) {
+  .unsubscribe-page { padding: 1rem; }
+  .unsubscribe-page > section { padding: 1.5rem 1rem; border-radius: 1rem; }
+  .unsubscribe-page button { margin: 0 0 .5rem; }
+}

@@ -38,6 +38,26 @@ const run = (args) => {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
+const syncLeadSecrets = () => {
+  const secretNames = [
+    'OPENAI_API_KEY',
+    'OPENAI_LEAD_MODEL',
+    'OUTREACH_SENDER_NAME',
+    'OUTREACH_FROM_EMAIL',
+    'OUTREACH_REPLY_TO',
+    'OUTREACH_DAILY_SEND_LIMIT',
+  ]
+  if (!process.env.OPENAI_API_KEY?.trim()) {
+    console.error('Puudub OPENAI_API_KEY. Lisa see lokaalsesse .env faili.')
+    process.exit(1)
+  }
+  const values = secretNames
+    .filter((name) => process.env[name]?.trim())
+    .map((name) => `${name}=${process.env[name]}`)
+  run(['secrets', 'set', ...values, '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  console.log(`Kliendiotsingu serveriseaded sünkroonitud (${values.map((value) => value.split('=')[0]).join(', ')}).`)
+}
+
 run(['link', '--project-ref', process.env.SUPABASE_PROJECT_REF])
 
 if (action === 'link') process.exit(0)
@@ -45,7 +65,17 @@ if (action === 'deploy') {
   run(['db', 'push', '--linked'])
   process.exit(0)
 }
+if (action === 'leads') {
+  syncLeadSecrets()
+  run(['db', 'push', '--linked'])
+  run(['functions', 'deploy', 'lead-outreach', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'lead-unsubscribe', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'resend-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'data-retention-reaper', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  process.exit(0)
+}
 if (action === 'functions') {
+  if (process.env.OPENAI_API_KEY?.trim()) syncLeadSecrets()
   run(['functions', 'deploy', 'delete-account', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   run(['functions', 'deploy', 'stripe-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'stripe-connect-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
@@ -64,6 +94,8 @@ if (action === 'functions') {
   run(['functions', 'deploy', 'health-check', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'monitor-health', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'support-actions', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'lead-outreach', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'lead-unsubscribe', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'resend-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'storefront-sitemap', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'homepage-social-image', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])

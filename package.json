@@ -25,6 +25,7 @@
     "supabase:check": "node scripts/supabase-admin.mjs check",
     "supabase:link": "node scripts/supabase-admin.mjs link",
     "supabase:deploy": "node scripts/supabase-admin.mjs deploy",
+    "supabase:leads:deploy": "node scripts/supabase-admin.mjs leads",
     "supabase:functions:deploy": "node scripts/supabase-admin.mjs functions",
     "supabase:auth-email": "node scripts/configure-auth-email.mjs",
     "supabase:auth-security": "node scripts/configure-auth-security.mjs",

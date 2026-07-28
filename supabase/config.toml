@@ -52,6 +52,12 @@ verify_jwt = true
 [functions.support-actions]
 verify_jwt = true
 
+[functions.lead-outreach]
+verify_jwt = true
+
+[functions.lead-unsubscribe]
+verify_jwt = false
+
 [functions.resend-webhook]
 verify_jwt = false
 

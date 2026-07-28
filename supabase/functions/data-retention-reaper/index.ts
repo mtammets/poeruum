@@ -94,6 +94,10 @@ Deno.serve(async (request) => {
       reference_time: new Date().toISOString(),
     })
     if (retentionError) throw retentionError
+    const { data: retainedLeads, error: leadRetentionError } = await admin.rpc('apply_sales_lead_retention', {
+      reference_time: new Date().toISOString(),
+    })
+    if (leadRetentionError) throw leadRetentionError
 
     const { data: storageCleanupRows, error: storageQueueError } = await admin
       .from('external_resource_cleanup')
@@ -136,6 +140,7 @@ Deno.serve(async (request) => {
       support_attachments: deletedSupportAttachments,
       draft_image_prefixes: cleanedDraftImagePrefixes,
       failed_draft_image_prefixes: failedDraftImagePrefixes,
+      lead_outreach: retainedLeads ?? {},
       ...((retained ?? {}) as Record<string, unknown>),
     })
   } catch (error) {
