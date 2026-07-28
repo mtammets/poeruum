@@ -6,6 +6,7 @@ import {
   getStorefrontPath,
   isDedicatedStorefrontHostname,
   getStoreSlugFromHostname,
+  isPlatformHostname,
   isReservedStoreSlug,
 } from './storefrontUrl'
 
@@ -54,5 +55,20 @@ describe('storefront URL parsing', () => {
     expect(isDedicatedStorefrontHostname('minu-pood.poeruum.ee')).toBe(true)
     expect(isDedicatedStorefrontHostname('minupood.ee')).toBe(true)
     expect(isDedicatedStorefrontHostname('poeruum.ee')).toBe(false)
+  })
+
+  it('recognizes platform routes opened from a private development network', () => {
+    expect(isPlatformHostname('172.16.1.177')).toBe(true)
+    expect(isPlatformHostname('192.168.1.50')).toBe(true)
+    expect(isPlatformHostname('10.0.0.8')).toBe(true)
+    expect(isPlatformHostname('127.0.0.1')).toBe(true)
+    expect(isPlatformHostname('::1')).toBe(true)
+  })
+
+  it('does not mistake public store hosts for a private platform preview', () => {
+    expect(isPlatformHostname('minupood.ee')).toBe(false)
+    expect(isPlatformHostname('8.8.8.8')).toBe(false)
+    expect(isPlatformHostname('172.32.1.1')).toBe(false)
+    expect(isPlatformHostname('nested.minu-pood.poeruum.ee')).toBe(false)
   })
 })

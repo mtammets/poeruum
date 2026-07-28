@@ -89,11 +89,9 @@ test('landing page opens and login navigation works', async ({ page }) => {
 
 test('legal routes render their dedicated documents', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/kasutustingimused')
-  await expect(page.getByRole('heading', { name: /Poeruumi teenuse/ })).toBeVisible()
-  await expect(page).toHaveTitle(/Kasutustingimused/)
-
-  await page.goto('/privaatsus')
+  await page.goto('/')
+  await page.locator('.platform-footer a[href="/privaatsus"]').click()
+  await expect(page).toHaveURL(/\/privaatsus\/?$/)
   await expect(page.getByRole('heading', { name: /Kuidas Poeruum/ })).toBeVisible()
   await expect(page).toHaveTitle(/Privaatsus/)
 
@@ -114,6 +112,11 @@ test('legal routes render their dedicated documents', async ({ page }) => {
     (markBox?.y ?? 0) + (markBox?.height ?? 0) / 2
       - ((nameBox?.y ?? 0) + (nameBox?.height ?? 0) / 2),
   )).toBeLessThan(2)
+
+  await page.locator('.legal-nav a[href="/kasutustingimused"]').click()
+  await expect(page).toHaveURL(/\/kasutustingimused\/?$/)
+  await expect(page.getByRole('heading', { name: /Poeruumi teenuse/ })).toBeVisible()
+  await expect(page).toHaveTitle(/Kasutustingimused/)
 })
 
 test('storefront preview owns its toolbar styles independently', async ({ page }) => {

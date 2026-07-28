@@ -4,7 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import type { LegalDocument } from './LegalPage'
 import { applySeoMetadata } from './lib/seo'
 import { registerGlobalErrorMonitoring } from './lib/errorMonitoring'
-import { getStoreSlugFromHostname } from './lib/storefrontUrl'
+import { getStoreSlugFromHostname, isPlatformHostname } from './lib/storefrontUrl'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
 import './brand.css'
@@ -36,13 +36,13 @@ if (isDeindexedTestStorePath) {
 const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostname)
   && window.location.pathname === '/' && !hasAppReturnState
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
-const isPlatformHostname = /^(?:localhost|127\.0\.0\.1|(?:[a-z0-9-]+\.)?poeruum\.ee)$/i.test(window.location.hostname)
-const appSurface = isPlatformHostname && !isStorefrontSubdomain ? 'platform' : 'storefront'
+const isPlatformSurface = isPlatformHostname(window.location.hostname) && !isStorefrontSubdomain
+const appSurface = isPlatformSurface ? 'platform' : 'storefront'
 document.documentElement.dataset.appSurface = appSurface
 document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   ?.setAttribute('content', appSurface === 'platform' ? '#f4f2e9' : '#000000')
-const isAdminPath = isPlatformHostname && !isStorefrontSubdomain && /^\/admin(?:\/(?:homepage|seo|users|support))?\/?$/i.test(window.location.pathname)
-const legalDocument: LegalDocument | null = isPlatformHostname && !isStorefrontSubdomain
+const isAdminPath = isPlatformSurface && /^\/admin(?:\/(?:homepage|seo|users|support))?\/?$/i.test(window.location.pathname)
+const legalDocument: LegalDocument | null = isPlatformSurface
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
     ? 'terms'
     : /^\/(?:privaatsus|privaatsuspoliitika)\/?$/i.test(window.location.pathname)

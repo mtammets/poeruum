@@ -16,6 +16,32 @@ export function getStoreSlugFromHostname(hostname: string, rootDomain = STOREFRO
   return parseStoreSlugFromHostname(hostname, rootDomain)
 }
 
+export function isPlatformHostname(hostname: string, rootDomain = STOREFRONT_ROOT_DOMAIN) {
+  const normalizedHostname = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '')
+  const normalizedRoot = rootDomain.toLowerCase().replace(/^\.+|\.+$/g, '')
+
+  if (normalizedHostname === 'localhost' || normalizedHostname.endsWith('.localhost')) return true
+  if (normalizedHostname === '::1' || normalizedHostname === '0:0:0:0:0:0:0:1') return true
+  if (/^(?:f[cd][0-9a-f]{2}|fe[89ab][0-9a-f]):/i.test(normalizedHostname)) return true
+
+  const ipv4 = normalizedHostname.split('.').map(Number)
+  if (ipv4.length === 4 && ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+    const [first, second] = ipv4
+    return first === 10
+      || first === 127
+      || (first === 169 && second === 254)
+      || (first === 172 && second >= 16 && second <= 31)
+      || (first === 192 && second === 168)
+      || (first === 0 && ipv4.every((part) => part === 0))
+  }
+
+  if (normalizedHostname === normalizedRoot || normalizedHostname === `www.${normalizedRoot}`) return true
+  if (!normalizedHostname.endsWith(`.${normalizedRoot}`)) return false
+
+  const subdomain = normalizedHostname.slice(0, -(normalizedRoot.length + 1))
+  return !subdomain.includes('.') && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(subdomain)
+}
+
 type StorefrontLocation = Pick<Location, 'hostname' | 'pathname' | 'search'>
 
 export function getRequestedStoreSlug(location: StorefrontLocation) {
