@@ -131,22 +131,30 @@ begin
 end;
 $$;
 
-do $$
-declare
-  deleted_rows integer;
-begin
-  delete from storage.objects
-  where bucket_id = 'product-images'
-    and name = '74000000-0000-4000-8000-000000000001/8c795753-40a7-4480-9820-a56ccee23ee4/master.webp';
+reset role;
 
-  get diagnostics deleted_rows = row_count;
-  if deleted_rows <> 1 then
-    raise exception 'TEST_OWNER_CANNOT_DELETE_OWN_PRODUCT_IMAGE';
+do $$
+begin
+  -- Supabase deliberately rejects direct DELETE statements against
+  -- storage.objects. Actual object removal must go through the Storage API,
+  -- so this database-level test verifies that the API-facing owner policy is
+  -- still installed while the behavioral checks above cover ownership reads.
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'Owners delete product images'
+      and cmd = 'DELETE'
+      and roles @> array['authenticated']::name[]
+      and qual like '%product-images%'
+      and qual like '%is_store_owner%'
+  ) then
+    raise exception 'TEST_OWNER_DELETE_POLICY_MISSING';
   end if;
 end;
 $$;
 
-reset role;
 select set_config('request.jwt.claim.sub', '73000000-0000-4000-8000-000000000003', true);
 select set_config(
   'request.jwt.claims',
