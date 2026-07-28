@@ -5,9 +5,10 @@ type ReminderClaim = {
   user_id: string
   email: string
   store_name: string
-  onboarding_step: 'store' | 'business' | 'payments' | 'shipping' | 'publish'
-  reminder_number: 1 | 2
+  onboarding_step: 'store' | 'business' | 'payments' | 'shipping' | 'product' | 'publish'
+  reminder_number: 1 | 2 | 3
   unsubscribe_token: string
+  activity_at: string
 }
 
 const requiredEnv = (name: string) => {
@@ -33,25 +34,36 @@ const stepCopy: Record<ReminderClaim['onboarding_step'], { label: string; detail
   business: { label: 'Lisa müüja andmed', detail: 'Täida ettevõtte kontakt- ja registriandmed, mida kliendid sinu poes näevad.' },
   payments: { label: 'Seadista maksed', detail: 'Et kliendid saaksid sinu poes mugavalt ja turvaliselt maksta.' },
   shipping: { label: 'Vali tarneviisid', detail: 'Määra pakiautomaadid, kuller või järeletulemine ja nende hinnad.' },
+  product: { label: 'Lisa esimene toode', detail: 'Lisa tootepilt, nimi ja hind. Pood jääb kuni avaldamiseni turvaliselt mustandiks.' },
   publish: { label: 'Vaata andmed üle ja avalda pood', detail: 'Sinu poe põhiandmed on valmis. Kontrolli kokkuvõtet ja avalda pood.' },
 }
 
 const renderEmail = (claim: ReminderClaim, appUrl: string) => {
   const step = stepCopy[claim.onboarding_step]
+  const storeName = claim.store_name.replace(/[\r\n]/g, ' ').trim().slice(0, 120) || 'Sinu pood'
   const continueUrl = `${appUrl}/?continue_setup=1`
   const stopUrl = `${appUrl}/?onboarding_reminders=off&token=${encodeURIComponent(claim.unsubscribe_token)}`
-  const title = claim.reminder_number === 1 ? 'Poe seadistamine jäi pooleli?' : 'Kas teeme su poe valmis?'
-  const subject = claim.reminder_number === 1 ? 'Sinu pood jäi pooleli — kõik on alles' : 'Kas teeme su poe valmis?'
-  const intro = claim.reminder_number === 1
-    ? 'Kõik, mis juba tegid, on alles.'
-    : 'Kõik, mis juba tegid, on alles. Kui soovid jätkata, saad alustada täpselt poolelijäänud sammust.'
-  const note = claim.reminder_number === 1
-    ? 'Pole kiiret — jätka siis, kui sulle sobib.'
-    : 'See on viimane meeldetuletus. Kui praegu pole õige aeg, on kõik hästi.'
+  const isCleanupNotice = claim.reminder_number === 3
+  const title = isCleanupNotice
+    ? 'Kas soovid oma poe mustandi alles hoida?'
+    : claim.reminder_number === 1 ? 'Poe seadistamine jäi pooleli?' : 'Kas teeme su poe valmis?'
+  const subject = isCleanupNotice
+    ? `Poe „${storeName}” tühi mustand kustutatakse 7 päeva pärast`
+    : claim.reminder_number === 1 ? 'Sinu pood jäi pooleli — kõik on alles' : 'Kas teeme su poe valmis?'
+  const intro = isCleanupNotice
+    ? `Poe „${storeName}” seadistamist pole 173 päeva jätkatud. Kui soovid mustandi alles hoida, logi järgmise seitsme päeva jooksul Poeruumi sisse.`
+    : claim.reminder_number === 1
+      ? 'Kõik, mis juba tegid, on alles.'
+      : 'Kõik, mis juba tegid, on alles. Kui soovid jätkata, saad alustada täpselt poolelijäänud sammust.'
+  const note = isCleanupNotice
+    ? 'Kui sa sisse ei logi, eemaldame ainult selle mitte kunagi avaldatud tühja mustandi. Sinu Poeruumi konto jääb alles.'
+    : claim.reminder_number === 1
+      ? 'Pole kiiret — jätka siis, kui sulle sobib.'
+      : 'See on viimane tavapärane meeldetuletus. Kui praegu pole õige aeg, on kõik hästi.'
   const html = `<!doctype html>
 <html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f1efe9;color:#23221f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(step.label)} · kõik salvestatud andmed on alles.</div>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(isCleanupNotice ? 'Mustandi säilitamiseks logi seitsme päeva jooksul sisse.' : `${step.label} · kõik salvestatud andmed on alles.`)}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1efe9"><tr><td align="center" style="padding:40px 16px">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
       <tr><td style="padding:0 4px 20px"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="padding-right:11px"><img src="${appUrl}/images/poeruum-email-logo.png?v=2" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border:0;border-radius:11px"></td><td style="font-family:Manrope,'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:800;letter-spacing:-.055em;color:#17231c;white-space:nowrap">Poe<span style="color:#265f43;font-weight:600">ruum</span></td></tr></table></td></tr>
@@ -66,16 +78,16 @@ const renderEmail = (claim: ReminderClaim, appUrl: string) => {
             <span style="display:block;margin-top:7px;color:#666159;font-size:14px;line-height:1.55">${escapeHtml(step.detail)}</span>
           </div>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 24px"><tr><td style="border-radius:999px;background:#171714">
-            <a href="${continueUrl}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">Jätka seadistamist &nbsp;→</a>
+            <a href="${continueUrl}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">${isCleanupNotice ? 'Hoia mustand alles' : 'Jätka seadistamist'} &nbsp;→</a>
           </td></tr></table>
           <p style="margin:0;color:#8a857d;font-size:12px;line-height:1.55">${escapeHtml(note)}</p>
         </div>
       </td></tr>
-      <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">Poeruum · sinu e-pood 10 minutiga<br><a href="${stopUrl}" style="color:#77736a">Ma ei soovi rohkem meeldetuletusi</a></td></tr>
+      <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">Poeruum · sinu e-pood 10 minutiga${isCleanupNotice ? '<br>See on oluline teenuseteade sinu salvestatud mustandi kohta.' : `<br><a href="${stopUrl}" style="color:#77736a">Ma ei soovi rohkem meeldetuletusi</a>`}</td></tr>
     </table>
   </td></tr></table>
 </body></html>`
-  const text = `${title}\n\n${intro}\n\nJärgmine samm: ${step.label}\n${step.detail}\n\nJätka: ${continueUrl}\n\nMeeldetuletustest loobumine: ${stopUrl}`
+  const text = `${title}\n\n${intro}\n\nJärgmine samm: ${step.label}\n${step.detail}\n\n${isCleanupNotice ? 'Hoia mustand alles' : 'Jätka'}: ${continueUrl}\n\n${note}${isCleanupNotice ? '' : `\n\nMeeldetuletustest loobumine: ${stopUrl}`}`
   return { subject, html, text }
 }
 
@@ -88,7 +100,9 @@ const sendReminder = async (claim: ReminderClaim) => {
       Authorization: `Bearer ${requiredEnv('RESEND_API_KEY')}`,
       'Content-Type': 'application/json',
       'User-Agent': 'poeruum-onboarding-reminders/1.0',
-      'Idempotency-Key': `onboarding-${claim.user_id}-${claim.reminder_number}`,
+      'Idempotency-Key': claim.reminder_number === 3
+        ? `draft-cleanup-${claim.user_id}-${new Date(claim.activity_at).getTime()}`
+        : `onboarding-${claim.user_id}-${claim.reminder_number}`,
     },
     body: JSON.stringify({
       from: Deno.env.get('RESEND_FROM_EMAIL')?.trim() || 'Poeruum <teavitused@send.poeruum.ee>',
@@ -97,7 +111,7 @@ const sendReminder = async (claim: ReminderClaim) => {
       html: email.html,
       text: email.text,
       tags: [
-        { name: 'email_type', value: 'onboarding_reminder' },
+        { name: 'email_type', value: claim.reminder_number === 3 ? 'draft_cleanup_notice' : 'onboarding_reminder' },
         { name: 'reminder_number', value: String(claim.reminder_number) },
       ],
     }),
@@ -118,7 +132,7 @@ Deno.serve(async (request) => {
   let failed = 0
 
   for (let index = 0; index < 50; index += 1) {
-    const { data, error } = await admin.rpc('claim_onboarding_reminder')
+    const { data, error } = await admin.rpc('claim_onboarding_reminder_v2')
     if (error) return json({ error: 'Reminder claim failed' }, 500)
     const claim = (data?.[0] ?? null) as ReminderClaim | null
     if (!claim) break

@@ -12,10 +12,13 @@ const required = (name) => {
 const recipient = process.argv[2]?.trim().toLowerCase()
 const requestedNumber = process.argv[3]?.trim()
 if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
-  throw new Error('Kasutus: npm run supabase:onboarding-email:preview -- nimi@example.com')
+  throw new Error('Kasutus: npm run supabase:onboarding-email:preview -- nimi@example.com [1|2|3]')
+}
+if (requestedNumber && !['1', '2', '3'].includes(requestedNumber)) {
+  throw new Error('Eelvaate number peab olema 1, 2 või 3.')
 }
 
-const render = ({ title, intro, step, detail, note }) => `<!doctype html>
+const render = ({ title, intro, step, detail, note, button = 'Jätka seadistamist', serviceNotice = false }) => `<!doctype html>
 <html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f1efe9;color:#23221f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0">${step} · kõik salvestatud andmed on alles.</div>
@@ -33,19 +36,19 @@ const render = ({ title, intro, step, detail, note }) => `<!doctype html>
             <span style="display:block;margin-top:7px;color:#666159;font-size:14px;line-height:1.55">${detail}</span>
           </div>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 24px"><tr><td style="border-radius:999px;background:#171714">
-            <a href="https://poeruum.ee" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">Jätka seadistamist &nbsp;→</a>
+            <a href="https://poeruum.ee" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">${button} &nbsp;→</a>
           </td></tr></table>
           <p style="margin:0;color:#8a857d;font-size:12px;line-height:1.55">${note}</p>
         </div>
       </td></tr>
-      <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">Poeruum · sinu e-pood 10 minutiga<br><a href="https://poeruum.ee" style="color:#77736a">Ma ei soovi rohkem meeldetuletusi</a><br><span style="color:#aaa59d">Eelvaade — lingid ei muuda konto seadeid.</span></td></tr>
+      <tr><td style="padding:22px 4px 0;color:#8a857d;font-size:12px;line-height:1.6">Poeruum · sinu e-pood 10 minutiga<br>${serviceNotice ? 'See on oluline teenuseteade sinu salvestatud mustandi kohta.' : '<a href="https://poeruum.ee" style="color:#77736a">Ma ei soovi rohkem meeldetuletusi</a>'}<br><span style="color:#aaa59d">Eelvaade — lingid ei muuda konto seadeid.</span></td></tr>
     </table>
   </td></tr></table>
 </body></html>`
 
 const previews = [
   {
-    subject: '[Eelvaade 1/2] Sinu pood jäi pooleli — kõik on alles',
+    subject: '[Eelvaade 1/3] Sinu pood jäi pooleli — kõik on alles',
     html: render({
       title: 'Poe seadistamine jäi pooleli?',
       intro: 'Kõik, mis juba tegid, on alles.',
@@ -56,7 +59,7 @@ const previews = [
     number: '1',
   },
   {
-    subject: '[Eelvaade 2/2] Kas teeme su poe valmis?',
+    subject: '[Eelvaade 2/3] Kas teeme su poe valmis?',
     html: render({
       title: 'Kas teeme su poe valmis?',
       intro: 'Kõik, mis juba tegid, on alles. Kui soovid jätkata, saad alustada täpselt poolelijäänud sammust.',
@@ -65,6 +68,19 @@ const previews = [
       note: 'See on viimane meeldetuletus. Kui praegu pole õige aeg, on kõik hästi.',
     }),
     number: '2',
+  },
+  {
+    subject: '[Eelvaade 3/3] Poe tühi mustand kustutatakse 7 päeva pärast',
+    html: render({
+      title: 'Kas soovid oma poe mustandi alles hoida?',
+      intro: 'Poe seadistamist pole 173 päeva jätkatud. Kui soovid mustandi alles hoida, logi järgmise seitsme päeva jooksul Poeruumi sisse.',
+      step: 'Lisa poe nimi ja aadress',
+      detail: 'Alusta poe põhiandmetest. Kõik järgmised sammud saad hiljem üle vaadata.',
+      note: 'Kui sa sisse ei logi, eemaldame ainult selle mitte kunagi avaldatud tühja mustandi. Sinu Poeruumi konto jääb alles.',
+      button: 'Hoia mustand alles',
+      serviceNotice: true,
+    }),
+    number: '3',
   },
 ]
 

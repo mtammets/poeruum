@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
-import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
+import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, setStorePublication, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
@@ -177,6 +177,7 @@ export type StorefrontProps = {
   paymentProvider?: PaymentProvider
   paymentsReady?: boolean
   initialShipping?: string[]
+  initialPublished?: boolean
   merchantMode?: boolean
   adminShowcaseMode?: boolean
   pricingPlan?: PricingPlan
@@ -192,11 +193,12 @@ export type StorefrontProps = {
   ownerEmail?: string
   onOwnerLogin?: (email: string, password: string, captchaToken?: string) => Promise<void>
   onBackToSetup?: () => void
+  onContinueSetup?: () => Promise<void> | void
   onExit?: () => void
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
@@ -229,6 +231,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSettingsHome, setIsSettingsHome] = useState(true)
   const [settingsSaveStatus, setSettingsSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [isPublicationBusy, setIsPublicationBusy] = useState(false)
+  const [isSetupContinuationBusy, setIsSetupContinuationBusy] = useState(false)
   const [settingsHydrated, setSettingsHydrated] = useState(!storeId)
   const savedSettingsSnapshotRef = useRef('')
   const [isAboutOpen, setIsAboutOpen] = useState(false)
@@ -258,7 +262,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [productBrand, setProductBrand] = useState('')
   const [searchConsoleVerification, setSearchConsoleVerification] = useState('')
   const [storeAboutImage, setStoreAboutImage] = useState<string | null>(null)
-  const [isStoreVisible, setIsStoreVisible] = useState(true)
+  const [isStoreVisible, setIsStoreVisible] = useState(initialPublished)
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [instagramUrl, setInstagramUrl] = useState('')
@@ -395,7 +399,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeTagline, storeDescription, storeAboutImage,
     seoTitle: storeSeoTitle, seoDescription: storeSeoDescription, productBrand, searchConsoleVerification,
-    isStoreVisible, contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
+    contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, vatRegistered, vatNumber, returnsText, orderNotificationEmail,
     billingPlan, sellerNotifications, customerConfirmations,
     autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed,
@@ -426,7 +430,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (value.productBrand != null) setProductBrand(value.productBrand)
     if (value.searchConsoleVerification != null) setSearchConsoleVerification(value.searchConsoleVerification)
     if ('storeAboutImage' in value) setStoreAboutImage(value.storeAboutImage)
-    if (typeof value.isStoreVisible === 'boolean') setIsStoreVisible(value.isStoreVisible)
     if (value.contactEmail != null) setContactEmail(value.contactEmail)
     if (value.contactPhone != null) setContactPhone(value.contactPhone)
     if (value.instagramUrl != null) setInstagramUrl(value.instagramUrl)
@@ -509,6 +512,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   useEffect(() => setActivePaymentProvider(paymentProvider), [paymentProvider])
   useEffect(() => setBillingPlan(pricingPlan), [pricingPlan])
+  useEffect(() => setIsStoreVisible(initialPublished), [initialPublished])
   useEffect(() => { editImageTransformsRef.current = editImageTransforms }, [editImageTransforms])
   useEffect(() => {
     if (ownerEmail && !loginEmail.trim()) setLoginEmail(ownerEmail)
@@ -542,7 +546,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     const savedStore = await updateStore(storeId, {
       settings: JSON.parse(snapshot),
       name: editableStoreName,
-      is_published: isStoreVisible,
       payment_provider: activePaymentProvider,
       shipping: enabledShipping,
     })
@@ -1654,6 +1657,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   const logOut = async () => {
     if (isSupabaseConfigured) await requireSupabase().auth.signOut({ scope: 'local' })
+    if (onContinueSetup) {
+      onExit?.()
+      return
+    }
     showStoreAsCustomer()
   }
 
@@ -1957,6 +1964,27 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const vatDetailsComplete = !vatRegistered || /^EE\d{9}$/.test(vatNumber.trim())
   const sellerDetailsComplete = isDemoExperience
     || Boolean(businessName.trim() && /^\d{8}$/.test(registryCode.trim()) && businessAddress.trim() && contactEmail.trim() && vatDetailsComplete)
+  const changeStorePublication = async (published: boolean) => {
+    if (!storeId || isPublicationBusy) return
+    if (published && !sellerDetailsComplete) {
+      setAuthToast('Enne poe avaldamist lisa täielikud müüja andmed')
+      setSettingsSection('business')
+      setIsSettingsHome(false)
+      return
+    }
+
+    setIsPublicationBusy(true)
+    try {
+      const savedStore = await setStorePublication(storeId, published)
+      setIsStoreVisible(savedStore.is_published)
+      onStoreChange?.(savedStore)
+      setAuthToast(savedStore.is_published ? 'Pood on avalik' : 'Pood on peidetud')
+    } catch (error) {
+      setAuthToast(error instanceof Error ? error.message : published ? 'Poe avaldamine ebaõnnestus' : 'Poe peitmine ebaõnnestus')
+    } finally {
+      setIsPublicationBusy(false)
+    }
+  }
   const newOrderCount = orders.filter((order) => order.status === 'new').length
   const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   const normalizedOrderSearch = orderSearch.trim().toLocaleLowerCase('et')
@@ -2027,7 +2055,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     { id: 'delivery', label: 'Tarneviis valitud', done: SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) || deliverySettings.courierEnabled || deliverySettings.pickupEnabled, section: 'delivery' as const },
     { id: 'product', label: 'Esimene toode lisatud', done: displayProducts.length > 0, section: null },
     { id: 'business', label: 'Müüja andmed', done: sellerDetailsComplete, section: 'business' as const },
-    { id: 'visible', label: 'Pood avalikustatud', done: isStoreVisible, section: 'store' as const },
+    ...(!onContinueSetup ? [{ id: 'visible', label: 'Pood avalikustatud', done: isStoreVisible, section: 'store' as const }] : []),
   ]
   const completedSetupSteps = setupChecklist.filter((item) => item.done).length
   const setupProgress = Math.round(completedSetupSteps / setupChecklist.length * 100)
@@ -2141,6 +2169,17 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     window.setTimeout(() => { addProductSubmitLockRef.current = false }, 300)
   }
 
+  const continueProductOnboarding = async () => {
+    if (!onContinueSetup || !persistedProducts.length || isEditOpen || isSetupContinuationBusy) return
+    setIsSetupContinuationBusy(true)
+    try {
+      await onContinueSetup()
+    } catch (error) {
+      setAuthToast(error instanceof Error ? error.message : 'Seadistamise jätkamine ebaõnnestus')
+      setIsSetupContinuationBusy(false)
+    }
+  }
+
   const announcementTrack = <div className="announcement-bar__track">
     {[0, 1].map((group) => <span className="announcement-bar__group" aria-hidden={group === 1 ? 'true' : undefined} key={group}>
       {[0, 1, 2, 3].map((item) => <span key={item}><b>{announcementText}</b><i>✦</i></span>)}
@@ -2148,7 +2187,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   </div>
 
   return (
-    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
+    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'} data-product-onboarding={onContinueSetup ? 'true' : 'false'}>
+      {onContinueSetup && isAdminMode && !isCustomerPreview && <aside className="product-onboarding-bar" aria-label="Esimese toote seadistamine">
+        <button className="product-onboarding-bar__back" type="button" disabled={isSetupContinuationBusy} onClick={onBackToSetup} aria-label="Tagasi tarneviiside juurde"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h11"/></svg></button>
+        <span><strong>Esimene toode</strong><small>{persistedProducts.length ? 'Toode on salvestatud — saad jätkata' : 'Lisa vähemalt üks toode, pood jääb mustandiks'}</small></span>
+        <button className="product-onboarding-bar__continue" type="button" disabled={!persistedProducts.length || isEditOpen || isSetupContinuationBusy} onClick={() => void continueProductOnboarding()}>{isSetupContinuationBusy ? 'Salvestan…' : 'Jätka'}<span aria-hidden="true">→</span></button>
+      </aside>}
       {isSeoStorefront && storeSlug && <nav className="storefront-product-links" aria-label="Kõik poe tooted">
         <a href="/">Poe avaleht</a>
         {displayProducts.filter((product) => product.searchVisible !== false).map((product) =>
@@ -2214,12 +2258,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <div className="empty-storefront__identity"><span>{storeInitial}</span><div><strong>{editableStoreName}</strong><button type="button" onClick={copyStoreUrl} aria-label={`Kopeeri poe aadress ${storePublicUrl}`}>{storePublicUrl}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div></div>
           </header>}
           {isAdminMode && <>
-            {onBackToSetup && <button className="empty-storefront__back" type="button" onClick={onBackToSetup} aria-label="Tagasi poe seadistusviisardisse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h11"/></svg></button>}
-            <button className="empty-storefront__settings" type="button" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label="Seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 8.5 7L6.1 6 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5 6.1 18l2.4-1a7 7 0 0 0 1.9 1l.3 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z"/></svg></button>
+            {onBackToSetup && !onContinueSetup && <button className="empty-storefront__back" type="button" onClick={onBackToSetup} aria-label="Tagasi poe seadistusviisardisse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h11"/></svg></button>}
+            {!onContinueSetup && <button className="empty-storefront__settings" type="button" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label="Seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 8.5 7L6.1 6 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5 6.1 18l2.4-1a7 7 0 0 0 1.9 1l.3 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z"/></svg></button>}
           </>}
           {isAdminMode ? <div className="empty-storefront__content">
             <section className="empty-storefront__intro">
-              <span><i>✓</i> Pood on aktiivne</span>
+              <span><i>✓</i> {onContinueSetup ? 'Pood on turvaliselt mustandina' : 'Pood on aktiivne'}</span>
               <h1>Hea algus.<br />Nüüd esimene toode.</h1>
               <p>Pildista või vali foto galeriist.</p>
             </section>
@@ -2582,15 +2626,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 </button>)}
               </div>}
             </div>}
-            {!adminShowcaseMode && <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} onChange={(event) => {
-              if (event.target.checked && !sellerDetailsComplete) {
-                setAuthToast('Enne poe avaldamist lisa täielikud müüja andmed')
-                setSettingsSection('business')
-                setIsSettingsHome(false)
-                return
-              }
-              setIsStoreVisible(event.target.checked)
-            }} /><i /></label>}
+            {!adminShowcaseMode && !onContinueSetup && <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isPublicationBusy ? 'Muudan poe nähtavust…' : isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} disabled={isPublicationBusy} onChange={(event) => void changeStorePublication(event.target.checked)} /><i /></label>}
             <div className="settings-fields">
               <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
               <label>Poe slogan<input value={storeTagline} maxLength={100} onChange={(event) => setStoreTagline(event.target.value)} placeholder="Lühike lause sinu poe kohta" /><small className="settings-field-note">Valikuline · kuvatakse poe nime all jaluses · {storeTagline.length}/100</small></label>

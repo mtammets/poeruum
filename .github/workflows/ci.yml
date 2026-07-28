@@ -77,6 +77,15 @@ jobs:
       - name: Test data retention boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-data-retention.sql
 
+      - name: Test protected store publication
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-store-publication.sql
+
+      - name: Test product image access boundaries
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-product-image-access.sql
+
+      - name: Test abandoned draft cleanup boundaries
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-abandoned-draft-cleanup.sql
+
       - name: Test first rate-limit request
         shell: bash
         run: |

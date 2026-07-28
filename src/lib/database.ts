@@ -36,8 +36,16 @@ export type PublicStoreRecord = Pick<
 
 export type StoreContentInput = Pick<
   StoreRecord,
-  'name' | 'slug' | 'is_published' | 'payment_provider' | 'shipping' | 'settings'
+  'name' | 'slug' | 'payment_provider' | 'shipping' | 'settings'
 >
+
+const toStoreContentPayload = (input: Partial<StoreContentInput>) => ({
+  ...(input.name !== undefined ? { name: input.name } : {}),
+  ...(input.slug !== undefined ? { slug: input.slug } : {}),
+  ...(input.payment_provider !== undefined ? { payment_provider: input.payment_provider } : {}),
+  ...(input.shipping !== undefined ? { shipping: input.shipping } : {}),
+  ...(input.settings !== undefined ? { settings: input.settings } : {}),
+})
 
 export type CustomDomainRecord = {
   id: string
@@ -157,13 +165,28 @@ export async function createStore(input: StoreContentInput) {
   const { data: userData, error: userError } = await requireSupabase().auth.getUser()
   throwIfError(userError)
   if (!userData.user) throw new Error('Poe loomiseks logi sisse.')
-  const { data, error } = await requireSupabase().from('stores').insert({ ...input, owner_id: userData.user.id }).select().single()
+  const { data, error } = await requireSupabase().from('stores').insert({
+    ...toStoreContentPayload(input),
+    owner_id: userData.user.id,
+  }).select().single()
   throwIfError(error)
   return data as StoreRecord
 }
 
 export async function updateStore(storeId: string, input: Partial<StoreContentInput>) {
-  const { data, error } = await requireSupabase().from('stores').update(input).eq('id', storeId).select().single()
+  const { data, error } = await requireSupabase()
+    .from('stores')
+    .update(toStoreContentPayload(input))
+    .eq('id', storeId)
+    .select()
+    .single()
+  throwIfError(error)
+  return data as StoreRecord
+}
+
+export async function setStorePublication(storeId: string, published: boolean) {
+  const functionName = published ? 'publish_store' : 'unpublish_store'
+  const { data, error } = await requireSupabase().rpc(functionName, { target_store_id: storeId })
   throwIfError(error)
   return data as StoreRecord
 }

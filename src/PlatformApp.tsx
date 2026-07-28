@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import BillingPlanDialog from './BillingPlanDialog'
 import { Brand } from './Brand'
-import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
+import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { getStoreDestination, type OnboardingStep } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { products as bundledProducts, type Product } from './products'
@@ -28,8 +29,7 @@ const Storefront = lazy(async () => {
 })
 const StripeEmbeddedOnboarding = lazy(() => import('./StripeEmbeddedOnboarding'))
 
-type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'publish' | 'storefront' | 'sample'
-type OnboardingStep = 'store' | 'business' | 'payments' | 'shipping' | 'publish' | 'complete'
+type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'product' | 'publish' | 'storefront' | 'sample'
 type RegistryLookupStatus = 'idle' | 'loading' | 'found' | 'not-found' | 'error'
 
 type RegistryCompany = {
@@ -44,8 +44,7 @@ type RegistryLookupResponse = {
   data?: RegistryCompany[]
 }
 
-const onboardingSteps = new Set<OnboardingStep>(['store', 'business', 'payments', 'shipping', 'publish', 'complete'])
-const onboardingActivityScreens = new Set<Screen>(['store', 'business', 'payments', 'shipping', 'publish'])
+const onboardingActivityScreens = new Set<Screen>(['store', 'business', 'payments', 'shipping', 'product', 'publish'])
 const isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
@@ -69,35 +68,13 @@ const restoreIOSViewportScale = () => {
   }))
 }
 
-const getStoreDestination = (store: StoreRecord): Screen => {
-  if (store.is_published) return 'storefront'
-
-  const settings = store.settings as Record<string, unknown>
-  const savedStep = settings.onboardingStep
-  if (typeof savedStep === 'string' && onboardingSteps.has(savedStep as OnboardingStep) && savedStep !== 'complete') {
-    return savedStep as Screen
-  }
-
-  // Older drafts do not have an onboarding step yet. Infer the first
-  // unfinished screen once, then persist an explicit step on the next save.
-  const hasSellerDetails = Boolean(
-    String(settings.businessName ?? '').trim()
-    && /^\d{8}$/.test(String(settings.registryCode ?? '').trim())
-    && String(settings.businessAddress ?? '').trim()
-    && String(settings.contactEmail ?? '').trim(),
-  )
-  if (!hasSellerDetails) return 'business'
-  if (store.payment_status === 'idle') return 'payments'
-  if (!store.shipping.length) return 'shipping'
-  return 'publish'
-}
-
 const steps: Array<{ screen: Screen; label: string }> = [
   { screen: 'account', label: 'Konto' },
   { screen: 'store', label: 'Pood' },
   { screen: 'business', label: 'Müüja' },
   { screen: 'payments', label: 'Maksed' },
   { screen: 'shipping', label: 'Tarne' },
+  { screen: 'product', label: 'Toode' },
   { screen: 'publish', label: 'Avalda' },
 ]
 
@@ -463,12 +440,14 @@ function PlatformFlow() {
     setVatNumber(String(settings.vatNumber ?? ''))
     setBusinessEmail(String(settings.contactEmail ?? '') || email)
     setReturnsText(String(settings.returnsText ?? DEFAULT_RETURNS_TEXT))
-    setStoredProducts(await listProducts(nextStore.id))
+    const nextProducts = await listProducts(nextStore.id)
+    setStoredProducts(nextProducts)
+    return nextProducts
   }
 
   const openOwnedStore = async (nextStore: StoreRecord) => {
-    await applyStore(nextStore)
-    setScreen(getStoreDestination(nextStore))
+    const nextProducts = await applyStore(nextStore)
+    setScreen(getStoreDestination(nextStore, nextProducts.length))
     const cleanUrl = new URL(window.location.href)
     if (cleanUrl.searchParams.has('continue_setup')) {
       cleanUrl.searchParams.delete('continue_setup')
@@ -574,8 +553,8 @@ function PlatformFlow() {
 
   useEffect(() => {
     if (!onlineUserId || !['login', 'forgot-password', 'account'].includes(screen)) return
-    setScreen(store ? getStoreDestination(store) : 'store')
-  }, [onlineUserId, screen, store])
+    setScreen(store ? getStoreDestination(store, storedProducts.length) : 'store')
+  }, [onlineUserId, screen, store, storedProducts.length])
 
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -745,11 +724,11 @@ function PlatformFlow() {
     finally { setIsAuthBusy(false) }
   }
 
-  const persistStore = async (published = false, overrides: Partial<StoreContentInput> = {}, nextStep?: OnboardingStep) => {
+  const persistStore = async (overrides: Partial<StoreContentInput> = {}, nextStep?: OnboardingStep) => {
     const existingSettings = (store?.settings ?? {}) as Record<string, unknown>
     const payload = {
       name: storeName.trim(), slug: slug || slugify(storeName), payment_provider: payment,
-      shipping, is_published: published,
+      shipping,
       settings: {
         ...existingSettings,
         businessName: businessName.trim(),
@@ -759,7 +738,7 @@ function PlatformFlow() {
         vatNumber: vatRegistered ? vatNumber.trim() : '',
         contactEmail: businessEmail.trim(),
         returnsText: returnsText.trim() || DEFAULT_RETURNS_TEXT,
-        onboardingStep: published ? 'complete' : nextStep ?? existingSettings.onboardingStep ?? 'business',
+        onboardingStep: store?.is_published ? 'complete' : nextStep ?? existingSettings.onboardingStep ?? 'business',
       },
       ...overrides,
     }
@@ -773,7 +752,7 @@ function PlatformFlow() {
     setAuthError('')
     setAuthNotice('')
     try {
-      const saved = await persistStore(store?.is_published ?? false, { payment_provider: 'stripe' }, store?.is_published ? 'complete' : 'payments')
+      const saved = await persistStore({ payment_provider: 'stripe' }, store?.is_published ? 'complete' : 'payments')
       setPayment('stripe')
       setPaymentStatus('pending')
       setStore(saved)
@@ -943,7 +922,7 @@ function PlatformFlow() {
   }
 
   const backMap: Partial<Record<Screen, Screen>> = {
-    login: 'landing', 'forgot-password': 'login', 'reset-password': 'login', account: 'landing', store: 'account', business: 'store', payments: 'business', shipping: 'payments', publish: 'shipping',
+    login: 'landing', 'forgot-password': 'login', 'reset-password': 'login', account: 'landing', store: 'account', business: 'store', payments: 'business', shipping: 'payments', product: 'shipping', publish: 'product',
   }
   const phoneProduct = phonePreviewProducts[phoneProductIndex]
   const selectPricingPlan = (plan: PricingPlan) => {
@@ -961,16 +940,35 @@ function PlatformFlow() {
       return
     }
     setIsPublishing(true); setAuthError('')
-    try { await persistStore(true); setScreen('storefront') }
-    catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe avaldamine ebaõnnestus.') }
+    try {
+      if (!store) throw new Error('Poodi ei leitud. Salvesta poe andmed ja proovi uuesti.')
+      const publishedStore = await setStorePublication(store.id, true)
+      setStore(publishedStore)
+      setScreen('storefront')
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : 'Poe avaldamine ebaõnnestus.'
+      setAuthError(message)
+      if (message === 'Enne avaldamist lisa vähemalt üks toode.') setScreen('product')
+    }
     finally { setIsPublishing(false) }
+  }
+
+  const continueFromFirstProduct = async () => {
+    if (!store) throw new Error('Poodi ei leitud. Salvesta poe andmed ja proovi uuesti.')
+    const nextProducts = await listProducts(store.id)
+    if (!nextProducts.length) throw new Error('Lisa ja salvesta enne jätkamist vähemalt üks toode.')
+    setStoredProducts(nextProducts)
+    await persistStore({}, 'publish')
+    setScreen('publish')
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
   const resumeMerchantFlow = () => {
     setIsMobileNavOpen(false)
     setAuthError('')
     setAuthNotice('')
-    setScreen(store ? getStoreDestination(store) : 'store')
+    setScreen(store ? getStoreDestination(store, storedProducts.length) : 'store')
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
@@ -1030,9 +1028,41 @@ function PlatformFlow() {
     initialShipping={sampleStore?.shipping}
     onExit={() => setScreen('landing')}
   />
+  if (screen === 'product') return <Storefront
+    key={`onboarding-product-${store?.id ?? 'new'}`}
+    storeId={store?.id}
+    initialSettings={store?.settings}
+    seedProducts={storedProducts}
+    storeName={storeName || 'Minu pood'}
+    storeSlug={slug || 'minu-pood'}
+    paymentProvider={payment}
+    paymentsReady={paymentStatus === 'connected'}
+    initialShipping={shipping}
+    initialPublished={false}
+    pricingPlan={pricingPlan}
+    fixedPlanTrialStartedAt={fixedPlanTrialStartedAt}
+    stripeSubscriptionStatus={store?.stripe_subscription_status}
+    merchantMode
+    ownerEmail={email}
+    onOwnerLogin={signInFromStore}
+    onBackToSetup={() => setScreen('shipping')}
+    onContinueSetup={continueFromFirstProduct}
+    onConnectPaymentProvider={() => void startStripeConnect()}
+    onStoreChange={(nextStore) => {
+      setStore(nextStore)
+      setStoreName(nextStore.name)
+      setPayment('stripe')
+      setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle')
+      setPricingPlan(nextStore.pricing_plan)
+      setFixedPlanTrialStartedAt(nextStore.trial_started_at)
+      setShipping(nextStore.shipping)
+    }}
+    onAccountDeleted={handleAccountDeleted}
+    onExit={() => setScreen('landing')}
+  />
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
   </>
 
   if (screen === 'landing') return <main className="platform-landing">
@@ -1313,7 +1343,7 @@ function PlatformFlow() {
 
       if (store || hasValidStoreIdentity) {
         if (!hasValidStoreIdentity) throw new Error('Poe nimi peab enne salvestamist olema täidetud.')
-        await persistStore(store?.is_published ?? false, {}, currentStep)
+        await persistStore({}, currentStep)
       }
 
       if (isStripeOnboardingOpen) {
@@ -1353,7 +1383,7 @@ function PlatformFlow() {
     isExiting={isSetupExiting}
   >
     {returnNotice}
-    {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { await persistStore(false, {}, 'business'); setScreen('business') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
+    {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { await persistStore({}, 'business'); setScreen('business') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
       <span className="setup-kicker">Alustame põhilisest</span><h1>Mis on sinu poe nimi?</h1><p>Seda näevad sinu kliendid poe päises ja otsingutulemustes.</p>
       <label>Poe nimi<input
         required
@@ -1394,7 +1424,7 @@ function PlatformFlow() {
         <strong>{isStripeConnecting ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : 'Seadista Stripe'}</strong><span>→</span>
       </button> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
-      {!isStripeOnboardingOpen && paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore(false, {}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
+      {!isStripeOnboardingOpen && paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore({}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
     </div>}
 
     {screen === 'shipping' && <div className="setup-form"><span className="setup-kicker">Kauba kättesaamine</span><h1>Vali tarneviisid</h1>
@@ -1404,7 +1434,7 @@ function PlatformFlow() {
         ['smartposti', 'https://images.ctfassets.net/dvxpcmq06s7e/5LDF7M5UltxLRSteji1IIj/66fc61b81e453d12d154fcaceec04e42/Logo_SmartPosti.png', 'SmartPosti pakiautomaat'],
         ['pickup', '', 'Tulen ise järele'],
       ].map(([id, logo, name]) => <label key={id}><span className={`shipping-brand shipping-brand--${id}`}>{logo ? <img src={logo} alt="" loading="eager" decoding="async" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" /><circle cx="12" cy="10" r="2.2" /></svg>}</span><div><strong>{name}</strong></div><input type="checkbox" checked={shipping.includes(id)} onChange={() => setShipping((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} /><i /></label>)}</div>
-      <button className="setup-next" disabled={!shipping.length} onClick={async () => { try { await persistStore(false, {}, 'publish'); setScreen('publish') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka avaldamisega <span>→</span></button>
+      <button className="setup-next" disabled={!shipping.length} onClick={async () => { try { await persistStore({}, 'product'); setScreen('product') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka esimese tootega <span>→</span></button>
     </div>}
 
     {screen === 'business' && <form className="setup-form setup-business" onSubmit={async (event) => {
@@ -1412,7 +1442,7 @@ function PlatformFlow() {
       setAuthError('')
       if (!/^\d{8}$/.test(registryCode.trim())) { setAuthError('Registrikood peab olema 8-kohaline.'); return }
       if (vatRegistered && !/^EE\d{9}$/.test(vatNumber.trim())) { setAuthError('KMKR number peab olema kujul EE123456789.'); return }
-      try { await persistStore(false, {}, 'payments'); setScreen('payments') }
+      try { await persistStore({}, 'payments'); setScreen('payments') }
       catch (error) { setAuthError(error instanceof Error ? error.message : 'Müüja andmete salvestamine ebaõnnestus.') }
     }}>
       <span className="setup-kicker">Kes kliendile müüb?</span><h1>Sinu ettevõte</h1>
@@ -1490,6 +1520,10 @@ function PlatformFlow() {
           <span><strong>{businessName}</strong><small>· {registryCode}</small></span>
           <button type="button" onClick={() => setScreen('business')} aria-label="Muuda müüja andmeid">Muuda</button>
         </div>
+        <div className="publish-seller-row">
+          <span><strong>{storedProducts.length ? `${storedProducts.length} ${storedProducts.length === 1 ? 'toode' : 'toodet'}` : 'Esimene toode puudub'}</strong><small>{storedProducts.length ? '· valmis avaldamiseks' : '· lisa enne avaldamist'}</small></span>
+          <button type="button" onClick={() => setScreen('product')} aria-label="Muuda poe tooteid">{storedProducts.length ? 'Muuda' : 'Lisa toode'}</button>
+        </div>
       </section>
       <section className="publish-plan-section" aria-labelledby="publish-plan-heading">
         <header className="publish-plan-heading">
@@ -1512,9 +1546,11 @@ function PlatformFlow() {
         </div>
         <small className="publish-fee-note">Paketti saad hiljem muuta · Maksetasud lisanduvad</small>
       </section>
-      <button className="publish-button" disabled={isPublishing} onClick={publishStore}>
+      <button className="publish-button" disabled={isPublishing || !storedProducts.length} onClick={publishStore}>
         {isPublishing
           ? 'Avaldan poodi…'
+          : !storedProducts.length
+            ? 'Lisa enne esimene toode'
           : pricingPlan === 'fixed' && !fixedPlanTrialStartedAt
             ? 'Jätka maksekaardiga'
             : 'Avalda pood'}
@@ -1525,7 +1561,7 @@ function PlatformFlow() {
       </div>
     </div>}
     {isBillingCardOpen && <BillingPlanDialog confirmLabel="Jätka Stripe’is" onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => {
-      await persistStore(false)
+      await persistStore()
       const url = await startStripeBillingCheckout(checkoutRequestId)
       window.location.assign(url)
     }} />}

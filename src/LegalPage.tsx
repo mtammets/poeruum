@@ -16,7 +16,7 @@ import './legal.css'
 
 export type LegalDocument = 'terms' | 'privacy'
 
-const EFFECTIVE_DATE = '25. juuli 2026'
+const EFFECTIVE_DATE = '28. juuli 2026'
 const PROVIDER = {
   name: 'Animaator OÜ',
   registryCode: '17135632',
@@ -101,6 +101,7 @@ function Terms() {
     <section>
       <h2>9. Konto piiramine ja lõpetamine</h2>
       <p>Kasutaja võib konto teenuses kustutada või paketi lõpetada. Enne kustutamist peab kasutaja eksportima talle vajalikud andmed ning lahendama täitmata tellimused ja maksekohustused.</p>
+      <p>Poeruum võib eemaldada vähemalt 180 päeva kasutamata mitte kunagi avaldatud tühja poomustandi, millel puuduvad tooted, makseühendus, tasuline pakett, kohandatud domeen, tellimused ja finantskirjed. Vähemalt seitse päeva enne eemaldamist saadetakse konto e-posti aadressile teenuseteade. Sisselogimine või seadistamise jätkamine tühistab eemaldamise ning kasutajakonto jääb alles.</p>
       <p>Konto kustutamisel lõpetatakse aktiivne Poeruumi kuupakett, eemaldatakse poe sisu ja failid ning anonüümitakse tellimustes olevad ostja kontakt- ja tarneandmed. Seadusest tuleneva säilituskohustuse täitmiseks vajalikud isikustamata finantskirjed säilivad privaatsuspoliitikas kirjeldatud tähtaja lõpuni.</p>
       <p>Poeruum võib teenust piirata või konto sulgeda, kui kasutaja rikub oluliselt tingimusi või seadust, ohustab teenuse turvalisust või jätab tasud maksmata. Kiiret sekkumist mittevajava rikkumise korral antakse võimalus rikkumine mõistliku aja jooksul kõrvaldada.</p>
     </section>
@@ -185,7 +186,7 @@ function Privacy() {
     <section>
       <h2>6. Säilitamine</h2>
       <ul>
-        <li><strong>Konto ja poe sisu:</strong> säilivad konto kasutamise ajal ning kustutatakse konto kustutamisel. Tootepildid, kohandatud domeenid, autentimiskonto ja avatud tugisisu eemaldatakse kustutamistoimingu käigus.</li>
+        <li><strong>Konto ja poe sisu:</strong> säilivad konto kasutamise ajal ning kustutatakse konto kustutamisel. Vähemalt 180 päeva kasutamata mitte kunagi avaldatud tühi poomustand, millel puuduvad tooted, makseühendus, tasuline pakett, kohandatud domeen, tellimused ja finantskirjed, võidakse eemaldada pärast vähemalt seitsmepäevast e-posti teavitust. Sisselogimine või seadistamise jätkamine tühistab eemaldamise ning autentimiskonto jääb alles. Tootepildid, kohandatud domeenid, autentimiskonto ja avatud tugisisu eemaldatakse konto kustutamistoimingu käigus.</li>
         <li><strong>Tellimused:</strong> säilivad kaheksa aastat tellimuse kuupäevast. See katab raamatupidamisdokumentide nõutud seitsmeaastase säilitamise ka juhul, kui kaupmehe majandusaasta ei ühti kalendriaastaga. Konto kustutamisel eemaldatakse tellimustest kohe ostja nimi, e-post ja tarneinfo; summad, kaubaread, makseolek ja tehingutunnused säilivad tähtaja lõpuni raamatupidamise ja nõuete kaitsmise eesmärgil.</li>
         <li><strong>Poeruumi finantskirjed:</strong> säilivad kaheksa aastat tehingu kuupäevast, et katta vähemalt seitse aastat vastava majandusaasta lõpust.</li>
         <li><strong>Tugipöördumised ja manused:</strong> kustutatakse konto kustutamisel või 24 kuud pärast pöördumise lahendamist, olenevalt sellest, kumb saabub varem.</li>
