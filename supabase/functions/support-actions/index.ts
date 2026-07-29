@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
+import { buildSupportReplyEmail } from '../_shared/support-email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -86,6 +87,9 @@ Deno.serve(async (request) => {
     const action = textValue(input.action, 40)
     const appUrl = (Deno.env.get('APP_URL')?.trim() || 'https://poeruum.ee').replace(/\/$/, '')
     const from = Deno.env.get('RESEND_FROM_EMAIL')?.trim() || 'Poeruum <teavitused@send.poeruum.ee>'
+    const supportAgentFrom = Deno.env.get('SUPPORT_AGENT_FROM_EMAIL')?.trim()
+      || Deno.env.get('OUTREACH_FROM_EMAIL')?.trim()
+      || from
     const fallbackReplyTo = Deno.env.get('SUPPORT_REPLY_TO')?.trim()
     const inboundDomain = Deno.env.get('SUPPORT_INBOUND_DOMAIN')?.trim().replace(/^@/, '')
     const publicSupportEmail = Deno.env.get('SUPPORT_PUBLIC_EMAIL')?.trim().toLowerCase() || 'info@poeruum.ee'
@@ -186,13 +190,14 @@ Deno.serve(async (request) => {
         }
         if (!recipientEmail) return json({ error: 'Saaja e-posti aadressi ei leitud.' }, 400)
         const replyTo = conversationReplyTo(conversation.id)
-        resendEmailId = await sendEmail({
-          from, to: [recipientEmail], reply_to: replyTo || publicSupportEmail,
-          subject: `Re: ${conversation.subject}`,
-          html: emailFrame('Vastus Poeruumi klienditoelt', `<p style="margin:0">${escapeHtml(body).replaceAll('\n', '<br>')}</p><p style="margin:24px 0 0;color:#8a857d;font-size:13px">Sinu küsimus: ${escapeHtml(conversation.subject)}</p>`, conversation.origin === 'app' ? { label: 'Ava Poeruum', url: appUrl } : undefined),
-          text: `${body}\n\nSinu küsimus: ${conversation.subject}${conversation.origin === 'app' ? `\n${appUrl}` : ''}`,
-          tags: [{ name: 'email_type', value: 'support_reply' }, { name: 'conversation_id', value: conversation.id }],
-        })
+        resendEmailId = await sendEmail(buildSupportReplyEmail({
+          from: supportAgentFrom,
+          recipientEmail,
+          replyTo: replyTo || publicSupportEmail,
+          subject: conversation.subject,
+          body,
+          conversationId: conversation.id,
+        }))
         deliveryStatus = 'sent'
       }
       const { data: message, error } = await admin.from('support_messages').insert({
