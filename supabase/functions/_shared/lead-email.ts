@@ -4,13 +4,6 @@ export type LeadEmailInput = {
   appUrl: string
 }
 
-const escapeHtml = (value: unknown) => String(value ?? '')
-  .replaceAll('&', '&amp;')
-  .replaceAll('<', '&lt;')
-  .replaceAll('>', '&gt;')
-  .replaceAll('"', '&quot;')
-  .replaceAll("'", '&#39;')
-
 const hasPersonalSignature = (body: string, senderName: string) => {
   const tail = body.split('\n')
     .map((line) => line.trim())
@@ -23,37 +16,9 @@ const hasPersonalSignature = (body: string, senderName: string) => {
     && (tail.includes('poeruum') || Boolean(firstName && tail.includes(firstName)))
 }
 
-const signatureHtml = (input: LeadEmailInput) => {
-  if (hasPersonalSignature(input.body, input.senderName)) return ''
-  const appUrl = input.appUrl.replace(/\/$/, '')
-  return `<p style="margin:24px 0 0">Parimat<br>${escapeHtml(input.senderName)}<br><a href="${escapeHtml(appUrl)}" style="color:inherit;text-decoration:none">Poeruum · poeruum.ee</a></p>`
-}
-
 const signatureText = (input: LeadEmailInput) => {
   if (hasPersonalSignature(input.body, input.senderName)) return ''
   return `Parimat\n${input.senderName}\nPoeruum · poeruum.ee`
-}
-
-export const renderLeadEmail = (input: LeadEmailInput) => {
-  const paragraphs = input.body.split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean)
-    .map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll('\n', '<br>')}</p>`)
-    .join('')
-  return `<!doctype html>
-<html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;color:#222;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;line-height:1.55">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse"><tr><td align="center" style="padding:0 24px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:640px;border-collapse:collapse"><tr><td style="padding:0;text-align:left">
-${paragraphs}
-${signatureHtml(input)}
-<p style="margin:28px 0 0;padding-top:12px;border-top:1px solid #ddd;color:#777;font-size:11px;line-height:1.45">
-Poeruum on Animaator OÜ teenus.<br>
-Kui sa ei soovi minult rohkem selliseid kirju, vasta sellele kirjale „ei soovi”.
-</p>
-</td></tr></table>
-</td></tr></table>
-</body></html>`
 }
 
 export const renderLeadText = (input: LeadEmailInput) => [

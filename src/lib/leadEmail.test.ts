@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   isLeadOptOutReply,
-  renderLeadEmail,
   renderLeadText,
 } from '../../supabase/functions/_shared/lead-email'
 
@@ -12,28 +11,13 @@ const input = {
 }
 
 describe('lead outreach email', () => {
-  it('looks like an ordinary personal email instead of a campaign card', () => {
-    const html = renderLeadEmail(input)
-    expect(html).toContain('Märkasin, et võtate keraamika tellimusi Instagrami kaudu.')
-    expect(html).toContain('Parimat<br>Marek')
-    expect(html).toContain('Poeruum · poeruum.ee')
-    expect(html).toContain('vasta sellele kirjale „ei soovi”')
-    expect(html).toContain('align="center" style="padding:0 24px"')
-    expect(html).toContain('width:100%;max-width:640px')
-    expect(html).not.toContain('poeruum-email-logo')
-    expect(html).not.toContain('background:#f1efe9')
-    expect(html).not.toContain('border-radius')
-    expect(html).not.toContain('List-Unsubscribe')
-  })
-
-  it('escapes untrusted draft content and does not duplicate an existing signature', () => {
-    const html = renderLeadEmail({
+  it('renders a plain personal email without duplicating an existing signature', () => {
+    const text = renderLeadText({
       ...input,
       body: 'Tere!\n\n<script>alert("x")</script>\n\nParimat\nMarek\nPoeruum',
     })
-    expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;')
-    expect(html).not.toContain('<script>alert')
-    expect(html.match(/Parimat/g)).toHaveLength(1)
+    expect(text).toContain('<script>alert("x")</script>')
+    expect(text.match(/Parimat/g)).toHaveLength(1)
   })
 
   it('provides the same personal signature and reply opt-out in plain text', () => {

@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
-import { renderLeadEmail, renderLeadText } from '../_shared/lead-email.ts'
+import { renderLeadText } from '../_shared/lead-email.ts'
 import {
   classifyContactEmail,
   contactMatchesWebsite,
@@ -593,11 +593,6 @@ Deno.serve(async (request) => {
         return json({ error: 'Kontakti avalik allikas puudub või pole korrektne.' }, 400)
       }
 
-      const html = renderLeadEmail({
-        body: claim.draft_body,
-        appUrl,
-        senderName,
-      })
       const text = renderLeadText({ body: claim.draft_body, appUrl, senderName })
       const idempotencyKey = `poeruum-lead-${leadId}-${claim.send_claim_id}`
 
@@ -608,7 +603,6 @@ Deno.serve(async (request) => {
           to: [claim.contact_email],
           reply_to: replyTo,
           subject: claim.draft_subject,
-          html,
           text,
           tags: [
             { name: 'email_type', value: 'lead_outreach' },
