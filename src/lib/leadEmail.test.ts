@@ -18,6 +18,8 @@ describe('lead outreach email', () => {
     expect(html).toContain('Parimat<br>Marek')
     expect(html).toContain('Poeruum · poeruum.ee')
     expect(html).toContain('vasta sellele kirjale „ei soovi”')
+    expect(html).toContain('align="center" style="padding:0 24px"')
+    expect(html).toContain('width:100%;max-width:640px')
     expect(html).not.toContain('poeruum-email-logo')
     expect(html).not.toContain('background:#f1efe9')
     expect(html).not.toContain('border-radius')
