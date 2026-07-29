@@ -7,7 +7,6 @@ import {
 const input = {
   body: 'Tere!\n\nMärkasin, et võtate keraamika tellimusi Instagrami kaudu.\n\nKas soovid, et teeksin ühe näidisvaate?',
   senderName: 'Marek',
-  appUrl: 'https://poeruum.ee',
 }
 
 describe('lead outreach email', () => {
@@ -20,10 +19,11 @@ describe('lead outreach email', () => {
     expect(text.match(/Parimat/g)).toHaveLength(1)
   })
 
-  it('provides the same personal signature and reply opt-out in plain text', () => {
+  it('ends after the personal signature without a campaign footer', () => {
     const text = renderLeadText(input)
-    expect(text).toContain('Parimat\nMarek\nPoeruum · poeruum.ee')
-    expect(text).toContain('vasta sellele kirjale „ei soovi”')
+    expect(text).toMatch(/Parimat\nMarek\nPoeruum · poeruum\.ee$/)
+    expect(text).not.toContain('Poeruum on Animaator OÜ teenus.')
+    expect(text).not.toContain('vasta sellele kirjale „ei soovi”')
   })
 
   it('recognizes clear opt-out replies without treating ordinary replies as opt-outs', () => {

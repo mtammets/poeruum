@@ -1,7 +1,6 @@
 export type LeadEmailInput = {
   body: string
   senderName: string
-  appUrl: string
 }
 
 const hasPersonalSignature = (body: string, senderName: string) => {
@@ -24,10 +23,6 @@ const signatureText = (input: LeadEmailInput) => {
 export const renderLeadText = (input: LeadEmailInput) => [
   input.body.trim(),
   signatureText(input),
-  [
-    'Poeruum on Animaator OÜ teenus.',
-    'Kui sa ei soovi minult rohkem selliseid kirju, vasta sellele kirjale „ei soovi”.',
-  ].join('\n'),
 ].filter(Boolean).join('\n\n').trim()
 
 export const isLeadOptOutReply = (value: unknown) => {

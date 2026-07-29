@@ -570,7 +570,6 @@ Deno.serve(async (request) => {
       const claim = Array.isArray(claims) ? claims[0] : claims
       if (!claim) throw new Error('Saatmislukk ei tagastanud kontakti.')
 
-      const appUrl = (Deno.env.get('APP_URL')?.trim() || 'https://poeruum.ee').replace(/\/$/, '')
       const senderName = textValue(Deno.env.get('OUTREACH_SENDER_NAME'), 80) || 'Marek'
       const configuredSender = Deno.env.get('RESEND_FROM_EMAIL')?.trim() || ''
       const senderAddress = configuredSender.match(/<([^<>\s@]+@[^<>\s@]+)>/)?.[1]
@@ -593,7 +592,7 @@ Deno.serve(async (request) => {
         return json({ error: 'Kontakti avalik allikas puudub või pole korrektne.' }, 400)
       }
 
-      const text = renderLeadText({ body: claim.draft_body, appUrl, senderName })
+      const text = renderLeadText({ body: claim.draft_body, senderName })
       const idempotencyKey = `poeruum-lead-${leadId}-${claim.send_claim_id}`
 
       let resendEmailId = ''
