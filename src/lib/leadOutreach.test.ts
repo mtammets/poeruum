@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   classifyContactEmail,
   contactMatchesWebsite,
+  finalizeGeneratedLeadDraft,
+  leadClosingQuestion,
+  leadPricingSentence,
   normalizeEmail,
   normalizePublicUrl,
   sourceKey,
@@ -40,5 +43,22 @@ describe('lead outreach public data safeguards', () => {
     expect(contactMatchesWebsite('info@pood.ettevote.ee', 'https://ettevote.ee', 'https://pood.ettevote.ee/kontakt')).toBe(true)
     expect(contactMatchesWebsite('info@teine.ee', 'https://ettevote.ee', 'https://ettevote.ee/kontakt')).toBe(false)
     expect(contactMatchesWebsite('info@ettevote.ee', 'https://ettevote.ee', 'https://kataloog.ee/ettevote')).toBe(false)
+  })
+
+  it('adds the truthful pricing sentence and selected closing to every generated draft', () => {
+    const draft = finalizeGeneratedLeadDraft(
+      'Tere!\n\nNägin, et võtate tellimusi Instagramis.\n\nKas soovid rohkem infot?',
+    )
+    expect(draft).toContain(`\n\n${leadPricingSentence}\n\n`)
+    expect(draft).toMatch(new RegExp(`${leadClosingQuestion.replace('?', '\\?')}$`))
+    expect(draft).not.toContain('Kas soovid rohkem infot?')
+  })
+
+  it('does not duplicate mandatory generated-draft paragraphs', () => {
+    const draft = finalizeGeneratedLeadDraft(
+      `Tere!\n\n${leadPricingSentence}\n\n${leadClosingQuestion}`,
+    )
+    expect(draft.match(/Paindlikul paketil kuutasu ei ole/g)).toHaveLength(1)
+    expect(draft.match(/Kas selline lahendus võiks/g)).toHaveLength(1)
   })
 })

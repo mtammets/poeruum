@@ -51,6 +51,29 @@ export const multilineValue = (value: unknown, max: number) => String(value ?? '
   .trim()
   .slice(0, max)
 
+export const leadPricingSentence = 'Paindlikul paketil kuutasu ei ole – Poeruumi tasu tekib ainult siis, kui poe kaudu müük toimub.'
+export const leadClosingQuestion = 'Kas selline lahendus võiks sinu ettevõttele sobida?'
+
+export const finalizeGeneratedLeadDraft = (value: unknown) => {
+  const raw = multilineValue(value, 5000)
+  if (!raw) return ''
+
+  const paragraphs = multilineValue(
+    raw
+      .replaceAll(leadPricingSentence, '')
+      .replaceAll(leadClosingQuestion, ''),
+    5000,
+  ).split(/\n{2,}/).filter(Boolean)
+  const lastParagraph = paragraphs.at(-1)
+  if (paragraphs.length > 1 && lastParagraph?.endsWith('?')) paragraphs.pop()
+
+  return [
+    paragraphs.join('\n\n').trim(),
+    leadPricingSentence,
+    leadClosingQuestion,
+  ].filter(Boolean).join('\n\n').slice(0, 5000)
+}
+
 export const normalizeEmail = (value: unknown) => {
   const email = String(value ?? '').trim().toLowerCase()
   return emailPattern.test(email) && email.length <= 320 ? email : null
