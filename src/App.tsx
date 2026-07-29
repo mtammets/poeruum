@@ -3066,7 +3066,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <button className="login-forgot-password" type="button" onClick={requestLoginPasswordReset}>Unustasid parooli?</button>
               <Turnstile key={`owner-login-${loginCaptchaResetKey}`} action="login" onToken={setLoginCaptchaToken} />
               {loginRecoveryMessage && <p className="login-recovery-message" role="status">{loginRecoveryMessage}</p>}
-              <button type="submit" disabled={isOwnerLoginBusy || (isCaptchaConfigured && !loginCaptchaToken)}>{isOwnerLoginBusy ? 'Login sisse…' : 'Logi sisse'}</button>
+              <button type="submit" disabled={isOwnerLoginBusy}>{isOwnerLoginBusy ? 'Login sisse…' : 'Logi sisse'}</button>
             </form>
           </section>
         </div>

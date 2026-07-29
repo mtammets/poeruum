@@ -69,7 +69,7 @@ test('landing page opens and login navigation works', async ({ page }) => {
   await expect(page.getByLabel('E-posti aadress')).toBeVisible()
   await expect(page.getByLabel('Parool')).toBeVisible()
   const submitButton = page.getByRole('button', { name: /Jätka oma poega/ })
-  await expect(submitButton).toBeDisabled()
+  await expect(submitButton).toBeEnabled()
   expect(await page.evaluate(() => {
     const turnstileWindow = window as typeof window & {
       __turnstileOptions?: Record<string, unknown>
@@ -77,13 +77,20 @@ test('landing page opens and login navigation works', async ({ page }) => {
     return {
       appearance: turnstileWindow.__turnstileOptions?.appearance,
       language: turnstileWindow.__turnstileOptions?.language,
+      retry: turnstileWindow.__turnstileOptions?.retry,
+      retryInterval: turnstileWindow.__turnstileOptions?.['retry-interval'],
     }
-  })).toEqual({ appearance: 'interaction-only', language: 'auto' })
+  })).toEqual({ appearance: 'always', language: 'auto', retry: 'auto', retryInterval: 4000 })
+  await page.getByLabel('E-posti aadress').fill('test@example.com')
+  await page.getByLabel('Parool').fill('test-password')
+  await submitButton.click()
+  await expect(page.getByRole('alert')).toHaveText('Kinnita enne jätkamist, et sa ei ole robot.')
   await page.evaluate(() => {
     const turnstileWindow = window as typeof window & { __completeTurnstile?: () => void }
     turnstileWindow.__completeTurnstile?.()
   })
   await expect(submitButton).toBeEnabled()
+  await expect(page.getByRole('alert')).toHaveCount(0)
   expect(pageErrors).toEqual([])
 })
 

@@ -282,7 +282,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
         <label>Parool<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
         <Turnstile key={`admin-login-${captchaResetKey}`} action="admin_login" onToken={setCaptchaToken} />
         {error && <p className="admin-auth__error" role="alert">{error}</p>}
-        <button type="submit" disabled={isBusy || (isCaptchaConfigured && !captchaToken)}>{isBusy ? 'Login sisse…' : 'Logi sisse'}<span aria-hidden="true">→</span></button>
+        <button type="submit" disabled={isBusy}>{isBusy ? 'Login sisse…' : 'Logi sisse'}<span aria-hidden="true">→</span></button>
       </form>
       <small>Ligipääs on ainult Poeruumi administraatoritele.</small>
     </section>

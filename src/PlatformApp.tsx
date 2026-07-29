@@ -1241,7 +1241,7 @@ function PlatformFlow() {
             </div>}
             {authError && !needsEmailConfirmation && <p className="add-product-error" role="alert">{authError}</p>}
             {authNotice && !needsEmailConfirmation && <p className="auth-notice" role="status">{authNotice}</p>}
-            <button type="submit" disabled={isAuthBusy || !isCaptchaReady}>{isAuthBusy ? 'Login sisse…' : 'Jätka oma poega'} <span>→</span></button>
+            <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Login sisse…' : 'Jätka oma poega'} <span>→</span></button>
           </form>
           <div className="auth-switch"><span>Pole veel kontot?</span><button type="button" onClick={() => setScreen('account')}>Loo pood</button></div>
           <small>Turvaline sisselogimine. Sinu andmed on kaitstud.</small>
