@@ -471,6 +471,9 @@
 }
 
 @media (max-width: 680px) {
+  .admin-shell input:not([type="checkbox"]):not([type="radio"]),
+  .admin-shell textarea,
+  .admin-shell select { font-size: 16px !important; }
   .admin-shell { display: block; }
   .admin-sidebar { position: sticky; z-index: 20; top: 0; flex-direction: row; width: 100%; height: auto; padding: max(.65rem, env(safe-area-inset-top)) .85rem .65rem; border-right: 0; border-bottom: 1px solid #dde0d8; background: #fbfcf8ee; backdrop-filter: blur(18px); }
   .admin-sidebar > a { display: flex; align-self: center; line-height: 0; }
