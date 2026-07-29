@@ -5,7 +5,7 @@ import {
 } from '../../supabase/functions/_shared/lead-email'
 
 const input = {
-  body: 'Tere!\n\nMärkasin, et võtate keraamika tellimusi Instagrami kaudu.\n\nKas soovid, et teeksin ühe näidisvaate?',
+  body: 'Tere!\n\nMärkasin, et võtate keraamika tellimusi Instagrami kaudu.\n\nKas selline lahendus võiks sinu ettevõttele sobida?',
   senderName: 'Marek',
 }
 
