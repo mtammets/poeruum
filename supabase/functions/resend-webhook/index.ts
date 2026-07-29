@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { Resend } from 'npm:resend@^6.18.0'
+import { isLeadOptOutReply } from '../_shared/lead-email.ts'
 import { captureEdgeError } from '../_shared/security.ts'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -72,26 +73,44 @@ const normalizeEmail = (value: unknown) => {
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-const markLeadReply = async (admin: AdminClient, sender: string, receivedAt: string) => {
-  const { data, error } = await admin.from('sales_leads')
+const markLeadReply = async (admin: AdminClient, sender: string, receivedAt: string, body: string) => {
+  const optedOut = isLeadOptOutReply(body)
+  let leadQuery = admin.from('sales_leads')
     .select('id')
     .eq('contact_email', sender)
-    .eq('status', 'sent')
     .order('sent_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
+  leadQuery = optedOut
+    ? leadQuery.in('status', ['sent', 'replied'])
+    : leadQuery.eq('status', 'sent')
+  const { data, error } = await leadQuery.maybeSingle()
   if (error) throw error
   if (!data?.id) return
 
-  const { error: updateError } = await admin.from('sales_leads').update({
+  if (optedOut) {
+    const { error: suppressionError } = await admin.from('lead_suppressions').upsert({
+      email: sender,
+      reason: 'unsubscribed',
+      lead_id: data.id,
+      source: 'resend_inbound_reply',
+    }, { onConflict: 'email' })
+    if (suppressionError) throw suppressionError
+  }
+
+  const { error: updateError } = await admin.from('sales_leads').update(optedOut ? {
+    status: 'unsubscribed',
+    replied_at: receivedAt,
+    suppressed_at: receivedAt,
+    suppression_reason: 'unsubscribed',
+  } : {
     status: 'replied',
     replied_at: receivedAt,
-  }).eq('id', data.id).eq('status', 'sent')
+  }).eq('id', data.id)
   if (updateError) throw updateError
   const { error: eventError } = await admin.from('lead_events').insert({
     lead_id: data.id,
-    event_type: 'replied',
-    details: { source: 'resend_inbound' },
+    event_type: optedOut ? 'unsubscribed' : 'replied',
+    details: { source: optedOut ? 'resend_inbound_reply' : 'resend_inbound' },
   })
   if (eventError) throw eventError
 }
@@ -478,7 +497,7 @@ Deno.serve(async (request) => {
         throw error
       }
 
-      await markLeadReply(admin, sender, event.created_at ?? new Date().toISOString())
+      await markLeadReply(admin, sender, event.created_at ?? new Date().toISOString(), body)
       await sendNewConversationNotification({
         apiKey,
         sender,

@@ -76,7 +76,7 @@ Kui Supabase, Resend ja nende webhook on juba seadistatud, lisa lokaalsesse `.en
 OPENAI_API_KEY=sk-...
 ```
 
-Valikulised seaded on `OPENAI_LEAD_MODEL` (vaikimisi tasakaalustatud ja kiire `gpt-5.6-terra`), `OUTREACH_SENDER_NAME`, `OUTREACH_FROM_EMAIL`, `OUTREACH_REPLY_TO` ja `OUTREACH_DAILY_SEND_LIMIT` (vaikimisi 20). Saatja domeen peab olema Resendis kinnitatud. Funktsioon kasutab ka olemasolevaid `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `APP_URL`, `RATE_LIMIT_SALT`, `POERUUM_SUPABASE_PUBLISHABLE_KEY` ja `POERUUM_SUPABASE_SECRET_KEY` väärtusi.
+Valikulised seaded on `OPENAI_LEAD_MODEL` (vaikimisi tasakaalustatud ja kiire `gpt-5.6-terra`), `OUTREACH_SENDER_NAME`, `OUTREACH_FROM_EMAIL`, `OUTREACH_REPLY_TO` ja `OUTREACH_DAILY_SEND_LIMIT` (vaikimisi 20). Vaikimisi kuvatakse saatjana `Marek Tammets | Poeruum`; saatja domeen peab olema Resendis kinnitatud. Funktsioon kasutab ka olemasolevaid `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `APP_URL`, `RATE_LIMIT_SALT`, `POERUUM_SUPABASE_PUBLISHABLE_KEY` ja `POERUUM_SUPABASE_SECRET_KEY` väärtusi.
 
 Pärast võtme lisamist teeb üks käsk kõik ülejäänu: sünkroonib kliendiotsingu seaded Supabase Edge Functionite secret’ideks, rakendab migratsioonid ning paigaldab kliendiotsingu, loobumise, Resendi webhooki ja säilitustähtaja funktsioonid.
 
@@ -84,7 +84,7 @@ Pärast võtme lisamist teeb üks käsk kõik ülejäänu: sünkroonib kliendiot
 npm run supabase:leads:deploy
 ```
 
-Resendi webhook peab kuulama vähemalt sündmusi `email.sent`, `email.delivered`, `email.failed`, `email.bounced`, `email.complained` ja `email.received`. Bounce ja kaebus lisavad aadressi automaatselt blokeerimisnimekirja; vastus märgitakse administraatori vaates.
+Resendi webhook peab kuulama vähemalt sündmusi `email.sent`, `email.delivered`, `email.failed`, `email.bounced`, `email.complained` ja `email.received`. Bounce ja kaebus lisavad aadressi automaatselt blokeerimisnimekirja; tavaline vastus märgitakse administraatori vaates ning selge vastus „ei soovi” lisab aadressi automaatselt blokeerimisnimekirja.
 
 Checkout kasutab kliendi päringu ID-d, Stripe’i idempotentsusvõtit ja atomaarset 30-minutilist laoreservatsiooni. Stripe’i aegumise või makse ebaõnnestumise webhook vabastab kauba; viieminutiline varukoristaja kontrollib aegunud reserveeringu Stripe’i sessiooni enne vabastamist ning asünkroonse pangamakse puhul hoitakse reserveeringut lõpliku succeeded/failed sündmuseni. Paindliku paketi 39 € neto-kuulimiit reserveeritakse samas poe-põhises andmebaasitehingus kui laoseis, mistõttu paralleelsed checkout’id ei saa limiiti ületada. Õnnestunud makse järel loetakse Stripe’i tegelik töötlemistasu ja müüjale tehakse eraldi ülekanne summas `ostusumma − Stripe’i tasu − Poeruumi teenustasu`. Ostjale eraldi maksetasu ei lisata.
 
