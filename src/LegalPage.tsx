@@ -150,6 +150,7 @@ function Privacy() {
         <li><strong>Tellimuse andmed:</strong> ostja nimi ja kontaktandmed, tarne- või pakiautomaadi valik, aadress, ostukorv, summad ning tellimuse ja makse olek.</li>
         <li><strong>Toeandmed:</strong> tugivestlused, manused, vastused ning tõrke lahendamiseks vajalik lehe aadress ja brauseri tehniline teave.</li>
         <li><strong>Ettevõtetele suunatud kliendiotsingu andmed:</strong> ettevõtte avalik nimi, veebileht, üldpostkast, kontakti avalik allikas, sobivuse põhjendus, kirjamustand ning kirja saatmise, kättetoimetamise, vastamise ja loobumise olek. Inimese isiklikke aadresse ei kasutata selleks töövooks teadlikult.</li>
+        <li><strong>Avalehe koondstatistika:</strong> juhuslik lehesessiooni tunnus, nimetatud tegevus, viitava veebilehe domeen, kampaaniamärgendid ja üldine seadmeklass. Tunnus tekib lehe avamisel, püsib ainult avatud lehe mälus ning seda ei seota konto, e-posti ega muu kasutajaprofiiliga. Täielikku viitaja URL-i ega IP-aadressi analüütikasündmuse juures ei salvestata.</li>
         <li><strong>Tehnilised andmed:</strong> IP-aadress, seadme ja brauseri andmed, ajatemplid, turva- ja vealogid ning DNS-i ja TLS-i kontrolli tulemused.</li>
       </ul>
     </section>
@@ -159,7 +160,7 @@ function Privacy() {
       <ul>
         <li><strong>Lepingu täitmine:</strong> konto ja poe loomine, majutamine, tellimuste edastamine, maksete ja pakettide haldus, domeeni ühendamine ning kasutajatugi.</li>
         <li><strong>Seadusest tulenev kohustus:</strong> raamatupidamis-, maksu-, pettuse tõkestamise ja õigustatud päringute täitmine.</li>
-        <li><strong>Õigustatud huvi:</strong> teenuse turvalisus, väärkasutuse ennetamine, tõrkeotsing, nõuete kaitsmine ning kasutajale teenusega seotud oluliste teadete saatmine. Enne töötlemist kaalutakse Poeruumi huvi ja inimese õigusi.</li>
+        <li><strong>Õigustatud huvi:</strong> teenuse turvalisus, väärkasutuse ennetamine, tõrkeotsing, avalehe koondkasutuse mõõtmine ja parandamine, nõuete kaitsmine ning kasutajale teenusega seotud oluliste teadete saatmine. Enne töötlemist kaalutakse Poeruumi huvi ja inimese õigusi.</li>
         <li><strong>Õigustatud huvi ettevõtete kliendiotsingul:</strong> Poeruumi tutvustamine ettevõtetele avalike ettevõtteandmete ja üldpostkastide kaudu. Kandidaadid ning kirjad vaatab enne saatmist üle administraator, igas kirjas selgitatakse kontakti allikat ja pakutakse lihtsat tasuta loobumist.</li>
         <li><strong>Nõusolek:</strong> ainult siis, kui küsime seda eraldi vabatahtliku funktsiooni, turunduse või mittevajaliku küpsise jaoks. Nõusoleku saab igal ajal tagasi võtta.</li>
       </ul>
@@ -196,6 +197,7 @@ function Privacy() {
         <li><strong>Tehinguliste e-kirjade kättetoimetamislogid:</strong> kuni 90 päeva; konto omaniku aadressiga seotud logid kustutatakse konto kustutamisel.</li>
         <li><strong>Ettevõtete kliendiotsing:</strong> saatmata kandidaadid ja veebiuuringu tehnilised kirjed kuni 90 päeva; ettevõtted, kellele kiri saadeti, kuni 12 kuud viimasest tegevusest. Loobunud, rämpspostikaebuse esitanud või püsivalt mittetoimiva aadressi minimaalne blokeerimiskirje võib säilida kauem üksnes selleks, et uut kirja mitte saata.</li>
         <li><strong>Webhook’i duplikaadikaitse:</strong> Stripe’i tehnilised sündmusetunnused kuni 90 päeva ja Resendi sündmusetunnused kuni 30 päeva.</li>
+        <li><strong>Avalehe koondstatistika:</strong> sündmused kuni 90 päeva. Juhuslik lehesessiooni tunnus ei püsi brauseris pärast lehe uuesti laadimist ja seda ei seota kontoga.</li>
         <li><strong>Turva- ja vealogid:</strong> rakenduse veasündmused kuni 30 päeva. Päringumahu piiramiseks kasutatav IP-aadress salvestatakse ainult pöördumatu soolatud räsi ning lühiajalise loendurina, mis kustub hiljemalt viie minuti jooksul pärast piiranguakna lõppu.</li>
         <li><strong>Aktiivsuse olek:</strong> kuni 24 tundi pärast viimast signaali.</li>
       </ul>
@@ -204,7 +206,7 @@ function Privacy() {
 
     <section>
       <h2>7. Küpsised ja kohalik salvestus</h2>
-      <p>Poeruum kasutab sisselogimise, turvalisuse, ostukorvi ja kasutaja valikute säilitamiseks hädavajalikku brauseri salvestusruumi ning teenusepakkujate tehnilisi küpsiseid. Hädavajalik salvestus ei vaja nõusolekut. Kui lisame analüütika- või turundusküpsised, küsime enne nende kasutamist eraldi nõusoleku.</p>
+      <p>Poeruum kasutab sisselogimise, turvalisuse, ostukorvi ja kasutaja valikute säilitamiseks hädavajalikku brauseri salvestusruumi ning teenusepakkujate tehnilisi küpsiseid. Hädavajalik salvestus ei vaja nõusolekut. Avalehe koondstatistika ei kasuta küpsiseid ega kohalikku salvestusruumi: juhuslik tunnus elab ainult avatud lehe mälus. Kui lisame analüütika- või turundusküpsised, küsime enne nende kasutamist eraldi nõusoleku.</p>
     </section>
 
     <section>

@@ -45,7 +45,7 @@ const isRemovedAdminHomepagePath = isPlatformSurface && /^\/admin\/homepage\/?$/
 if (isRemovedAdminHomepagePath) {
   window.history.replaceState({}, '', `/admin${window.location.search}${window.location.hash}`)
 }
-const isAdminPath = isPlatformSurface && /^\/admin(?:\/(?:seo|leads|users|support))?\/?$/i.test(window.location.pathname)
+const isAdminPath = isPlatformSurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support))?\/?$/i.test(window.location.pathname)
 const isOutreachUnsubscribePath = isPlatformSurface && /^\/loobu\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformSurface
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)

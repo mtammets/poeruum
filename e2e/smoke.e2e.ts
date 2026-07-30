@@ -159,6 +159,13 @@ test('admin route fails closed when backend configuration is absent', async ({ p
   })
 })
 
+test('analytics admin route is protected by the admin shell', async ({ page }) => {
+  await page.goto('/admin/analytics')
+  await expect(page).toHaveURL(/\/admin\/analytics$/)
+  await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
+  await expect(page.getByText('SEADISTUS PUUDUB')).toBeVisible()
+})
+
 test('removed admin homepage route returns to the overview', async ({ page }) => {
   await page.goto('/admin/homepage')
   await expect(page).toHaveURL(/\/admin$/)

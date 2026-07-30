@@ -6,6 +6,7 @@ import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getStoreDestination, type OnboardingStep } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
+import { isHomepageAnalyticsLocation, trackHomepageEvent } from './lib/homepageAnalytics'
 import { products as bundledProducts, type Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { createRandomId } from './lib/randomId'
@@ -183,6 +184,7 @@ function PlatformFlow() {
   const [showAllFaq, setShowAllFaq] = useState(false)
   const [email, setEmail] = useState('')
   const [onlineUserId, setOnlineUserId] = useState<string | null>(null)
+  const [isAuthResolved, setIsAuthResolved] = useState(!isSupabaseConfigured)
   const onlinePresenceSessionIdRef = useRef(createRandomId())
   const [storeName, setStoreName] = useState('')
   const [slug, setSlug] = useState('')
@@ -246,6 +248,27 @@ function PlatformFlow() {
     if (screen !== 'business' || !email) return
     setBusinessEmail((currentEmail) => currentEmail || email)
   }, [screen, email])
+
+  useEffect(() => {
+    if (!isAuthResolved || screen !== 'landing' || !isHomepageAnalyticsLocation(window.location)) return
+    const audience = onlineUserId ? 'merchant' : 'anonymous'
+    trackHomepageEvent('page_view', '', audience)
+    if (!('IntersectionObserver' in window)) return
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        const label = entry.target.id === 'hind' ? 'pricing' : entry.target.id === 'kkk' ? 'faq' : ''
+        if (label) trackHomepageEvent('section_view', label, audience)
+        observer.unobserve(entry.target)
+      }
+    }, { threshold: 0.35 })
+    for (const selector of ['#hind', '#kkk']) {
+      const section = document.querySelector(selector)
+      if (section) observer.observe(section)
+    }
+    return () => observer.disconnect()
+  }, [isAuthResolved, onlineUserId, screen])
 
   const isCaptchaReady = !isCaptchaConfigured || Boolean(captchaToken)
   const handleCaptchaToken = (token: string) => {
@@ -547,7 +570,9 @@ function PlatformFlow() {
       // Keep the loaded store in memory after sign-out so the merchant can
       // continue viewing it as a customer. Account deletion clears it explicitly.
     })
-    restore().catch((error) => active && setAuthError(error instanceof Error ? error.message : 'Andmete laadimine ebaõnnestus.'))
+    restore()
+      .catch((error) => active && setAuthError(error instanceof Error ? error.message : 'Andmete laadimine ebaõnnestus.'))
+      .finally(() => { if (active) setIsAuthResolved(true) })
     return () => { active = false; data.subscription.unsubscribe() }
   }, [])
 
@@ -672,6 +697,7 @@ function PlatformFlow() {
         options: { emailRedirectTo: window.location.origin, captchaToken: captchaToken || undefined },
       })
       if (error) throw error
+      trackHomepageEvent('account_created')
       setEmail(normalizedEmail)
       if (!data.session) {
         setNeedsEmailConfirmation(true)
@@ -989,13 +1015,25 @@ function PlatformFlow() {
     }
   }
 
-  const startOrResumeMerchantFlow = (plan?: PricingPlan) => {
+  const startOrResumeMerchantFlow = (plan?: PricingPlan, placement: 'hero' | 'nav' | 'mobile_nav' = 'hero') => {
     if (onlineUserId) {
       resumeMerchantFlow()
       return
     }
+    trackHomepageEvent('signup_start', plan ? `pricing_${plan}` : placement)
     if (plan) selectPricingPlan(plan)
     setScreen('account')
+  }
+
+  const openSampleStore = (placement: 'nav' | 'mobile_nav' | 'phone') => {
+    trackHomepageEvent('demo_open', placement, onlineUserId ? 'merchant' : 'anonymous')
+    setScreen('sample')
+  }
+
+  const trackFaqToggle = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+    if (!event.currentTarget.open || !event.nativeEvent.isTrusted) return
+    const label = event.currentTarget.dataset.analyticsLabel
+    if (label) trackHomepageEvent('faq_open', label, onlineUserId ? 'merchant' : 'anonymous')
   }
 
   const returnNotice = authNotice ? <div className="app-return-notice" role="status" aria-live="polite">
@@ -1069,7 +1107,7 @@ function PlatformFlow() {
     <nav><Brand /><div ref={mobileNavRef} className="platform-nav-actions">
       <a className="platform-nav-link" href="#hind">Hind</a>
       <a className="platform-nav-link" href="#kkk">KKK</a>
-      <button className="platform-nav-link" onClick={() => setScreen('sample')}>Vaata näidispoodi</button>
+      <button className="platform-nav-link" onClick={() => openSampleStore('nav')}>Vaata näidispoodi</button>
       {onlineUserId
         ? <>
           <button className="platform-nav-link platform-nav-login" type="button" onClick={() => void signOutFromLanding()} disabled={isAuthBusy}>{isAuthBusy ? 'Login välja…' : 'Logi välja'}</button>
@@ -1077,7 +1115,7 @@ function PlatformFlow() {
         </>
         : <>
           <button className="platform-nav-link platform-nav-login" onClick={() => setScreen('login')}>Logi sisse</button>
-          <button className="platform-nav-cta" onClick={() => setScreen('account')}>Loo pood</button>
+          <button className="platform-nav-cta" onClick={() => startOrResumeMerchantFlow(undefined, 'nav')}>Loo pood</button>
         </>}
       <button className="platform-mobile-menu-toggle" type="button" aria-label={isMobileNavOpen ? 'Sulge menüü' : 'Ava menüü'} aria-expanded={isMobileNavOpen} onClick={() => setIsMobileNavOpen((open) => !open)}>
         {isMobileNavOpen
@@ -1087,7 +1125,7 @@ function PlatformFlow() {
       {isMobileNavOpen && <div className="platform-mobile-menu">
         <a href="#hind" onClick={() => setIsMobileNavOpen(false)}><span>Hind</span><b>→</b></a>
         <a href="#kkk" onClick={() => setIsMobileNavOpen(false)}><span>KKK</span><b>→</b></a>
-        <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('sample') }}><span>Näidispood</span><b>→</b></button>
+        <button type="button" onClick={() => { setIsMobileNavOpen(false); openSampleStore('mobile_nav') }}><span>Näidispood</span><b>→</b></button>
         {onlineUserId
           ? <>
             <button type="button" onClick={resumeMerchantFlow}><span>Minu pood</span><b>→</b></button>
@@ -1095,7 +1133,7 @@ function PlatformFlow() {
           </>
           : <>
             <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('login') }}><span>Logi sisse</span><b>→</b></button>
-            <button type="button" onClick={() => { setIsMobileNavOpen(false); setScreen('account') }}><span>Loo pood</span><b>→</b></button>
+            <button type="button" onClick={() => { setIsMobileNavOpen(false); startOrResumeMerchantFlow(undefined, 'mobile_nav') }}><span>Loo pood</span><b>→</b></button>
           </>}
       </div>}
     </div></nav>
@@ -1108,7 +1146,7 @@ function PlatformFlow() {
         <button onClick={() => startOrResumeMerchantFlow()}>{onlineUserId ? 'Jätka oma poega' : 'Alusta tasuta'} <span>→</span></button>
       </div>
       <div className="platform-phone-stage">
-        <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => setScreen('sample')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScreen('sample') } }}>
+        <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => openSampleStore('phone')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSampleStore('phone') } }}>
           <div className="platform-phone__screen"><div className="platform-phone__journey">
             <section className="platform-phone__story">
               {phoneProduct
@@ -1191,21 +1229,21 @@ function PlatformFlow() {
         <h2>KKK</h2>
       </header>
       <div className="platform-faq__list">
-        <details open><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Valida saad kahe paketi vahel. Paindlikul paketil kuutasu ei ole: Poeruumi teenustasu on {formatPricingPercent(PLATFORM_FEE_RATE)} toodete müügisummalt + käibemaks ehk kokku {formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))}. Tasu ei arvestata tarnelt ja see ei ületa {formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus koos käibemaksuga. Kui müüki ei ole, on Poeruumi tasu 0 €. Kindel pakett algab 30-päevase tasuta prooviperioodiga ja maksab seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga; Poeruumi müügitasu selle paketiga ei ole. Stripe’i maksetöötlustasu lisandub mõlemas paketis.</p></details>
-        <details><summary>Kas paketid erinevad võimaluste poolest?<span>+</span></summary><p>Ei. Mõlemas paketis saad kasutada Poeruumi põhivõimalusi, sealhulgas oma domeeni. Erineb ainult hinnastamise viis: Paindlik pakett sobib müügipõhise tasuga alustamiseks ja Kindel pakett püsiva kuutasu eelistajale.</p></details>
-        <details><summary>Mida vajan poe avamiseks?<span>+</span></summary><p>Vajad Poeruumi kontot, ettevõtte kontakt- ja registriandmeid, vähemalt üht toodet, valitud tarneviisi ning ühendatud Stripe’i kontot. Poe saad enne avaldamist rahulikult valmis seadistada ja üle vaadata.</p></details>
-        <details><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Pärast Stripe’i ühendamist saavad ostjad maksta Stripe’i turvalisel makselehel pangakaardiga ning sobivas seadmes Apple Pay või Google Payga. Poeruum ei salvesta ostjate kaardiandmeid.</p></details>
-        <details><summary>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Saad pakkuda Omniva, DPD ja SmartPosti pakiautomaate, kullerit ning ise järele tulemist. Sina valid kasutatavad tarneviisid, hinnad ja tasuta tarne piiri. Ostja valib kassas sobiva pakiautomaadi; paki saatmise korraldad sina.</p></details>
-        <details><summary>Kas saan kasutada oma domeeni?<span>+</span></summary><p>Jah. Poeruum annab poele automaatselt aadressi kujul poenimi.poeruum.ee, kuid soovi korral saad ühendada juba olemasoleva domeeni. Poeruum selle eest lisatasu ei küsi; domeeni teenusepakkuja tasu jääb sulle.</p></details>
-        <details><summary>Kas minu pood ja tooted on Google’is leitavad?<span>+</span></summary><p>Jah. Poeruum hoolitseb automaatselt selle eest, et avaldatud pood ja otsingus nähtavad tooted oleksid Google’ile leitavad. Iga poe ja toote jaoks luuakse otsingusõbralik aadress, pealkiri, kirjeldus ning Google’ile vajalik tehniline info. Sina saad nähtavust parandada täpsete tootenimede, sisukate kirjelduste ja kvaliteetsete piltidega. Kõik see toimib ka oma domeeni kasutamisel.</p></details>
+        <details open data-analytics-label="pricing" onToggle={trackFaqToggle}><summary>Kui palju Poeruum maksab?<span>+</span></summary><p>Valida saad kahe paketi vahel. Paindlikul paketil kuutasu ei ole: Poeruumi teenustasu on {formatPricingPercent(PLATFORM_FEE_RATE)} toodete müügisummalt + käibemaks ehk kokku {formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))}. Tasu ei arvestata tarnelt ja see ei ületa {formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus koos käibemaksuga. Kui müüki ei ole, on Poeruumi tasu 0 €. Kindel pakett algab 30-päevase tasuta prooviperioodiga ja maksab seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga; Poeruumi müügitasu selle paketiga ei ole. Stripe’i maksetöötlustasu lisandub mõlemas paketis.</p></details>
+        <details data-analytics-label="plan_features" onToggle={trackFaqToggle}><summary>Kas paketid erinevad võimaluste poolest?<span>+</span></summary><p>Ei. Mõlemas paketis saad kasutada Poeruumi põhivõimalusi, sealhulgas oma domeeni. Erineb ainult hinnastamise viis: Paindlik pakett sobib müügipõhise tasuga alustamiseks ja Kindel pakett püsiva kuutasu eelistajale.</p></details>
+        <details data-analytics-label="requirements" onToggle={trackFaqToggle}><summary>Mida vajan poe avamiseks?<span>+</span></summary><p>Vajad Poeruumi kontot, ettevõtte kontakt- ja registriandmeid, vähemalt üht toodet, valitud tarneviisi ning ühendatud Stripe’i kontot. Poe saad enne avaldamist rahulikult valmis seadistada ja üle vaadata.</p></details>
+        <details data-analytics-label="payments" onToggle={trackFaqToggle}><summary>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Pärast Stripe’i ühendamist saavad ostjad maksta Stripe’i turvalisel makselehel pangakaardiga ning sobivas seadmes Apple Pay või Google Payga. Poeruum ei salvesta ostjate kaardiandmeid.</p></details>
+        <details data-analytics-label="shipping" onToggle={trackFaqToggle}><summary>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Saad pakkuda Omniva, DPD ja SmartPosti pakiautomaate, kullerit ning ise järele tulemist. Sina valid kasutatavad tarneviisid, hinnad ja tasuta tarne piiri. Ostja valib kassas sobiva pakiautomaadi; paki saatmise korraldad sina.</p></details>
+        <details data-analytics-label="custom_domain" onToggle={trackFaqToggle}><summary>Kas saan kasutada oma domeeni?<span>+</span></summary><p>Jah. Poeruum annab poele automaatselt aadressi kujul poenimi.poeruum.ee, kuid soovi korral saad ühendada juba olemasoleva domeeni. Poeruum selle eest lisatasu ei küsi; domeeni teenusepakkuja tasu jääb sulle.</p></details>
+        <details data-analytics-label="google" onToggle={trackFaqToggle}><summary>Kas minu pood ja tooted on Google’is leitavad?<span>+</span></summary><p>Jah. Poeruum hoolitseb automaatselt selle eest, et avaldatud pood ja otsingus nähtavad tooted oleksid Google’ile leitavad. Iga poe ja toote jaoks luuakse otsingusõbralik aadress, pealkiri, kirjeldus ning Google’ile vajalik tehniline info. Sina saad nähtavust parandada täpsete tootenimede, sisukate kirjelduste ja kvaliteetsete piltidega. Kõik see toimib ka oma domeeni kasutamisel.</p></details>
         <div className="platform-faq__more" id="faq-more" hidden={!showAllFaq}>
-          <details><summary>Kas saan kogu poe telefonis valmis teha?<span>+</span></summary><p>Jah. Telefonis saad luua konto, pildistada ja lisada tooted, määrata hinnad, seadistada tarne, kujundada poe ning selle avaldada.</p></details>
-          <details><summary>Kas ostjal peab olema Poeruumi konto?<span>+</span></summary><p>Ei. Ostja lisab kassas kontakt- ja tarneandmed, tasub Stripe’is ning saab tellimuse kinnituse e-postile.</p></details>
-          <details><summary>Kuidas saan tellimusest teada ja millal raha laekub?<span>+</span></summary><p>Pärast kinnitatud makset ilmub tellimus poe haldusesse ja soovi korral saadetakse sulle e-kiri. Ostjale saadetakse tellimuse kinnitus. Makset töötleb Stripe ning raha jõuab sinu pangakontole Stripe’i väljamaksegraafiku järgi.</p></details>
-          <details><summary>Kas saan ostjale makse tagastada?<span>+</span></summary><p>Jah. Stripe’iga tasutud tellimuse makse saad tellimuste vaates täielikult tagastada. Kauba tagastamise ja kliendisuhtluse korraldad oma müügitingimuste järgi.</p></details>
-          <details><summary>Kui palju saan poe kujundust muuta?<span>+</span></summary><p>Poe ilme saad kohandada oma brändile sobivaks. Näiteks saad valida kujunduse ja värvid, lisada logo, muuta nuppude ja soodushindade välimust ning lisada teateriba. Valikuid saad hiljem alati muuta.</p></details>
-          <details><summary>Kas saan paketti hiljem vahetada?<span>+</span></summary><p>Jah. Paindlikult paketilt saad Kindlale üle minna poe halduses. Kindlalt paketilt Paindlikule minnes jääb senine pakett kehtima Stripe’is näidatud perioodi lõpuni ja seejärel rakendub Paindlik pakett.</p></details>
-          <details><summary>Kust saan abi?<span>+</span></summary><p>Pärast sisselogimist saad küsimuse saata Abi-nupu kaudu. Vastuseid ja varasemat vestlust näed samas kohas ning vastus saadetakse ka sinu konto e-postile.</p></details>
+          <details data-analytics-label="mobile_setup" onToggle={trackFaqToggle}><summary>Kas saan kogu poe telefonis valmis teha?<span>+</span></summary><p>Jah. Telefonis saad luua konto, pildistada ja lisada tooted, määrata hinnad, seadistada tarne, kujundada poe ning selle avaldada.</p></details>
+          <details data-analytics-label="buyer_account" onToggle={trackFaqToggle}><summary>Kas ostjal peab olema Poeruumi konto?<span>+</span></summary><p>Ei. Ostja lisab kassas kontakt- ja tarneandmed, tasub Stripe’is ning saab tellimuse kinnituse e-postile.</p></details>
+          <details data-analytics-label="order_notice" onToggle={trackFaqToggle}><summary>Kuidas saan tellimusest teada ja millal raha laekub?<span>+</span></summary><p>Pärast kinnitatud makset ilmub tellimus poe haldusesse ja soovi korral saadetakse sulle e-kiri. Ostjale saadetakse tellimuse kinnitus. Makset töötleb Stripe ning raha jõuab sinu pangakontole Stripe’i väljamaksegraafiku järgi.</p></details>
+          <details data-analytics-label="refunds" onToggle={trackFaqToggle}><summary>Kas saan ostjale makse tagastada?<span>+</span></summary><p>Jah. Stripe’iga tasutud tellimuse makse saad tellimuste vaates täielikult tagastada. Kauba tagastamise ja kliendisuhtluse korraldad oma müügitingimuste järgi.</p></details>
+          <details data-analytics-label="design" onToggle={trackFaqToggle}><summary>Kui palju saan poe kujundust muuta?<span>+</span></summary><p>Poe ilme saad kohandada oma brändile sobivaks. Näiteks saad valida kujunduse ja värvid, lisada logo, muuta nuppude ja soodushindade välimust ning lisada teateriba. Valikuid saad hiljem alati muuta.</p></details>
+          <details data-analytics-label="change_plan" onToggle={trackFaqToggle}><summary>Kas saan paketti hiljem vahetada?<span>+</span></summary><p>Jah. Paindlikult paketilt saad Kindlale üle minna poe halduses. Kindlalt paketilt Paindlikule minnes jääb senine pakett kehtima Stripe’is näidatud perioodi lõpuni ja seejärel rakendub Paindlik pakett.</p></details>
+          <details data-analytics-label="support" onToggle={trackFaqToggle}><summary>Kust saan abi?<span>+</span></summary><p>Pärast sisselogimist saad küsimuse saata Abi-nupu kaudu. Vastuseid ja varasemat vestlust näed samas kohas ning vastus saadetakse ka sinu konto e-postile.</p></details>
         </div>
         <button className="platform-faq__toggle" type="button" aria-expanded={showAllFaq} aria-controls="faq-more" onClick={() => setShowAllFaq((current) => !current)}>
           {showAllFaq ? 'Näita vähem' : 'Vaata veel 7 küsimust'} <span aria-hidden="true">{showAllFaq ? '−' : '+'}</span>
