@@ -158,3 +158,9 @@ test('admin route fails closed when backend configuration is absent', async ({ p
     themeColor: '#f4f2e9',
   })
 })
+
+test('removed admin homepage route returns to the overview', async ({ page }) => {
+  await page.goto('/admin/homepage')
+  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
+})

@@ -48,12 +48,11 @@ type SetupStep = {
 
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
-type AdminView = 'overview' | 'homepage' | 'seo' | 'leads' | 'support' | 'users'
+type AdminView = 'overview' | 'seo' | 'leads' | 'support' | 'users'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
   overview: { path: '/admin', title: 'Ülevaade' },
-  homepage: { path: '/admin/homepage', title: 'Avaleht' },
   seo: { path: '/admin/seo', title: 'SEO' },
   leads: { path: '/admin/leads', title: 'Kliendiotsing' },
   support: { path: '/admin/support', title: 'Klienditugi' },
@@ -61,7 +60,6 @@ const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
 }
 
 const getAdminView = (pathname = window.location.pathname): AdminView => {
-  if (/^\/admin\/homepage\/?$/i.test(pathname)) return 'homepage'
   if (/^\/admin\/seo\/?$/i.test(pathname)) return 'seo'
   if (/^\/admin\/leads\/?$/i.test(pathname)) return 'leads'
   if (/^\/admin\/support\/?$/i.test(pathname)) return 'support'
@@ -220,12 +218,11 @@ const isStalled = (row: AdminUserRow) => {
   return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
-type AdminIconName = 'home' | 'homepage' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
+type AdminIconName = 'home' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
     home: <><path d="M4 11.5 12 5l8 6.5" /><path d="M6.5 10.5V20h11v-9.5M10 20v-5h4v5" /></>,
-    homepage: <><rect x="3.5" y="5" width="17" height="14" rx="2" /><path d="M3.5 9h17M7 7h.01M10 7h.01" /></>,
     seo: <><circle cx="11" cy="11" r="7" /><path d="M4 11h14M11 4a11 11 0 0 1 0 14M11 4a11 11 0 0 0 0 14M16.5 16.5 21 21" /></>,
     leads: <><path d="M4 18.5V14l4-2 3 1.5 4-5 5-2.5" /><path d="m16.5 5.5 3.5.5-.5 3.5" /><circle cx="6" cy="7" r="2.5" /></>,
     users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.4-3.5 2.2-5.3 5.5-5.3s5.1 1.8 5.5 5.3" /><circle cx="17" cy="9" r="2.2" /><path d="M15.5 14.2c3.1-.4 4.8 1.2 5 4" /></>,
@@ -725,7 +722,6 @@ export default function AdminApp() {
       <a href="/" aria-label="Poeruumi avaleht"><Brand /></a>
       <nav aria-label="Administraatori menüü">
         <a className={activeView === 'overview' ? 'is-active' : undefined} href="/admin" aria-current={activeView === 'overview' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'overview')}><span><AdminIcon name="home" /></span>Ülevaade</a>
-        <a className={activeView === 'homepage' ? 'is-active' : undefined} href="/admin/homepage" aria-current={activeView === 'homepage' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'homepage')}><span><AdminIcon name="homepage" /></span>Avaleht</a>
         <a className={activeView === 'seo' ? 'is-active' : undefined} href="/admin/seo" aria-current={activeView === 'seo' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'seo')}><span><AdminIcon name="seo" /></span>SEO</a>
         <a className={activeView === 'leads' ? 'is-active' : undefined} href="/admin/leads" aria-current={activeView === 'leads' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'leads')}><span><AdminIcon name="leads" /></span>Kliendiotsing</a>
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>

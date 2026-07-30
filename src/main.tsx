@@ -41,7 +41,11 @@ const appSurface = isPlatformSurface ? 'platform' : 'storefront'
 document.documentElement.dataset.appSurface = appSurface
 document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   ?.setAttribute('content', appSurface === 'platform' ? '#f4f2e9' : '#000000')
-const isAdminPath = isPlatformSurface && /^\/admin(?:\/(?:homepage|seo|leads|users|support))?\/?$/i.test(window.location.pathname)
+const isRemovedAdminHomepagePath = isPlatformSurface && /^\/admin\/homepage\/?$/i.test(window.location.pathname)
+if (isRemovedAdminHomepagePath) {
+  window.history.replaceState({}, '', `/admin${window.location.search}${window.location.hash}`)
+}
+const isAdminPath = isPlatformSurface && /^\/admin(?:\/(?:seo|leads|users|support))?\/?$/i.test(window.location.pathname)
 const isOutreachUnsubscribePath = isPlatformSurface && /^\/loobu\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformSurface
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
