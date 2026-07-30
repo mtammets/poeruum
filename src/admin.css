@@ -76,15 +76,12 @@
 .admin-social-image__preview.is-slack .admin-social-image__card > img { width: min(100%, 24rem); border-radius: 0 .35rem 0 0; }
 .admin-social-image__preview.is-slack .admin-social-image__card-copy { padding-left: .65rem; background: #fff; }
 .admin-seo { display: grid; gap: .85rem; }
-.admin-seo__summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 1.2rem; padding: 1.15rem 1.25rem; border: 1px solid #dce2da; border-radius: .9rem; background: linear-gradient(135deg, #f8fbf4, #fff); box-shadow: 0 8px 24px #26352a07; }
+.admin-seo__summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1.2rem; padding: 1.15rem 1.25rem; border: 1px solid #dce2da; border-radius: .9rem; background: linear-gradient(135deg, #f8fbf4, #fff); box-shadow: 0 8px 24px #26352a07; }
 .admin-seo__summary > div:first-child { display: grid; gap: .18rem; }
 .admin-seo__summary > div:first-child > span, .admin-seo__editor section header span, .admin-seo__technical header span, .admin-seo__search-console span { color: #4f705c; font-size: .75rem; font-weight: 850; letter-spacing: .12em; }
 .admin-seo__summary h2, .admin-seo__editor h2, .admin-seo__technical h2, .admin-seo__search-console h2 { margin: 0; font-family: Manrope, sans-serif; font-size: 1rem; letter-spacing: -.03em; }
 .admin-seo__summary p, .admin-seo__editor header p, .admin-seo__search-console p { margin: 0; color: #7f8982; font-size: .75rem; line-height: 1.5; }
 .admin-seo__summary > div:first-child > small { color: #929a94; font-size: .6875rem; }
-.admin-seo__score { display: grid; width: 3.35rem; height: 3.35rem; place-content: center; border: 1px solid #d6e2d2; border-radius: 50%; background: #edf6e8; color: #285f43; text-align: center; }
-.admin-seo__score strong { font-family: Manrope, sans-serif; font-size: 1rem; letter-spacing: -.04em; }
-.admin-seo__score span { font-size: .6875rem; font-weight: 750; }
 .admin-seo__summary > button { padding: .7rem .85rem; border: 0; border-radius: .62rem; background: #265f43; color: #fff; font: inherit; font-size: .75rem; font-weight: 800; cursor: pointer; }
 .admin-seo__summary > button:disabled { background: #e7ebe5; color: #8a948d; cursor: default; }
 .admin-seo__notice { padding: .75rem .9rem; border: 1px solid #cfe1c9; border-radius: .7rem; background: #eff7eb; color: #2b6c47; font-size: .75rem; font-weight: 700; }

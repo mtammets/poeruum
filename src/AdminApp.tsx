@@ -707,15 +707,6 @@ export default function AdminApp() {
     || seoDraft.social_title !== seoSettings.social_title
     || seoDraft.social_description !== seoSettings.social_description
     || seoDraft.search_indexing_enabled !== seoSettings.search_indexing_enabled
-  const seoChecks = [
-    seoTextLength(seoDraft.seo_title) >= 30 && seoTextLength(seoDraft.seo_title) <= 60,
-    seoTextLength(seoDraft.seo_description) >= 120 && seoTextLength(seoDraft.seo_description) <= 160,
-    seoTextLength(seoDraft.social_title) >= 10 && seoTextLength(seoDraft.social_title) <= 95,
-    seoTextLength(seoDraft.social_description) >= 20 && seoTextLength(seoDraft.social_description) <= 200,
-    Boolean(socialImagePath),
-    seoDraft.search_indexing_enabled,
-  ]
-  const seoScore = Math.round(seoChecks.filter(Boolean).length / seoChecks.length * 100)
 
   return <main className="admin-shell">
     <aside className="admin-sidebar">
@@ -744,9 +735,6 @@ export default function AdminApp() {
               <h2>SEO juhtpaneel</h2>
               <p>Halda Google’i otsingutulemust ja linkide eelvaateid ühest kohast.</p>
               {seoSettings.seo_updated_at && <small>Viimati salvestatud {formatRelativeTime(seoSettings.seo_updated_at)}</small>}
-            </div>
-            <div className="admin-seo__score" aria-label={`SEO valmisolek ${seoScore}%`}>
-              <strong>{seoScore}%</strong><span>valmis</span>
             </div>
             <button type="submit" form="admin-seo-form" disabled={!seoIsDirty || isSeoSaving}>
               {isSeoSaving ? 'Salvestan…' : seoIsDirty ? 'Salvesta muudatused' : 'Salvestatud'}
