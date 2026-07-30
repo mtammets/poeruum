@@ -11,23 +11,22 @@
   background: #f4f2e9;
 }
 
-/* Keep the public homepage visually stable while its admin-controlled mode loads. */
-.homepage-mode-loading {
+.platform-loading {
   display: grid;
   min-height: 100svh;
   place-items: center;
   background: #f4f2e9;
 }
 
-.homepage-mode-loading span {
+.platform-loading span {
   width: 1.7rem;
   height: 1.7rem;
   border: 2px solid rgba(38, 95, 67, .16);
   border-top-color: #265f43;
   border-radius: 50%;
-  animation: homepage-mode-spin .8s linear infinite;
+  animation: platform-loading-spin .8s linear infinite;
 }
 
-@keyframes homepage-mode-spin {
+@keyframes platform-loading-spin {
   to { transform: rotate(360deg); }
 }

@@ -24,21 +24,6 @@
 .admin-topbar > button { display: flex; align-items: center; gap: .55rem; padding: .72rem .85rem; border: 1px solid #d6dad2; border-radius: .65rem; background: #fff; color: #435149; font: inherit; font-size: .875rem; font-weight: 750; cursor: pointer; }
 .admin-topbar > button span { display: grid; font-size: 1rem; line-height: 1; }
 .admin-topbar > button span.is-spinning { animation: admin-spin .8s linear infinite; }
-.admin-homepage-mode { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-bottom: .85rem; padding: 1.05rem 1.15rem; border: 1px solid #e4dcc2; border-radius: .85rem; background: linear-gradient(135deg, #fffdf5, #fff); box-shadow: 0 8px 24px #26352a07; }
-.admin-homepage-mode > div:first-child { display: grid; gap: .18rem; }
-.admin-homepage-mode > div:first-child > span { color: #8b7430; font-size: .75rem; font-weight: 850; letter-spacing: .12em; }
-.admin-homepage-mode > div:first-child > strong { font-family: Manrope, sans-serif; font-size: 1rem; letter-spacing: -.025em; }
-.admin-homepage-mode p { margin: 0; color: #848b85; font-size: .75rem; line-height: 1.45; }
-.admin-homepage-mode small { margin-top: .2rem; color: #a34c41; font-size: .75rem; }
-.admin-homepage-mode > div:last-child { display: flex; align-items: center; gap: .65rem; }
-.admin-homepage-mode b { display: flex; align-items: center; gap: .35rem; padding: .38rem .5rem; border-radius: 999px; background: #f6efd8; color: #7a641e; font-size: .6875rem; letter-spacing: .08em; }
-.admin-homepage-mode b i { width: .36rem; height: .36rem; border-radius: 50%; background: currentColor; }
-.admin-homepage-mode button { padding: .62rem .75rem; border: 0; border-radius: .58rem; background: #265f43; color: #fff; font: inherit; font-size: .75rem; font-weight: 800; cursor: pointer; }
-.admin-homepage-mode button:disabled { cursor: wait; opacity: .55; }
-.admin-homepage-mode a { color: #607068; font-size: .75rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
-.admin-homepage-mode.is-public { border-color: #d5e3d2; background: linear-gradient(135deg, #f5faef, #fff); }
-.admin-homepage-mode.is-public > div:first-child > span { color: #34704e; }
-.admin-homepage-mode.is-public b { background: #e7f2e3; color: #276744; }
 .admin-social-image { display: grid; grid-template-columns: minmax(16rem, .72fr) minmax(24rem, 1.28fr); gap: 1.5rem; margin-bottom: .85rem; padding: 1.15rem; border: 1px solid #dfe2dc; border-radius: .9rem; background: #fff; box-shadow: 0 8px 24px #26352a07; }
 .admin-social-image__copy { display: grid; align-content: center; justify-items: start; gap: .4rem; }
 .admin-social-image__copy > span { color: #53705e; font-size: .75rem; font-weight: 850; letter-spacing: .12em; }
@@ -494,9 +479,6 @@
   .admin-topbar > button { padding: .65rem; }
   .admin-topbar > button:not(:disabled) { font-size: 0; }
   .admin-topbar > button span { font-size: 1rem; }
-  .admin-homepage-mode { align-items: stretch; flex-direction: column; gap: .8rem; padding: .9rem; }
-  .admin-homepage-mode > div:last-child { flex-wrap: wrap; }
-  .admin-homepage-mode button { flex: 1; min-height: 2.35rem; }
   .admin-seo__summary { grid-template-columns: minmax(0, 1fr) auto; padding: 1rem; }
   .admin-seo__summary > button { grid-column: 1 / -1; min-height: 2.35rem; }
   .admin-seo__editor { grid-template-columns: 1fr; }

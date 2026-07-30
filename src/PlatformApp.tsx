@@ -1569,7 +1569,7 @@ function PlatformFlow() {
 }
 
 export default function PlatformApp() {
-  return <Suspense fallback={<main className="homepage-mode-loading" aria-label="Laadin poodi"><span /></main>}>
+  return <Suspense fallback={<main className="platform-loading" aria-label="Laadin poodi"><span /></main>}>
     <PlatformFlow />
   </Suspense>
 }

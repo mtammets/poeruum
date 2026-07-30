@@ -331,9 +331,6 @@ export default function AdminApp() {
   const [, setIsShowcaseLoading] = useState(false)
   const [, setShowcaseError] = useState('')
   const [isManagingShowcase, setIsManagingShowcase] = useState(false)
-  const [comingSoonEnabled, setComingSoonEnabled] = useState<boolean | null>(null)
-  const [isHomepageModeUpdating, setIsHomepageModeUpdating] = useState(false)
-  const [homepageModeError, setHomepageModeError] = useState('')
   const [socialImagePath, setSocialImagePath] = useState<string | null>(null)
   const [isSocialImageUpdating, setIsSocialImageUpdating] = useState(false)
   const [socialImageError, setSocialImageError] = useState('')
@@ -429,17 +426,16 @@ export default function AdminApp() {
     setLatestEmails(new Map(((data ?? []) as LatestEmailDelivery[]).map((delivery) => [delivery.user_id, delivery])))
   }
 
-  const loadHomepageMode = async () => {
+  const loadHomepageSettings = async () => {
     const { data, error: queryError } = await requireSupabase()
       .from('platform_settings')
-      .select('coming_soon_enabled,social_image_path,seo_title,seo_description,social_title,social_description,search_indexing_enabled,seo_updated_at')
+      .select('social_image_path,seo_title,seo_description,social_title,social_description,search_indexing_enabled,seo_updated_at')
       .eq('id', 'homepage')
       .maybeSingle()
     if (queryError) {
-      setHomepageModeError('Avalehe olekut ei õnnestunud laadida.')
+      setSeoError('Avalehe seadistusi ei õnnestunud laadida.')
       return
     }
-    setComingSoonEnabled(data?.coming_soon_enabled ?? true)
     setSocialImagePath(data?.social_image_path ?? null)
     const nextSeoSettings: HomepageSeoSettings = {
       seo_title: data?.seo_title ?? DEFAULT_SEO_TITLE,
@@ -451,7 +447,7 @@ export default function AdminApp() {
     }
     setSeoSettings(nextSeoSettings)
     setSeoDraft(nextSeoSettings)
-    setHomepageModeError('')
+    setSeoError('')
   }
 
   const saveSeoSettings = async () => {
@@ -560,26 +556,6 @@ export default function AdminApp() {
     setIsSocialImageUpdating(false)
   }
 
-  const toggleHomepageMode = async () => {
-    if (comingSoonEnabled === null || isHomepageModeUpdating) return
-    const nextEnabled = !comingSoonEnabled
-    const confirmed = window.confirm(nextEnabled
-      ? 'Kas näidata poeruum.ee avalehel uuesti „Varsti avame” ootelehte?'
-      : 'Kas eemaldada „Varsti avame” ooteleht ja avada Poeruumi päris avaleht?')
-    if (!confirmed) return
-
-    setIsHomepageModeUpdating(true)
-    setHomepageModeError('')
-    const { data, error: updateError } = await requireSupabase()
-      .rpc('admin_set_coming_soon', { next_enabled: nextEnabled })
-    if (updateError) {
-      setHomepageModeError('Avalehe oleku muutmine ebaõnnestus.')
-    } else {
-      setComingSoonEnabled(Boolean(data))
-    }
-    setIsHomepageModeUpdating(false)
-  }
-
   const loadDashboard = async ({ silent = false, refreshAuth = true }: { silent?: boolean; refreshAuth?: boolean } = {}) => {
     if (!silent) setIsLoading(true)
     setError('')
@@ -588,7 +564,7 @@ export default function AdminApp() {
     if (refreshAuth) await requireSupabase().auth.refreshSession()
     void loadRevenue()
     void loadLatestEmails()
-    void loadHomepageMode()
+    void loadHomepageSettings()
     const { data, error: queryError } = await requireSupabase().rpc('admin_dashboard_users')
     if (queryError) {
       const forbidden = queryError.code === '42501' || queryError.message.toLowerCase().includes('admin access')
@@ -765,24 +741,6 @@ export default function AdminApp() {
       {error && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
-        {activeView === 'homepage' && <section className={`admin-homepage-mode${comingSoonEnabled === false ? ' is-public' : ''}`} aria-label="Avaliku avalehe olek">
-          <div>
-            <span>AVALIK AVALEHT</span>
-            <strong>{comingSoonEnabled === null ? 'Kontrollin olekut…' : comingSoonEnabled ? '„Varsti avame” on aktiivne' : 'Poeruum on avalik'}</strong>
-            <p>{comingSoonEnabled === false
-              ? 'Külastajad näevad poeruum.ee aadressil päris avalehte ja saavad konto luua.'
-              : 'Külastajad näevad poeruum.ee aadressil ootelehte.'}</p>
-            {homepageModeError && <small role="alert">{homepageModeError}</small>}
-          </div>
-          <div>
-            <b><i />{comingSoonEnabled === false ? 'AVALIK' : 'OOTELEHT'}</b>
-            <button type="button" disabled={comingSoonEnabled === null || isHomepageModeUpdating} onClick={() => void toggleHomepageMode()}>
-              {isHomepageModeUpdating ? 'Muudan…' : comingSoonEnabled === false ? 'Pane ooteleht tagasi' : 'Ava Poeruum'}
-            </button>
-            <a href="/" target="_blank" rel="noreferrer">Vaata avalehte ↗</a>
-          </div>
-        </section>}
-
         {activeView === 'seo' && <div className="admin-seo">
           <section className="admin-seo__summary">
             <div>
