@@ -4,6 +4,7 @@ import { checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 const allowedOrigins = new Set(['https://poeruum.ee', 'https://www.poeruum.ee'])
 const allowedLabels: Record<string, Set<string>> = {
   page_view: new Set(['']),
+  engagement: new Set(['']),
   section_view: new Set(['pricing', 'faq']),
   signup_start: new Set(['hero', 'nav', 'mobile_nav', 'pricing_flexible', 'pricing_fixed']),
   demo_open: new Set(['nav', 'mobile_nav', 'phone']),
@@ -76,6 +77,7 @@ Deno.serve(async (request) => {
     const eventLabel = String(input.event_label ?? '').trim()
     const audience = String(input.audience ?? '')
     const deviceType = String(input.device_type ?? '')
+    const engagedSeconds = Number(input.engaged_seconds ?? 0)
 
     if (!/^[a-zA-Z0-9-]{16,64}$/.test(sessionId)) {
       return json({ error: 'Invalid session identifier' }, 400, origin)
@@ -86,24 +88,42 @@ Deno.serve(async (request) => {
     if (!['anonymous', 'merchant'].includes(audience) || !['mobile', 'tablet', 'desktop'].includes(deviceType)) {
       return json({ error: 'Invalid analytics context' }, 400, origin)
     }
+    if (eventName === 'engagement' && (!Number.isInteger(engagedSeconds) || engagedSeconds < 1 || engagedSeconds > 1_800)) {
+      return json({ error: 'Invalid engagement duration' }, 400, origin)
+    }
 
     const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
-    const { error } = await admin.from('homepage_analytics_events').upsert({
-      session_id: sessionId,
-      event_name: eventName,
-      event_label: eventLabel,
-      audience,
-      referrer_host: cleanReferrerHost(input.referrer_host),
-      utm_source: cleanCampaignValue(input.utm_source, 80),
-      utm_medium: cleanCampaignValue(input.utm_medium, 80),
-      utm_campaign: cleanCampaignValue(input.utm_campaign, 100),
-      device_type: deviceType,
-    }, {
-      onConflict: 'session_id,event_name,event_label',
-      ignoreDuplicates: true,
-    })
+    const analyticsContext = {
+      target_session_id: sessionId,
+      target_audience: audience,
+      target_referrer_host: cleanReferrerHost(input.referrer_host),
+      target_utm_source: cleanCampaignValue(input.utm_source, 80),
+      target_utm_medium: cleanCampaignValue(input.utm_medium, 80),
+      target_utm_campaign: cleanCampaignValue(input.utm_campaign, 100),
+      target_device_type: deviceType,
+    }
+    const { error } = eventName === 'engagement'
+      ? await admin.rpc('record_homepage_engagement', {
+        ...analyticsContext,
+        target_engaged_seconds: engagedSeconds,
+      })
+      : await admin.from('homepage_analytics_events').upsert({
+        session_id: sessionId,
+        event_name: eventName,
+        event_label: eventLabel,
+        audience,
+        referrer_host: analyticsContext.target_referrer_host,
+        utm_source: analyticsContext.target_utm_source,
+        utm_medium: analyticsContext.target_utm_medium,
+        utm_campaign: analyticsContext.target_utm_campaign,
+        device_type: deviceType,
+        ...(eventName === 'page_view' ? { engaged_seconds: 0 } : {}),
+      }, {
+        onConflict: 'session_id,event_name,event_label',
+        ignoreDuplicates: true,
+      })
     if (error) throw error
 
     return json({ accepted: true }, 202, origin)

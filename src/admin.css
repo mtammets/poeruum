@@ -208,7 +208,7 @@
 .admin-analytics__header label { min-width: 8.5rem; color: #8a938d; font-size: .6875rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .admin-analytics__header select { padding: .58rem 2rem .58rem .7rem; border: 1px solid #d8ddd5; border-radius: .6rem; outline: 0; appearance: auto; background: #f9faf7; color: #314238; font: inherit; font-size: .8rem; font-weight: 750; text-transform: none; cursor: pointer; }
 .admin-analytics__error { padding: 1rem; border: 1px solid #efd0c9; border-radius: .8rem; background: #fff1ee; color: #98483d; font-size: .875rem; }
-.admin-analytics__kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; }
+.admin-analytics__kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem; }
 .admin-analytics__kpis article { display: grid; min-height: 8.2rem; align-content: space-between; padding: 1.05rem; border: 1px solid #e0e3dc; border-radius: .85rem; background: linear-gradient(145deg, #fff, #fbfcf8); box-shadow: 0 8px 24px #26352a07; }
 .admin-analytics__kpis span { color: #7c8780; font-size: .6875rem; font-weight: 850; letter-spacing: .1em; }
 .admin-analytics__kpis strong { margin: .7rem 0 .35rem; font-family: Manrope, sans-serif; font-size: 2rem; letter-spacing: -.06em; }

@@ -16,7 +16,8 @@ import './legal.css'
 
 export type LegalDocument = 'terms' | 'privacy'
 
-const EFFECTIVE_DATE = '28. juuli 2026'
+const TERMS_EFFECTIVE_DATE = '28. juuli 2026'
+const PRIVACY_EFFECTIVE_DATE = '31. juuli 2026'
 const PROVIDER = {
   name: 'Animaator OÜ',
   registryCode: '17135632',
@@ -43,7 +44,7 @@ function Terms() {
       <span>Kasutustingimused</span>
       <h1>Poeruumi teenuse<br />kasutamise tingimused</h1>
       <p>Need tingimused reguleerivad Poeruumi e-poeplatvormi kasutamist kaupmehe ja Poeruumi vahel.</p>
-      <small>Kehtivad alates {EFFECTIVE_DATE}</small>
+      <small>Kehtivad alates {TERMS_EFFECTIVE_DATE}</small>
     </header>
 
     <ProviderDetails />
@@ -130,7 +131,7 @@ function Privacy() {
       <span>Privaatsuspoliitika</span>
       <h1>Kuidas Poeruum<br />isikuandmeid kasutab</h1>
       <p>Siin selgitame, milliseid andmeid Poeruum töötleb, miks seda teeb ja millised õigused on inimesel.</p>
-      <small>Kehtib alates {EFFECTIVE_DATE}</small>
+      <small>Kehtib alates {PRIVACY_EFFECTIVE_DATE}</small>
     </header>
 
     <ProviderDetails />
@@ -150,7 +151,7 @@ function Privacy() {
         <li><strong>Tellimuse andmed:</strong> ostja nimi ja kontaktandmed, tarne- või pakiautomaadi valik, aadress, ostukorv, summad ning tellimuse ja makse olek.</li>
         <li><strong>Toeandmed:</strong> tugivestlused, manused, vastused ning tõrke lahendamiseks vajalik lehe aadress ja brauseri tehniline teave.</li>
         <li><strong>Ettevõtetele suunatud kliendiotsingu andmed:</strong> ettevõtte avalik nimi, veebileht, üldpostkast, kontakti avalik allikas, sobivuse põhjendus, kirjamustand ning kirja saatmise, kättetoimetamise, vastamise ja loobumise olek. Inimese isiklikke aadresse ei kasutata selleks töövooks teadlikult.</li>
-        <li><strong>Avalehe koondstatistika:</strong> juhuslik lehesessiooni tunnus, nimetatud tegevus, viitava veebilehe domeen, kampaaniamärgendid ja üldine seadmeklass. Tunnus tekib lehe avamisel, püsib ainult avatud lehe mälus ning seda ei seota konto, e-posti ega muu kasutajaprofiiliga. Täielikku viitaja URL-i ega IP-aadressi analüütikasündmuse juures ei salvestata.</li>
+        <li><strong>Avalehe koondstatistika:</strong> juhuslik lehesessiooni tunnus, nimetatud tegevus, lehe nähtaval ja fookuses olnud aktiivne aeg, viitava veebilehe domeen, kampaaniamärgendid ja üldine seadmeklass. Aktiivne aeg on piiratud kuni 30 minutiga sessiooni kohta. Tunnus tekib lehe avamisel, püsib ainult avatud lehe mälus ning seda ei seota konto, e-posti ega muu kasutajaprofiiliga. Täielikku viitaja URL-i ega IP-aadressi analüütikasündmuse juures ei salvestata.</li>
         <li><strong>Tehnilised andmed:</strong> IP-aadress, seadme ja brauseri andmed, ajatemplid, turva- ja vealogid ning DNS-i ja TLS-i kontrolli tulemused.</li>
       </ul>
     </section>

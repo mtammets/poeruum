@@ -6,7 +6,7 @@ import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getStoreDestination, type OnboardingStep } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
-import { isHomepageAnalyticsLocation, trackHomepageEvent } from './lib/homepageAnalytics'
+import { isHomepageAnalyticsLocation, startHomepageEngagementTracking, trackHomepageEvent } from './lib/homepageAnalytics'
 import { products as bundledProducts, type Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { createRandomId } from './lib/randomId'
@@ -253,7 +253,8 @@ function PlatformFlow() {
     if (!isAuthResolved || screen !== 'landing' || !isHomepageAnalyticsLocation(window.location)) return
     const audience = onlineUserId ? 'merchant' : 'anonymous'
     trackHomepageEvent('page_view', '', audience)
-    if (!('IntersectionObserver' in window)) return
+    const stopEngagementTracking = startHomepageEngagementTracking(audience)
+    if (!('IntersectionObserver' in window)) return stopEngagementTracking
 
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
@@ -267,7 +268,10 @@ function PlatformFlow() {
       const section = document.querySelector(selector)
       if (section) observer.observe(section)
     }
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      stopEngagementTracking()
+    }
   }, [isAuthResolved, onlineUserId, screen])
 
   const isCaptchaReady = !isCaptchaConfigured || Boolean(captchaToken)

@@ -103,11 +103,27 @@ type AnalyticsBreakdown = {
   sessions: number
 }
 
+type AnalyticsSource = {
+  source: string
+  sessions: number
+  measured_sessions: number
+  engaged_sessions: number
+  average_engaged_seconds: number
+}
+
+type AnalyticsEngagementBucket = {
+  bucket: 'under_10' | '10_29' | '30_119' | '120_plus'
+  sessions: number
+}
+
 type HomepageAnalyticsDashboard = {
   range_days: number
   sessions: number
   anonymous_sessions: number
   merchant_sessions: number
+  average_engaged_seconds: number
+  measured_sessions: number
+  engaged_sessions: number
   signup_starts: number
   tracked_accounts: number
   demo_opens: number
@@ -117,11 +133,17 @@ type HomepageAnalyticsDashboard = {
   payments_connected: number
   stores_published: number
   daily: AnalyticsDailyPoint[]
-  sources: Array<{ source: string; sessions: number }>
+  sources: AnalyticsSource[]
+  engagement_buckets: AnalyticsEngagementBucket[]
   devices: Array<{ device: 'mobile' | 'tablet' | 'desktop'; sessions: number }>
   ctas: AnalyticsBreakdown[]
   faqs: AnalyticsBreakdown[]
 }
+
+type HomepageEngagementDashboard = Pick<
+  HomepageAnalyticsDashboard,
+  'range_days' | 'average_engaged_seconds' | 'measured_sessions' | 'engaged_sessions' | 'sources' | 'engagement_buckets'
+>
 
 type LatestEmailDelivery = {
   user_id: string
@@ -147,6 +169,9 @@ const emptyHomepageAnalytics: HomepageAnalyticsDashboard = {
   sessions: 0,
   anonymous_sessions: 0,
   merchant_sessions: 0,
+  average_engaged_seconds: 0,
+  measured_sessions: 0,
+  engaged_sessions: 0,
   signup_starts: 0,
   tracked_accounts: 0,
   demo_opens: 0,
@@ -157,6 +182,7 @@ const emptyHomepageAnalytics: HomepageAnalyticsDashboard = {
   stores_published: 0,
   daily: [],
   sources: [],
+  engagement_buckets: [],
   devices: [],
   ctas: [],
   faqs: [],
@@ -256,6 +282,15 @@ const formatPercent = (value: number, total: number) => total
   ? `${new Intl.NumberFormat('et-EE', { maximumFractionDigits: 1 }).format(value / total * 100)}%`
   : '0%'
 
+const formatDuration = (value: number) => {
+  const seconds = Math.max(0, Math.round(value))
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (!minutes) return `${remainingSeconds} s`
+  if (!remainingSeconds) return `${minutes} min`
+  return `${minutes} min ${remainingSeconds} s`
+}
+
 const analyticsCtaLabels: Record<string, string> = {
   hero: 'Hero „Alusta tasuta“',
   nav: 'Menüü „Loo pood“',
@@ -285,6 +320,13 @@ const analyticsDeviceLabels: Record<string, string> = {
   mobile: 'Mobiil',
   tablet: 'Tahvel',
   desktop: 'Arvuti',
+}
+
+const analyticsEngagementBucketLabels: Record<AnalyticsEngagementBucket['bucket'], string> = {
+  under_10: 'Alla 10 sekundi',
+  '10_29': '10–29 sekundit',
+  '30_119': '30 sekundit – 2 minutit',
+  '120_plus': 'Vähemalt 2 minutit',
 }
 
 const formatRelativeTime = (value: string | null) => {
@@ -509,21 +551,27 @@ export default function AdminApp() {
 
   const loadHomepageAnalytics = async (range: AnalyticsRange = analyticsRange) => {
     setIsAnalyticsLoading(true)
-    const { data, error: queryError } = await requireSupabase().rpc('admin_homepage_analytics', {
-      requested_days: range,
-    })
-    if (queryError) {
-      setAnalyticsError('Külastatavuse andmeid ei õnnestunud laadida. Rakenda avalehe analüütika migratsioon.')
+    const client = requireSupabase()
+    const [analyticsResponse, engagementResponse] = await Promise.all([
+      client.rpc('admin_homepage_analytics', { requested_days: range }),
+      client.rpc('admin_homepage_engagement', { requested_days: range }),
+    ])
+    if (analyticsResponse.error || engagementResponse.error) {
+      setAnalyticsError('Külastatavuse andmeid ei õnnestunud laadida. Rakenda avalehe analüütika migratsioonid.')
       setIsAnalyticsLoading(false)
       return
     }
-    const result = (data ?? {}) as Partial<HomepageAnalyticsDashboard>
+    const result = (analyticsResponse.data ?? {}) as Partial<HomepageAnalyticsDashboard>
+    const engagement = (engagementResponse.data ?? {}) as Partial<HomepageEngagementDashboard>
     const numberValue = (value: unknown) => Number(value ?? 0)
     setHomepageAnalytics({
       range_days: numberValue(result.range_days) || range,
       sessions: numberValue(result.sessions),
       anonymous_sessions: numberValue(result.anonymous_sessions),
       merchant_sessions: numberValue(result.merchant_sessions),
+      average_engaged_seconds: numberValue(engagement.average_engaged_seconds),
+      measured_sessions: numberValue(engagement.measured_sessions),
+      engaged_sessions: numberValue(engagement.engaged_sessions),
       signup_starts: numberValue(result.signup_starts),
       tracked_accounts: numberValue(result.tracked_accounts),
       demo_opens: numberValue(result.demo_opens),
@@ -538,7 +586,17 @@ export default function AdminApp() {
         signup_starts: numberValue(point.signup_starts),
         accounts_created: numberValue(point.accounts_created),
       })),
-      sources: (result.sources ?? []).map((row) => ({ source: row.source, sessions: numberValue(row.sessions) })),
+      sources: (engagement.sources ?? []).map((row) => ({
+        source: row.source,
+        sessions: numberValue(row.sessions),
+        measured_sessions: numberValue(row.measured_sessions),
+        engaged_sessions: numberValue(row.engaged_sessions),
+        average_engaged_seconds: numberValue(row.average_engaged_seconds),
+      })),
+      engagement_buckets: (engagement.engagement_buckets ?? []).map((row) => ({
+        bucket: row.bucket,
+        sessions: numberValue(row.sessions),
+      })),
       devices: (result.devices ?? []).map((row) => ({ device: row.device, sessions: numberValue(row.sessions) })),
       ctas: (result.ctas ?? []).map((row) => ({ label: row.label, sessions: numberValue(row.sessions) })),
       faqs: (result.faqs ?? []).map((row) => ({ label: row.label, sessions: numberValue(row.sessions) })),
@@ -1119,6 +1177,8 @@ export default function AdminApp() {
           {analyticsError ? <div className="admin-analytics__error" role="alert">{analyticsError}</div> : <>
             <div className="admin-analytics__kpis" aria-label="Külastatavuse kokkuvõte">
               <article><span>KÜLASTUSED</span><strong>{homepageAnalytics.sessions}</strong><small>{homepageAnalytics.anonymous_sessions} anonüümset · {homepageAnalytics.merchant_sessions} kaupmehe sessiooni</small></article>
+              <article><span>KESKMINE AKTIIVNE AEG</span><strong>{homepageAnalytics.measured_sessions ? formatDuration(homepageAnalytics.average_engaged_seconds) : '—'}</strong><small>{homepageAnalytics.measured_sessions} mõõdetud sessiooni · ainult nähtaval ja fookuses olnud aeg</small></article>
+              <article><span>KAASATUD KÜLASTUSED</span><strong>{formatPercent(homepageAnalytics.engaged_sessions, homepageAnalytics.measured_sessions)}</strong><small>{homepageAnalytics.engaged_sessions} / {homepageAnalytics.measured_sessions} mõõdetud sessiooni vähemalt 10 sekundit</small></article>
               <article><span>POE LOOMISE ALGUS</span><strong>{homepageAnalytics.signup_starts}</strong><small>{formatPercent(homepageAnalytics.signup_starts, homepageAnalytics.sessions)} külastustest</small></article>
               <article><span>NÄIDISPOE AVAMISED</span><strong>{homepageAnalytics.demo_opens}</strong><small>{formatPercent(homepageAnalytics.demo_opens, homepageAnalytics.sessions)} külastustest</small></article>
               <article><span>AVALDATUD POED</span><strong>{homepageAnalytics.stores_published}</strong><small>{formatPercent(homepageAnalytics.stores_published, homepageAnalytics.accounts_created)} perioodi uutest kontodest</small></article>
@@ -1158,9 +1218,15 @@ export default function AdminApp() {
 
             <div className="admin-analytics__breakdowns">
               <section>
-                <header><div><span>LIIKLUSE ALLIKAD</span><h3>Kust külastajad tulid?</h3></div></header>
+                <header><div><span>LIIKLUSE ALLIKAD</span><h3>Kust külastajad tulid?</h3></div><small>Keskmine aktiivne aeg allika kohta</small></header>
                 <div className="admin-analytics__rows">
-                  {homepageAnalytics.sources.length ? homepageAnalytics.sources.map((row) => <article key={row.source}><span><strong>{row.source}</strong><i><b style={{ width: `${homepageAnalytics.sessions ? Math.min(100, row.sessions / homepageAnalytics.sessions * 100) : 0}%` }} /></i></span><b>{row.sessions}<small>{formatPercent(row.sessions, homepageAnalytics.sessions)}</small></b></article>) : <p>Allikaid veel pole.</p>}
+                  {homepageAnalytics.sources.length ? homepageAnalytics.sources.map((row) => <article key={row.source}><span><strong>{row.source}</strong><i><b style={{ width: `${homepageAnalytics.sessions ? Math.min(100, row.sessions / homepageAnalytics.sessions * 100) : 0}%` }} /></i></span><b>{row.measured_sessions ? formatDuration(row.average_engaged_seconds) : '—'}<small>{row.sessions} sessiooni · {formatPercent(row.engaged_sessions, row.measured_sessions)} kaasatud</small></b></article>) : <p>Allikaid veel pole.</p>}
+                </div>
+              </section>
+              <section>
+                <header><div><span>AKTIIVSE AJA JAOTUS</span><h3>Kui kauaks avalehele jäädi?</h3></div></header>
+                <div className="admin-analytics__rows">
+                  {homepageAnalytics.measured_sessions ? homepageAnalytics.engagement_buckets.map((row) => <article key={row.bucket}><span><strong>{analyticsEngagementBucketLabels[row.bucket]}</strong><i><b style={{ width: `${Math.min(100, row.sessions / homepageAnalytics.measured_sessions * 100)}%` }} /></i></span><b>{row.sessions}<small>{formatPercent(row.sessions, homepageAnalytics.measured_sessions)}</small></b></article>) : <p>Aktiivse aja andmeid veel pole.</p>}
                 </div>
               </section>
               <section>
@@ -1183,7 +1249,7 @@ export default function AdminApp() {
               </section>
             </div>
 
-            <footer className="admin-analytics__privacy">Avalehe sündmused kogunevad alates analüütika kasutuselevõtust; varasemaid külastusi tagasiulatuvalt ei lisata. Toorandmed kustutatakse 90 päeva järel. Sessioonitunnus tekib juhuslikult lehe avamisel, püsib ainult brauseri mälus ning seda ei seota konto, e-posti ega IP-aadressiga.</footer>
+            <footer className="admin-analytics__privacy">Avalehe sündmused kogunevad alates analüütika kasutuselevõtust; varasemaid külastusi tagasiulatuvalt ei lisata. Aktiivne aeg suureneb ainult siis, kui avaleht on nähtav ja brauseriaknal on fookus, ning ühe sessiooni ülempiir on 30 minutit. Toorandmed kustutatakse 90 päeva järel. Sessioonitunnus tekib juhuslikult lehe avamisel, püsib ainult brauseri mälus ning seda ei seota konto, e-posti ega IP-aadressiga.</footer>
           </>}
         </section>}
 

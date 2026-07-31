@@ -14,7 +14,13 @@ export type AnalyticsDevice = 'mobile' | 'tablet' | 'desktop'
 type AnalyticsLocation = Pick<Location, 'hostname' | 'pathname' | 'search'>
 
 const endpoint = `${String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')}/functions/v1/homepage-analytics`
+const engagementHeartbeatMilliseconds = 15_000
+const maximumEngagementMilliseconds = 30 * 60 * 1_000
 let analyticsSessionId = ''
+let analyticsEngagementMilliseconds = 0
+let analyticsEngagementStartedAt: number | null = null
+let analyticsLastSentEngagementSeconds = 0
+let stopCurrentEngagementTracking: (() => void) | null = null
 
 export const isHomepageAnalyticsLocation = (location: AnalyticsLocation) => {
   const hostname = location.hostname.toLowerCase().replace(/\.$/, '')
@@ -28,6 +34,15 @@ export const getAnalyticsDevice = (viewportWidth: number): AnalyticsDevice => {
   if (viewportWidth < 1100) return 'tablet'
   return 'desktop'
 }
+
+export const getAnalyticsEngagementSeconds = (milliseconds: number) => Math.min(
+  maximumEngagementMilliseconds / 1_000,
+  Math.max(0, Math.floor(milliseconds / 1_000)),
+)
+
+export const isAnalyticsEngagementActive = (visibilityState: DocumentVisibilityState, hasFocus: boolean) => (
+  visibilityState === 'visible' && hasFocus
+)
 
 export const sanitizeAnalyticsCampaignValue = (value: unknown, max = 100) => String(value ?? '')
   .trim()
@@ -52,17 +67,11 @@ const getAnalyticsSessionId = () => {
   return analyticsSessionId
 }
 
-export const trackHomepageEvent = (
-  eventName: HomepageAnalyticsEvent,
-  eventLabel = '',
-  audience: AnalyticsAudience = 'anonymous',
-) => {
+const getAnalyticsContext = (audience: AnalyticsAudience) => {
   if (!endpoint.startsWith('https://') || !isHomepageAnalyticsLocation(window.location)) return
   const params = new URLSearchParams(window.location.search)
-  const payload = {
+  return {
     session_id: getAnalyticsSessionId(),
-    event_name: eventName,
-    event_label: eventLabel,
     audience,
     referrer_host: getAnalyticsReferrerHost(document.referrer, window.location.hostname),
     utm_source: sanitizeAnalyticsCampaignValue(params.get('utm_source'), 80),
@@ -70,7 +79,9 @@ export const trackHomepageEvent = (
     utm_campaign: sanitizeAnalyticsCampaignValue(params.get('utm_campaign'), 100),
     device_type: getAnalyticsDevice(window.innerWidth),
   }
+}
 
+const postAnalyticsPayload = (payload: Record<string, unknown>) => {
   void fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
@@ -78,4 +89,80 @@ export const trackHomepageEvent = (
     credentials: 'omit',
     keepalive: true,
   }).catch(() => undefined)
+}
+
+export const trackHomepageEvent = (
+  eventName: HomepageAnalyticsEvent,
+  eventLabel = '',
+  audience: AnalyticsAudience = 'anonymous',
+) => {
+  const context = getAnalyticsContext(audience)
+  if (!context) return
+  postAnalyticsPayload({ ...context, event_name: eventName, event_label: eventLabel })
+}
+
+const trackHomepageEngagement = (engagedSeconds: number, audience: AnalyticsAudience) => {
+  if (engagedSeconds <= analyticsLastSentEngagementSeconds) return
+  const context = getAnalyticsContext(audience)
+  if (!context) return
+  analyticsLastSentEngagementSeconds = engagedSeconds
+  postAnalyticsPayload({
+    ...context,
+    event_name: 'engagement',
+    event_label: '',
+    engaged_seconds: engagedSeconds,
+  })
+}
+
+export const startHomepageEngagementTracking = (audience: AnalyticsAudience = 'anonymous') => {
+  stopCurrentEngagementTracking?.()
+
+  const updateEngagement = () => {
+    const now = performance.now()
+    if (analyticsEngagementStartedAt !== null) {
+      analyticsEngagementMilliseconds = Math.min(
+        maximumEngagementMilliseconds,
+        analyticsEngagementMilliseconds + Math.max(0, now - analyticsEngagementStartedAt),
+      )
+    }
+    analyticsEngagementStartedAt = (
+      analyticsEngagementMilliseconds < maximumEngagementMilliseconds
+      && isAnalyticsEngagementActive(document.visibilityState, document.hasFocus())
+    ) ? now : null
+  }
+
+  const sendEngagement = () => {
+    updateEngagement()
+    trackHomepageEngagement(getAnalyticsEngagementSeconds(analyticsEngagementMilliseconds), audience)
+  }
+
+  const handleActivityChange = () => sendEngagement()
+  const handlePageHide = () => {
+    sendEngagement()
+    analyticsEngagementStartedAt = null
+  }
+  updateEngagement()
+  const heartbeat = window.setInterval(sendEngagement, engagementHeartbeatMilliseconds)
+  window.addEventListener('focus', handleActivityChange)
+  window.addEventListener('blur', handleActivityChange)
+  window.addEventListener('pagehide', handlePageHide)
+  window.addEventListener('pageshow', handleActivityChange)
+  document.addEventListener('visibilitychange', handleActivityChange)
+
+  let isStopped = false
+  const stop = () => {
+    if (isStopped) return
+    isStopped = true
+    sendEngagement()
+    analyticsEngagementStartedAt = null
+    window.clearInterval(heartbeat)
+    window.removeEventListener('focus', handleActivityChange)
+    window.removeEventListener('blur', handleActivityChange)
+    window.removeEventListener('pagehide', handlePageHide)
+    window.removeEventListener('pageshow', handleActivityChange)
+    document.removeEventListener('visibilitychange', handleActivityChange)
+    if (stopCurrentEngagementTracking === stop) stopCurrentEngagementTracking = null
+  }
+  stopCurrentEngagementTracking = stop
+  return stop
 }

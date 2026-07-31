@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   getAnalyticsDevice,
+  getAnalyticsEngagementSeconds,
   getAnalyticsReferrerHost,
   isHomepageAnalyticsLocation,
+  isAnalyticsEngagementActive,
   sanitizeAnalyticsCampaignValue,
 } from './homepageAnalytics'
 
@@ -31,5 +33,18 @@ describe('homepage analytics privacy helpers', () => {
     expect(getAnalyticsDevice(390)).toBe('mobile')
     expect(getAnalyticsDevice(900)).toBe('tablet')
     expect(getAnalyticsDevice(1440)).toBe('desktop')
+  })
+
+  it('counts only whole active seconds and caps outlier sessions at 30 minutes', () => {
+    expect(getAnalyticsEngagementSeconds(-1)).toBe(0)
+    expect(getAnalyticsEngagementSeconds(9_999)).toBe(9)
+    expect(getAnalyticsEngagementSeconds(75_500)).toBe(75)
+    expect(getAnalyticsEngagementSeconds(31 * 60 * 1_000)).toBe(1_800)
+  })
+
+  it('counts engagement only while the page is visible and focused', () => {
+    expect(isAnalyticsEngagementActive('visible', true)).toBe(true)
+    expect(isAnalyticsEngagementActive('visible', false)).toBe(false)
+    expect(isAnalyticsEngagementActive('hidden', true)).toBe(false)
   })
 })
