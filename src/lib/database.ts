@@ -348,20 +348,29 @@ export async function removeStoredProductImages(imageVariants: Product['imageVar
 }
 
 export type ImageUploadPhase = 'preparing' | 'uploading'
+export type ImageUploadStep = { completed: number; total: number }
 
-type DecodedImage = { source: CanvasImageSource; width: number; height: number; dispose: () => void }
+type DecodedImage = { source: CanvasImageSource; width: number; height: number; fallbackMimeType: 'image/jpeg' | 'image/png'; dispose: () => void }
+
+export const getImageFallbackMimeType = (mimeType: string, fileName = ''): DecodedImage['fallbackMimeType'] => {
+  const normalizedMimeType = mimeType.toLowerCase()
+  const mayHaveTransparency = ['image/png', 'image/webp', 'image/gif', 'image/avif', 'image/svg+xml'].includes(normalizedMimeType)
+    || /\.(?:png|webp|gif|avif|svg)$/i.test(fileName)
+  return mayHaveTransparency ? 'image/png' : 'image/jpeg'
+}
 
 const decodeImage = async (file: File): Promise<DecodedImage> => {
+  const fallbackMimeType = getImageFallbackMimeType(file.type, file.name)
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-    return { source: bitmap, width: bitmap.width, height: bitmap.height, dispose: () => bitmap.close() }
+    return { source: bitmap, width: bitmap.width, height: bitmap.height, fallbackMimeType, dispose: () => bitmap.close() }
   } catch {
     const objectUrl = URL.createObjectURL(file)
     const image = new Image()
     image.src = objectUrl
     try {
       await image.decode()
-      return { source: image, width: image.naturalWidth, height: image.naturalHeight, dispose: () => URL.revokeObjectURL(objectUrl) }
+      return { source: image, width: image.naturalWidth, height: image.naturalHeight, fallbackMimeType, dispose: () => URL.revokeObjectURL(objectUrl) }
     } catch {
       URL.revokeObjectURL(objectUrl)
       throw new Error('Seda pildivormingut ei õnnestunud töödelda. Salvesta pilt JPG-, PNG- või WebP-vormingus.')
@@ -376,16 +385,23 @@ const encodeImage = async (decoded: DecodedImage, maximumSide: number, quality: 
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const context = canvas.getContext('2d', { alpha: true })
+  const preserveTransparency = decoded.fallbackMimeType === 'image/png'
+  const context = canvas.getContext('2d', { alpha: preserveTransparency })
   if (!context) throw new Error('Brauser ei saanud pilti töödelda.')
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = 'high'
+  if (!preserveTransparency) {
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, width, height)
+  }
   context.drawImage(decoded.source, 0, 0, width, height)
   let blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality))
-  if (!blob || blob.type !== 'image/webp') blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+  if (!blob || blob.type !== 'image/webp') blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, decoded.fallbackMimeType, quality))
   if (!blob) throw new Error('Pildi optimeerimine ebaõnnestus.')
   return { blob, width, height }
 }
+
+const getEncodedImageExtension = (mimeType: string) => mimeType === 'image/webp' ? 'webp' : mimeType === 'image/jpeg' ? 'jpg' : 'png'
 
 const uploadPublicImage = async (storeId: string, relativePath: string, blob: Blob) => {
   const client = requireSupabase()
@@ -401,7 +417,7 @@ const uploadPublicImage = async (storeId: string, relativePath: string, blob: Bl
 
 export type UploadedProductImage = { url: string; asset: ProductImageAsset }
 
-export async function uploadProductImages(storeId: string, files: File[], onPhase?: (index: number, phase: ImageUploadPhase) => void) {
+export async function uploadProductImages(storeId: string, files: File[], onPhase?: (index: number, phase: ImageUploadPhase, step?: ImageUploadStep) => void) {
   const results: UploadedProductImage[] = []
   for (const [index, file] of files.entries()) {
     if (file.size > 40_000_000) throw new Error('Pilt on töötlemiseks liiga suur. Maksimaalne algfail on 40 MB.')
@@ -433,20 +449,28 @@ export async function uploadProductImages(storeId: string, files: File[], onPhas
     } finally {
       decoded.dispose()
     }
-    onPhase?.(index, 'uploading')
+    const encodedImages = [...encodedBySize.values()]
+    let completedUploads = 0
+    onPhase?.(index, 'uploading', { completed: 0, total: encodedImages.length })
     const uploadedBySize = new Map<string, { url: string; width: number; height: number; bytes: number }>()
-    const uploadedPaths: string[] = []
-    try {
-      for (const encoded of encodedBySize.values()) {
-        const extension = encoded.blob.type === 'image/webp' ? 'webp' : 'png'
-        const uploaded = await uploadPublicImage(storeId, `${imageId}/${encoded.role}.${extension}`, encoded.blob)
-        uploadedPaths.push(uploaded.path)
-        uploadedBySize.set(`${encoded.width}x${encoded.height}`, { url: uploaded.url, width: encoded.width, height: encoded.height, bytes: encoded.blob.size })
-      }
-    } catch (error) {
+    const uploadResults = await Promise.allSettled(encodedImages.map(async (encoded) => {
+      const extension = getEncodedImageExtension(encoded.blob.type)
+      const uploaded = await uploadPublicImage(storeId, `${imageId}/${encoded.role}.${extension}`, encoded.blob)
+      completedUploads += 1
+      onPhase?.(index, 'uploading', { completed: completedUploads, total: encodedImages.length })
+      return { encoded, uploaded }
+    }))
+    const uploadedPaths = uploadResults.flatMap((result) => result.status === 'fulfilled' ? [result.value.uploaded.path] : [])
+    const failedUpload = uploadResults.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+    if (failedUpload) {
       if (uploadedPaths.length) await requireSupabase().storage.from('product-images').remove(uploadedPaths)
-      throw error
+      throw failedUpload.reason
     }
+    uploadResults.forEach((result) => {
+      if (result.status !== 'fulfilled') return
+      const { encoded, uploaded } = result.value
+      uploadedBySize.set(`${encoded.width}x${encoded.height}`, { url: uploaded.url, width: encoded.width, height: encoded.height, bytes: encoded.blob.size })
+    })
     const getVariant = (role: string) => {
       const encoded = encodedByRole.get(role)!
       return uploadedBySize.get(`${encoded.width}x${encoded.height}`)!
@@ -473,7 +497,7 @@ export async function uploadImages(storeId: string, files: File[], onPhase?: (in
     let encoded: Awaited<ReturnType<typeof encodeImage>>
     try { encoded = await encodeImage(decoded, 2000, .84) } finally { decoded.dispose() }
     onPhase?.(index, 'uploading')
-    const extension = encoded.blob.type === 'image/webp' ? 'webp' : 'png'
+    const extension = getEncodedImageExtension(encoded.blob.type)
     const uploaded = await uploadPublicImage(storeId, `assets/${createRandomId()}.${extension}`, encoded.blob)
     results.push(uploaded.url)
   }

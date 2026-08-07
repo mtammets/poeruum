@@ -141,6 +141,10 @@ const ACCENT_PRESETS = ['#e5f25a', '#ff7a59', '#73e2a7', '#77d4ff', '#d3a6ff', '
 const EMPTY_PRODUCT_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1200'%3E%3Crect width='900' height='1200' fill='%2315171a'/%3E%3Cg fill='none' stroke='%236b7682' stroke-width='18' stroke-linecap='round' stroke-linejoin='round' opacity='.8'%3E%3Crect x='310' y='460' width='280' height='220' rx='32'/%3E%3Cpath d='m342 638 82-82 62 62 38-38 38 38'/%3E%3Ccircle cx='506' cy='526' r='24'/%3E%3C/g%3E%3C/svg%3E"
 
 const MAX_PRODUCT_IMAGES = 3
+const getProductImageUploadProgress = (imageCount: number, index: number, phase: ImageUploadPhase, completed = 0, total = 1) => {
+  const phaseProgress = phase === 'preparing' ? .08 : .35 + .6 * completed / Math.max(1, total)
+  return Math.min(95, Math.round(8 + 87 * (index + phaseProgress) / Math.max(1, imageCount)))
+}
 type EditImageUpload = {
   id: string
   file: File
@@ -843,7 +847,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     updateEditImageUpload(upload.id, { phase: 'preparing', slow: false, error: undefined })
     const previousTimer = editImageUploadTimersRef.current.get(upload.id)
     if (previousTimer) window.clearTimeout(previousTimer)
-    editImageUploadTimersRef.current.set(upload.id, window.setTimeout(() => updateEditImageUpload(upload.id, { slow: true }), 4500))
+    editImageUploadTimersRef.current.set(upload.id, window.setTimeout(() => updateEditImageUpload(upload.id, { slow: true }), 6500))
     try {
       const [uploaded] = await uploadProductImages(storeId, [upload.file], (_index, phase) => updateEditImageUpload(upload.id, { phase }))
       const uploadedUrl = uploaded.url
@@ -981,13 +985,17 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setAddProductStep('source')
     setAddProductImages([])
     setAddProductError('')
-    setImageUpload({ images: previews, progress: 18, phase: 'preparing' })
-    const slowTimer = window.setTimeout(() => setImageUpload((current) => current ? { ...current, slow: true } : null), 4500)
+    setImageUpload({ images: previews, progress: 8, phase: 'preparing' })
+    const slowTimer = window.setTimeout(() => setImageUpload((current) => current ? { ...current, slow: true } : null), 6500)
     let images: string[]
     let imageVariants: Record<string, ProductImageAsset> = {}
     try {
       if (storeId) {
-        const uploaded = await uploadProductImages(storeId, imageFiles, (_index, phase) => setImageUpload((current) => current ? { ...current, phase, progress: phase === 'preparing' ? 18 : 62 } : null))
+        const uploaded = await uploadProductImages(storeId, imageFiles, (index, phase, step) => setImageUpload((current) => current ? {
+          ...current,
+          phase,
+          progress: Math.max(current.progress, getProductImageUploadProgress(imageFiles.length, index, phase, step?.completed, step?.total)),
+        } : null))
         images = uploaded.map((item) => item.url)
         imageVariants = Object.fromEntries(uploaded.map((item) => [item.url, item.asset]))
       } else images = previews
@@ -2306,7 +2314,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         {activeProduct && isEditOpen && <div className="product-image-editor">
           {editImageUploads.length > 0 && <div className={`product-image-editor__upload-status${editImageUploads.some((upload) => upload.phase === 'error') ? ' is-error' : ''}`} role="status" aria-live="polite">
             {editImageUploads.some((upload) => upload.phase === 'error') ? <span>!</span> : <i />}
-            <div><strong>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Pildi üleslaadimine ebaõnnestus' : editImageUploads.some((upload) => upload.phase === 'preparing') ? 'Valmistan fotot ette…' : 'Laen pilti üles…'}</strong><small>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Proovi pisipildi juures uuesti.' : editImageUploads.some((upload) => upload.slow) ? 'Foto on suur, läheb veel veidi.' : 'Võid oodata — aken jääb avatuks.'}</small></div>
+            <div><strong>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Pildi üleslaadimine ebaõnnestus' : editImageUploads.some((upload) => upload.phase === 'preparing') ? 'Valmistan fotot ette…' : 'Laen pilti üles…'}</strong><small>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Proovi pisipildi juures uuesti.' : editImageUploads.some((upload) => upload.slow) ? 'Läheb tavapärasest veidi kauem…' : 'Võid oodata — aken jääb avatuks.'}</small></div>
           </div>}
           <div className="product-image-editor__gesture-area" aria-label="Tootepildi paigutamine" onPointerDown={handleImagePointerDown} onPointerMove={handleImagePointerMove} onPointerUp={endImagePointer} onPointerCancel={endImagePointer} onWheel={handleImageWheel} onDoubleClick={() => setActiveEditImageTransform(activeEditImageTransform.scale > 1.05 ? DEFAULT_IMAGE_TRANSFORM : { x: 0, y: 0, scale: 2 })} />
           <div className="product-image-editor__tray">
@@ -3105,7 +3113,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         <section className="image-upload-progress" role="status" aria-live="polite">
           <div className="image-upload-progress__visuals">
             {imageUpload.images.map((image, index) => {
-              const imageProgress = Math.max(0, Math.min(100, imageUpload.progress * 1.35 - index * 30))
+              const imageProgress = imageUpload.phase === 'ready' ? 100 : Math.max(0, Math.min(100, imageUpload.progress * imageUpload.images.length - index * 100))
               return <div className="image-upload-progress__image" style={{ '--image-progress': `${imageProgress}%`, '--image-delay': `${index * 70}ms` } as CSSProperties} key={image}>
                 <span><img src={image} alt="" /></span>
                 {imageProgress >= 100 && <i aria-hidden="true">✓</i>}
@@ -3114,10 +3122,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           </div>
           <div className="image-upload-progress__copy">
             <small>{imageUpload.phase === 'preparing' ? 'VALMISTAN ETTE' : imageUpload.phase === 'uploading' ? 'LAEN PILTE' : 'VALMIS'}</small>
-            <strong>{imageUpload.phase === 'ready' ? 'Pildid on poes' : imageUpload.slow ? 'Foto on suur, läheb veel veidi…' : imageUpload.images.length === 1 ? 'Lisan tootepildi…' : `Lisan ${imageUpload.images.length} tootepilti…`}</strong>
+            <strong>{imageUpload.phase === 'ready' ? 'Pildid on poes' : imageUpload.slow ? 'Läheb tavapärasest veidi kauem…' : imageUpload.images.length === 1 ? 'Lisan tootepildi…' : `Lisan ${imageUpload.images.length} tootepilti…`}</strong>
           </div>
           <div className="image-upload-progress__track" aria-label={`${imageUpload.progress}%`}><span style={{ width: `${imageUpload.progress}%` }}><i /></span></div>
-          <div className="image-upload-progress__meta"><span>{imageUpload.phase === 'ready' ? 'Kõik valmis' : imageUpload.phase === 'preparing' ? 'Töötlen fotot' : 'Üleslaadimine käib'}</span><span>{imageUpload.images.length}/{MAX_PRODUCT_IMAGES} pilti</span></div>
+          <div className="image-upload-progress__meta"><span>{imageUpload.phase === 'ready' ? 'Kõik valmis' : imageUpload.phase === 'preparing' ? 'Töötlen fotot' : 'Üleslaadimine käib'}</span><span>{imageUpload.images.length === 1 ? '1 pilt' : `${imageUpload.images.length} pilti`}</span></div>
         </section>
       </div>}
       {isAddOpen && (
