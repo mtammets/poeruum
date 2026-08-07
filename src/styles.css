@@ -27,6 +27,24 @@
   animation: platform-loading-spin .8s linear infinite;
 }
 
+:root[data-app-surface="storefront"] .platform-loading,
+.storefront-loading {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  background: #000;
+}
+
+:root[data-app-surface="storefront"] .platform-loading span,
+.storefront-loading span {
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 2px solid rgba(255, 255, 255, .18);
+  border-top-color: rgba(255, 255, 255, .82);
+  border-radius: 50%;
+  animation: platform-loading-spin .8s linear infinite;
+}
+
 @keyframes platform-loading-spin {
   to { transform: rotate(360deg); }
 }

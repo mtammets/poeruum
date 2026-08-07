@@ -5,7 +5,7 @@ import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, ge
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getStoreDestination, type OnboardingStep } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
-import { getRequestedProductSlug, getRequestedStoreSlug, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
+import { getRequestedProductSlug, getRequestedStoreSlug, isDedicatedStorefrontHostname, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { isHomepageAnalyticsLocation, startHomepageEngagementTracking, trackHomepageEvent } from './lib/homepageAnalytics'
 import { products as bundledProducts, type Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
@@ -180,6 +180,10 @@ function SetupShell({
 }
 
 function PlatformFlow() {
+  const requestedStoreSlug = getRequestedStoreSlug(window.location)
+  const shouldLoadPublicStore = isSupabaseConfigured && (
+    requestedStoreSlug !== null || isDedicatedStorefrontHostname(window.location.hostname)
+  )
   const [screen, setScreen] = useState<Screen>('landing')
   const [showAllFaq, setShowAllFaq] = useState(false)
   const [email, setEmail] = useState('')
@@ -226,6 +230,7 @@ function PlatformFlow() {
   const [isConfirmationRateLimited, setIsConfirmationRateLimited] = useState(false)
   const [publicStore, setPublicStore] = useState<PublicStoreRecord | null>(null)
   const [publicProducts, setPublicProducts] = useState<Product[]>([])
+  const [isPublicStoreLoading, setIsPublicStoreLoading] = useState(shouldLoadPublicStore)
   const requestedProductSlug = getRequestedProductSlug(window.location)
   const [sampleStore, setSampleStore] = useState<PublicStoreRecord | null>(null)
   const [sampleProducts, setSampleProducts] = useState<Product[]>([])
@@ -418,16 +423,23 @@ function PlatformFlow() {
   }, [isBillingCardOpen])
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return
-    const requestedSlug = getRequestedStoreSlug(window.location)
-    const loadRequestedStore = requestedSlug
-      ? getStoreBySlug(requestedSlug)
+    if (!shouldLoadPublicStore) return
+    let active = true
+    const loadRequestedStore = requestedStoreSlug
+      ? getStoreBySlug(requestedStoreSlug)
       : getStoreByHostname(window.location.hostname)
     loadRequestedStore.then(async (found) => {
-      if (!found) return
+      if (!found || !active) return
+      const nextProducts = await listProducts(found.id)
+      if (!active) return
       setPublicStore(found)
-      setPublicProducts(await listProducts(found.id))
-    }).catch((error) => setAuthError(error instanceof Error ? error.message : 'Poe laadimine ebaõnnestus.'))
+      setPublicProducts(nextProducts)
+    }).catch((error) => {
+      if (active) setAuthError(error instanceof Error ? error.message : 'Poe laadimine ebaõnnestus.')
+    }).finally(() => {
+      if (active) setIsPublicStoreLoading(false)
+    })
+    return () => { active = false }
   }, [])
 
   useEffect(() => {
@@ -1044,6 +1056,7 @@ function PlatformFlow() {
     <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
   </div> : null
 
+  if (isPublicStoreLoading) return <main className="storefront-loading" aria-label="Laadin poodi"><span /></main>
   if (publicStore) return <Storefront
     key={publicStore.id}
     storeId={publicStore.id}
