@@ -146,6 +146,7 @@ Deno.serve(async (request) => {
       })
       orderItems.push({
         id: String(product.id), name: String(product.name), image: String(product.image_url), gallery: product.gallery,
+        imageVariants: product.image_variants,
         alt: String(product.alt ?? product.name), description: String(product.description ?? ''), price: regularPrice,
         salePrice: salePrice ?? undefined, quantity, selectedOptions, cartKey: `${product.id}:${optionText}`,
       })

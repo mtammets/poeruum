@@ -156,6 +156,32 @@ type EditImageUpload = {
   slow: boolean
   error?: string
 }
+
+export function OrderItemThumbnail({ item, currentProduct }: { item: CartItem; currentProduct?: Product }) {
+  const fallbackProduct = currentProduct && currentProduct.image !== item.image ? currentProduct : null
+  const [sourceStage, setSourceStage] = useState(0)
+
+  const sourceProduct = sourceStage === 0
+    ? item
+    : sourceStage === 1 && fallbackProduct
+      ? fallbackProduct
+      : { ...item, image: EMPTY_PRODUCT_IMAGE, imageVariants: {} }
+  const sourceImage = sourceStage === 0
+    ? item.image
+    : sourceStage === 1 && fallbackProduct
+      ? fallbackProduct.image
+      : EMPTY_PRODUCT_IMAGE
+  const finalStage = fallbackProduct ? 2 : 1
+
+  return <img
+    {...getResponsiveImageProps(sourceProduct, sourceImage, 'thumb')}
+    sizes="4rem"
+    alt=""
+    loading="lazy"
+    decoding="async"
+    onError={() => setSourceStage((stage) => Math.min(finalStage, stage + 1))}
+  />
+}
 export type { PaymentProvider } from './storefrontModel'
 
 const normalizeSearch = (value: string) => value
@@ -217,6 +243,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
   const storeDescriptionInputRef = useRef<HTMLTextAreaElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [mayLoadNonCriticalImages, setMayLoadNonCriticalImages] = useState(false)
   const [productRouteSlug, setProductRouteSlug] = useState<string | null>(initialProductSlug)
   const [cart, setCart] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
@@ -683,7 +710,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       let uploadedUrl = ''
       const previousUrl = storeLogo
       try {
-        uploadedUrl = (await uploadImages(storeId, [file]))[0]
+        uploadedUrl = (await uploadImages(storeId, [file], undefined, { maximumSide: 512, quality: .86 }))[0]
         setStoreLogo(uploadedUrl)
         const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), storeLogo: uploadedUrl })
         const requestId = ++settingsSaveRequestIdRef.current
@@ -728,7 +755,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       let uploadedUrl = ''
       const previousUrl = storeAboutImage
       try {
-        uploadedUrl = (await uploadImages(storeId, [file]))[0]
+        uploadedUrl = (await uploadImages(storeId, [file], undefined, { maximumSide: 1600, quality: .82 }))[0]
         setStoreAboutImage(uploadedUrl)
         const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), storeAboutImage: uploadedUrl })
         const requestId = ++settingsSaveRequestIdRef.current
@@ -1648,10 +1675,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         delete next[persisted.id]
         return next
       })
-      const previousImages = activeProduct.gallery?.length ? activeProduct.gallery : [activeProduct.image]
-      const removedPreviousImages = previousImages.filter((image) => !editProductImages.includes(image))
+      // A committed image can be part of an immutable order snapshot. Keep
+      // replaced files; account-level retention cleanup removes the prefix later.
       const abandonedUploads = [...uploadedDuringEditRef.current].filter((image) => !editProductImages.includes(image))
-      if (removedPreviousImages.length) void removeStoredProductImages(activeProduct.imageVariants, removedPreviousImages).catch(() => undefined)
       if (abandonedUploads.length) void removeStoredProductImages(editProductImageVariants, abandonedUploads).catch(() => undefined)
       uploadedDuringEditRef.current.clear()
     } else {
@@ -1998,8 +2024,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (!activeProduct) return
     try {
       if (storeId) {
+        // Product rows may be deleted, but paid orders still need their image snapshot.
         await removeProduct(activeProduct.id)
-        void removeStoredProductImages(activeProduct.imageVariants, activeProduct.gallery?.length ? activeProduct.gallery : [activeProduct.image]).catch(() => undefined)
       }
     }
     catch (error) { setAuthToast(error instanceof Error ? error.message : 'Toote kustutamine ebaõnnestus'); return }
@@ -2312,12 +2338,16 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         </div>}
 
         <div className="story-track" ref={trackRef}>
-          {renderedProducts.map((product, index) => (
-            <article className="story-slide" key={`${product.id}-${index}`}>
-              <img {...getDisplayedProductImageProps(product)} sizes="100vw" alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product).x}%, ${getDisplayedImageTransform(product).y}%, 0) scale(${getDisplayedImageTransform(product).scale})`, transformOrigin: 'center' }} loading={Math.abs(index - (activeIndex + 1)) <= 1 ? 'eager' : 'lazy'} fetchPriority={Math.abs(index - (activeIndex + 1)) === 0 ? 'high' : 'auto'} decoding={Math.abs(index - (activeIndex + 1)) <= 1 ? 'sync' : 'async'} />
+          {renderedProducts.map((product, index) => {
+            const isActiveSlide = index === activeIndex + 1
+            const imageProps = isActiveSlide || mayLoadNonCriticalImages
+              ? getDisplayedProductImageProps(product)
+              : { src: EMPTY_PRODUCT_IMAGE }
+            return <article className="story-slide" key={`${product.id}-${index}`}>
+              <img {...imageProps} sizes="100vw" alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product).x}%, ${getDisplayedImageTransform(product).y}%, 0) scale(${getDisplayedImageTransform(product).scale})`, transformOrigin: 'center' }} loading={isActiveSlide ? 'eager' : 'lazy'} fetchPriority={isActiveSlide ? 'high' : 'low'} decoding="async" onLoad={isActiveSlide ? () => setMayLoadNonCriticalImages(true) : undefined} onError={isActiveSlide ? () => setMayLoadNonCriticalImages(true) : undefined} />
               <div className="story-shade" />
             </article>
-          ))}
+          })}
         </div>
 
         {!activeProduct && <div className={`empty-storefront${isAdminMode ? ' is-admin' : ''}`}>
@@ -2381,7 +2411,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))}
                 aria-label={`Pilt ${index + 1}`}
               >
-                <img {...getResponsiveImageProps(activeProduct, image, 'thumb')} sizes="5rem" alt="" />
+                <img {...(mayLoadNonCriticalImages ? getResponsiveImageProps(activeProduct, image, 'thumb') : { src: EMPTY_PRODUCT_IMAGE })} sizes="5rem" alt="" loading="lazy" decoding="async" />
               </button>
             ))}
           </div>
@@ -2550,7 +2580,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
           </button>}
           {(storeDescription.trim() || storeAboutImage) && <div className={`site-footer__about${storeAboutImage ? ' has-image' : ''}`}>
-            {storeAboutImage && <button className="site-footer__about-image" type="button" onClick={() => setIsAboutOpen(true)} aria-label="Ava poe tutvustus"><img src={storeAboutImage} alt="" /></button>}
+            {storeAboutImage && <button className="site-footer__about-image" type="button" onClick={() => setIsAboutOpen(true)} aria-label="Ava poe tutvustus"><img src={!activeProduct || mayLoadNonCriticalImages ? storeAboutImage : EMPTY_PRODUCT_IMAGE} alt="" loading="lazy" decoding="async" /></button>}
             <div>{storeDescription.trim() && <p>{storeDescription}</p>}
             {(storeAboutImage || storeDescription.trim().length > 110) && <button type="button" onClick={() => setIsAboutOpen(true)}>Vaata tutvustust →</button>}</div>
           </div>}
@@ -2648,7 +2678,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           {orders.length ? <div className={`order-list${orderLayout === 'list' ? ' is-list' : ''}`}>{visibleOrders.length ? visibleOrders.map((order) => <article className={order.status === 'new' ? 'is-new' : order.status === 'refunded' ? 'is-refunded' : ''} key={order.id}>
             <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'new' ? 'Uus' : order.status === 'refunded' ? 'Tagastatud' : 'Täidetud'}</span></header>
             <div className="order-customer"><strong>{order.customerName}</strong><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a><small>{order.delivery}</small></div>
-            <ul>{order.items.map((item) => <li key={item.cartKey}><img {...getResponsiveImageProps(item, item.image, 'thumb')} sizes="4rem" alt="" /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
+            <ul>{order.items.map((item) => <li key={item.cartKey}><OrderItemThumbnail item={item} currentProduct={displayProducts.find((product) => product.id === item.id)} /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
             {Boolean(order.stripeSellerNet) && <dl className="order-settlement">
               <div><dt>Stripe’i maksetasu</dt><dd>−{formatEuro(order.stripeProcessingFee ?? 0)}</dd></div>
               <div><dt>Poeruumi teenustasu (neto)</dt><dd>−{formatEuro(order.stripePlatformFeeNet ?? 0)}</dd></div>

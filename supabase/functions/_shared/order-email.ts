@@ -53,7 +53,10 @@ const renderItems = (items: unknown) => (Array.isArray(items) ? items : []).map(
   const item = asRecord(itemValue)
   const quantity = Math.max(1, Number(item.quantity ?? 1))
   const unitPrice = Number(item.salePrice ?? item.price ?? 0)
-  const image = safeImageUrl(item.image ?? item.image_url)
+  const originalImage = String(item.image ?? item.image_url ?? '')
+  const imageAsset = asRecord(asRecord(item.imageVariants)[originalImage])
+  const thumbnail = asRecord(asRecord(imageAsset.variants).thumb).url
+  const image = safeImageUrl(thumbnail ?? originalImage)
   const options = Object.entries(asRecord(item.selectedOptions))
     .map(([name, value]) => `${escapeHtml(name)}: ${escapeHtml(value)}`)
     .join(' · ')

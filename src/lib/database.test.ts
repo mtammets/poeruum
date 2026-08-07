@@ -77,6 +77,11 @@ describe('image encoding fallback', () => {
     expect(getImageFallbackMimeType('', 'product.webp')).toBe('image/png')
   })
 
+  it('flattens an opaque PNG photo but preserves a PNG with actual alpha', () => {
+    expect(getImageFallbackMimeType('image/png', 'photo.png', false)).toBe('image/jpeg')
+    expect(getImageFallbackMimeType('image/png', 'logo.png', true)).toBe('image/png')
+  })
+
   it('falls back to JPEG in Safari and uploads responsive variants concurrently', async () => {
     const canvas = {
       width: 0,
@@ -128,5 +133,50 @@ describe('image encoding fallback', () => {
     expect(upload.mock.calls.every(([path]) => String(path).endsWith('.jpg'))).toBe(true)
     expect(maximumConcurrentUploads).toBe(3)
     expect(steps).toEqual([0, 1, 2, 3])
+  })
+
+  it('inspects an opaque PNG and uses compact JPEG when WebP encoding is unavailable', async () => {
+    const context = {
+      imageSmoothingEnabled: false,
+      imageSmoothingQuality: 'low',
+      fillStyle: '',
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+      getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(64 * 48 * 4).fill(255) })),
+    }
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => context),
+      toBlob: vi.fn((callback: BlobCallback, type?: string) => {
+        const outputType = type === 'image/webp' ? 'image/png' : type ?? 'image/png'
+        callback(new Blob(['optimized-image'], { type: outputType }))
+      }),
+    }
+    vi.stubGlobal('document', { createElement: vi.fn(() => canvas) })
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 800, height: 600, close: vi.fn() })))
+
+    const upload = vi.fn(async (_path: string, _blob: Blob) => {
+      void _path
+      void _blob
+      return { error: null }
+    })
+    const bucket = {
+      upload,
+      remove: vi.fn(async () => ({ error: null })),
+      getPublicUrl: vi.fn((path: string) => ({ data: { publicUrl: `https://images.example/${path}` } })),
+    }
+    vi.mocked(requireSupabase).mockReturnValue({ storage: { from: vi.fn(() => bucket) } } as unknown as ReturnType<typeof requireSupabase>)
+
+    const [result] = await uploadProductImages(store.id, [{
+      name: 'opaque-photo.png',
+      type: 'image/png',
+      size: 2_800_000,
+    } as File])
+
+    expect(result.asset.mimeType).toBe('image/jpeg')
+    expect(upload).toHaveBeenCalledTimes(2)
+    expect(upload.mock.calls.every(([path]) => String(path).endsWith('.jpg'))).toBe(true)
+    expect(context.getImageData).toHaveBeenCalledTimes(1)
   })
 })

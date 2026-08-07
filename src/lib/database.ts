@@ -350,27 +350,54 @@ export async function removeStoredProductImages(imageVariants: Product['imageVar
 export type ImageUploadPhase = 'preparing' | 'uploading'
 export type ImageUploadStep = { completed: number; total: number }
 
-type DecodedImage = { source: CanvasImageSource; width: number; height: number; fallbackMimeType: 'image/jpeg' | 'image/png'; dispose: () => void }
+type ImageFallbackMimeType = 'image/jpeg' | 'image/png'
+type DecodedImage = { source: CanvasImageSource; width: number; height: number; fallbackMimeType: ImageFallbackMimeType; dispose: () => void }
 
-export const getImageFallbackMimeType = (mimeType: string, fileName = ''): DecodedImage['fallbackMimeType'] => {
+export const getImageFallbackMimeType = (mimeType: string, fileName = '', hasTransparency?: boolean): ImageFallbackMimeType => {
   const normalizedMimeType = mimeType.toLowerCase()
   const mayHaveTransparency = ['image/png', 'image/webp', 'image/gif', 'image/avif', 'image/svg+xml'].includes(normalizedMimeType)
     || /\.(?:png|webp|gif|avif|svg)$/i.test(fileName)
-  return mayHaveTransparency ? 'image/png' : 'image/jpeg'
+  if (!mayHaveTransparency) return 'image/jpeg'
+  return hasTransparency === false ? 'image/jpeg' : 'image/png'
+}
+
+const imageHasTransparency = (source: CanvasImageSource, width: number, height: number) => {
+  const maximumInspectionSide = 64
+  const ratio = Math.min(1, maximumInspectionSide / Math.max(width, height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(width * ratio))
+  canvas.height = Math.max(1, Math.round(height * ratio))
+  const context = canvas.getContext('2d', { alpha: true, willReadFrequently: true })
+  if (!context) return true
+  try {
+    context.drawImage(source, 0, 0, canvas.width, canvas.height)
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+    for (let index = 3; index < pixels.length; index += 4) {
+      if (pixels[index] < 255) return true
+    }
+    return false
+  } catch {
+    // If the browser cannot inspect pixels, retain the alpha-capable format
+    // instead of flattening a logo or transparent product cutout.
+    return true
+  }
 }
 
 const decodeImage = async (file: File): Promise<DecodedImage> => {
-  const fallbackMimeType = getImageFallbackMimeType(file.type, file.name)
+  const potentialFallbackMimeType = getImageFallbackMimeType(file.type, file.name)
+  const resolveFallbackMimeType = (source: CanvasImageSource, width: number, height: number) => potentialFallbackMimeType === 'image/png'
+    ? getImageFallbackMimeType(file.type, file.name, imageHasTransparency(source, width, height))
+    : potentialFallbackMimeType
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-    return { source: bitmap, width: bitmap.width, height: bitmap.height, fallbackMimeType, dispose: () => bitmap.close() }
+    return { source: bitmap, width: bitmap.width, height: bitmap.height, fallbackMimeType: resolveFallbackMimeType(bitmap, bitmap.width, bitmap.height), dispose: () => bitmap.close() }
   } catch {
     const objectUrl = URL.createObjectURL(file)
     const image = new Image()
     image.src = objectUrl
     try {
       await image.decode()
-      return { source: image, width: image.naturalWidth, height: image.naturalHeight, fallbackMimeType, dispose: () => URL.revokeObjectURL(objectUrl) }
+      return { source: image, width: image.naturalWidth, height: image.naturalHeight, fallbackMimeType: resolveFallbackMimeType(image, image.naturalWidth, image.naturalHeight), dispose: () => URL.revokeObjectURL(objectUrl) }
     } catch {
       URL.revokeObjectURL(objectUrl)
       throw new Error('Seda pildivormingut ei õnnestunud töödelda. Salvesta pilt JPG-, PNG- või WebP-vormingus.')
@@ -484,7 +511,7 @@ export async function uploadProductImages(storeId: string, files: File[], onPhas
   return results
 }
 
-export async function uploadImages(storeId: string, files: File[], onPhase?: (index: number, phase: ImageUploadPhase) => void) {
+export async function uploadImages(storeId: string, files: File[], onPhase?: (index: number, phase: ImageUploadPhase) => void, options: { maximumSide?: number; quality?: number } = {}) {
   const results: string[] = []
   for (const [index, originalFile] of files.entries()) {
     if (originalFile.size > 40_000_000) throw new Error('Pilt on töötlemiseks liiga suur. Maksimaalne algfail on 40 MB.')
@@ -495,7 +522,7 @@ export async function uploadImages(storeId: string, files: File[], onPhase?: (in
       throw new Error('Pildi mõõtmed on liiga suured. Vali kuni 80-megapiksline foto.')
     }
     let encoded: Awaited<ReturnType<typeof encodeImage>>
-    try { encoded = await encodeImage(decoded, 2000, .84) } finally { decoded.dispose() }
+    try { encoded = await encodeImage(decoded, options.maximumSide ?? 1600, options.quality ?? .84) } finally { decoded.dispose() }
     onPhase?.(index, 'uploading')
     const extension = getEncodedImageExtension(encoded.blob.type)
     const uploaded = await uploadPublicImage(storeId, `assets/${createRandomId()}.${extension}`, encoded.blob)

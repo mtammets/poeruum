@@ -196,6 +196,65 @@ test('a stale settings response cannot overwrite text being typed', async ({ pag
   await expect(description).toHaveValue('Telefonis kirjutatud uus tekst')
 })
 
+test('an order thumbnail falls back to the current product image', async ({ page }) => {
+  const imageBody = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="lime"/></svg>'
+  await page.route('**/e2e-images/missing.jpg', (route) => route.fulfill({ status: 404 }))
+  await page.route('**/e2e-images/current.jpg', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: imageBody }))
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountOrderImageHarness } = await import('/e2e/image-harness.tsx')
+    mountOrderImageHarness()
+  })
+
+  const thumbnail = page.locator('#order-image-harness img')
+  await expect(thumbnail).toBeVisible()
+  await expect.poll(() => thumbnail.evaluate((image) => ({
+    source: image.currentSrc,
+    width: image.naturalWidth,
+  }))).toEqual({
+    source: 'http://localhost:4173/e2e-images/current.jpg',
+    width: 40,
+  })
+})
+
+test('the visible product image loads before non-critical storefront images', async ({ page }) => {
+  const requestedImages: string[] = []
+  let releaseFirstImage = () => undefined
+  const firstImageGate = new Promise<void>((resolve) => { releaseFirstImage = resolve })
+  const imageBody = '<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844"><rect width="390" height="844" fill="navy"/></svg>'
+  await page.route('**/e2e-images/**', async (route) => {
+    const imageName = new URL(route.request().url()).pathname.split('/').at(-1) ?? ''
+    requestedImages.push(imageName)
+    if (imageName === 'first.jpg') await firstImageGate
+    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: imageBody })
+  })
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountStorefrontImageHarness } = await import('/e2e/image-harness.tsx')
+    mountStorefrontImageHarness()
+  })
+
+  await expect.poll(() => requestedImages.includes('first.jpg')).toBe(true)
+  const slidesBeforeFirstImage = await page.locator('.story-slide img').evaluateAll((images) => images.map((image) => ({
+    source: image.getAttribute('src'),
+    loading: image.loading,
+    priority: image.fetchPriority,
+  })))
+  expect(slidesBeforeFirstImage.filter((image) => image.priority === 'high')).toEqual([{
+    source: '/e2e-images/first.jpg',
+    loading: 'eager',
+    priority: 'high',
+  }])
+  expect(slidesBeforeFirstImage.filter((image) => image.priority === 'low').every((image) => image.source?.startsWith('data:image/svg+xml'))).toBe(true)
+  expect(requestedImages).not.toContain('second.jpg')
+  expect(requestedImages).not.toContain('gallery.jpg')
+  expect(requestedImages).not.toContain('about.jpg')
+  await expect(page.locator('.site-footer__about-image img')).toHaveAttribute('loading', 'lazy')
+
+  releaseFirstImage()
+  await expect.poll(() => requestedImages.includes('second.jpg')).toBe(true)
+})
+
 test('admin route fails closed when backend configuration is absent', async ({ page }) => {
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
