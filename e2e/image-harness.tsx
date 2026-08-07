@@ -1,10 +1,17 @@
-import { createElement, type ReactNode } from 'react'
+import { createElement, type ReactNode, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { OrderItemThumbnail, Storefront } from '../src/App'
 import { StorefrontLoadingScreen } from '../src/PlatformApp'
 import type { Product } from '../src/products'
 import type { PublicStoreRecord } from '../src/lib/database'
 import { createCartItem } from '../src/storefrontModel'
+
+declare global {
+  interface Window {
+    __finishStorefrontLoading?: () => void
+    __initialStorefrontVisualReadyCount?: number
+  }
+}
 
 const createProduct = (id: string, name: string, image: string, gallery?: string[]): Product => ({
   id,
@@ -51,22 +58,32 @@ export function mountStorefrontImageHarness() {
       storeLogo: '/e2e-images/logo.jpg',
       storeAboutImage: '/e2e-images/about.jpg',
     },
+    onInitialVisualReady: () => {
+      window.__initialStorefrontVisualReadyCount = (window.__initialStorefrontVisualReadyCount ?? 0) + 1
+    },
   }), 'storefront-image-harness')
 }
 
+const loadingStore: PublicStoreRecord = {
+  id: '10000000-0000-4000-8000-000000000097',
+  name: 'Logo pood',
+  slug: 'logo-pood',
+  is_published: true,
+  payment_provider: 'stripe',
+  payment_status: 'connected',
+  shipping: [],
+  settings: {
+    editableStoreName: 'Logo pood',
+    storeLogo: '/e2e-images/loading-logo.jpg',
+  },
+}
+
+function StorefrontLoadingHarness() {
+  const [isLeaving, setIsLeaving] = useState(false)
+  window.__finishStorefrontLoading = () => setIsLeaving(true)
+  return createElement(StorefrontLoadingScreen, { store: loadingStore, isLeaving })
+}
+
 export function mountStorefrontLoadingHarness() {
-  const store: PublicStoreRecord = {
-    id: '10000000-0000-4000-8000-000000000097',
-    name: 'Logo pood',
-    slug: 'logo-pood',
-    is_published: true,
-    payment_provider: 'stripe',
-    payment_status: 'connected',
-    shipping: [],
-    settings: {
-      editableStoreName: 'Logo pood',
-      storeLogo: '/e2e-images/loading-logo.jpg',
-    },
-  }
-  mount(createElement(StorefrontLoadingScreen, { store }), 'storefront-loading-harness')
+  mount(createElement(StorefrontLoadingHarness), 'storefront-loading-harness')
 }

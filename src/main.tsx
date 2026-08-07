@@ -15,7 +15,9 @@ const OutreachUnsubscribe = lazy(() => import('./OutreachUnsubscribe'))
 const PlatformApp = lazy(() => import('./PlatformApp'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
 
-const LoadingScreen = () => <main className="platform-loading" aria-label="Laadin Poeruumi"><span /></main>
+const LoadingScreen = () => document.documentElement.dataset.appSurface === 'storefront'
+  ? <main className="storefront-loading" aria-label="Laadin poodi" aria-busy="true" />
+  : <main className="platform-loading" aria-label="Laadin Poeruumi"><span /></main>
 const PlatformWithSupport = () => <Suspense fallback={<LoadingScreen />}>
   <PlatformApp />
   <Suspense fallback={null}><SupportCenter /></Suspense>

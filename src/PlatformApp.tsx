@@ -45,18 +45,17 @@ type RegistryLookupResponse = {
   data?: RegistryCompany[]
 }
 
-export function StorefrontLoadingScreen({ store }: { store: PublicStoreRecord | null }) {
+export function StorefrontLoadingScreen({ store, isLeaving = false }: { store: PublicStoreRecord | null; isLeaving?: boolean }) {
   const [logoFailed, setLogoFailed] = useState(false)
   const logo = typeof store?.settings.storeLogo === 'string' ? store.settings.storeLogo : ''
   const storeName = typeof store?.settings.editableStoreName === 'string' && store.settings.editableStoreName.trim()
     ? store.settings.editableStoreName.trim()
     : store?.name ?? ''
 
-  return <main className="storefront-loading" aria-label={storeName ? `Laadin poodi ${storeName}` : 'Laadin poodi'}>
+  return <main className={`storefront-loading${isLeaving ? ' is-leaving' : ''}`} aria-label={storeName ? `Laadin poodi ${storeName}` : 'Laadin poodi'} aria-busy={!isLeaving}>
     {logo && !logoFailed ? <div className="storefront-loading__brand">
       <img src={logo} alt="" fetchPriority="high" decoding="async" onError={() => setLogoFailed(true)} />
-      <i aria-hidden="true" />
-    </div> : <span className="storefront-loading__spinner" />}
+    </div> : null}
   </main>
 }
 
@@ -246,6 +245,7 @@ function PlatformFlow() {
   const [publicStore, setPublicStore] = useState<PublicStoreRecord | null>(null)
   const [publicProducts, setPublicProducts] = useState<Product[]>([])
   const [isPublicStoreLoading, setIsPublicStoreLoading] = useState(shouldLoadPublicStore)
+  const [isPublicStoreVisualReady, setIsPublicStoreVisualReady] = useState(false)
   const requestedProductSlug = getRequestedProductSlug(window.location)
   const [sampleStore, setSampleStore] = useState<PublicStoreRecord | null>(null)
   const [sampleProducts, setSampleProducts] = useState<Product[]>([])
@@ -1074,21 +1074,28 @@ function PlatformFlow() {
     <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
   </div> : null
 
-  if (isPublicStoreLoading) return <StorefrontLoadingScreen store={publicStore} />
-  if (publicStore) return <Suspense fallback={<StorefrontLoadingScreen store={publicStore} />}><Storefront
-    key={publicStore.id}
-    storeId={publicStore.id}
-    initialSettings={publicStore.settings}
-    seedProducts={publicProducts}
-    storeName={publicStore.name}
-    storeSlug={publicStore.slug}
-    paymentProvider={publicStore.payment_provider}
-    paymentsReady={publicStore.payment_status === 'connected'}
-    initialShipping={publicStore.shipping}
-    initialProductSlug={requestedProductSlug}
-    ownerEmail={email}
-    onOwnerLogin={signInFromStore}
-  /></Suspense>
+  if (shouldLoadPublicStore && (isPublicStoreLoading || publicStore)) return <div className="public-storefront-bootstrap">
+    {!isPublicStoreLoading && publicStore && <Suspense key="storefront-content" fallback={null}><Storefront
+      key={publicStore.id}
+      storeId={publicStore.id}
+      initialSettings={publicStore.settings}
+      seedProducts={publicProducts}
+      storeName={publicStore.name}
+      storeSlug={publicStore.slug}
+      paymentProvider={publicStore.payment_provider}
+      paymentsReady={publicStore.payment_status === 'connected'}
+      initialShipping={publicStore.shipping}
+      initialProductSlug={requestedProductSlug}
+      ownerEmail={email}
+      onOwnerLogin={signInFromStore}
+      onInitialVisualReady={() => setIsPublicStoreVisualReady(true)}
+    /></Suspense>}
+    <StorefrontLoadingScreen
+      key="storefront-loading"
+      store={publicStore}
+      isLeaving={Boolean(publicStore && !isPublicStoreLoading && isPublicStoreVisualReady)}
+    />
+  </div>
   if (screen === 'sample') return <Storefront
     key={`sample-storefront-${sampleStore?.id ?? 'bundled'}`}
     storeId={sampleStore?.id}

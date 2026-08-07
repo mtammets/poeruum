@@ -250,9 +250,11 @@ test('the visible product image loads before non-critical storefront images', as
   expect(requestedImages).not.toContain('gallery.jpg')
   expect(requestedImages).not.toContain('about.jpg')
   await expect(page.locator('.site-footer__about-image img')).toHaveAttribute('loading', 'lazy')
+  await expect.poll(() => page.evaluate(() => window.__initialStorefrontVisualReadyCount ?? 0)).toBe(0)
 
   releaseFirstImage()
   await expect.poll(() => requestedImages.includes('second.jpg')).toBe(true)
+  await expect.poll(() => page.evaluate(() => window.__initialStorefrontVisualReadyCount ?? 0)).toBe(1)
 })
 
 test('storefront loading shows the store logo when one is available', async ({ page }) => {
@@ -271,6 +273,11 @@ test('storefront loading shows the store logo when one is available', async ({ p
   await expect(logo).toHaveJSProperty('naturalWidth', 128)
   await expect(logo).toHaveAttribute('fetchpriority', 'high')
   await expect(loading.locator('.storefront-loading__spinner')).toHaveCount(0)
+  await expect(loading.locator('.storefront-loading__brand i')).toHaveCount(0)
+
+  await page.evaluate(() => window.__finishStorefrontLoading?.())
+  await expect(loading).toHaveClass(/is-leaving/)
+  await expect(loading).toBeHidden()
 })
 
 test('admin route fails closed when backend configuration is absent', async ({ page }) => {

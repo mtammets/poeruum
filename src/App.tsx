@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
@@ -226,17 +226,19 @@ export type StorefrontProps = {
   onOwnerLogin?: (email: string, password: string, captchaToken?: string) => Promise<void>
   onBackToSetup?: () => void
   onContinueSetup?: () => Promise<void> | void
+  onInitialVisualReady?: () => void
   onExit?: () => void
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
   const isSeoStorefront = Boolean(storeSlug && !merchantMode && !isShowcasePreview)
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
+  const initialVisualReadyReportedRef = useRef(false)
   const logoTapCountRef = useRef(0)
   const logoTapTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const storeLogoObjectUrlRef = useRef<string | null>(null)
@@ -1440,6 +1442,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     logoTapTimerRef.current = window.setTimeout(() => { logoTapCountRef.current = 0 }, 900)
   }
 
+  const reportInitialVisualReady = useCallback(() => {
+    if (!onInitialVisualReady || initialVisualReadyReportedRef.current) return
+    initialVisualReadyReportedRef.current = true
+    window.requestAnimationFrame(() => window.requestAnimationFrame(onInitialVisualReady))
+  }, [onInitialVisualReady])
+
   const activeProduct = displayProducts[activeIndex]
   const activeProductHasSale = activeProduct !== undefined && activeProduct.salePrice !== undefined && activeProduct.price !== undefined && activeProduct.salePrice < activeProduct.price
   const activeProductDiscount = activeProductHasSale ? Math.round((1 - activeProduct.salePrice! / activeProduct.price!) * 100) : 0
@@ -1451,6 +1459,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const activeProductCartQuantity = activeProduct ? cart.filter((item) => item.id === activeProduct.id).reduce((sum, item) => sum + item.quantity, 0) : 0
   const isActiveProductSoldOut = activeProductStockLimit <= 0
   const isActiveProductAtCartLimit = activeProductCartQuantity >= activeProductStockLimit
+
+  useEffect(() => {
+    if (!activeProduct) reportInitialVisualReady()
+  }, [activeProduct, reportInitialVisualReady])
 
   useEffect(() => {
     if (!isSeoStorefront || !storeSlug) return
@@ -1527,6 +1539,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       ? { ...product, imageVariants: editProductImageVariants }
       : product
     return getResponsiveImageProps(sourceProduct, image, preferred)
+  }
+
+  const handleInitialProductImageSettled = () => {
+    setMayLoadNonCriticalImages(true)
+    reportInitialVisualReady()
   }
 
   const getDisplayedImageTransform = (product: Product) => {
@@ -2344,7 +2361,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               ? getDisplayedProductImageProps(product)
               : { src: EMPTY_PRODUCT_IMAGE }
             return <article className="story-slide" key={`${product.id}-${index}`}>
-              <img {...imageProps} sizes="100vw" alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product).x}%, ${getDisplayedImageTransform(product).y}%, 0) scale(${getDisplayedImageTransform(product).scale})`, transformOrigin: 'center' }} loading={isActiveSlide ? 'eager' : 'lazy'} fetchPriority={isActiveSlide ? 'high' : 'low'} decoding="async" onLoad={isActiveSlide ? () => setMayLoadNonCriticalImages(true) : undefined} onError={isActiveSlide ? () => setMayLoadNonCriticalImages(true) : undefined} />
+              <img {...imageProps} sizes="100vw" alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product).x}%, ${getDisplayedImageTransform(product).y}%, 0) scale(${getDisplayedImageTransform(product).scale})`, transformOrigin: 'center' }} loading={isActiveSlide ? 'eager' : 'lazy'} fetchPriority={isActiveSlide ? 'high' : 'low'} decoding="async" onLoad={isActiveSlide ? handleInitialProductImageSettled : undefined} onError={isActiveSlide ? handleInitialProductImageSettled : undefined} />
               <div className="story-shade" />
             </article>
           })}
