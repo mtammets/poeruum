@@ -1951,7 +1951,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             : `${storeSlug}.${STOREFRONT_ROOT_DOMAIN}`,
       )
       : window.location.href)
-    const shareData = { title: activeProduct.name, text: activeProduct.description || activeProduct.name, url: url.toString() }
+    const shareData = { title: activeProduct.name, url: url.toString() }
     if (navigator.share) {
       try { await navigator.share(shareData); return } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
