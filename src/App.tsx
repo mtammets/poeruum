@@ -359,8 +359,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [editImageUploads, setEditImageUploads] = useState<EditImageUpload[]>([])
   const [editProductStock, setEditProductStock] = useState('')
   const [editProductOneOfAKind, setEditProductOneOfAKind] = useState(false)
+  const [editProductName, setEditProductName] = useState('')
   const [editProductSeoTitle, setEditProductSeoTitle] = useState('')
   const [editProductSlug, setEditProductSlug] = useState('')
+  const [isEditProductSlugCustom, setIsEditProductSlugCustom] = useState(false)
   const [editProductAlt, setEditProductAlt] = useState('')
   const [editProductSearchVisible, setEditProductSearchVisible] = useState(true)
   const [editProductOptionType, setEditProductOptionType] = useState<'none' | 'Suurus' | 'Värv'>('none')
@@ -723,15 +725,18 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
   const openEditProduct = () => {
     if (!activeProduct) return
+    const automaticSlug = createUrlSlug(activeProduct.name)
     uploadedDuringEditRef.current.clear()
     setEditProductImages([...(activeProduct.gallery ?? [activeProduct.image])])
     setEditImageTransforms(activeProduct.imageTransforms ?? {})
     setEditProductImageVariants(activeProduct.imageVariants ?? {})
     setEditProductStock(activeProduct.stock === undefined ? '' : String(activeProduct.stock))
     setEditProductOneOfAKind(Boolean(activeProduct.oneOfAKind))
+    setEditProductName(activeProduct.name)
     setEditProductSeoTitle(activeProduct.seoTitle ?? '')
-    setEditProductSlug(activeProduct.slug || createUrlSlug(activeProduct.name))
-    setEditProductAlt(activeProduct.alt || activeProduct.name)
+    setEditProductSlug(activeProduct.slug || automaticSlug)
+    setIsEditProductSlugCustom(Boolean(activeProduct.slug && activeProduct.slug !== automaticSlug))
+    setEditProductAlt(activeProduct.alt && activeProduct.alt !== activeProduct.name ? activeProduct.alt : '')
     setEditProductSearchVisible(activeProduct.searchVisible !== false)
     const option = activeProduct.options?.[0]
     setEditProductOptionType(option?.name === 'Suurus' || option?.name === 'Värv' ? option.name : 'none')
@@ -777,6 +782,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     imageGestureStartRef.current = null
     setEditProductStock('')
     setEditProductOneOfAKind(false)
+    setEditProductName('')
+    setEditProductSeoTitle('')
+    setEditProductSlug('')
+    setIsEditProductSlugCustom(false)
+    setEditProductAlt('')
+    setEditProductSearchVisible(true)
     setEditProductOptionType('none')
     setEditProductOptionValues('')
     setIsCustomProductOptionOpen(false)
@@ -1003,6 +1014,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       setEditProductImageVariants(imageVariants)
       setEditProductStock('1')
       setEditProductOneOfAKind(true)
+      setEditProductName('')
+      setEditProductSeoTitle('')
+      setEditProductSlug('')
+      setIsEditProductSlugCustom(false)
+      setEditProductAlt('')
+      setEditProductSearchVisible(true)
       setEditProductOptionType('none')
       setEditProductOptionValues('')
       setDraftProductId(id)
@@ -1560,7 +1577,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       gallery: editProductImages.length ? editProductImages : (activeProduct.gallery ?? [activeProduct.image]),
       imageTransforms: Object.fromEntries(editProductImages.flatMap((image) => editImageTransforms[image] ? [[image, editImageTransforms[image]]] : [])),
       imageVariants: Object.fromEntries(editProductImages.flatMap((image) => editProductImageVariants[image] ? [[image, editProductImageVariants[image]]] : [])),
-      slug: createUrlSlug(editProductSlug) || activeProduct.slug || createUrlSlug(name),
+      slug: createUrlSlug(editProductSlug) || createUrlSlug(name) || activeProduct.slug || activeProduct.id,
       seoTitle: editProductSeoTitle.trim() || undefined,
       alt: editProductAlt.trim() || name,
       searchVisible: editProductSearchVisible,
@@ -1602,8 +1619,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setEditProductImageVariants({})
     setEditProductStock('')
     setEditProductOneOfAKind(false)
+    setEditProductName('')
     setEditProductSeoTitle('')
     setEditProductSlug('')
+    setIsEditProductSlugCustom(false)
     setEditProductAlt('')
     setEditProductSearchVisible(true)
     setEditProductOptionType('none')
@@ -2371,6 +2390,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             aria-label={isEditOpen ? 'Toote nimi' : undefined}
             data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Lisa toote nimi' : undefined}
             spellCheck={isEditOpen}
+            onInput={(event) => {
+              const name = event.currentTarget.textContent ?? ''
+              setEditProductName(name)
+              if (!isEditProductSlugCustom) setEditProductSlug(createUrlSlug(name))
+            }}
             onPaste={(event) => pastePlainText(event, true)}
             onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}
           >{activeProduct.name}</h1>
@@ -2430,9 +2454,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         {isEditOpen && <details className="product-inline-seo">
           <summary><span><strong>Google ja jagamine</strong><small>Pealkiri, aadress ja nähtavus</small></span><b>Muuda</b></summary>
           <div>
-            <label>Otsingu pealkiri<input value={editProductSeoTitle} maxLength={60} onChange={(event) => setEditProductSeoTitle(event.target.value)} placeholder={`${activeProduct.name} – ${editableStoreName}`} /></label>
-            <label>Lehe aadress<span className="product-inline-seo__slug">/toode/<input value={editProductSlug} onChange={(event) => setEditProductSlug(createUrlSlug(event.target.value))} /></span></label>
-            <label>Pildi kirjeldus<input value={editProductAlt} maxLength={160} onChange={(event) => setEditProductAlt(event.target.value)} placeholder={activeProduct.name} /></label>
+            <label>Otsingu pealkiri<input value={editProductSeoTitle} maxLength={60} onChange={(event) => setEditProductSeoTitle(event.target.value)} placeholder={`${editProductName.trim() || 'Toote nimi'} – ${editableStoreName}`} /></label>
+            <label>Lehe aadress<span className="product-inline-seo__slug">/toode/<input value={editProductSlug} onChange={(event) => { setEditProductSlug(createUrlSlug(event.target.value)); setIsEditProductSlugCustom(true) }} onBlur={() => { if (!editProductSlug) { setEditProductSlug(createUrlSlug(editProductName)); setIsEditProductSlugCustom(false) } }} placeholder="toote-nimi" /></span></label>
+            <label>Pildi kirjeldus<input value={editProductAlt} maxLength={160} onChange={(event) => setEditProductAlt(event.target.value)} placeholder={editProductName.trim() || 'Kirjelda tootepilti'} /></label>
             <label className="settings-toggle"><span><strong>Nähtav otsingumootorites</strong><small>Peitmisel eemaldatakse toode sitemap’ist ja lisatakse noindex.</small></span><input type="checkbox" checked={editProductSearchVisible} onChange={(event) => setEditProductSearchVisible(event.target.checked)} /><i /></label>
           </div>
         </details>}
