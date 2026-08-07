@@ -163,6 +163,23 @@ test('storefront modal close button owns mobile taps', async ({ browser, baseURL
   await context.close()
 })
 
+test('support launcher is limited to the owner editing view', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Vaata näidispoodi' }).click()
+
+  const supportProbe = page.locator('.support-launcher')
+  await page.locator('.app-shell').evaluate((storefront) => {
+    const launcher = document.createElement('button')
+    launcher.className = 'support-launcher'
+    launcher.textContent = 'Abi'
+    storefront.after(launcher)
+  })
+
+  await expect(supportProbe).toBeHidden()
+  await page.locator('.app-shell').evaluate((storefront) => { storefront.dataset.editing = 'true' })
+  await expect(supportProbe).toBeVisible()
+})
+
 test('admin route fails closed when backend configuration is absent', async ({ page }) => {
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
