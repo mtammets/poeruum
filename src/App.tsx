@@ -141,6 +141,7 @@ const ACCENT_PRESETS = ['#e5f25a', '#ff7a59', '#73e2a7', '#77d4ff', '#d3a6ff', '
 const EMPTY_PRODUCT_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1200'%3E%3Crect width='900' height='1200' fill='%2315171a'/%3E%3Cg fill='none' stroke='%236b7682' stroke-width='18' stroke-linecap='round' stroke-linejoin='round' opacity='.8'%3E%3Crect x='310' y='460' width='280' height='220' rx='32'/%3E%3Cpath d='m342 638 82-82 62 62 38-38 38 38'/%3E%3Ccircle cx='506' cy='526' r='24'/%3E%3C/g%3E%3C/svg%3E"
 
 const MAX_PRODUCT_IMAGES = 3
+const SETTINGS_AUTOSAVE_DELAY_MS = 1800
 const getProductImageUploadProgress = (imageCount: number, index: number, phase: ImageUploadPhase, completed = 0, total = 1) => {
   const phaseProgress = phase === 'preparing' ? .08 : .35 + .6 * completed / Math.max(1, total)
   return Math.min(95, Math.round(8 + 87 * (index + phaseProgress) / Math.max(1, imageCount)))
@@ -239,7 +240,13 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [isPublicationBusy, setIsPublicationBusy] = useState(false)
   const [isSetupContinuationBusy, setIsSetupContinuationBusy] = useState(false)
   const [settingsHydrated, setSettingsHydrated] = useState(!storeId)
+  const initialSettingsRef = useRef(initialSettings)
   const savedSettingsSnapshotRef = useRef('')
+  const settingsSaveChainRef = useRef<Promise<void>>(Promise.resolve())
+  const settingsSaveRequestIdRef = useRef(0)
+  const settingsAutosaveTimerRef = useRef<number | null>(null)
+  const settingsCompositionRef = useRef(false)
+  const [settingsCompositionRevision, setSettingsCompositionRevision] = useState(0)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(true)
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('store')
@@ -411,12 +418,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     billingPlan, sellerNotifications, customerConfirmations,
     autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed,
   })
+  const currentSettingsSnapshotRef = useRef(settingsSnapshot)
+  currentSettingsSnapshotRef.current = settingsSnapshot
   const hasUnsavedSettings = isSettingsOpen && Boolean(savedSettingsSnapshotRef.current) && savedSettingsSnapshotRef.current !== settingsSnapshot
 
   useEffect(() => {
     if (!storeId) { setSettingsHydrated(true); return }
     setSettingsHydrated(false)
-    const value = initialSettings as Record<string, any>
+    const value = initialSettingsRef.current as Record<string, any>
     if (value.storeTheme) setStoreTheme(value.storeTheme)
     if (value.storeAccent) setStoreAccent(value.storeAccent)
     if (value.buyButtonSize) setBuyButtonSize(value.buyButtonSize)
@@ -457,7 +466,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (value.autoSwipeDelay) setAutoSwipeDelay(value.autoSwipeDelay)
     if (value.autoSwipeSpeed) setAutoSwipeSpeed(value.autoSwipeSpeed)
     setSettingsHydrated(true)
-  }, [storeId, initialSettings])
+  }, [storeId])
 
   useEffect(() => setPersistedProducts(seedProducts), [seedProducts])
 
@@ -531,63 +540,83 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }, [merchantMode])
 
   useEffect(() => {
-    if (!settingsHydrated) return
-    if (!isSettingsOpen) {
-      savedSettingsSnapshotRef.current = settingsSnapshot
-      setSettingsSaveStatus('idle')
-      return
-    }
-    if (!savedSettingsSnapshotRef.current) {
-      savedSettingsSnapshotRef.current = settingsSnapshot
-      return
-    }
-  }, [isSettingsOpen, settingsHydrated])
+    if (settingsHydrated && !savedSettingsSnapshotRef.current) savedSettingsSnapshotRef.current = settingsSnapshot
+  }, [settingsHydrated, settingsSnapshot])
 
   const persistSettings = async (snapshot: string) => {
     if (!storeId) return
+    const settings = JSON.parse(snapshot) as {
+      editableStoreName: string
+      activePaymentProvider: PaymentProvider
+      deliverySettings: DeliverySettings
+    }
     const enabledShipping = [
-      ...SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled),
-      ...(deliverySettings.courierEnabled ? ['courier'] : []),
-      ...(deliverySettings.pickupEnabled ? ['pickup'] : []),
+      ...SHIPPING_PROVIDERS.filter((provider) => settings.deliverySettings.parcelProviders[provider].enabled),
+      ...(settings.deliverySettings.courierEnabled ? ['courier'] : []),
+      ...(settings.deliverySettings.pickupEnabled ? ['pickup'] : []),
     ]
     const savedStore = await updateStore(storeId, {
-      settings: JSON.parse(snapshot),
-      name: editableStoreName,
-      payment_provider: activePaymentProvider,
+      settings,
+      name: settings.editableStoreName,
+      payment_provider: settings.activePaymentProvider,
       shipping: enabledShipping,
     })
     onStoreChange?.(savedStore)
   }
 
+  const persistSettingsInOrder = (snapshot: string) => {
+    const save = settingsSaveChainRef.current.catch(() => undefined).then(() => persistSettings(snapshot))
+    settingsSaveChainRef.current = save
+    return save
+  }
+
   const saveSettings = async () => {
     if (!hasUnsavedSettings || settingsSaveStatus === 'saving') return
+    if (settingsAutosaveTimerRef.current !== null) {
+      window.clearTimeout(settingsAutosaveTimerRef.current)
+      settingsAutosaveTimerRef.current = null
+    }
+    const snapshot = settingsSnapshot
+    const requestId = ++settingsSaveRequestIdRef.current
     setSettingsSaveStatus('saving')
     try {
-      await persistSettings(settingsSnapshot)
-      savedSettingsSnapshotRef.current = settingsSnapshot
-      setSettingsSaveStatus('saved')
+      await persistSettingsInOrder(snapshot)
+      savedSettingsSnapshotRef.current = snapshot
+      if (requestId === settingsSaveRequestIdRef.current) setSettingsSaveStatus(currentSettingsSnapshotRef.current === snapshot ? 'saved' : 'idle')
     } catch (error) {
-      setSettingsSaveStatus('idle')
-      setAuthToast(error instanceof Error ? error.message : 'Seadete salvestamine ebaõnnestus')
+      if (requestId === settingsSaveRequestIdRef.current) {
+        setSettingsSaveStatus('idle')
+        setAuthToast(error instanceof Error ? error.message : 'Seadete salvestamine ebaõnnestus')
+      }
     }
   }
 
   useEffect(() => {
     if (!storeId || !merchantMode || !settingsHydrated) return
     if (!savedSettingsSnapshotRef.current || savedSettingsSnapshotRef.current === settingsSnapshot) return
-    setSettingsSaveStatus('saving')
+    if (settingsCompositionRef.current) return
+    setSettingsSaveStatus((current) => current === 'saving' ? current : 'idle')
     const snapshot = settingsSnapshot
     const timeout = window.setTimeout(() => {
-      persistSettings(snapshot).then(() => {
+      settingsAutosaveTimerRef.current = null
+      const requestId = ++settingsSaveRequestIdRef.current
+      setSettingsSaveStatus('saving')
+      persistSettingsInOrder(snapshot).then(() => {
         savedSettingsSnapshotRef.current = snapshot
-        setSettingsSaveStatus('saved')
+        if (requestId === settingsSaveRequestIdRef.current) setSettingsSaveStatus(currentSettingsSnapshotRef.current === snapshot ? 'saved' : 'idle')
       }).catch((error) => {
-        setSettingsSaveStatus('idle')
-        setAuthToast(error instanceof Error ? error.message : 'Automaatne salvestamine ebaõnnestus')
+        if (requestId === settingsSaveRequestIdRef.current) {
+          setSettingsSaveStatus('idle')
+          setAuthToast(error instanceof Error ? error.message : 'Automaatne salvestamine ebaõnnestus')
+        }
       })
-    }, 700)
-    return () => window.clearTimeout(timeout)
-  }, [settingsSnapshot, settingsHydrated, storeId, merchantMode])
+    }, SETTINGS_AUTOSAVE_DELAY_MS)
+    settingsAutosaveTimerRef.current = timeout
+    return () => {
+      window.clearTimeout(timeout)
+      if (settingsAutosaveTimerRef.current === timeout) settingsAutosaveTimerRef.current = null
+    }
+  }, [settingsSnapshot, settingsHydrated, storeId, merchantMode, settingsCompositionRevision])
 
   useEffect(() => {
     if (settingsSaveStatus !== 'saved') return
@@ -652,18 +681,20 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (!file || !isImageFile(file)) return
     if (storeId) {
       let uploadedUrl = ''
+      const previousUrl = storeLogo
       try {
         uploadedUrl = (await uploadImages(storeId, [file]))[0]
-        const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeLogo: uploadedUrl })
-        await persistSettings(snapshot)
-        const previousUrl = storeLogo
         setStoreLogo(uploadedUrl)
+        const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), storeLogo: uploadedUrl })
+        const requestId = ++settingsSaveRequestIdRef.current
+        await persistSettingsInOrder(snapshot)
         savedSettingsSnapshotRef.current = snapshot
-        setSettingsSaveStatus('saved')
+        if (requestId === settingsSaveRequestIdRef.current) setSettingsSaveStatus('saved')
         if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
         return
       }
       catch (error) {
+        setStoreLogo(previousUrl)
         if (uploadedUrl) void removeStoredProductImages(undefined, [uploadedUrl]).catch(() => undefined)
         setAuthToast(error instanceof Error ? error.message : 'Logo üleslaadimine ebaõnnestus'); return
       }
@@ -679,12 +710,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     storeLogoObjectUrlRef.current = null
     const previousUrl = storeLogo
     if (storeId) {
-      const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeLogo: null })
+      setStoreLogo(null)
+      const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), storeLogo: null })
+      const requestId = ++settingsSaveRequestIdRef.current
       try {
-        await persistSettings(snapshot); setStoreLogo(null); savedSettingsSnapshotRef.current = snapshot; setSettingsSaveStatus('saved')
+        await persistSettingsInOrder(snapshot); savedSettingsSnapshotRef.current = snapshot
+        if (requestId === settingsSaveRequestIdRef.current) setSettingsSaveStatus('saved')
         if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
       }
-      catch (error) { setAuthToast(error instanceof Error ? error.message : 'Logo eemaldamine ebaõnnestus') }
+      catch (error) { setStoreLogo(previousUrl); setAuthToast(error instanceof Error ? error.message : 'Logo eemaldamine ebaõnnestus') }
     } else setStoreLogo(null)
   }
 
@@ -692,18 +726,20 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (!file || !isImageFile(file)) return
     if (storeId) {
       let uploadedUrl = ''
+      const previousUrl = storeAboutImage
       try {
         uploadedUrl = (await uploadImages(storeId, [file]))[0]
-        const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeAboutImage: uploadedUrl })
-        await persistSettings(snapshot)
-        const previousUrl = storeAboutImage
         setStoreAboutImage(uploadedUrl)
+        const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), storeAboutImage: uploadedUrl })
+        const requestId = ++settingsSaveRequestIdRef.current
+        await persistSettingsInOrder(snapshot)
         savedSettingsSnapshotRef.current = snapshot
-        setSettingsSaveStatus('saved')
+        if (requestId === settingsSaveRequestIdRef.current) setSettingsSaveStatus('saved')
         if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
         return
       }
       catch (error) {
+        setStoreAboutImage(previousUrl)
         if (uploadedUrl) void removeStoredProductImages(undefined, [uploadedUrl]).catch(() => undefined)
         setAuthToast(error instanceof Error ? error.message : 'Pildi üleslaadimine ebaõnnestus'); return
       }
@@ -719,12 +755,15 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     storeAboutImageObjectUrlRef.current = null
     const previousUrl = storeAboutImage
     if (storeId) {
-      const snapshot = JSON.stringify({ ...JSON.parse(settingsSnapshot), storeAboutImage: null })
+      setStoreAboutImage(null)
+      const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), storeAboutImage: null })
+      const requestId = ++settingsSaveRequestIdRef.current
       try {
-        await persistSettings(snapshot); setStoreAboutImage(null); savedSettingsSnapshotRef.current = snapshot; setSettingsSaveStatus('saved')
+        await persistSettingsInOrder(snapshot); savedSettingsSnapshotRef.current = snapshot
+        if (requestId === settingsSaveRequestIdRef.current) setSettingsSaveStatus('saved')
         if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
       }
-      catch (error) { setAuthToast(error instanceof Error ? error.message : 'Pildi eemaldamine ebaõnnestus') }
+      catch (error) { setStoreAboutImage(previousUrl); setAuthToast(error instanceof Error ? error.message : 'Pildi eemaldamine ebaõnnestus') }
     } else setStoreAboutImage(null)
   }
 
@@ -2622,7 +2661,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         </section>
       </div>}
       {isSettingsOpen && <div className="overlay login-overlay settings-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsSettingsOpen(false); setIsSettingsHome(true) } }}>
-        <section className={`login-sheet settings-sheet${isSettingsHome ? ' is-home' : ''}`} role="dialog" aria-modal="true" aria-label="Seaded">
+        <section className={`login-sheet settings-sheet${isSettingsHome ? ' is-home' : ''}`} role="dialog" aria-modal="true" aria-label="Seaded" onCompositionStart={() => { settingsCompositionRef.current = true }} onCompositionEnd={() => { settingsCompositionRef.current = false; setSettingsCompositionRevision((revision) => revision + 1) }}>
           <ModalCloseButton onClose={() => { setIsSettingsOpen(false); setIsSettingsHome(true) }} />
           <div className="settings-titlebar">
             {!isSettingsHome && <button className="settings-titlebar__back" type="button" onClick={() => setIsSettingsHome(true)} aria-label="Kõik seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg><span>Seaded</span></button>}

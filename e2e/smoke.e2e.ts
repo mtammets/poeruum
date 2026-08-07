@@ -180,6 +180,22 @@ test('support launcher is limited to the owner editing view', async ({ page }) =
   await expect(supportProbe).toBeVisible()
 })
 
+test('a stale settings response cannot overwrite text being typed', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountSettingsHarness } = await import('/e2e/settings-harness.tsx')
+    mountSettingsHarness()
+  })
+
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="store"]').click()
+  const description = page.getByLabel('Poe tutvustus')
+  await description.fill('Telefonis kirjutatud uus tekst')
+
+  await page.evaluate(() => window.__updateSettingsHarness?.({ storeDescription: 'Serverist hilinenud vana tekst' }))
+  await expect(description).toHaveValue('Telefonis kirjutatud uus tekst')
+})
+
 test('admin route fails closed when backend configuration is absent', async ({ page }) => {
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
