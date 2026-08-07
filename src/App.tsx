@@ -3064,7 +3064,14 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <label>E-post<input name="email" type="email" value={loginEmail} onChange={(event) => { setLoginEmail(event.target.value); setLoginRecoveryMessage('') }} autoComplete="username" required /></label>
               <label>Parool<input name="password" type="password" autoComplete="current-password" required /></label>
               <button className="login-forgot-password" type="button" onClick={requestLoginPasswordReset}>Unustasid parooli?</button>
-              <Turnstile key={`owner-login-${loginCaptchaResetKey}`} action="login" onToken={setLoginCaptchaToken} />
+              <Turnstile
+                key={`owner-login-${loginCaptchaResetKey}`}
+                action="login"
+                appearance="interaction-only"
+                size="responsive"
+                theme="dark"
+                onToken={setLoginCaptchaToken}
+              />
               {loginRecoveryMessage && <p className="login-recovery-message" role="status">{loginRecoveryMessage}</p>}
               <button type="submit" disabled={isOwnerLoginBusy}>{isOwnerLoginBusy ? 'Login sisse…' : 'Logi sisse'}</button>
             </form>

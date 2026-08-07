@@ -16,6 +16,14 @@ type TurnstileApi = {
   remove: (widgetId: string) => void
 }
 
+type TurnstileProps = {
+  action: string
+  onToken: (token: string) => void
+  theme?: 'auto' | 'light' | 'dark'
+  appearance?: 'always' | 'execute' | 'interaction-only'
+  size?: 'normal' | 'flexible' | 'compact' | 'responsive'
+}
+
 declare global {
   interface Window {
     turnstile?: TurnstileApi
@@ -44,7 +52,13 @@ const loadTurnstile = () => {
   return scriptPromise
 }
 
-export function Turnstile({ action, onToken }: { action: string; onToken: (token: string) => void }) {
+export function Turnstile({
+  action,
+  onToken,
+  theme = 'auto',
+  appearance = 'always',
+  size = 'flexible',
+}: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const onTokenRef = useRef(onToken)
   onTokenRef.current = onToken
@@ -55,13 +69,16 @@ export function Turnstile({ action, onToken }: { action: string; onToken: (token
     let widgetId: string | null = null
     loadTurnstile().then((turnstile) => {
       if (!active || !containerRef.current) return
+      const resolvedSize = size === 'responsive'
+        ? containerRef.current.getBoundingClientRect().width < 300 ? 'compact' : 'flexible'
+        : size
       widgetId = turnstile.render(containerRef.current, {
         sitekey: siteKey,
         action,
-        theme: 'auto',
-        size: 'flexible',
+        theme,
+        size: resolvedSize,
         language: 'auto',
-        appearance: 'always',
+        appearance,
         retry: 'auto',
         'retry-interval': 4000,
         'refresh-expired': 'auto',
@@ -78,7 +95,7 @@ export function Turnstile({ action, onToken }: { action: string; onToken: (token
       active = false
       if (widgetId && window.turnstile) window.turnstile.remove(widgetId)
     }
-  }, [action])
+  }, [action, appearance, size, theme])
 
   if (!siteKey) return null
   if (isCaptchaUnsupportedHost()) {
