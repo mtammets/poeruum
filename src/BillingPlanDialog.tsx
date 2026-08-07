@@ -7,6 +7,7 @@ import {
   FIXED_PLAN_TRIAL_DAYS,
   formatPricingEuro,
 } from './storefrontConfig'
+import ModalCloseButton from './ModalCloseButton'
 
 export default function BillingPlanDialog({ onClose, onConfirm, confirmLabel = 'Jätka Stripe’is' }: { onClose: () => void; onConfirm: (checkoutRequestId: string) => Promise<void>; confirmLabel?: string }) {
   const [isConfirming, setIsConfirming] = useState(false)
@@ -124,7 +125,7 @@ export default function BillingPlanDialog({ onClose, onConfirm, confirmLabel = '
   return <div className="overlay login-overlay billing-card-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className={`login-sheet billing-plan-dialog${isBillingDragging ? ' is-dragging' : ''}${hasBillingDragged ? ' has-dragged' : ''}`} style={hasBillingDragged ? { transform: `translateY(${billingDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Poeruumi Kindla paketi aktiveerimine">
       <div ref={billingDragAreaRef} className="billing-plan-dialog__drag-area" aria-hidden="true" onPointerDown={startBillingDrag} onPointerMove={moveBillingDrag} onPointerUp={(event) => endBillingDrag(event)} onPointerCancel={(event) => endBillingDrag(event, true)}><span className="billing-plan-dialog__handle" /></div>
-      <button className="login-sheet__close" type="button" onClick={onClose} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+      <ModalCloseButton onClose={onClose} />
       <span className="login-sheet__eyebrow">KINDEL · 30 PÄEVA TASUTA</span>
       <div className="billing-plan-dialog__title">
         <span className="billing-plan-dialog__visual" aria-hidden="true"><svg viewBox="0 0 64 48">

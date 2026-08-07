@@ -140,6 +140,29 @@ test('storefront preview owns its toolbar styles independently', async ({ page }
   await expect(previewBar.getByRole('button')).toHaveCSS('border-radius', '10.4px')
 })
 
+test('storefront modal close button owns mobile taps', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  })
+  const page = await context.newPage()
+
+  await page.goto(`${baseURL}/`)
+  await page.getByRole('link', { name: 'Ava näidispood' }).tap()
+
+  await page.getByRole('button', { name: 'Poe omanik? Logi sisse' }).tap()
+  const dialog = page.getByRole('dialog', { name: 'Logi sisse' })
+  const closeButton = dialog.getByRole('button', { name: 'Sulge' })
+  await expect(dialog).toBeVisible()
+  await expect(closeButton).toHaveCSS('z-index', '10')
+  await expect(closeButton).toHaveCSS('touch-action', 'manipulation')
+
+  await closeButton.tap()
+  await expect(dialog).toHaveCount(0)
+  await context.close()
+})
+
 test('admin route fails closed when backend configuration is absent', async ({ page }) => {
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()

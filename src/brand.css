@@ -4551,6 +4551,13 @@
 .login-sheet form > .login-forgot-password { justify-self: end; margin: -.4rem 0 0; padding: .15rem 0; border-radius: 0; background: transparent; color: var(--store-accent, #e5f25a); font-size: .68rem; }
 .login-recovery-message { margin: 0; padding: .7rem .8rem; border: 1px solid rgba(229, 242, 90, .22); border-radius: .65rem; background: rgba(229, 242, 90, .07); color: rgba(255, 255, 255, .75); font-size: .68rem; line-height: 1.45; }
 
+.modal-close-button {
+  z-index: 10;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .login-sheet__close {
   position: absolute;
   top: 1rem;

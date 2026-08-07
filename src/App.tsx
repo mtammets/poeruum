@@ -20,6 +20,7 @@ import {
   type PricingPlan,
 } from './storefrontConfig'
 import BillingPlanDialog from './BillingPlanDialog'
+import ModalCloseButton from './ModalCloseButton'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
 import StorefrontCart from './StorefrontCart'
@@ -2539,7 +2540,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
       {isAboutOpen && <div className="overlay login-overlay store-about-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsAboutOpen(false)}>
         <section className="login-sheet store-about-sheet" role="dialog" aria-modal="true" aria-label={`Poest ${editableStoreName}`}>
-          <button className="login-sheet__close" type="button" onClick={() => setIsAboutOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <ModalCloseButton onClose={() => setIsAboutOpen(false)} />
           {storeAboutImage && <img className="store-about-sheet__image" src={storeAboutImage} alt={`${editableStoreName} tutvustus`} />}
           <span>POEST</span>
           <h2>{editableStoreName}</h2>
@@ -2550,7 +2551,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
       {legalView && <div className="overlay login-overlay store-about-overlay" onMouseDown={(event) => event.target === event.currentTarget && setLegalView(null)}>
         <section className="login-sheet store-about-sheet store-legal-sheet" role="dialog" aria-modal="true" aria-label={legalView === 'seller' ? 'Müüja andmed' : 'Müügitingimused'}>
-          <button className="login-sheet__close" type="button" onClick={() => setLegalView(null)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <ModalCloseButton onClose={() => setLegalView(null)} />
           <span>{legalView === 'seller' ? 'KELLELT SA OSTAD' : 'OSTUINFO'}</span>
           <h2>{legalView === 'seller' ? 'Müüja andmed' : 'Müügitingimused'}</h2>
           {isDemoExperience && <p className="store-legal-sheet__demo-notice">See on näidispood. Müüja, toodete ja kontaktide andmed on väljamõeldud ning tellimusi päriselt ei täideta.</p>}
@@ -2585,7 +2586,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       })} onClose={() => setIsCartOpen(false)} />}
       {isOrdersOpen && <div className="overlay login-overlay orders-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsOrdersOpen(false)}>
         <section className="login-sheet orders-sheet" role="dialog" aria-modal="true" aria-label="Tellimused">
-          <button className="login-sheet__close" onClick={() => setIsOrdersOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <ModalCloseButton onClose={() => setIsOrdersOpen(false)} />
           <div className="orders-heading">
             <span>TELLIMUSED</span><h2>{newOrderCount ? newOrderCount === 1 ? '1 uus tellimus' : `${newOrderCount} uut tellimust` : 'Kõik on tehtud'}</h2><p>Siin näed sinu poele tehtud oste. Uuemad on alati ees.</p>
             <label className="orders-search">
@@ -2614,7 +2615,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       </div>}
       {isSettingsOpen && <div className="overlay login-overlay settings-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsSettingsOpen(false); setIsSettingsHome(true) } }}>
         <section className={`login-sheet settings-sheet${isSettingsHome ? ' is-home' : ''}`} role="dialog" aria-modal="true" aria-label="Seaded">
-          <button className="login-sheet__close" onClick={() => { setIsSettingsOpen(false); setIsSettingsHome(true) }} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <ModalCloseButton onClose={() => { setIsSettingsOpen(false); setIsSettingsHome(true) }} />
           <div className="settings-titlebar">
             {!isSettingsHome && <button className="settings-titlebar__back" type="button" onClick={() => setIsSettingsHome(true)} aria-label="Kõik seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg><span>Seaded</span></button>}
             <h2>{isSettingsHome ? 'Seaded' : activeSettingsSection.label}</h2>
@@ -2954,7 +2955,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       {isBillingCardOpen && <BillingPlanDialog onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => { const url = await startStripeBillingCheckout(checkoutRequestId); window.location.assign(url) }} />}
       {isEmailChangeOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isChangingEmail && event.target === event.currentTarget && setIsEmailChangeOpen(false)}>
         <section className="login-sheet password-change-sheet" role="dialog" aria-modal="true" aria-labelledby="email-change-title">
-          <button className="login-sheet__close" type="button" disabled={isChangingEmail} onClick={() => setIsEmailChangeOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <ModalCloseButton disabled={isChangingEmail} onClose={() => setIsEmailChangeOpen(false)} />
           <span className="login-sheet__eyebrow">SISSELOGIMISE E-POST</span>
           <h2 id="email-change-title">Muuda e-posti</h2>
           <p className="password-change-sheet__intro">Praegune aadress on <strong>{accountEmail}</strong>. Uus aadress hakkab kehtima pärast kinnitamist.</p>
@@ -2969,7 +2970,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       </div>}
       {isPasswordChangeOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isChangingPassword && event.target === event.currentTarget && setIsPasswordChangeOpen(false)}>
         <section className="login-sheet password-change-sheet" role="dialog" aria-modal="true" aria-labelledby="password-change-title">
-          <button className="login-sheet__close" type="button" disabled={isChangingPassword} onClick={() => setIsPasswordChangeOpen(false)} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+          <ModalCloseButton disabled={isChangingPassword} onClose={() => setIsPasswordChangeOpen(false)} />
           <span className="login-sheet__eyebrow">KONTO TURVALISUS</span>
           <h2 id="password-change-title">Muuda parooli</h2>
           <p className="password-change-sheet__intro">Sisesta praegune parool ja vali uus tugev parool.</p>
@@ -3048,9 +3049,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       {isLoginOpen && !isLoggedIn && (
         <div className="overlay login-overlay owner-login-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsLoginOpen(false)}>
           <section className="login-sheet" role="dialog" aria-modal="true" aria-label="Logi sisse">
-            <button className="login-sheet__close" onClick={() => setIsLoginOpen(false)} aria-label="Sulge">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-            </button>
+            <ModalCloseButton onClose={() => setIsLoginOpen(false)} />
             <span className="login-sheet__eyebrow">POE OMANIKULE</span>
             <h2>Logi sisse</h2>
             <form onSubmit={async (event) => {
@@ -3124,7 +3123,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       {isAddOpen && (
         <div className={`overlay login-overlay${addProductStep === 'details' ? ' product-editor-overlay' : ' add-source-overlay'}`} onMouseDown={(event) => event.target === event.currentTarget && closeAddProduct()}>
           <section className={`login-sheet edit-sheet${addProductStep === 'details' ? ' product-editor-sheet product-editor-sheet--add' : ''}`} role="dialog" aria-modal="true" aria-label="Lisa toode">
-            <button className="login-sheet__close" onClick={closeAddProduct} aria-label="Sulge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+            <ModalCloseButton onClose={closeAddProduct} />
             {addProductStep === 'source' ? <div className="add-source">
               <h2>Lisa foto</h2>
               <p>Vali, kuidas soovid alustada.</p>

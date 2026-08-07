@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { startStripeStoreCheckout } from './lib/database'
 import { createCheckoutRequestId, VAT_RATE } from './storefrontConfig'
+import ModalCloseButton from './ModalCloseButton'
 import {
   getProductPrice,
   getProductStockLimit,
@@ -190,9 +191,7 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
   return (
     <div className="overlay cart-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section ref={checkoutRef} className="checkout" role="dialog" aria-modal="true" aria-label="Ostukorv">
-        <button className="checkout__close" onClick={onClose} aria-label="Sulge">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-        </button>
+        <ModalCloseButton className="checkout__close" onClose={onClose} />
         <h2>{step === 'cart' ? 'Ostukorv' : 'Vormista tellimus'}</h2>
         {items.length === 0 ? <p className="cart-empty">Ostukorv on tühi.</p> : <>
           {step === 'cart' ? <>
