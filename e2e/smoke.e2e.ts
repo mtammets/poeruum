@@ -255,6 +255,24 @@ test('the visible product image loads before non-critical storefront images', as
   await expect.poll(() => requestedImages.includes('second.jpg')).toBe(true)
 })
 
+test('storefront loading shows the store logo when one is available', async ({ page }) => {
+  const imageBody = '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><circle cx="64" cy="64" r="60" fill="black"/><path d="M64 28v72M28 64h72" stroke="white" stroke-width="10"/></svg>'
+  await page.route('**/e2e-images/loading-logo.jpg', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: imageBody }))
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountStorefrontLoadingHarness } = await import('/e2e/image-harness.tsx')
+    mountStorefrontLoadingHarness()
+  })
+
+  const loading = page.getByLabel('Laadin poodi Logo pood')
+  const logo = loading.locator('.storefront-loading__brand img')
+  await expect(loading).toBeVisible()
+  await expect(logo).toBeVisible()
+  await expect(logo).toHaveJSProperty('naturalWidth', 128)
+  await expect(logo).toHaveAttribute('fetchpriority', 'high')
+  await expect(loading.locator('.storefront-loading__spinner')).toHaveCount(0)
+})
+
 test('admin route fails closed when backend configuration is absent', async ({ page }) => {
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()

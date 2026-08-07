@@ -1,7 +1,9 @@
 import { createElement, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { OrderItemThumbnail, Storefront } from '../src/App'
+import { StorefrontLoadingScreen } from '../src/PlatformApp'
 import type { Product } from '../src/products'
+import type { PublicStoreRecord } from '../src/lib/database'
 import { createCartItem } from '../src/storefrontModel'
 
 const createProduct = (id: string, name: string, image: string, gallery?: string[]): Product => ({
@@ -50,4 +52,21 @@ export function mountStorefrontImageHarness() {
       storeAboutImage: '/e2e-images/about.jpg',
     },
   }), 'storefront-image-harness')
+}
+
+export function mountStorefrontLoadingHarness() {
+  const store: PublicStoreRecord = {
+    id: '10000000-0000-4000-8000-000000000097',
+    name: 'Logo pood',
+    slug: 'logo-pood',
+    is_published: true,
+    payment_provider: 'stripe',
+    payment_status: 'connected',
+    shipping: [],
+    settings: {
+      editableStoreName: 'Logo pood',
+      storeLogo: '/e2e-images/loading-logo.jpg',
+    },
+  }
+  mount(createElement(StorefrontLoadingScreen, { store }), 'storefront-loading-harness')
 }

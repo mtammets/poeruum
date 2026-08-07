@@ -45,6 +45,21 @@ type RegistryLookupResponse = {
   data?: RegistryCompany[]
 }
 
+export function StorefrontLoadingScreen({ store }: { store: PublicStoreRecord | null }) {
+  const [logoFailed, setLogoFailed] = useState(false)
+  const logo = typeof store?.settings.storeLogo === 'string' ? store.settings.storeLogo : ''
+  const storeName = typeof store?.settings.editableStoreName === 'string' && store.settings.editableStoreName.trim()
+    ? store.settings.editableStoreName.trim()
+    : store?.name ?? ''
+
+  return <main className="storefront-loading" aria-label={storeName ? `Laadin poodi ${storeName}` : 'Laadin poodi'}>
+    {logo && !logoFailed ? <div className="storefront-loading__brand">
+      <img src={logo} alt="" fetchPriority="high" decoding="async" onError={() => setLogoFailed(true)} />
+      <i aria-hidden="true" />
+    </div> : <span className="storefront-loading__spinner" />}
+  </main>
+}
+
 const onboardingActivityScreens = new Set<Screen>(['store', 'business', 'payments', 'shipping', 'product', 'publish'])
 const isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
@@ -430,12 +445,15 @@ function PlatformFlow() {
       : getStoreByHostname(window.location.hostname)
     loadRequestedStore.then(async (found) => {
       if (!found || !active) return
+      setPublicStore(found)
       const nextProducts = await listProducts(found.id)
       if (!active) return
-      setPublicStore(found)
       setPublicProducts(nextProducts)
     }).catch((error) => {
-      if (active) setAuthError(error instanceof Error ? error.message : 'Poe laadimine ebaõnnestus.')
+      if (active) {
+        setPublicStore(null)
+        setAuthError(error instanceof Error ? error.message : 'Poe laadimine ebaõnnestus.')
+      }
     }).finally(() => {
       if (active) setIsPublicStoreLoading(false)
     })
@@ -1056,8 +1074,8 @@ function PlatformFlow() {
     <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
   </div> : null
 
-  if (isPublicStoreLoading) return <main className="storefront-loading" aria-label="Laadin poodi"><span /></main>
-  if (publicStore) return <Storefront
+  if (isPublicStoreLoading) return <StorefrontLoadingScreen store={publicStore} />
+  if (publicStore) return <Suspense fallback={<StorefrontLoadingScreen store={publicStore} />}><Storefront
     key={publicStore.id}
     storeId={publicStore.id}
     initialSettings={publicStore.settings}
@@ -1070,7 +1088,7 @@ function PlatformFlow() {
     initialProductSlug={requestedProductSlug}
     ownerEmail={email}
     onOwnerLogin={signInFromStore}
-  />
+  /></Suspense>
   if (screen === 'sample') return <Storefront
     key={`sample-storefront-${sampleStore?.id ?? 'bundled'}`}
     storeId={sampleStore?.id}
@@ -1624,7 +1642,10 @@ function PlatformFlow() {
 }
 
 export default function PlatformApp() {
-  return <Suspense fallback={<main className="platform-loading" aria-label="Laadin poodi"><span /></main>}>
+  const fallback = document.documentElement.dataset.appSurface === 'storefront'
+    ? <StorefrontLoadingScreen store={null} />
+    : <main className="platform-loading" aria-label="Laadin Poeruumi"><span /></main>
+  return <Suspense fallback={fallback}>
     <PlatformFlow />
   </Suspense>
 }

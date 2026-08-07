@@ -36,13 +36,57 @@
 }
 
 :root[data-app-surface="storefront"] .platform-loading span,
-.storefront-loading span {
+.storefront-loading__spinner {
   width: 1.7rem;
   height: 1.7rem;
   border: 2px solid rgba(255, 255, 255, .18);
   border-top-color: rgba(255, 255, 255, .82);
   border-radius: 50%;
   animation: platform-loading-spin .8s linear infinite;
+}
+
+.storefront-loading__brand {
+  display: grid;
+  place-items: center;
+  gap: 1.35rem;
+  animation: storefront-loading-brand-in .3s ease both;
+}
+
+.storefront-loading__brand img {
+  display: block;
+  width: min(7.25rem, 30vw);
+  height: min(7.25rem, 30vw);
+  border-radius: 1.65rem;
+  object-fit: contain;
+  filter: drop-shadow(0 .9rem 2.2rem rgba(0, 0, 0, .38));
+}
+
+.storefront-loading__brand i {
+  position: relative;
+  width: 3.6rem;
+  height: .2rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .15);
+}
+
+.storefront-loading__brand i::after {
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, .88);
+  content: '';
+  animation: storefront-loading-progress 1s ease-in-out infinite;
+}
+
+@keyframes storefront-loading-brand-in {
+  from { opacity: 0; transform: scale(.94); }
+}
+
+@keyframes storefront-loading-progress {
+  0% { transform: translateX(-115%); }
+  100% { transform: translateX(340%); }
 }
 
 @keyframes platform-loading-spin {
