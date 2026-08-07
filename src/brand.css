@@ -999,7 +999,7 @@
 .store-about-overlay { z-index: 75; }
 
 .store-about-sheet { width: min(calc(100% - 2rem), 38rem); }
-.store-about-sheet__image { display: block; width: 100%; aspect-ratio: 16 / 9; margin-bottom: 1.35rem; border-radius: .9rem; object-fit: cover; }
+.store-about-sheet__image { display: block; width: auto; max-width: 100%; height: auto; max-height: min(62dvh, 38rem); margin: 0 auto 1.35rem; border-radius: .9rem; object-fit: contain; }
 
 .store-about-sheet > span {
   display: block;

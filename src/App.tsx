@@ -2764,7 +2764,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 <div>
                   <label className="settings-about-image__upload">
                     <span className="settings-about-image__preview">{storeAboutImage ? <img src={storeAboutImage} alt="Tutvustuse pildi eelvaade" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m5 17 5-5 3 3 2-2 4 4"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>}</span>
-                    <span className="settings-about-image__copy"><strong>{storeAboutImage ? 'Vaheta pilti' : 'Lisa pilt'}</strong><small>JPG, PNG või WebP · soovituslikult horisontaalne</small></span>
+                    <span className="settings-about-image__copy"><strong>{storeAboutImage ? 'Vaheta pilti' : 'Lisa pilt'}</strong><small>JPG, PNG või WebP · püsti või rõhtsalt</small></span>
                     <span className="settings-about-image__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 14v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/></svg></span>
                     <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { changeStoreAboutImage(event.target.files?.[0]); event.target.value = '' }} />
                   </label>
