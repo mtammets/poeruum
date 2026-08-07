@@ -297,7 +297,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [announcementColor, setAnnouncementColor] = useState('#111111')
   const [storeLogo, setStoreLogo] = useState<string | null>(null)
   const [editableStoreName, setEditableStoreName] = useState(storeName)
-  const [storeTagline, setStoreTagline] = useState('')
   const [storeDescription, setStoreDescription] = useState(() => storeSlug ? '' : 'Hoolikalt valitud esemed, mis muudavad argipäeva natuke põnevamaks.')
   const [storeSeoTitle, setStoreSeoTitle] = useState('')
   const [storeSeoDescription, setStoreSeoDescription] = useState('')
@@ -441,7 +440,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [productEdits, setProductEdits] = useState<Record<string, Partial<Product>>>({})
   const settingsSnapshot = JSON.stringify({
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
-    announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeTagline, storeDescription, storeAboutImage,
+    announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
     seoTitle: storeSeoTitle, seoDescription: storeSeoDescription, productBrand, searchConsoleVerification,
     contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, vatRegistered, vatNumber, returnsText, orderNotificationEmail,
@@ -469,7 +468,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     if (value.announcementColor) setAnnouncementColor(value.announcementColor)
     if ('storeLogo' in value) setStoreLogo(value.storeLogo)
     if (value.editableStoreName) setEditableStoreName(value.editableStoreName)
-    if (value.storeTagline != null) setStoreTagline(value.storeTagline)
     if (value.storeDescription != null) setStoreDescription(value.storeDescription)
     if (value.seoTitle != null) setStoreSeoTitle(value.seoTitle)
     if (value.seoDescription != null) setStoreSeoDescription(value.seoDescription)
@@ -2613,8 +2611,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <div>{storeDescription.trim() && <p>{storeDescription}</p>}
             {(storeAboutImage || storeDescription.trim().length > 110) && <button type="button" onClick={() => setIsAboutOpen(true)}>Vaata tutvustust →</button>}</div>
           </div>}
-          <div className="site-footer__top">
-            {storeSlug ? <div className="site-footer__address"><strong>{editableStoreName}</strong>{storeTagline.trim() && <small>{storeTagline.trim()}</small>}</div> : <a className="site-footer__address" href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">
+          {(!storeSlug || instagramUrl.trim() || facebookUrl.trim() || tiktokUrl.trim()) && <div className="site-footer__top">
+            {!storeSlug && <a className="site-footer__address" href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">
               <strong>Mavi Stuudio</strong><small>Paldiski mnt 25, Tallinn</small>
             </a>}
             {(instagramUrl.trim() || facebookUrl.trim() || tiktokUrl.trim()) && <div className="social-links" aria-label="Sotsiaalmeedia">
@@ -2628,7 +2626,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4v10.3a4.2 4.2 0 1 1-3.3-4.1"/><path d="M14 4c.5 2.7 2.1 4.3 4.8 4.8"/></svg>
               </a>}
             </div>}
-          </div>
+          </div>}
           {storeSlug && <nav className="site-footer__legal" aria-label="Poe õiguslik teave">
             <button type="button" onClick={() => setLegalView('seller')}>Müüja andmed</button>
             <button type="button" onClick={() => setLegalView('terms')}>Müügitingimused</button>
@@ -2759,7 +2757,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             {!adminShowcaseMode && !onContinueSetup && <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isPublicationBusy ? 'Muudan poe nähtavust…' : isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} disabled={isPublicationBusy} onChange={(event) => void changeStorePublication(event.target.checked)} /><i /></label>}
             <div className="settings-fields">
               <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
-              <label>Poe slogan<input value={storeTagline} maxLength={100} onChange={(event) => setStoreTagline(event.target.value)} placeholder="Lühike lause sinu poe kohta" /><small className="settings-field-note">Valikuline · kuvatakse poe nime all jaluses · {storeTagline.length}/100</small></label>
               <label>Poe tutvustus<textarea ref={storeDescriptionInputRef} rows={4} maxLength={600} value={storeDescription} onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu pood pakub ja miks see eriline on." /><small className="settings-field-note">Kuvatakse ostjale poe jaluses · {storeDescription.length}/600</small></label>
               <details className="settings-seo-editor">
                 <summary><span><strong>Google ja jagamine</strong><small>Vaikimisi kasutab Poeruum poe nime ja tutvustust</small></span><b>Muuda</b></summary>

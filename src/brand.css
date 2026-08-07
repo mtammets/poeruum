@@ -924,6 +924,8 @@
   justify-content: space-between;
 }
 
+.site-footer__top > .social-links:only-child { margin-left: auto; }
+
 .site-footer__address {
   display: grid;
   min-width: 0;
