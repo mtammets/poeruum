@@ -245,6 +245,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
   const storeDescriptionInputRef = useRef<HTMLTextAreaElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [isProductVisualActive, setIsProductVisualActive] = useState(() => window.scrollY <= 24)
   const [mayLoadNonCriticalImages, setMayLoadNonCriticalImages] = useState(false)
   const [productRouteSlug, setProductRouteSlug] = useState<string | null>(initialProductSlug)
   const [cart, setCart] = useState<CartItem[]>([])
@@ -1292,6 +1293,20 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }, [])
 
   useEffect(() => {
+    let frame = 0
+    const syncProductVisualActivity = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => setIsProductVisualActive(window.scrollY <= 24))
+    }
+    window.addEventListener('scroll', syncProductVisualActivity, { passive: true })
+    syncProductVisualActivity()
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', syncProductVisualActivity)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!autoSwipeEnabled || isEditOpen || productRouteSlug) {
       setIsScreensaverActive(false)
       return
@@ -1334,7 +1349,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     }
 
     const startScreensaver = () => {
-      if (document.hidden || isCartOpen) return
+      if (document.hidden || isCartOpen || !isProductVisualActive) return
       setIsScreensaverActive(true)
       showNextProduct()
       autoplayInterval = window.setInterval(showNextProduct, autoSwipeSpeed * 1000)
@@ -1342,7 +1357,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
 
     const scheduleScreensaver = () => {
       stopScreensaver()
-      if (!document.hidden && !isCartOpen) {
+      if (!document.hidden && !isCartOpen && isProductVisualActive) {
         idleTimeout = window.setTimeout(startScreensaver, autoSwipeDelay * 1000)
       }
     }
@@ -1358,7 +1373,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, scheduleScreensaver))
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [isCartOpen, isEditOpen, displayProducts.length, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, productRouteSlug])
+  }, [isCartOpen, isEditOpen, isProductVisualActive, displayProducts.length, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, productRouteSlug])
 
   const goToProduct = (index: number) => {
     const track = trackRef.current
@@ -2068,9 +2083,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   )
   const storeInitial = editableStoreName.trim().charAt(0).toLocaleUpperCase('et') || 'P'
   const displayedContactEmail = isDemoExperience ? DEMO_SELLER.contactEmail : contactEmail
-  const contactLine = isDemoExperience
-    ? displayedContactEmail
-    : [contactEmail, contactPhone].filter(Boolean).join(' · ')
   const vatDetailsComplete = !vatRegistered || /^EE\d{9}$/.test(vatNumber.trim())
   const sellerDetailsComplete = isDemoExperience
     || Boolean(businessName.trim() && /^\d{8}$/.test(registryCode.trim()) && businessAddress.trim() && contactEmail.trim() && vatDetailsComplete)
@@ -2602,7 +2614,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             {(storeAboutImage || storeDescription.trim().length > 110) && <button type="button" onClick={() => setIsAboutOpen(true)}>Vaata tutvustust →</button>}</div>
           </div>}
           <div className="site-footer__top">
-            {storeSlug ? <div className="site-footer__address"><strong>{editableStoreName}</strong>{storeTagline.trim() && <small>{storeTagline.trim()}</small>}{contactLine && <small>{contactLine}</small>}</div> : <a className="site-footer__address" href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">
+            {storeSlug ? <div className="site-footer__address"><strong>{editableStoreName}</strong>{storeTagline.trim() && <small>{storeTagline.trim()}</small>}</div> : <a className="site-footer__address" href="https://www.google.com/maps/place//data=!4m2!3m1!1s0x4692948419d85985:0x11a43bd7c43d6ee3?sa=X&ved=1t:8290&ictx=111" target="_blank" rel="noreferrer">
               <strong>Mavi Stuudio</strong><small>Paldiski mnt 25, Tallinn</small>
             </a>}
             {(instagramUrl.trim() || facebookUrl.trim() || tiktokUrl.trim()) && <div className="social-links" aria-label="Sotsiaalmeedia">
