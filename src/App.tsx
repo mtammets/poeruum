@@ -2639,7 +2639,6 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
           <span>POEST</span>
           <h2>{editableStoreName}</h2>
           {storeDescription.trim() && <p>{storeDescription}</p>}
-          {contactLine && <small>{contactLine}</small>}
         </section>
       </div>}
 

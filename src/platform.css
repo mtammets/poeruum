@@ -651,7 +651,6 @@ button, a, summary { touch-action: manipulation; }
 .app-shell[data-store-theme="paper"] .social-links a { border-color: #342d2640; background: #342d2610; color: #342d26; }
 .app-shell[data-store-theme="paper"] .store-about-sheet { border-color: #342d2630; background: #e8deca; color: #342d26; }
 .app-shell[data-store-theme="paper"] .store-about-sheet > p { color: #5f554b; }
-.app-shell[data-store-theme="paper"] .store-about-sheet > small { border-color: #342d2630; color: #756b60; }
 .app-shell[data-store-theme="paper"] .store-about-sheet .login-sheet__close { border-color: #342d2630; background: #342d2610; color: #342d26; }
 .app-shell[data-store-theme="paper"] .store-about-sheet .login-sheet__close svg { stroke: currentColor; }
 .app-shell[data-store-theme="pop"] { background: #f3ff63; }
@@ -680,7 +679,6 @@ button, a, summary { touch-action: manipulation; }
 .app-shell[data-store-theme="pop"] .social-links a { border-color: #321c5b40; background: #321c5b10; color: #321c5b; }
 .app-shell[data-store-theme="pop"] .store-about-sheet { border-color: #321c5b30; background: #f3ff63; color: #321c5b; }
 .app-shell[data-store-theme="pop"] .store-about-sheet > p { color: #51376d; }
-.app-shell[data-store-theme="pop"] .store-about-sheet > small { border-color: #321c5b30; color: #654e82; }
 .app-shell[data-store-theme="pop"] .store-about-sheet .login-sheet__close { border-color: #321c5b30; background: #321c5b10; color: #321c5b; }
 .app-shell[data-store-theme="pop"] .store-about-sheet .login-sheet__close svg { stroke: currentColor; }
 
