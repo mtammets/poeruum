@@ -306,6 +306,11 @@
 .admin-user-row__identity strong, .admin-user-row__identity a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-user-row__identity strong { font-size: .9rem; }
 .admin-user-row__identity a { color: #89928c; font-size: .75rem; text-decoration: none; }
+.admin-user-row__store { display: flex; align-items: baseline; gap: .45rem; min-width: 0; }
+.admin-user-row__store > strong { min-width: 0; }
+.admin-user-row__store > a { flex: 0 0 auto; color: #2c6847; font-size: .6875rem; font-weight: 800; }
+.admin-user-row__store > a:hover { color: #174d32; text-decoration: underline; text-underline-offset: .16rem; }
+.admin-user-row__store > a:focus-visible { border-radius: .2rem; outline: 2px solid #2c6847; outline-offset: 2px; }
 .admin-user-row > time { color: #68746c; font-size: .875rem; }
 .admin-progress { display: grid; min-width: 0; gap: .38rem; }
 .admin-progress__meta { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }

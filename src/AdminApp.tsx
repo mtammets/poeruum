@@ -13,6 +13,7 @@ import AdminLeads from './AdminLeads'
 import AdminSupport from './AdminSupport'
 import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
+import { getStorefrontCanonicalUrl } from './lib/storefrontUrl'
 
 type AdminUserRow = {
   user_id: string
@@ -22,6 +23,7 @@ type AdminUserRow = {
   store_id: string | null
   store_name: string | null
   store_slug: string | null
+  custom_hostname: string | null
   store_created_at: string | null
   is_published: boolean
   payment_status: 'idle' | 'pending' | 'connected'
@@ -864,7 +866,7 @@ export default function AdminApp() {
         if (filter === 'payments' && row.has_payments) return false
         if (filter === 'unpublished' && (row.has_published || percent === 0)) return false
         if (filter === 'complete' && percent !== 100) return false
-        return !normalizedSearch || `${row.store_name ?? ''} ${row.email} ${row.store_slug ?? ''}`.toLocaleLowerCase('et').includes(normalizedSearch)
+        return !normalizedSearch || `${row.store_name ?? ''} ${row.email} ${row.store_slug ?? ''} ${row.custom_hostname ?? ''}`.toLocaleLowerCase('et').includes(normalizedSearch)
       })
       .sort((left, right) => {
         const newestFirst = new Date(right.user_created_at).getTime() - new Date(left.user_created_at).getTime()
@@ -1270,8 +1272,11 @@ export default function AdminApp() {
               const latestEmail = latestEmails.get(row.user_id)
               const status = percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : null
               const statusClass = percent === 100 ? 'complete' : percent === 0 ? 'empty' : 'stalled'
+              const storefrontUrl = row.is_published && row.store_slug
+                ? getStorefrontCanonicalUrl(row.store_slug, undefined, row.custom_hostname ?? undefined)
+                : null
               return <article className={`admin-user-row${percent === 100 ? ' is-complete' : ''}`} key={row.user_id}>
-                <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><strong>{row.store_name || 'Poodi pole loodud'}</strong><a href={`mailto:${row.email}`}>{row.email}</a></div></div>
+                <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><div className="admin-user-row__store"><strong>{row.store_name || 'Poodi pole loodud'}</strong>{storefrontUrl && <a href={storefrontUrl} target="_blank" rel="noopener noreferrer" title={storefrontUrl} aria-label={`Ava pood ${row.store_name || row.store_slug} uuel vahelehel`}>Ava pood <span aria-hidden="true">↗</span></a>}</div><a href={`mailto:${row.email}`}>{row.email}</a></div></div>
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
                 <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
