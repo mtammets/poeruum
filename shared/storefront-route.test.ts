@@ -10,6 +10,7 @@ describe('shared storefront server and browser routing', () => {
   it('accepts valid storefront hosts and rejects reserved or nested hosts', () => {
     expect(getStoreSlugFromHostname('minu-pood.poeruum.ee')).toBe('minu-pood')
     expect(getStoreSlugFromHostname('admin.poeruum.ee')).toBeNull()
+    expect(getStoreSlugFromHostname('kaubamaja.poeruum.ee')).toBeNull()
     expect(getStoreSlugFromHostname('foo.bar.poeruum.ee')).toBeNull()
   })
 

@@ -1,4 +1,5 @@
 import type { Product, ProductImageAsset } from '../products'
+import { normalizeStoreDirectoryCatalog } from '../../shared/store-directory.mjs'
 import { createRandomId } from './randomId'
 import { requireSupabase } from './supabase'
 
@@ -153,6 +154,12 @@ export async function getPublicShowcaseStore() {
   }
   throwIfError(error)
   return data as PublicStoreRecord | null
+}
+
+export async function listPublicStoreDirectory() {
+  const { data, error } = await requireSupabase().rpc('storefront_seo_catalog')
+  throwIfError(error)
+  return normalizeStoreDirectoryCatalog(data)
 }
 
 export async function getShowcaseStore() {

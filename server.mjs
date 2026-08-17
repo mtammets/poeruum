@@ -9,14 +9,18 @@ import {
   getStoreSlugFromHostname,
   getStoreSlugFromPath,
 } from './shared/storefront-route.mjs'
+import { normalizeStoreDirectoryCatalog } from './shared/store-directory.mjs'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 const dist = path.join(root, 'dist')
 const platformHost = 'poeruum.ee'
+const storeDirectoryHost = `kaubamaja.${platformHost}`
+const legacyKaubamajaStoreSlug = 'urgits'
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''
 const port = Number(process.env.PORT || 10000)
 const storeCache = new Map()
+let storeDirectoryCache = { value: null, expires: 0 }
 
 const securityHeaders = {
   'Content-Security-Policy': "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://checkout.stripe.com; script-src 'self' https://challenges.cloudflare.com https://connect-js.stripe.com https://js.stripe.com; style-src 'self' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://connect-js.stripe.com https://api.stripe.com https://*.stripe.com https://ariregister.rik.ee https://aks.geoportaal.ee https://www.omniva.ee; frame-src https://challenges.cloudflare.com https://connect-js.stripe.com https://js.stripe.com https://*.stripe.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
@@ -72,6 +76,28 @@ async function getStore(slug) {
   return value
 }
 
+async function getStoreDirectory() {
+  if (storeDirectoryCache.value && storeDirectoryCache.expires > Date.now()) {
+    return storeDirectoryCache.value
+  }
+  if (!supabaseUrl || !supabaseKey) return storeDirectoryCache.value || []
+
+  try {
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/storefront_seo_catalog`, {
+      method: 'POST',
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+    if (!response.ok) throw new Error(`Poodide kataloog vastas staatusega ${response.status}.`)
+    const value = normalizeStoreDirectoryCatalog(await response.json())
+    storeDirectoryCache = { value, expires: Date.now() + 60_000 }
+    return value
+  } catch (error) {
+    if (storeDirectoryCache.value) return storeDirectoryCache.value
+    throw error
+  }
+}
+
 const seoBlock = ({ title, description, canonical, image, type, noIndex, schema, verification }) => {
   const resolvedImage = absoluteImage(image)
   return `<!-- poeruum:seo:start -->
@@ -82,7 +108,7 @@ const seoBlock = ({ title, description, canonical, image, type, noIndex, schema,
     <meta property="og:type" content="${type}" />
     <meta property="og:url" content="${escapeHtml(canonical)}" />
     <meta property="og:locale" content="et_EE" />
-    <meta property="og:site_name" content="${escapeHtml(schema?.brand?.name || schema?.name || 'Poeruum')}" />
+    <meta property="og:site_name" content="${escapeHtml(schema?.brand?.name || schema?.isPartOf?.name || schema?.name || 'Poeruum')}" />
     ${resolvedImage ? `<meta property="og:image" content="${escapeHtml(resolvedImage)}" />
     <meta property="og:image:secure_url" content="${escapeHtml(resolvedImage)}" />
     <meta property="og:image:alt" content="${escapeHtml(title)}" />` : ''}
@@ -176,6 +202,49 @@ function renderStorefront(template, store, product) {
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${fallback}<!-- poeruum:content:end -->`)
 }
 
+function renderStoreDirectory(template, stores) {
+  const canonical = `https://${storeDirectoryHost}/`
+  const title = 'Kaubamaja — Poeruum'
+  const description = 'Avasta Poeruumi poed.'
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Kaubamaja',
+    description,
+    url: canonical,
+    inLanguage: 'et',
+    isPartOf: { '@type': 'WebSite', name: 'Poeruum', url: `https://${platformHost}/` },
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: stores.length,
+      itemListElement: stores.map((store, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: store.name,
+        url: store.url,
+      })),
+    },
+  }
+  const brand = `<div class="platform-brand" aria-label="Poeruum"><span class="platform-brand__mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="1" y="1" width="38" height="38" rx="11"></rect><path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z"></path><path d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18"></path><path d="M15.5 22.2h9"></path></svg></span><strong>Poe<span>ruum</span></strong></div>`
+  const cards = stores.map((store, index) => `<a class="store-directory__card" href="${escapeHtml(store.url)}" aria-label="Ava pood ${escapeHtml(store.name)}"><span class="store-directory__media"><span class="store-directory__monogram" aria-hidden="true">${escapeHtml(store.name.charAt(0))}</span>${store.imageUrl ? `<img src="${escapeHtml(store.imageUrl)}" alt="" loading="${index < 2 ? 'eager' : 'lazy'}"${index === 0 ? ' fetchpriority="high"' : ''} decoding="async">` : ''}</span><span class="store-directory__card-shade" aria-hidden="true"></span><span class="store-directory__card-title"><strong>${escapeHtml(store.name)}</strong><i aria-hidden="true">↗</i></span></a>`).join('')
+  const content = `<main class="store-directory"><nav class="store-directory__nav" aria-label="Kaubamaja"><a class="store-directory__brand" href="https://${platformHost}/" aria-label="Poeruumi avaleht">${brand}</a><a class="store-directory__create" href="https://${platformHost}/#hind">Loo oma pood <span aria-hidden="true">↗</span></a></nav><header class="store-directory__hero"><h1>Kaubamaja</h1><p>${description}</p></header>${stores.length ? `<section class="store-directory__grid" aria-label="Poed">${cards}</section>` : '<section class="store-directory__empty"><p>Uued poed jõuavad siia peagi.</p></section>'}<footer class="store-directory__footer"><a href="https://${platformHost}/">Poeruum</a><a href="https://${platformHost}/#hind">Loo oma pood <span aria-hidden="true">→</span></a></footer></main>`
+  const initialData = JSON.stringify(stores).replace(/</g, '\\u003c')
+
+  return template
+    .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
+      title,
+      description,
+      canonical,
+      image: stores.find((store) => store.imageUrl)?.imageUrl,
+      type: 'website',
+      noIndex: false,
+      schema,
+    }))
+    .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
+    .replace('</head>', `<script type="application/json" id="poeruum-store-directory-data">${initialData}</script></head>`)
+    .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
+}
+
 const mime = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2' }
 const send = (res, status, body, headers = {}) => {
   res.writeHead(status, { ...securityHeaders, ...headers })
@@ -209,7 +278,42 @@ createServer(async (req, res) => {
       }
     }
 
+    if (host === storeDirectoryHost) {
+      if (/^\/toode\//i.test(url.pathname)) {
+        const legacyUrl = new URL(url.pathname, `https://${legacyKaubamajaStoreSlug}.${platformHost}`)
+        return send(res, 301, null, { Location: legacyUrl.toString() })
+      }
+      if (url.pathname === '/robots.txt') {
+        return send(res, 200, `User-agent: *\nAllow: /\nSitemap: https://${storeDirectoryHost}/sitemap.xml\n`, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'public, max-age=300',
+        })
+      }
+      if (url.pathname === '/sitemap.xml') {
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://${storeDirectoryHost}/</loc></url>\n</urlset>\n`
+        return send(res, 200, xml, {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=300',
+        })
+      }
+      if (url.pathname !== '/') {
+        return send(res, 404, 'Lehte ei leitud.', {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Robots-Tag': 'noindex',
+        })
+      }
+      const html = renderStoreDirectory(await templatePromise, await getStoreDirectory())
+      return send(res, 200, req.method === 'HEAD' ? null : html, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
+      })
+    }
+
     const { pathStore, product: productSlug } = routeFromPath(url.pathname)
+    if (pathStore === 'kaubamaja') {
+      const legacyPath = productSlug ? `/toode/${encodeURIComponent(productSlug)}/` : '/'
+      return send(res, 301, null, { Location: `https://${legacyKaubamajaStoreSlug}.${platformHost}${legacyPath}` })
+    }
     let slug = pathStore || getStoreSlugFromHostname(host, platformHost)
     if (!slug && host !== platformHost && host !== `www.${platformHost}` && !host.endsWith('.onrender.com')) {
       slug = await resolveCustomDomain(host)

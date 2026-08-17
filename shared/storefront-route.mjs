@@ -1,5 +1,5 @@
 export const RESERVED_STORE_SLUGS = new Set([
-  'admin', 'api', 'app', 'assets', 'auth', 'cdn', 'domains', 'mail', 'send',
+  'admin', 'api', 'app', 'assets', 'auth', 'cdn', 'domains', 'kaubamaja', 'mail', 'send',
   'static', 'status', 'support', 'tugi', 'www',
 ])
 

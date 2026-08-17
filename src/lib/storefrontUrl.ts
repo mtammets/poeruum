@@ -16,6 +16,13 @@ export function getStoreSlugFromHostname(hostname: string, rootDomain = STOREFRO
   return parseStoreSlugFromHostname(hostname, rootDomain)
 }
 
+export function isStoreDirectoryHostname(hostname: string, rootDomain = STOREFRONT_ROOT_DOMAIN) {
+  const normalizedHostname = hostname.toLowerCase().replace(/\.$/, '')
+  const normalizedRoot = rootDomain.toLowerCase().replace(/^\.+|\.+$/g, '')
+  return normalizedHostname === `kaubamaja.${normalizedRoot}`
+    || normalizedHostname === 'kaubamaja.localhost'
+}
+
 export function isPlatformHostname(hostname: string, rootDomain = STOREFRONT_ROOT_DOMAIN) {
   const normalizedHostname = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '')
   const normalizedRoot = rootDomain.toLowerCase().replace(/^\.+|\.+$/g, '')

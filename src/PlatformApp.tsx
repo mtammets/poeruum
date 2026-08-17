@@ -1294,7 +1294,7 @@ function PlatformFlow() {
     </section>
     <footer className="platform-footer">
       <div><Brand /><p>Lihtne e-pood Eesti väikeettevõtjale.</p></div>
-      <div><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span></div>
+      <div><a href="https://kaubamaja.poeruum.ee/">Kaubamaja</a><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span></div>
     </footer>
   </main>
 

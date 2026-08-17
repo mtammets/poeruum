@@ -4,15 +4,17 @@ import { ErrorBoundary } from './ErrorBoundary'
 import type { LegalDocument } from './LegalPage'
 import { applySeoMetadata } from './lib/seo'
 import { registerGlobalErrorMonitoring } from './lib/errorMonitoring'
-import { getStoreSlugFromHostname, isPlatformHostname } from './lib/storefrontUrl'
+import { getStoreSlugFromHostname, isPlatformHostname, isStoreDirectoryHostname } from './lib/storefrontUrl'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
 import './brand.css'
+import './storeDirectory.css'
 
 const AdminApp = lazy(() => import('./AdminApp'))
 const LegalPage = lazy(() => import('./LegalPage'))
 const OutreachUnsubscribe = lazy(() => import('./OutreachUnsubscribe'))
 const PlatformApp = lazy(() => import('./PlatformApp'))
+const Kaubamaja = lazy(() => import('./Kaubamaja'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
 
 const LoadingScreen = () => document.documentElement.dataset.appSurface === 'storefront'
@@ -37,19 +39,21 @@ if (isDeindexedTestStorePath) {
 
 const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostname)
   && window.location.pathname === '/' && !hasAppReturnState
+const isStoreDirectorySurface = isStoreDirectoryHostname(window.location.hostname)
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
-const isPlatformSurface = isPlatformHostname(window.location.hostname) && !isStorefrontSubdomain
+const isPlatformSurface = isStoreDirectorySurface
+  || (isPlatformHostname(window.location.hostname) && !isStorefrontSubdomain)
 const appSurface = isPlatformSurface ? 'platform' : 'storefront'
 document.documentElement.dataset.appSurface = appSurface
 document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   ?.setAttribute('content', appSurface === 'platform' ? '#f4f2e9' : '#000000')
-const isRemovedAdminHomepagePath = isPlatformSurface && /^\/admin\/homepage\/?$/i.test(window.location.pathname)
+const isRemovedAdminHomepagePath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin\/homepage\/?$/i.test(window.location.pathname)
 if (isRemovedAdminHomepagePath) {
   window.history.replaceState({}, '', `/admin${window.location.search}${window.location.hash}`)
 }
-const isAdminPath = isPlatformSurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support))?\/?$/i.test(window.location.pathname)
-const isOutreachUnsubscribePath = isPlatformSurface && /^\/loobu\/?$/i.test(window.location.pathname)
-const legalDocument: LegalDocument | null = isPlatformSurface
+const isAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support))?\/?$/i.test(window.location.pathname)
+const isOutreachUnsubscribePath = isPlatformSurface && !isStoreDirectorySurface && /^\/loobu\/?$/i.test(window.location.pathname)
+const legalDocument: LegalDocument | null = isPlatformSurface && !isStoreDirectorySurface
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
     ? 'terms'
     : /^\/(?:privaatsus|privaatsuspoliitika)\/?$/i.test(window.location.pathname)
@@ -183,6 +187,7 @@ function Root() {
     }
   }, [])
 
+  if (isStoreDirectorySurface) return <Suspense fallback={<LoadingScreen />}><Kaubamaja /></Suspense>
   if (isAdminPath) return <Suspense fallback={<LoadingScreen />}><AdminApp /></Suspense>
   if (isOutreachUnsubscribePath) return <Suspense fallback={<LoadingScreen />}><OutreachUnsubscribe /></Suspense>
   if (legalDocument) return <Suspense fallback={<LoadingScreen />}><LegalPage document={legalDocument} /></Suspense>

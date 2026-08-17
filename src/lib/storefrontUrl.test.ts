@@ -8,6 +8,7 @@ import {
   getStoreSlugFromHostname,
   isPlatformHostname,
   isReservedStoreSlug,
+  isStoreDirectoryHostname,
 } from './storefrontUrl'
 
 describe('storefront URL parsing', () => {
@@ -20,6 +21,13 @@ describe('storefront URL parsing', () => {
   it('blocks reserved infrastructure subdomains', () => {
     expect(isReservedStoreSlug('ADMIN')).toBe(true)
     expect(getStoreSlugFromHostname('support.poeruum.ee')).toBeNull()
+    expect(getStoreSlugFromHostname('kaubamaja.poeruum.ee')).toBeNull()
+  })
+
+  it('recognizes the first-party store directory in production and local preview', () => {
+    expect(isStoreDirectoryHostname('kaubamaja.poeruum.ee')).toBe(true)
+    expect(isStoreDirectoryHostname('kaubamaja.localhost')).toBe(true)
+    expect(isStoreDirectoryHostname('minu-pood.poeruum.ee')).toBe(false)
   })
 
   it('falls back to encoded path and query store identifiers', () => {

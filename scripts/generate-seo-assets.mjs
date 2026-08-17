@@ -135,7 +135,7 @@ const renderSeoBlock = ({ title, description, socialTitle, socialDescription, ca
 const renderPage = (metadata) => baseHtml
   .replace(seoBlockPattern, renderSeoBlock(metadata))
   .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(metadata.title)}</title>`)
-  .replace(contentBlockPattern, `<!-- poeruum:content:start --><main class="seo-fallback">${fallbackLoaderMarkup}<div><span>${escapeHtml(metadata.eyebrow || 'Poeruum')}</span><h1>${escapeHtml(metadata.heading || metadata.title)}</h1><p>${escapeHtml(metadata.description)}</p>${metadata.ctaUrl ? `<a href="${escapeHtml(metadata.ctaUrl)}">${escapeHtml(metadata.ctaLabel || 'Ava leht')}</a>` : ''}</div></main><!-- poeruum:content:end -->`)
+  .replace(contentBlockPattern, `<!-- poeruum:content:start --><main class="seo-fallback">${fallbackLoaderMarkup}<div><span>${escapeHtml(metadata.eyebrow || 'Poeruum')}</span><h1>${escapeHtml(metadata.heading || metadata.title)}</h1><p>${escapeHtml(metadata.description)}</p>${metadata.ctaUrl ? `<a href="${escapeHtml(metadata.ctaUrl)}">${escapeHtml(metadata.ctaLabel || 'Ava leht')}</a>` : ''}${metadata.secondaryCtaUrl ? `<a class="seo-fallback__secondary" href="${escapeHtml(metadata.secondaryCtaUrl)}">${escapeHtml(metadata.secondaryCtaLabel || 'Vaata veel')}</a>` : ''}</div></main><!-- poeruum:content:end -->`)
 
 const writePage = async (relativePath, html) => {
   const directory = path.join(outputDirectory, relativePath)
@@ -170,6 +170,8 @@ const homepageMetadata = {
   heading: 'Loo oma e-pood 10 minutiga',
   ctaUrl: '/#hind',
   ctaLabel: 'Vaata pakette',
+  secondaryCtaUrl: 'https://kaubamaja.poeruum.ee/',
+  secondaryCtaLabel: 'Kaubamaja',
   structuredData: {
     '@context': 'https://schema.org',
     '@graph': [
