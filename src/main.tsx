@@ -9,7 +9,9 @@ import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
 import './brand.css'
 import './storeDirectory.css'
+import './aboutPoeruum.css'
 
+const AboutPoeruumPage = lazy(() => import('./AboutPoeruumPage'))
 const AdminApp = lazy(() => import('./AdminApp'))
 const LegalPage = lazy(() => import('./LegalPage'))
 const OutreachUnsubscribe = lazy(() => import('./OutreachUnsubscribe'))
@@ -53,6 +55,7 @@ if (isRemovedAdminHomepagePath) {
 }
 const isAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support))?\/?$/i.test(window.location.pathname)
 const isOutreachUnsubscribePath = isPlatformSurface && !isStoreDirectorySurface && /^\/loobu\/?$/i.test(window.location.pathname)
+const isAboutPoeruumPath = isPlatformSurface && !isStoreDirectorySurface && /^\/mis-on-poeruum\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformSurface && !isStoreDirectorySurface
   ? /^\/kasutustingimused\/?$/i.test(window.location.pathname)
     ? 'terms'
@@ -190,6 +193,7 @@ function Root() {
   if (isStoreDirectorySurface) return <Suspense fallback={<LoadingScreen />}><Kaubamaja /></Suspense>
   if (isAdminPath) return <Suspense fallback={<LoadingScreen />}><AdminApp /></Suspense>
   if (isOutreachUnsubscribePath) return <Suspense fallback={<LoadingScreen />}><OutreachUnsubscribe /></Suspense>
+  if (isAboutPoeruumPath) return <Suspense fallback={<LoadingScreen />}><AboutPoeruumPage /></Suspense>
   if (legalDocument) return <Suspense fallback={<LoadingScreen />}><LegalPage document={legalDocument} /></Suspense>
   return isPoeruumHomepage ? <Homepage /> : <PlatformWithSupport />
 }

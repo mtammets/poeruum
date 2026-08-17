@@ -1,0 +1,215 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+
+:root:has(.about-poeruum) {
+  --poeruum-css-ready: 1;
+  --platform-ink: #17231c;
+  --platform-green: #265f43;
+  --platform-lime: #e5f25a;
+  background: #f4f2e9;
+  color-scheme: light;
+}
+
+:root:has(.about-poeruum) body,
+:root:has(.about-poeruum) #root { background: #f4f2e9; }
+
+.about-poeruum {
+  min-height: 100svh;
+  padding: 0 clamp(1.15rem, 4vw, 4rem);
+  overflow: hidden;
+  background: #f4f2e9;
+  color: #17231c;
+  font-family: "DM Sans", sans-serif;
+}
+
+.about-poeruum h1,
+.about-poeruum h2,
+.about-poeruum h3 { font-family: Manrope, sans-serif; }
+
+.about-poeruum__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: 1.45rem 0;
+}
+
+.about-poeruum__nav > a:first-child,
+.about-poeruum__footer > a { color: inherit; text-decoration: none; }
+
+.about-poeruum__nav-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .72rem .92rem;
+  border: 1px solid rgba(23, 35, 28, .18);
+  border-radius: 999px;
+  color: #17231c;
+  font-size: .76rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.about-poeruum__nav-cta:hover { background: #17231c; color: #fff; transform: translateY(-1px); }
+
+.about-poeruum__hero {
+  position: relative;
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: clamp(5.5rem, 12vw, 10rem) 0 clamp(6rem, 12vw, 11rem);
+}
+
+.about-poeruum__hero::after {
+  position: absolute;
+  z-index: 0;
+  top: 9%;
+  right: -12rem;
+  width: clamp(20rem, 38vw, 34rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #dfe7c5;
+  content: '';
+}
+
+.about-poeruum__hero > * { position: relative; z-index: 1; }
+
+.about-poeruum__hero h1 {
+  max-width: 11ch;
+  margin: 0;
+  font-size: clamp(3.8rem, 9vw, 8.5rem);
+  font-weight: 700;
+  letter-spacing: -.08em;
+  line-height: .88;
+}
+
+.about-poeruum__hero > p {
+  max-width: 48rem;
+  margin: clamp(2.5rem, 5vw, 4.5rem) 0 0;
+  color: #4f5d55;
+  font-size: clamp(1.15rem, 2.2vw, 1.7rem);
+  line-height: 1.55;
+}
+
+.about-poeruum__hero-links { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2.2rem; }
+.about-poeruum__hero-links a,
+.about-poeruum__closing a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2.5rem;
+  min-width: 11rem;
+  padding: .95rem 1.1rem;
+  border-radius: .75rem;
+  background: #265f43;
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.about-poeruum__hero-links a:last-child,
+.about-poeruum__closing a:last-child { background: transparent; color: #17231c; box-shadow: inset 0 0 0 1px rgba(23, 35, 28, .2); }
+
+.about-poeruum__workflow,
+.about-poeruum__audience,
+.about-poeruum__alternative,
+.about-poeruum__steps,
+.about-poeruum__faq,
+.about-poeruum__closing,
+.about-poeruum__footer { max-width: 84rem; margin-right: auto; margin-left: auto; }
+
+.about-poeruum__workflow { padding: clamp(5rem, 10vw, 9rem) 0; border-top: 1px solid rgba(23, 35, 28, .16); }
+.about-poeruum__workflow > header,
+.about-poeruum__audience > header { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(2rem, 7vw, 7rem); align-items: end; }
+.about-poeruum__workflow h2,
+.about-poeruum__audience h2,
+.about-poeruum__steps > h2,
+.about-poeruum__faq > h2 {
+  max-width: 11ch;
+  margin: 0;
+  font-size: clamp(2.5rem, 5vw, 5rem);
+  letter-spacing: -.065em;
+  line-height: .94;
+}
+
+.about-poeruum__workflow > header p,
+.about-poeruum__audience > header p { max-width: 36rem; margin: 0; color: #647068; font-size: 1rem; line-height: 1.7; }
+
+.about-poeruum__capabilities { display: grid; grid-template-columns: repeat(2, 1fr); margin-top: clamp(3.5rem, 7vw, 6rem); border-top: 1px solid rgba(23, 35, 28, .16); border-left: 1px solid rgba(23, 35, 28, .16); }
+.about-poeruum__capabilities article { min-height: 19rem; padding: clamp(1.5rem, 4vw, 3rem); border-right: 1px solid rgba(23, 35, 28, .16); border-bottom: 1px solid rgba(23, 35, 28, .16); }
+.about-poeruum__capabilities article > span { color: #265f43; font-size: .66rem; font-weight: 800; letter-spacing: .12em; }
+.about-poeruum__capabilities h3 { margin: clamp(3rem, 7vw, 6rem) 0 1rem; font-size: clamp(1.5rem, 2.5vw, 2.4rem); letter-spacing: -.045em; }
+.about-poeruum__capabilities p { max-width: 29rem; margin: 0; color: #647068; line-height: 1.65; }
+
+.about-poeruum__audience { padding: clamp(6rem, 12vw, 11rem) 0; }
+.about-poeruum__audience > div { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin-top: clamp(3.5rem, 7vw, 6rem); background: rgba(23, 35, 28, .16); }
+.about-poeruum__audience article { min-height: 18rem; padding: clamp(1.4rem, 3vw, 2.2rem); background: #f4f2e9; }
+.about-poeruum__audience h3 { max-width: 12ch; margin: 0 0 1.1rem; font-size: 1.3rem; letter-spacing: -.035em; line-height: 1.15; }
+.about-poeruum__audience article p { margin: 0; color: #647068; font-size: .88rem; line-height: 1.65; }
+
+.about-poeruum__alternative { display: grid; grid-template-columns: .8fr 1.2fr; gap: clamp(2rem, 8vw, 8rem); padding: clamp(2.5rem, 6vw, 5rem); border-radius: clamp(1.4rem, 3vw, 2.5rem); background: #173c2b; color: #fff; }
+.about-poeruum__alternative h2 { max-width: 10ch; margin: 0; color: #e5f25a; font-size: clamp(2rem, 4.5vw, 4.5rem); letter-spacing: -.06em; line-height: .98; }
+.about-poeruum__alternative p { max-width: 45rem; margin: 0; color: rgba(255, 255, 255, .74); font-size: clamp(1rem, 1.5vw, 1.18rem); line-height: 1.75; }
+
+.about-poeruum__steps { display: grid; grid-template-columns: .8fr 1.2fr; gap: clamp(3rem, 9vw, 9rem); padding: clamp(7rem, 13vw, 12rem) 0; }
+.about-poeruum__steps ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid rgba(23, 35, 28, .16); }
+.about-poeruum__steps li { display: grid; grid-template-columns: 2rem 1fr; gap: 1.3rem; padding: 1.65rem 0; border-bottom: 1px solid rgba(23, 35, 28, .16); }
+.about-poeruum__steps li > span { display: grid; width: 1.65rem; height: 1.65rem; place-items: center; border-radius: 50%; background: #dfe7c5; color: #265f43; font-size: .7rem; font-weight: 800; }
+.about-poeruum__steps h3 { margin: 0 0 .45rem; font-size: 1.1rem; letter-spacing: -.025em; }
+.about-poeruum__steps li p { margin: 0; color: #647068; font-size: .86rem; line-height: 1.55; }
+
+.about-poeruum__faq { display: grid; grid-template-columns: .8fr 1.2fr; gap: clamp(3rem, 9vw, 9rem); padding: 0 0 clamp(7rem, 13vw, 12rem); }
+.about-poeruum__faq > div { border-top: 1px solid rgba(23, 35, 28, .18); }
+.about-poeruum__faq details { border-bottom: 1px solid rgba(23, 35, 28, .18); }
+.about-poeruum__faq summary { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.55rem 0; cursor: pointer; font-family: Manrope, sans-serif; font-size: 1rem; font-weight: 700; list-style: none; }
+.about-poeruum__faq summary::-webkit-details-marker { display: none; }
+.about-poeruum__faq summary span { color: #265f43; font-size: 1.3rem; font-weight: 400; transition: transform 180ms ease; }
+.about-poeruum__faq details[open] summary span { transform: rotate(45deg); }
+.about-poeruum__faq details p { max-width: 39rem; margin: -.4rem 0 1.6rem; color: #647068; font-size: .9rem; line-height: 1.7; }
+
+.about-poeruum__closing { padding: clamp(3rem, 7vw, 6rem); border-radius: clamp(1.4rem, 3vw, 2.5rem); background: #e5f25a; }
+.about-poeruum__closing > p { margin: 0 0 1rem; color: #265f43; font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.about-poeruum__closing h2 { max-width: 12ch; margin: 0; font-size: clamp(2.7rem, 6vw, 6rem); letter-spacing: -.07em; line-height: .92; }
+.about-poeruum__closing > div { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2.5rem; }
+.about-poeruum__closing a:last-child { box-shadow: inset 0 0 0 1px rgba(23, 35, 28, .25); }
+
+.about-poeruum__footer { display: flex; align-items: center; justify-content: space-between; padding: 2rem 0 max(2rem, env(safe-area-inset-bottom)); }
+.about-poeruum__footer > div { display: flex; flex-wrap: wrap; gap: 1rem; color: #7b847e; font-size: .68rem; }
+.about-poeruum__footer > div a { color: inherit; text-underline-offset: .18em; }
+
+@media (max-width: 52rem) {
+  .about-poeruum__hero::after { top: 19%; right: -18rem; opacity: .65; }
+  .about-poeruum__workflow > header,
+  .about-poeruum__audience > header,
+  .about-poeruum__alternative,
+  .about-poeruum__steps,
+  .about-poeruum__faq { grid-template-columns: 1fr; }
+  .about-poeruum__audience > div { grid-template-columns: repeat(2, 1fr); }
+  .about-poeruum__audience article { min-height: 14rem; }
+  .about-poeruum__footer { align-items: flex-start; gap: 2rem; }
+  .about-poeruum__footer > div { justify-content: flex-end; }
+}
+
+@media (max-width: 36rem) {
+  .about-poeruum__nav .platform-brand strong { display: none; }
+  .about-poeruum__hero { padding-top: 5rem; }
+  .about-poeruum__hero h1 { font-size: clamp(3.45rem, 16vw, 5.2rem); }
+  .about-poeruum__hero > p { font-size: 1.08rem; }
+  .about-poeruum__capabilities,
+  .about-poeruum__audience > div { grid-template-columns: 1fr; }
+  .about-poeruum__capabilities article,
+  .about-poeruum__audience article { min-height: auto; }
+  .about-poeruum__capabilities h3 { margin-top: 3rem; }
+  .about-poeruum__alternative { padding: 2rem 1.5rem; }
+  .about-poeruum__closing { padding: 2.2rem 1.5rem; }
+  .about-poeruum__hero-links a,
+  .about-poeruum__closing a { width: 100%; }
+  .about-poeruum__footer { display: grid; }
+  .about-poeruum__footer > div { justify-content: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-poeruum__nav-cta,
+  .about-poeruum__faq summary span { transition: none; }
+}

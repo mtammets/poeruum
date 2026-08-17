@@ -34,6 +34,19 @@ test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await expect(page.locator('.store-directory')).toHaveCSS('background-color', 'rgb(244, 242, 233)')
 })
 
+test('Poeruum explainer page answers who the platform is for', async ({ page }) => {
+  await page.goto('/mis-on-poeruum/')
+
+  await expect(page.getByRole('heading', { name: 'Mis on Poeruum ja kellele see sobib?', exact: true })).toBeVisible()
+  await expect(page.getByText(/Poeruum on Eestis loodud e-poeplatvorm/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Kellele Poeruum sobib?' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Millal tasub valida muu lahendus?' })).toBeVisible()
+  await expect(page.locator('.about-poeruum__faq details')).toHaveCount(6)
+  await expect(page.getByText(/väikesed ja iseseisvad/i)).toHaveCount(0)
+  await expect(page).toHaveTitle('Mis on Poeruum ja kellele see sobib?')
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://poeruum.ee/mis-on-poeruum/')
+})
+
 test('landing page opens and login navigation works', async ({ page }) => {
   const pageErrors: Error[] = []
   page.on('pageerror', (error) => pageErrors.push(error))
