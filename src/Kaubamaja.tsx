@@ -83,7 +83,7 @@ const StoreCard = ({ store, index }: { store: StoreDirectoryEntry; index: number
     <div className="store-directory__card-copy">
       {description ? <p>{description}</p> : null}
       <a className="store-directory__card-cta" href={featuredUrl}>
-        {product ? 'Vaata toodet poes' : 'Vaata poodi'}
+        {product ? 'Vaata toodet' : 'Vaata poodi'}
       </a>
     </div>
   </article>
