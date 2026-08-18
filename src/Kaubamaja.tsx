@@ -1,13 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
-import { normalizeStoreDirectoryCatalog } from '../shared/store-directory.mjs'
+import {
+  formatStoreDirectoryPrice,
+  getStoreDirectoryFeaturedUrl,
+  normalizeStoreDirectoryCatalog,
+} from '../shared/store-directory.mjs'
 import { Brand } from './Brand'
 import { listPublicStoreDirectory } from './lib/database'
 import { applySeoMetadata } from './lib/seo'
 import { isSupabaseConfigured } from './lib/supabase'
 
 const directoryUrl = 'https://kaubamaja.poeruum.ee/'
-const directoryDescription = 'Avasta Poeruumi poed.'
+const directoryName = 'Poeruumi Kaubamaja'
+const directoryDescription = 'Avasta e-poode, mis on loodud Poeruumis.'
+const directoryHeroImage = `${directoryUrl}images/poeruumi-kaubamaja-hero.webp`
+
+const ArrowUpRight = ({ className = '' }: { className?: string }) => <svg
+  className={className}
+  viewBox="0 0 20 20"
+  fill="none"
+  aria-hidden="true"
+>
+  <path d="M5 15 15 5M7 5h8v8" />
+</svg>
 
 const readInitialStores = () => {
   const element = document.getElementById('poeruum-store-directory-data')
@@ -22,23 +37,57 @@ const loadStores = () => {
   return directoryRequest
 }
 
-const StoreCard = ({ store, index }: { store: StoreDirectoryEntry; index: number }) => (
-  <a className="store-directory__card" href={store.url} aria-label={`Ava pood ${store.name}`}>
+const StoreCard = ({ store, index }: { store: StoreDirectoryEntry; index: number }) => {
+  const product = store.featuredProduct
+  const regularPrice = product?.price ?? null
+  const salePrice = product?.salePrice ?? null
+  const hasSale = regularPrice !== null && salePrice !== null && salePrice < regularPrice
+  const currentPrice = hasSale ? salePrice : regularPrice
+  const isSoldOut = product?.stock !== null && product?.stock !== undefined && product.stock <= 0
+  const featuredUrl = getStoreDirectoryFeaturedUrl(store)
+  const description = product?.description || store.description
+  const featuredLabel = product ? `Vaata toodet ${product.name} poes ${store.name}` : `Ava pood ${store.name}`
+
+  return <article className="store-directory__card">
     <span className="store-directory__media">
-      <span className="store-directory__monogram" aria-hidden="true">{store.name.charAt(0)}</span>
-      {store.imageUrl ? <img
-        src={store.imageUrl}
-        alt=""
-        loading={index < 2 ? 'eager' : 'lazy'}
-        fetchPriority={index === 0 ? 'high' : 'auto'}
-        decoding="async"
-        onError={(event) => event.currentTarget.remove()}
-      /> : null}
+      <a className="store-directory__featured-link" href={featuredUrl} aria-label={featuredLabel}>
+        {store.imageUrl ? <img
+          className="store-directory__cover"
+          src={store.imageUrl}
+          alt=""
+          loading={index < 2 ? 'eager' : 'lazy'}
+          fetchPriority={index === 0 ? 'high' : 'auto'}
+          decoding="async"
+          onError={(event) => event.currentTarget.remove()}
+        /> : null}
+        <span className="store-directory__card-shade" aria-hidden="true" />
+        {product ? <span className="store-directory__product">
+          <span className="store-directory__product-name">{product.name}</span>
+          <span className="store-directory__product-side">
+            {isSoldOut ? <small>Välja müüdud</small> : null}
+            {currentPrice !== null ? <span className="store-directory__price">
+              {hasSale ? <del>{formatStoreDirectoryPrice(regularPrice)}</del> : null}
+              <strong>{formatStoreDirectoryPrice(currentPrice)}</strong>
+            </span> : null}
+          </span>
+        </span> : null}
+      </a>
+      <a className="store-directory__identity" href={store.url} aria-label={`Ava pood ${store.name}`}>
+        <span className="store-directory__identity-mark" aria-hidden="true">
+          <b>{store.name.charAt(0).toLocaleUpperCase('et')}</b>
+          {store.logoUrl ? <img src={store.logoUrl} alt="" loading="lazy" decoding="async" onError={(event) => event.currentTarget.remove()} /> : null}
+        </span>
+        <strong>{store.name.toLocaleUpperCase('et')}</strong>
+      </a>
     </span>
-    <span className="store-directory__card-shade" aria-hidden="true" />
-    <span className="store-directory__card-title"><strong>{store.name}</strong><i aria-hidden="true">↗</i></span>
-  </a>
-)
+    <div className="store-directory__card-copy">
+      {description ? <p>{description}</p> : null}
+      <a className="store-directory__card-cta" href={featuredUrl}>
+        {product ? 'Vaata toodet poes' : 'Vaata poodi'}
+      </a>
+    </div>
+  </article>
+}
 
 export default function Kaubamaja() {
   const [stores, setStores] = useState<StoreDirectoryEntry[]>(readInitialStores)
@@ -49,7 +98,7 @@ export default function Kaubamaja() {
   const structuredData = useMemo(() => ({
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'Kaubamaja',
+    name: directoryName,
     description: directoryDescription,
     url: directoryUrl,
     inLanguage: 'et',
@@ -68,9 +117,10 @@ export default function Kaubamaja() {
 
   useEffect(() => {
     applySeoMetadata({
-      title: 'Kaubamaja — Poeruum',
+      title: directoryName,
       description: directoryDescription,
       canonicalUrl: directoryUrl,
+      imageUrl: directoryHeroImage,
       structuredData,
     })
   }, [structuredData])
@@ -91,27 +141,50 @@ export default function Kaubamaja() {
   }, [])
 
   return <main className="store-directory">
-    <nav className="store-directory__nav" aria-label="Kaubamaja">
-      <a className="store-directory__brand" href="https://poeruum.ee/" aria-label="Poeruumi avaleht"><Brand /></a>
-      <a className="store-directory__create" href="https://poeruum.ee/#hind">Loo oma pood <span aria-hidden="true">↗</span></a>
+    <nav className="store-directory__nav" aria-label="Poeruumi Kaubamaja">
+      <a className="store-directory__brand" href="https://poeruum.ee/" aria-label="Poeruumi avaleht">
+        <Brand />
+        <span className="store-directory__brand-rule" aria-hidden="true" />
+        <span className="store-directory__brand-edition">Kaubamaja</span>
+      </a>
+      <a className="store-directory__create" href="https://poeruum.ee/#hind">
+        <span className="store-directory__create-full">Loo oma pood</span>
+        <span className="store-directory__create-short">Loo pood</span>
+        <ArrowUpRight />
+      </a>
     </nav>
 
     <header className="store-directory__hero">
-      <h1>Kaubamaja</h1>
-      <p>{directoryDescription}</p>
+      <h1 className="store-directory__sr-only">{directoryName}</h1>
+      <div className="store-directory__hero-media" aria-hidden="true">
+        <img src="/images/poeruumi-kaubamaja-hero.webp" alt="" fetchPriority="high" decoding="async" />
+      </div>
+      <div className="store-directory__intro">
+        <span aria-hidden="true">Kõik poed. Üks koht.</span>
+        <p>{directoryDescription}</p>
+      </div>
     </header>
 
-    {stores.length > 0 ? <section className="store-directory__grid" aria-label="Poed">
-      {stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} />)}
-    </section> : <section className="store-directory__empty" aria-live="polite">
-      {status === 'loading'
-        ? <span className="store-directory__loader" aria-label="Laadin poode" />
-        : <p>{status === 'error' ? 'Poode ei õnnestunud praegu laadida.' : 'Uued poed jõuavad siia peagi.'}</p>}
-    </section>}
+    <section className="store-directory__stores" aria-labelledby="store-directory-heading">
+      <div className="store-directory__section-head">
+        <h2 id="store-directory-heading">Poed</h2>
+        <span>Sirvi valikut</span>
+      </div>
+      {stores.length > 0 ? <div className="store-directory__grid">
+        {stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} />)}
+      </div> : <div className="store-directory__empty" aria-live="polite">
+        {status === 'loading'
+          ? <span className="store-directory__loader" aria-label="Laadin poode" />
+          : <p>{status === 'error' ? 'Poode ei õnnestunud praegu laadida.' : 'Uued poed jõuavad siia peagi.'}</p>}
+      </div>}
+    </section>
 
     <footer className="store-directory__footer">
-      <a href="https://poeruum.ee/">Poeruum</a>
-      <a href="https://poeruum.ee/#hind">Loo oma pood <span aria-hidden="true">→</span></a>
+      <span>© 2026 Poeruum</span>
+      <div>
+        <a href="https://poeruum.ee/mis-on-poeruum/">Mis on Poeruum?</a>
+        <a href="https://poeruum.ee/#hind">Loo oma pood <ArrowUpRight /></a>
+      </div>
     </footer>
   </main>
 }

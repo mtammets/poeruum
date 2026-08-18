@@ -26,12 +26,15 @@ test('initial platform document is light before application JavaScript runs', as
 test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await page.goto('http://kaubamaja.localhost:4173/')
 
-  await expect(page.getByRole('heading', { name: 'Kaubamaja', exact: true })).toBeVisible()
-  await expect(page.getByText('Avasta Poeruumi poed.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Poeruumi Kaubamaja', exact: true })).toBeAttached()
+  await expect(page.locator('.store-directory__hero-media img')).toBeVisible()
+  await expect(page.getByText('Avasta e-poode, mis on loodud Poeruumis.')).toBeVisible()
   await expect(page.getByRole('link', { name: /Loo oma pood/ }).first()).toBeVisible()
   await expect(page.getByText(/loodud Poeruumiga/i)).toHaveCount(0)
-  await expect(page).toHaveTitle('Kaubamaja — Poeruum')
-  await expect(page.locator('.store-directory')).toHaveCSS('background-color', 'rgb(244, 242, 233)')
+  await expect(page.locator('.store-directory__create svg')).toBeVisible()
+  await expect(page.getByText('↗')).toHaveCount(0)
+  await expect(page).toHaveTitle('Poeruumi Kaubamaja')
+  await expect(page.locator('.store-directory')).toHaveCSS('background-color', 'rgb(243, 240, 231)')
 })
 
 test('Poeruum explainer page answers who the platform is for', async ({ page }) => {

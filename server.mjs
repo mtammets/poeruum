@@ -9,7 +9,11 @@ import {
   getStoreSlugFromHostname,
   getStoreSlugFromPath,
 } from './shared/storefront-route.mjs'
-import { normalizeStoreDirectoryCatalog } from './shared/store-directory.mjs'
+import {
+  formatStoreDirectoryPrice,
+  getStoreDirectoryFeaturedUrl,
+  normalizeStoreDirectoryCatalog,
+} from './shared/store-directory.mjs'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 const dist = path.join(root, 'dist')
@@ -204,12 +208,13 @@ function renderStorefront(template, store, product) {
 
 function renderStoreDirectory(template, stores) {
   const canonical = `https://${storeDirectoryHost}/`
-  const title = 'Kaubamaja — Poeruum'
-  const description = 'Avasta Poeruumi poed.'
+  const title = 'Poeruumi Kaubamaja'
+  const description = 'Avasta e-poode, mis on loodud Poeruumis.'
+  const heroImage = `${canonical}images/poeruumi-kaubamaja-hero.webp`
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'Kaubamaja',
+    name: title,
     description,
     url: canonical,
     inLanguage: 'et',
@@ -226,8 +231,25 @@ function renderStoreDirectory(template, stores) {
     },
   }
   const brand = `<div class="platform-brand" aria-label="Poeruum"><span class="platform-brand__mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="1" y="1" width="38" height="38" rx="11"></rect><path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z"></path><path d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18"></path><path d="M15.5 22.2h9"></path></svg></span><strong>Poe<span>ruum</span></strong></div>`
-  const cards = stores.map((store, index) => `<a class="store-directory__card" href="${escapeHtml(store.url)}" aria-label="Ava pood ${escapeHtml(store.name)}"><span class="store-directory__media"><span class="store-directory__monogram" aria-hidden="true">${escapeHtml(store.name.charAt(0))}</span>${store.imageUrl ? `<img src="${escapeHtml(store.imageUrl)}" alt="" loading="${index < 2 ? 'eager' : 'lazy'}"${index === 0 ? ' fetchpriority="high"' : ''} decoding="async">` : ''}</span><span class="store-directory__card-shade" aria-hidden="true"></span><span class="store-directory__card-title"><strong>${escapeHtml(store.name)}</strong><i aria-hidden="true">↗</i></span></a>`).join('')
-  const content = `<main class="store-directory"><nav class="store-directory__nav" aria-label="Kaubamaja"><a class="store-directory__brand" href="https://${platformHost}/" aria-label="Poeruumi avaleht">${brand}</a><a class="store-directory__create" href="https://${platformHost}/#hind">Loo oma pood <span aria-hidden="true">↗</span></a></nav><header class="store-directory__hero"><h1>Kaubamaja</h1><p>${description}</p></header>${stores.length ? `<section class="store-directory__grid" aria-label="Poed">${cards}</section>` : '<section class="store-directory__empty"><p>Uued poed jõuavad siia peagi.</p></section>'}<footer class="store-directory__footer"><a href="https://${platformHost}/">Poeruum</a><a href="https://${platformHost}/#hind">Loo oma pood <span aria-hidden="true">→</span></a></footer></main>`
+  const arrowUpRight = '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 15 15 5M7 5h8v8"></path></svg>'
+  const cards = stores.map((store, index) => {
+    const product = store.featuredProduct
+    const featuredUrl = getStoreDirectoryFeaturedUrl(store)
+    const featuredLabel = product ? `Vaata toodet ${product.name} poes ${store.name}` : `Ava pood ${store.name}`
+    const cardDescription = product?.description || store.description
+    const regularPrice = product?.price ?? null
+    const salePrice = product?.salePrice ?? null
+    const hasSale = regularPrice !== null && salePrice !== null && salePrice < regularPrice
+    const currentPrice = hasSale ? salePrice : regularPrice
+    const isSoldOut = product?.stock !== null && product?.stock !== undefined && product.stock <= 0
+    const logo = `<span class="store-directory__identity-mark" aria-hidden="true"><b>${escapeHtml(store.name.charAt(0).toLocaleUpperCase('et'))}</b>${store.logoUrl ? `<img src="${escapeHtml(store.logoUrl)}" alt="" loading="lazy" decoding="async">` : ''}</span>`
+    const price = currentPrice !== null ? `<span class="store-directory__price">${hasSale ? `<del>${escapeHtml(formatStoreDirectoryPrice(regularPrice))}</del>` : ''}<strong>${escapeHtml(formatStoreDirectoryPrice(currentPrice))}</strong></span>` : ''
+    const productMeta = product ? `<span class="store-directory__product"><span class="store-directory__product-name">${escapeHtml(product.name)}</span><span class="store-directory__product-side">${isSoldOut ? '<small>Välja müüdud</small>' : ''}${price}</span></span>` : ''
+    const cardCopy = `<div class="store-directory__card-copy">${cardDescription ? `<p>${escapeHtml(cardDescription)}</p>` : ''}<a class="store-directory__card-cta" href="${escapeHtml(featuredUrl)}">${product ? 'Vaata toodet poes' : 'Vaata poodi'}</a></div>`
+    return `<article class="store-directory__card"><span class="store-directory__media"><a class="store-directory__featured-link" href="${escapeHtml(featuredUrl)}" aria-label="${escapeHtml(featuredLabel)}">${store.imageUrl ? `<img class="store-directory__cover" src="${escapeHtml(store.imageUrl)}" alt="" loading="${index < 2 ? 'eager' : 'lazy'}"${index === 0 ? ' fetchpriority="high"' : ''} decoding="async">` : ''}<span class="store-directory__card-shade" aria-hidden="true"></span>${productMeta}</a><a class="store-directory__identity" href="${escapeHtml(store.url)}" aria-label="Ava pood ${escapeHtml(store.name)}">${logo}<strong>${escapeHtml(store.name.toLocaleUpperCase('et'))}</strong></a></span>${cardCopy}</article>`
+  }).join('')
+  const empty = '<div class="store-directory__empty"><p>Uued poed jõuavad siia peagi.</p></div>'
+  const content = `<main class="store-directory"><nav class="store-directory__nav" aria-label="Poeruumi Kaubamaja"><a class="store-directory__brand" href="https://${platformHost}/" aria-label="Poeruumi avaleht">${brand}<span class="store-directory__brand-rule" aria-hidden="true"></span><span class="store-directory__brand-edition">Kaubamaja</span></a><a class="store-directory__create" href="https://${platformHost}/#hind"><span class="store-directory__create-full">Loo oma pood</span><span class="store-directory__create-short">Loo pood</span>${arrowUpRight}</a></nav><header class="store-directory__hero"><h1 class="store-directory__sr-only">${title}</h1><div class="store-directory__hero-media" aria-hidden="true"><img src="/images/poeruumi-kaubamaja-hero.webp" alt="" fetchpriority="high" decoding="async"></div><div class="store-directory__intro"><span aria-hidden="true">Kõik poed. Üks koht.</span><p>${description}</p></div></header><section class="store-directory__stores" aria-labelledby="store-directory-heading"><div class="store-directory__section-head"><h2 id="store-directory-heading">Poed</h2><span>Sirvi valikut</span></div>${stores.length ? `<div class="store-directory__grid">${cards}</div>` : empty}</section><footer class="store-directory__footer"><span>© 2026 Poeruum</span><div><a href="https://${platformHost}/mis-on-poeruum/">Mis on Poeruum?</a><a href="https://${platformHost}/#hind">Loo oma pood ${arrowUpRight}</a></div></footer></main>`
   const initialData = JSON.stringify(stores).replace(/</g, '\\u003c')
 
   return template
@@ -235,7 +257,7 @@ function renderStoreDirectory(template, stores) {
       title,
       description,
       canonical,
-      image: stores.find((store) => store.imageUrl)?.imageUrl,
+      image: heroImage,
       type: 'website',
       noIndex: false,
       schema,
