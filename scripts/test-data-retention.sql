@@ -29,7 +29,7 @@ insert into public.orders (
   'Expired address',
   1,
   1,
-  current_date
+  (now() at time zone 'Europe/Tallinn')::date
 ),
 (
   '20000000-0000-4000-8000-000000000002',
@@ -41,7 +41,7 @@ insert into public.orders (
   'Active address',
   1,
   1,
-  current_date + 1
+  (now() at time zone 'Europe/Tallinn')::date + 1
 ),
 (
   '20000000-0000-4000-8000-000000000003',
@@ -53,7 +53,7 @@ insert into public.orders (
   'Held address',
   1,
   1,
-  current_date
+  (now() at time zone 'Europe/Tallinn')::date
 );
 
 update public.orders
@@ -64,9 +64,9 @@ insert into public.revenue_events (
   provider, provider_event_id, kind, amount_cents, description, occurred_at,
   retention_expires_at, retention_hold_until
 ) values
-  ('stripe', 'retention-revenue-expired', 'subscription', 100, 'Expired revenue', now(), current_date, null),
-  ('stripe', 'retention-revenue-active', 'subscription', 100, 'Active revenue', now(), current_date + 1, null),
-  ('stripe', 'retention-revenue-held', 'subscription', 100, 'Held revenue', now(), current_date, now() + interval '1 day');
+  ('stripe', 'retention-revenue-expired', 'subscription', 100, 'Expired revenue', now(), (now() at time zone 'Europe/Tallinn')::date, null),
+  ('stripe', 'retention-revenue-active', 'subscription', 100, 'Active revenue', now(), (now() at time zone 'Europe/Tallinn')::date + 1, null),
+  ('stripe', 'retention-revenue-held', 'subscription', 100, 'Held revenue', now(), (now() at time zone 'Europe/Tallinn')::date, now() + interval '1 day');
 
 insert into public.email_deliveries (
   resend_email_id, recipient_email, status, sent_at, status_updated_at
