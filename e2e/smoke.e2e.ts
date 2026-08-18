@@ -26,9 +26,9 @@ test('initial platform document is light before application JavaScript runs', as
 test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await page.goto('http://kaubamaja.localhost:4173/')
 
-  await expect(page.getByRole('heading', { name: 'Poeruumi Kaubamaja', exact: true })).toBeAttached()
+  await expect(page.getByRole('heading', { name: 'Avasta Poeruumis loodud Eesti e-poode', exact: true })).toBeVisible()
   await expect(page.locator('.store-directory__hero-media img')).toBeVisible()
-  await expect(page.getByText('Avasta e-poode, mis on loodud Poeruumis.')).toBeVisible()
+  await expect(page.getByText(/Poeruumi Kaubamaja koondab ühte kohta Eesti ettevõtjate e-poed/)).toBeVisible()
   await expect(page.getByRole('link', { name: /Loo oma pood/ }).first()).toBeVisible()
   await expect(page.getByText(/loodud Poeruumiga/i)).toHaveCount(0)
   await expect(page.locator('.store-directory__create svg')).toBeVisible()

@@ -29,16 +29,6 @@
   margin-left: auto;
 }
 
-.store-directory__sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 .store-directory__nav {
   display: flex;
   min-height: 6.75rem;
@@ -164,16 +154,17 @@
   color: #fff;
 }
 
-.store-directory__intro > span {
+.store-directory__intro h1 {
   display: block;
-  max-width: 8ch;
-  margin-bottom: clamp(1.5rem, 3vw, 2.75rem);
+  max-width: 9ch;
+  margin: 0 0 clamp(1.5rem, 3vw, 2.75rem);
   color: #f8f7ef;
   font-family: Manrope, sans-serif;
-  font-size: clamp(3.15rem, 5.5vw, 5.15rem);
+  font-size: clamp(2.8rem, 4.7vw, 4.4rem);
   font-weight: 750;
-  letter-spacing: -.075em;
+  letter-spacing: -.065em;
   line-height: .94;
+  word-spacing: .12em;
 }
 
 .store-directory__intro p {
@@ -564,10 +555,10 @@
     border-radius: 1.5rem;
   }
   .store-directory__intro { min-height: 15.5rem; padding: 1rem .45rem .75rem; }
-  .store-directory__intro > span {
-    max-width: 7.5ch;
+  .store-directory__intro h1 {
+    max-width: 9ch;
     margin-bottom: 1.4rem;
-    font-size: clamp(2.85rem, 14vw, 4rem);
+    font-size: clamp(2.55rem, 12vw, 3.55rem);
   }
   .store-directory__intro p { max-width: 19rem; font-size: 1.05rem; line-height: 1.45; }
   .store-directory__hero-media { border-radius: 1rem; }

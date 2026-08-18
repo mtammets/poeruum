@@ -12,7 +12,8 @@ import { isSupabaseConfigured } from './lib/supabase'
 
 const directoryUrl = 'https://kaubamaja.poeruum.ee/'
 const directoryName = 'Poeruumi Kaubamaja'
-const directoryDescription = 'Avasta e-poode, mis on loodud Poeruumis.'
+const directoryHeading = 'Avasta Poeruumis loodud Eesti e-poode'
+const directoryDescription = 'Poeruumi Kaubamaja koondab ühte kohta Eesti ettevõtjate e-poed. Sirvi valikut ja leia uusi poode, tooteid ning tegijaid.'
 const directoryHeroImage = `${directoryUrl}images/poeruumi-kaubamaja-hero.webp`
 
 const ArrowUpRight = ({ className = '' }: { className?: string }) => <svg
@@ -155,12 +156,11 @@ export default function Kaubamaja() {
     </nav>
 
     <header className="store-directory__hero">
-      <h1 className="store-directory__sr-only">{directoryName}</h1>
       <div className="store-directory__hero-media" aria-hidden="true">
         <img src="/images/poeruumi-kaubamaja-hero.webp" alt="" fetchPriority="high" decoding="async" />
       </div>
       <div className="store-directory__intro">
-        <span aria-hidden="true">Kõik poed. Üks koht.</span>
+        <h1>{directoryHeading}</h1>
         <p>{directoryDescription}</p>
       </div>
     </header>
