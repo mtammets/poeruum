@@ -25,6 +25,21 @@ const ArrowUpRight = ({ className = '' }: { className?: string }) => <svg
   <path d="M5 15 15 5M7 5h8v8" />
 </svg>
 
+const ArrowDown = ({ className = '' }: { className?: string }) => <svg
+  className={className}
+  viewBox="0 0 20 20"
+  fill="none"
+  aria-hidden="true"
+>
+  <path d="M10 4v12m-5-5 5 5 5-5" />
+</svg>
+
+const marqueeMessages = [
+  'Avasta Eesti tegijaid',
+  'Toeta kohalikku',
+  'Leia uusi lemmikuid',
+]
+
 const readInitialStores = () => {
   const element = document.getElementById('poeruum-store-directory-data')
   if (!element?.textContent) return []
@@ -149,21 +164,41 @@ export default function Kaubamaja() {
         <span className="store-directory__brand-edition">Kaubamaja</span>
       </a>
       <a className="store-directory__create" href="https://poeruum.ee/#hind">
-        <span className="store-directory__create-full">Loo oma pood</span>
-        <span className="store-directory__create-short">Loo pood</span>
+        <span className="store-directory__create-full">Alusta tasuta</span>
+        <span className="store-directory__create-short">Alusta</span>
         <ArrowUpRight />
       </a>
     </nav>
 
     <header className="store-directory__hero">
-      <div className="store-directory__hero-media" aria-hidden="true">
+      <div className="store-directory__hero-media">
         <img src="/images/poeruumi-kaubamaja-hero.webp" alt="" fetchPriority="high" decoding="async" />
       </div>
       <div className="store-directory__intro">
-        <h1>{directoryHeading}</h1>
+        <span className="store-directory__eyebrow"><i aria-hidden="true" /> Kohalik kaubamaja</span>
+        <h1 aria-label={directoryHeading}>
+          <span aria-hidden="true">Avasta</span>
+          <span aria-hidden="true">Poeruumis loodud</span>
+          <span aria-hidden="true"><em>Eesti</em> e-poode</span>
+        </h1>
         <p>{directoryDescription}</p>
+        <div className="store-directory__hero-actions">
+          <a className="store-directory__browse" href="#store-directory-heading">
+            Sirvi poode
+            <ArrowDown />
+          </a>
+          <span>Eesti ettevõtjatelt</span>
+        </div>
       </div>
     </header>
+
+    <div className="store-directory__marquee" aria-hidden="true">
+      <div className="store-directory__marquee-track">
+        {[0, 1].map((group) => <div className="store-directory__marquee-group" key={group}>
+          {marqueeMessages.map((message) => <span key={`${group}-${message}`}>{message}<i>✦</i></span>)}
+        </div>)}
+      </div>
+    </div>
 
     <section className="store-directory__stores" aria-labelledby="store-directory-heading">
       <div className="store-directory__section-head">
