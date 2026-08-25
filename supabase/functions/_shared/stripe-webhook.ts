@@ -20,7 +20,11 @@ export const getAdminClient = () => {
   })
 }
 
-export const verifyStripeEvent = async (request: Request, webhookSecretName: string) => {
+export const verifyStripeEvent = async (
+  request: Request,
+  webhookSecretName: string,
+  options: { allowModeMismatch?: boolean } = {},
+) => {
   const apiKey = Deno.env.get('STRIPE_SECRET_KEY')
   const webhookSecret = Deno.env.get(webhookSecretName)
   const signature = request.headers.get('stripe-signature')
@@ -31,7 +35,9 @@ export const verifyStripeEvent = async (request: Request, webhookSecretName: str
   const stripe = new Stripe(apiKey)
   const body = await request.text()
   const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret, undefined, cryptoProvider)
-  if (event.livemode !== (stripeMode === 'live')) throw new Error('Webhooki sündmus on vales Stripe’i režiimis.')
+  if (!options.allowModeMismatch && event.livemode !== (stripeMode === 'live')) {
+    throw new Error('Webhooki sündmus on vales Stripe’i režiimis.')
+  }
   return event
 }
 

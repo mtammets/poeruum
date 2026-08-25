@@ -2,6 +2,7 @@ import type { Product, ProductImageAsset } from '../products'
 import { normalizeStoreDirectoryCatalog } from '../../shared/store-directory.mjs'
 import { createRandomId } from './randomId'
 import { requireSupabase } from './supabase'
+import type { StripeRequirementSummary } from './stripeRequirements'
 
 export const SHOWCASE_STORE_ID = '00000000-0000-4000-8000-000000000001'
 
@@ -16,6 +17,12 @@ export type StoreRecord = {
   stripe_account_id: string | null
   stripe_account_charges_enabled: boolean
   stripe_account_payouts_enabled: boolean
+  stripe_account_requirements_due_count: number
+  stripe_account_requirements_past_due: boolean
+  stripe_account_requirements_deadline: string | null
+  stripe_account_requirements_pending_verification: boolean
+  stripe_account_requirements_disabled_reason: string | null
+  stripe_account_requirements_updated_at: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
   stripe_subscription_status: string | null
@@ -198,8 +205,13 @@ export async function setStorePublication(storeId: string, published: boolean) {
   return data as StoreRecord
 }
 
-export async function invokeStripeConnect(action: 'start' | 'status') {
-  const { data, error } = await requireSupabase().functions.invoke('stripe-connect', { body: { action } })
+export async function invokeStripeConnect(
+  action: 'start' | 'status',
+  mode?: 'onboarding' | 'management',
+) {
+  const { data, error } = await requireSupabase().functions.invoke('stripe-connect', {
+    body: { action, ...(action === 'start' && mode ? { mode } : {}) },
+  })
   if (error) {
     const context = 'context' in error ? error.context : null
     const details = context instanceof Response
@@ -208,7 +220,13 @@ export async function invokeStripeConnect(action: 'start' | 'status') {
     throw new Error(details?.error || error.message)
   }
   if (data?.error) throw new Error(String(data.error))
-  return data as { clientSecret?: string; status?: StoreRecord['payment_status']; chargesEnabled?: boolean; payoutsEnabled?: boolean }
+  return data as {
+    clientSecret?: string
+    status?: StoreRecord['payment_status']
+    chargesEnabled?: boolean
+    payoutsEnabled?: boolean
+    requirements?: StripeRequirementSummary
+  }
 }
 
 export async function manageCustomDomain(

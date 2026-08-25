@@ -24,6 +24,11 @@ import ModalCloseButton from './ModalCloseButton'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
 import StorefrontCart from './StorefrontCart'
+import {
+  formatStripeRequirementDeadline,
+  stripeRequirementsNeedAction,
+  type StripeRequirementSummary,
+} from './lib/stripeRequirements'
 import './storefrontPreview.css'
 import {
   createCartItem,
@@ -215,6 +220,7 @@ export type StorefrontProps = {
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
   stripeSubscriptionStatus?: string | null
+  stripeRequirements?: StripeRequirementSummary | null
   billingGraceEndsAt?: string | null
   billingInvoiceUrl?: string | null
   billingDowngradedAt?: string | null
@@ -231,7 +237,7 @@ export type StorefrontProps = {
   initialSettings?: Record<string, unknown>
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {} }: StorefrontProps = {}) {
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
@@ -2169,6 +2175,11 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     }
     setBillingPlan(plan)
   }
+  const stripeActionRequired = stripeRequirementsNeedAction(stripeRequirements)
+  const stripeRequirementDeadline = formatStripeRequirementDeadline(stripeRequirements?.currentDeadline)
+  const stripeManagementLabel = stripeActionRequired
+    ? 'Täienda Stripe’i andmeid'
+    : paymentsReady ? 'Halda Stripe’i andmeid' : 'Jätka Stripe’i seadistamist'
   const setupChecklist = [
     { id: 'store', label: 'Poe põhiandmed', done: Boolean(editableStoreName.trim()), section: 'store' as const },
     { id: 'payments', label: 'Maksed ühendatud', done: paymentsReady, section: 'payments' as const },
@@ -2186,7 +2197,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const settingsSectionStatus = (section: SettingsSection) => {
     if (section === 'store') return isStoreVisible ? 'Avalik' : 'Peidetud'
     if (section === 'appearance') return storeTheme === 'midnight' ? 'Tume' : storeTheme === 'paper' ? 'Hele' : 'Värviline'
-    if (section === 'payments') return paymentsReady ? 'Ühendatud' : 'Seadista'
+    if (section === 'payments') return stripeActionRequired ? 'Vajab tegevust' : paymentsReady ? 'Ühendatud' : 'Seadista'
     if (section === 'delivery') {
       const count = SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled).length
         + Number(deliverySettings.courierEnabled) + Number(deliverySettings.pickupEnabled)
@@ -2912,13 +2923,23 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 const isCurrentProvider = activePaymentProvider === id
                 return <button type="button" disabled={isCurrentProvider} aria-pressed={isCurrentProvider} className={isCurrentProvider ? `is-active${paymentsReady ? '' : ' is-pending'}` : ''} onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider(id) : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')} key={id}>
                 <span className="settings-provider-logo is-stripe">S</span>
-                <span><strong>{name}</strong><small>{isCurrentProvider ? paymentsReady ? connectedDetail : 'Teenusepakkuja kontrollib sinu andmeid. Makseid saab vastu võtta pärast kinnitamist.' : disconnectedDetail}</small></span>
-                <i className="settings-provider-status">{isCurrentProvider ? paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
+                <span><strong>{name}</strong><small>{isCurrentProvider ? stripeActionRequired ? 'Stripe vajab ettevõtte andmete täiendamist.' : paymentsReady ? connectedDetail : 'Teenusepakkuja kontrollib sinu andmeid. Makseid saab vastu võtta pärast kinnitamist.' : disconnectedDetail}</small></span>
+                <i className={`settings-provider-status${stripeActionRequired ? ' is-warning' : ''}`}>{isCurrentProvider ? stripeActionRequired ? <span>Vajab tegevust</span> : paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
               </button>})}
             </div>
-            {paymentsReady && activePaymentProvider === 'stripe' && <button className="settings-secondary-action" type="button" onClick={() => setAuthToast('Stripe’i töölaud avaneb päris ühenduses')}>
-              <span>Ava Stripe’i töölaud</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+            {stripeActionRequired && <div className="settings-payment-requirement" role="alert">
+              <span aria-hidden="true">!</span>
+              <div><strong>Stripe vajab lisainfot</strong><p>{stripeRequirementDeadline
+                ? `Täienda ettevõtte andmeid enne ${stripeRequirementDeadline}, et väljamaksed jätkuksid.`
+                : 'Täienda ettevõtte andmeid, et maksed ja väljamaksed saaksid jätkuda.'}</p></div>
+            </div>}
+            {!stripeActionRequired && stripeRequirements?.pendingVerification && <div className="settings-payment-requirement is-reviewing" role="status">
+              <span aria-hidden="true">✓</span>
+              <div><strong>Stripe kontrollib andmeid</strong><p>Praegu ei pea sa midagi tegema.</p></div>
+            </div>}
+            {activePaymentProvider === 'stripe' && <button className={`settings-secondary-action${stripeActionRequired ? ' is-warning' : ''}`} type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
+              <span>{stripeManagementLabel}</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>}
           </div>}
           {settingsSection === 'delivery' && <div className="settings-panel delivery-panel" role="tabpanel">

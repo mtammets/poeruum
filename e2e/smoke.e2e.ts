@@ -226,6 +226,22 @@ test('a stale settings response cannot overwrite text being typed', async ({ pag
   await expect(description).toHaveValue('Telefonis kirjutatud uus tekst')
 })
 
+test('a merchant can open Stripe remediation from Poeruum settings', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountStripeRequirementsHarness } = await import('/e2e/settings-harness.tsx')
+    mountStripeRequirementsHarness()
+  })
+
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="payments"]').click()
+  await expect(page.getByText('Stripe vajab lisainfot')).toBeVisible()
+  await expect(page.getByText(/09\.10\.2026/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Täienda Stripe’i andmeid' }).click()
+  await expect.poll(() => page.evaluate(() => window.__stripeConnectCalls)).toBe(1)
+})
+
 test('an order thumbnail falls back to the current product image', async ({ page }) => {
   const imageBody = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="lime"/></svg>'
   await page.route('**/e2e-images/missing.jpg', (route) => route.fulfill({ status: 404 }))

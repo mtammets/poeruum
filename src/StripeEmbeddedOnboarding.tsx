@@ -1,21 +1,30 @@
 import { useEffect, useState } from 'react'
 import { loadConnectAndInitialize } from '@stripe/connect-js'
-import { ConnectAccountOnboarding, ConnectComponentsProvider } from '@stripe/react-connect-js'
+import {
+  ConnectAccountManagement,
+  ConnectAccountOnboarding,
+  ConnectComponentsProvider,
+  ConnectNotificationBanner,
+} from '@stripe/react-connect-js'
 import { invokeStripeConnect } from './lib/database'
 
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
 const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
 
 export type StripeEmbeddedOnboardingProps = {
+  mode?: 'onboarding' | 'management'
   onExit: () => Promise<void>
   onClose: () => Promise<void>
   onError: (message: string) => void
+  onNotificationsChange?: (actionRequired: number) => void
 }
 
 export default function StripeEmbeddedOnboarding({
+  mode = 'onboarding',
   onExit,
   onClose,
   onError,
+  onNotificationsChange,
 }: StripeEmbeddedOnboardingProps) {
   const [loadPhase, setLoadPhase] = useState<'connecting' | 'loading' | 'ready' | 'error'>('connecting')
   const [isClosing, setIsClosing] = useState(false)
@@ -64,7 +73,7 @@ export default function StripeEmbeddedOnboarding({
       },
     },
     fetchClientSecret: async () => {
-      const result = await invokeStripeConnect('start')
+      const result = await invokeStripeConnect('start', mode)
       if (!result.clientSecret) throw new Error('Stripe ei tagastanud AccountSessioni võtit.')
       return result.clientSecret
     },
@@ -108,9 +117,21 @@ export default function StripeEmbeddedOnboarding({
     }
   }
 
+  const handleLoaderStart = () => {
+    setLoadPhase('loading')
+    if (mode === 'management') {
+      window.requestAnimationFrame(() => setLoadPhase('ready'))
+    }
+  }
+
+  const handleLoadError = () => {
+    setLoadPhase('error')
+    onError('Stripe’i vormi avamine ebaõnnestus. Proovi uuesti.')
+  }
+
   if (!connectInstance) return null
-  return <section className="stripe-embedded" aria-label="Stripe’i konto seadistamine">
-    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe’i konto seadistamine</strong><small>Maksete vastuvõtt{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
+  return <section className="stripe-embedded" aria-label={mode === 'management' ? 'Stripe’i andmed' : 'Stripe’i konto seadistamine'}>
+    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>{mode === 'management' ? 'Stripe’i andmed' : 'Stripe’i konto seadistamine'}</strong><small>{mode === 'management' ? 'Ettevõtte andmed ja kontrollid' : 'Maksete vastuvõtt'}{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
     <div className={`stripe-embedded__component is-${loadPhase}${isCompleting ? ' is-completing' : ''}`}>
       {isCompleting && <div className="stripe-completing" role="status" aria-live="polite">
         <span aria-hidden="true" />
@@ -130,20 +151,29 @@ export default function StripeEmbeddedOnboarding({
         </>}
       </div>}
       <ConnectComponentsProvider connectInstance={connectInstance}>
-        <ConnectAccountOnboarding
+        {mode === 'management' ? <div className="stripe-embedded__management" key={renderAttempt}>
+          <ConnectNotificationBanner
+            collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
+            onNotificationsChange={({ actionRequired }) => onNotificationsChange?.(actionRequired)}
+            onLoaderStart={handleLoaderStart}
+            onLoadError={handleLoadError}
+          />
+          <ConnectAccountManagement
+            collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
+            onLoaderStart={handleLoaderStart}
+            onLoadError={handleLoadError}
+          />
+        </div> : <ConnectAccountOnboarding
           key={renderAttempt}
           collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
           onExit={() => void completeStripeForm()}
-          onLoaderStart={() => setLoadPhase((current) => current === 'connecting' ? 'loading' : current)}
+          onLoaderStart={handleLoaderStart}
           onStepChange={() => {
             onError('')
             setLoadPhase('ready')
           }}
-          onLoadError={() => {
-            setLoadPhase('error')
-            onError('Stripe’i vormi avamine ebaõnnestus. Proovi uuesti.')
-          }}
-        />
+          onLoadError={handleLoadError}
+        />}
       </ConnectComponentsProvider>
     </div>
   </section>

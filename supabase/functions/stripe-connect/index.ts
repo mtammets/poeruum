@@ -2,6 +2,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
+import {
+  emptyStripeRequirementStoreUpdate,
+  stripeRequirementStoreUpdate,
+  summarizeStripeRequirements,
+} from '../_shared/stripe-connect-requirements.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -113,70 +118,106 @@ Deno.serve(async (request) => {
     if (storeError) throw storeError
     if (!store) return json({ error: 'Pood tuleb enne Stripe’i ühendamist salvestada.' }, 404)
 
-    const body = await request.json().catch(() => ({})) as { action?: string }
+    const body = await request.json().catch(() => ({})) as {
+      action?: string
+      mode?: 'onboarding' | 'management'
+    }
+    const requestedMode = body.mode === 'management' ? 'management' : 'onboarding'
     let accountId = typeof store.stripe_account_id === 'string' ? store.stripe_account_id : null
+    let hasExistingManagedAccount = false
     if (accountId) assertStoredStripeMode(store.stripe_account_mode, stripeMode, 'Poe Stripe’i konto')
 
     if (body.action === 'status') {
-      if (!accountId) return json({ status: 'idle' })
+      if (!accountId) {
+        const { error } = await admin.from('stores').update(emptyStripeRequirementStoreUpdate()).eq('id', store.id)
+        if (error) throw error
+        return json({ status: 'idle' })
+      }
       const account = await stripe.accounts.retrieve(accountId)
       if ('deleted' in account && account.deleted) {
         await admin.from('stores').update({
           payment_status: 'idle', stripe_account_id: null,
           stripe_account_charges_enabled: false, stripe_account_payouts_enabled: false, stripe_account_mode: null,
+          ...emptyStripeRequirementStoreUpdate(),
         }).eq('id', store.id)
         return json({ status: 'idle' })
       }
       const status = stripeAccountStatus(account)
+      const requirements = summarizeStripeRequirements(account)
       const { error } = await admin.from('stores').update({
         payment_provider: 'stripe', payment_status: status, stripe_account_mode: stripeMode,
         stripe_account_charges_enabled: account.charges_enabled,
         stripe_account_payouts_enabled: account.payouts_enabled,
+        ...stripeRequirementStoreUpdate(requirements),
       }).eq('id', store.id)
       if (error) throw error
-      return json({ status, chargesEnabled: account.charges_enabled, payoutsEnabled: account.payouts_enabled })
+      return json({ status, chargesEnabled: account.charges_enabled, payoutsEnabled: account.payouts_enabled, requirements })
     }
 
     if (body.action !== 'start') return json({ error: 'Tundmatu tegevus.' }, 400)
 
     if (accountId) {
-      const existingAccount = await stripe.accounts.retrieve(accountId)
-      if ('deleted' in existingAccount && existingAccount.deleted) {
+      const retrievedAccount = await stripe.accounts.retrieve(accountId)
+      const existingAccountDeleted = 'deleted' in retrievedAccount && retrievedAccount.deleted
+      if (existingAccountDeleted) {
         accountId = null
-      } else if (!isPoeruumManagedAccount(existingAccount)) {
+      } else if (!isPoeruumManagedAccount(retrievedAccount)) {
         // Standard/Full Dashboard accounts always require a Stripe-hosted login.
         // Keep the old test account intact in Stripe, but replace its Poeruum link
         // with an account whose entire onboarding can run inside Poeruum.
         accountId = null
+      } else {
+        hasExistingManagedAccount = true
       }
     }
 
     if (!accountId) {
       const account = await createPoeruumManagedAccount(stripe, store, user)
       accountId = account.id
+      const requirements = summarizeStripeRequirements(account)
       const { error } = await admin.from('stores').update({
         payment_provider: 'stripe', payment_status: 'pending', stripe_account_id: account.id, stripe_account_mode: stripeMode,
         stripe_account_charges_enabled: account.charges_enabled,
         stripe_account_payouts_enabled: account.payouts_enabled,
+        ...stripeRequirementStoreUpdate(requirements),
       }).eq('id', store.id)
       if (error) throw error
     }
 
-    // Keep the Stripe account in sync with information the merchant already
-    // entered in Poeruum, including accounts created before prefill was added.
-    await stripe.accounts.update(accountId, getStripePrefill(store, user.email ?? ''))
+    // A returning connected account always uses the authenticated management
+    // surface. This prevents a client from requesting the less restrictive
+    // first-time onboarding session for an established payout account.
+    const sessionMode = hasExistingManagedAccount ? 'management' : requestedMode
+    const components: Stripe.AccountSessionCreateParams.Components = sessionMode === 'management'
+      ? {
+          account_management: {
+            enabled: true,
+            features: {
+              external_account_collection: true,
+              disable_stripe_user_authentication: false,
+            },
+          },
+          notification_banner: {
+            enabled: true,
+            features: {
+              external_account_collection: true,
+              disable_stripe_user_authentication: false,
+            },
+          },
+        }
+      : {
+          account_onboarding: {
+            enabled: true,
+            features: {
+              external_account_collection: true,
+              disable_stripe_user_authentication: true,
+            },
+          },
+        }
 
     const accountSession = await stripe.accountSessions.create({
       account: accountId,
-      components: {
-        account_onboarding: {
-          enabled: true,
-          features: {
-            external_account_collection: true,
-            disable_stripe_user_authentication: true,
-          },
-        },
-      },
+      components,
     })
     return json({ clientSecret: accountSession.client_secret })
   } catch (error) {

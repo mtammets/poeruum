@@ -393,6 +393,8 @@ button, a, summary { touch-action: manipulation; }
 .stripe-embedded__component.is-ready { padding: .65rem clamp(.8rem, 2.5vw, 1.15rem) 1.15rem; }
 .stripe-embedded__component > [data-stripe-connect-js-wrapper] { box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
 .stripe-embedded stripe-connect-account-onboarding { display: block; box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
+.stripe-embedded__management { display: grid; gap: .8rem; min-width: 0; }
+.stripe-embedded__management > [data-stripe-connect-js-wrapper] { box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
 .stripe-preparing { position: absolute; z-index: 3; inset: 0; display: grid; align-content: center; justify-items: center; padding: 2.2rem 1.5rem; background: linear-gradient(180deg, #fff 0%, #fbfcfa 100%); color: var(--platform-ink); text-align: center; }
 .stripe-preparing__loader { position: relative; display: block; width: 2.8rem; height: 2.8rem; margin-bottom: 1.25rem; border: 2px solid #dce4da; border-top-color: var(--platform-green); border-radius: 50%; animation: stripe-loader-spin 1.15s linear infinite; }
 .stripe-preparing__loader > i { position: absolute; top: -.2rem; right: -.2rem; width: .58rem; height: .58rem; border-radius: 50%; background: var(--platform-lime); box-shadow: 0 0 0 .24rem #e5f25a30; }
@@ -408,7 +410,9 @@ button, a, summary { touch-action: manipulation; }
 @keyframes stripe-loader-spin { to { transform: rotate(360deg); } }
 .setup-form > .add-product-error { max-width: 100%; overflow-wrap: anywhere; color: #8d463d; }
 
-.stripe-connect-overlay { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: 1rem; overflow-y: auto; background: #10161cbd; font-family: "DM Sans", sans-serif; backdrop-filter: blur(10px); }
+.stripe-connect-overlay { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: 1rem; overflow-y: auto; overscroll-behavior: contain; background: #10161cbd; font-family: "DM Sans", sans-serif; backdrop-filter: blur(10px); }
+.stripe-connect-overlay--embedded { align-items: start; padding-block: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-bottom)); }
+.stripe-connect-embedded-shell { width: min(100%, 46rem); margin: auto; }
 .stripe-connect { width: min(100%, 32rem); max-height: calc(100dvh - 2rem); overflow-y: auto; border-radius: 1.2rem; background: #fff; color: #202124; box-shadow: 0 28px 90px #07101866; scrollbar-width: none; }
 .stripe-connect::-webkit-scrollbar { display: none; }
 .stripe-connect > header { position: sticky; z-index: 3; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid #e7e8eb; background: #fffc; backdrop-filter: blur(14px); }
@@ -765,6 +769,9 @@ button, a, summary { touch-action: manipulation; }
   .stripe-embedded > header .provider-logo { width: 3.5rem; }
   .stripe-embedded__component:not(.is-ready) { min-height: 20rem; }
   .stripe-embedded__component.is-ready { padding: .45rem .45rem .9rem; }
+  .stripe-connect-overlay--embedded { padding: 0; background: #fff; backdrop-filter: none; }
+  .stripe-connect-embedded-shell { width: 100%; min-height: 100dvh; }
+  .stripe-connect-overlay--embedded .stripe-embedded { min-height: 100dvh; border: 0; border-radius: 0; box-shadow: none; }
   .stripe-preparing { padding: 1.8rem 1rem; }
   .stripe-preparing h2 { font-size: 1.2rem; }
   .theme-grid { grid-template-columns: 1fr; }

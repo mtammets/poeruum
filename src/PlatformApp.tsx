@@ -10,6 +10,7 @@ import { isHomepageAnalyticsLocation, startHomepageEngagementTracking, trackHome
 import { products as bundledProducts, type Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { createRandomId } from './lib/randomId'
+import { stripeRequirementsFromStore, type StripeRequirementSummary } from './lib/stripeRequirements'
 import {
   DEFAULT_RETURNS_TEXT,
   FIXED_PLAN_MONTHLY_FEE,
@@ -212,6 +213,8 @@ function PlatformFlow() {
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'connected' | 'pending'>('idle')
   const [isStripeConnecting, setIsStripeConnecting] = useState(false)
   const [isStripeOnboardingOpen, setIsStripeOnboardingOpen] = useState(false)
+  const [stripeEmbeddedMode, setStripeEmbeddedMode] = useState<'onboarding' | 'management'>('onboarding')
+  const [stripeRequirements, setStripeRequirements] = useState<StripeRequirementSummary | null>(null)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const mobileNavRef = useRef<HTMLDivElement>(null)
   const [shipping, setShipping] = useState<string[]>(['omniva', 'pickup'])
@@ -438,6 +441,28 @@ function PlatformFlow() {
   }, [isBillingCardOpen])
 
   useEffect(() => {
+    if (!isStripeOnboardingOpen || (screen !== 'storefront' && screen !== 'product')) return
+    const scrollY = window.scrollY
+    const previous = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+    }
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.position = previous.position
+      document.body.style.top = previous.top
+      document.body.style.width = previous.width
+      document.body.style.overflow = previous.overflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [isStripeOnboardingOpen, screen])
+
+  useEffect(() => {
     if (!shouldLoadPublicStore) return
     let active = true
     const loadRequestedStore = requestedStoreSlug
@@ -487,6 +512,7 @@ function PlatformFlow() {
     setSlug(nextStore.slug)
     setPayment('stripe')
     setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle')
+    setStripeRequirements(nextStore.stripe_account_id ? stripeRequirementsFromStore(nextStore) : null)
     setPricingPlan(nextStore.pricing_plan)
     setFixedPlanTrialStartedAt(nextStore.trial_started_at)
     setShipping(nextStore.shipping)
@@ -501,6 +527,59 @@ function PlatformFlow() {
     setStoredProducts(nextProducts)
     return nextProducts
   }
+
+  useEffect(() => {
+    if (!onlineUserId || !store?.stripe_account_id) {
+      if (!store?.stripe_account_id) setStripeRequirements(null)
+      return
+    }
+
+    let active = true
+    let syncInFlight = false
+    let lastSyncAt = 0
+    const syncStripeStatus = async (force = false) => {
+      if (syncInFlight || (!force && Date.now() - lastSyncAt < 5 * 60_000)) return
+      syncInFlight = true
+      lastSyncAt = Date.now()
+      try {
+        const result = await invokeStripeConnect('status')
+        if (!active) return
+        if (result.status) setPaymentStatus(result.status)
+        if (result.requirements) setStripeRequirements(result.requirements)
+        setStore((current) => current ? {
+          ...current,
+          ...(result.status ? { payment_status: result.status } : {}),
+          ...(result.chargesEnabled !== undefined ? { stripe_account_charges_enabled: result.chargesEnabled } : {}),
+          ...(result.payoutsEnabled !== undefined ? { stripe_account_payouts_enabled: result.payoutsEnabled } : {}),
+          ...(result.requirements ? {
+            stripe_account_requirements_due_count: result.requirements.dueCount,
+            stripe_account_requirements_past_due: result.requirements.pastDue,
+            stripe_account_requirements_deadline: result.requirements.currentDeadline,
+            stripe_account_requirements_pending_verification: result.requirements.pendingVerification,
+            stripe_account_requirements_disabled_reason: result.requirements.disabledReason,
+            stripe_account_requirements_updated_at: new Date().toISOString(),
+          } : {}),
+        } : current)
+      } catch {
+        // Keep the last webhook-backed state if Stripe is temporarily unavailable.
+      } finally {
+        syncInFlight = false
+      }
+    }
+
+    void syncStripeStatus(true)
+    const handleFocus = () => { void syncStripeStatus() }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void syncStripeStatus()
+    }
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      active = false
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [onlineUserId, store?.stripe_account_id])
 
   const openOwnedStore = async (nextStore: StoreRecord) => {
     const nextProducts = await applyStore(nextStore)
@@ -814,7 +893,8 @@ function PlatformFlow() {
     try {
       const saved = await persistStore({ payment_provider: 'stripe' }, store?.is_published ? 'complete' : 'payments')
       setPayment('stripe')
-      setPaymentStatus('pending')
+      setPaymentStatus(saved.stripe_account_id ? saved.payment_status : 'pending')
+      setStripeEmbeddedMode(saved.stripe_account_id ? 'management' : 'onboarding')
       setStore(saved)
       setIsStripeOnboardingOpen(true)
       setIsStripeConnecting(false)
@@ -829,15 +909,18 @@ function PlatformFlow() {
     setAuthError('')
     try {
       const result = await invokeStripeConnect('status')
+      if (result.requirements) setStripeRequirements(result.requirements)
       const refreshedStore = await getMyStore()
       if (refreshedStore) await applyStore(refreshedStore)
-      setIsStripeOnboardingOpen(false)
       setAuthNotice(result.status === 'connected'
         ? 'Stripe on ühendatud ja maksed on aktiivsed.'
         : 'Stripe salvestas andmed. Konto kontroll või seadistamine on veel pooleli.')
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Stripe’i staatuse kontroll ebaõnnestus.')
+      const message = error instanceof Error ? error.message : 'Stripe’i staatuse kontroll ebaõnnestus.'
+      setAuthError(message)
+      if (screen === 'storefront') setAuthNotice(message)
     } finally {
+      setIsStripeOnboardingOpen(false)
       setIsStripeConnecting(false)
     }
   }
@@ -952,6 +1035,8 @@ function PlatformFlow() {
     setPaymentStatus('idle')
     setIsStripeConnecting(false)
     setIsStripeOnboardingOpen(false)
+    setStripeEmbeddedMode('onboarding')
+    setStripeRequirements(null)
     setIsBillingCardOpen(false)
     setIsPublishing(false)
     setIsMobileNavOpen(false)
@@ -1073,6 +1158,25 @@ function PlatformFlow() {
   const returnNotice = authNotice ? <div className="app-return-notice" role="status" aria-live="polite">
     <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
   </div> : null
+  const stripeEmbeddedOverlay = isStripeOnboardingOpen && (screen === 'storefront' || screen === 'product')
+    ? <div className="stripe-connect-overlay stripe-connect-overlay--embedded" role="dialog" aria-modal="true" aria-label="Stripe’i andmed">
+      <div className="stripe-connect-embedded-shell">
+        <StripeEmbeddedOnboarding
+          mode={stripeEmbeddedMode}
+          onExit={finishStripeEmbeddedOnboarding}
+          onClose={finishStripeEmbeddedOnboarding}
+          onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
+          onNotificationsChange={(actionRequired) => setStripeRequirements((current) => ({
+            dueCount: actionRequired,
+            pastDue: actionRequired > 0 && current?.pastDue === true,
+            currentDeadline: current?.currentDeadline ?? null,
+            pendingVerification: actionRequired === 0 && current?.pendingVerification === true,
+            disabledReason: current?.disabledReason ?? null,
+          }))}
+        />
+      </div>
+    </div>
+    : null
 
   if (shouldLoadPublicStore && (isPublicStoreLoading || publicStore)) return <div className="public-storefront-bootstrap">
     {!isPublicStoreLoading && publicStore && <Suspense key="storefront-content" fallback={null}><Storefront
@@ -1108,7 +1212,8 @@ function PlatformFlow() {
     initialShipping={sampleStore?.shipping}
     onExit={() => setScreen('landing')}
   />
-  if (screen === 'product') return <Storefront
+  if (screen === 'product') return <>
+  <Storefront
     key={`onboarding-product-${store?.id ?? 'new'}`}
     storeId={store?.id}
     initialSettings={store?.settings}
@@ -1122,6 +1227,7 @@ function PlatformFlow() {
     pricingPlan={pricingPlan}
     fixedPlanTrialStartedAt={fixedPlanTrialStartedAt}
     stripeSubscriptionStatus={store?.stripe_subscription_status}
+    stripeRequirements={stripeRequirements}
     merchantMode
     ownerEmail={email}
     onOwnerLogin={signInFromStore}
@@ -1140,9 +1246,12 @@ function PlatformFlow() {
     onAccountDeleted={handleAccountDeleted}
     onExit={() => setScreen('landing')}
   />
+  {stripeEmbeddedOverlay}
+  </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
+    {stripeEmbeddedOverlay}
   </>
 
   if (screen === 'landing') return <main className="platform-landing">

@@ -3613,6 +3613,44 @@
   color: #e5f25a;
 }
 
+.settings-provider-list button.is-active .settings-provider-status.is-warning {
+  border-color: rgba(255, 178, 92, .42);
+  background: rgba(255, 178, 92, .12);
+  color: #ffc37d;
+}
+
+.settings-payment-requirement {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: .7rem;
+  margin-top: .75rem;
+  padding: .85rem;
+  border: 1px solid rgba(255, 178, 92, .34);
+  border-radius: .8rem;
+  background: rgba(255, 178, 92, .09);
+  color: #fff;
+}
+
+.settings-payment-requirement > span {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffc37d;
+  color: #2d1b08;
+  font-size: .78rem;
+  font-weight: 950;
+}
+
+.settings-payment-requirement > div { display: grid; gap: .2rem; }
+.settings-payment-requirement strong { font-size: .72rem; }
+.settings-payment-requirement p { margin: 0; color: rgba(255, 255, 255, .64); font-size: .66rem; line-height: 1.45; }
+.settings-payment-requirement.is-reviewing { border-color: rgba(138, 197, 255, .28); background: rgba(138, 197, 255, .08); }
+.settings-payment-requirement.is-reviewing > span { background: #8ac5ff; color: #10202e; }
+.settings-secondary-action.is-warning { border-color: rgba(255, 178, 92, .42); background: rgba(255, 178, 92, .12); color: #ffc37d; }
+
 .settings-provider-list .settings-provider-status svg { width: .8rem; }
 
 @media (max-width: 599px) {
