@@ -250,6 +250,12 @@ export default function AdminLeads() {
           setBusyAction('')
         }
       }
+      if (result.draft_required === true) {
+        const runId = typeof result.search_run_id === 'string' ? result.search_run_id : ''
+        if (!runId) throw new Error('Kirjakoostus ei saanud kliendiotsingu töö ID-d.')
+        const draftResult = await invoke('draft_search_run', { search_run_id: runId })
+        result = { ...result, ...draftResult }
+      }
 
       const inserted = Number(result.inserted_count ?? 0)
       const found = Number(result.found_count ?? inserted)
@@ -261,6 +267,7 @@ export default function AdminLeads() {
       const suppressed = Number(result.suppressed_count ?? 0)
       const invalidEvidence = Number(result.invalid_evidence_count ?? 0)
       const needsReview = Number(result.needs_review_count ?? 0)
+      const draftFailed = Number(result.draft_failed_count ?? 0)
       const insertedIds = Array.isArray(result.inserted_ids)
         ? result.inserted_ids.filter((value): value is string => typeof value === 'string')
         : []
@@ -282,7 +289,7 @@ export default function AdminLeads() {
         : skipped > 1
           ? `; ${skipped} kontrollitud tulemust ei lisatud, sest need olid duplikaadid, sobimatud või ebapiisava tõendiga`
           : ''
-      setNotice(`Leitud ${inserted === 1 ? '1 uus klient' : `${inserted} uut klienti`} ja koostatud ${drafted === 1 ? '1 kiri' : `${drafted} kirja`}. ${ready} ${ready === 1 ? 'kiri on' : 'kirja on'} kohe saatmiseks valmis${skippedNotice}.`)
+      setNotice(`Leitud ${inserted === 1 ? '1 uus klient' : `${inserted} uut klienti`} ja koostatud ${drafted === 1 ? '1 kiri' : `${drafted} kirja`}. ${ready} ${ready === 1 ? 'kiri on' : 'kirja on'} kohe saatmiseks valmis${draftFailed ? `; ${draftFailed} mustandit ei läbinud kvaliteedikontrolli ja neid ei asendatud varumalliga` : ''}${skippedNotice}.`)
       await loadLeads(insertedIds[0] ?? null)
     } catch (researchError) {
       setError(getErrorMessage(researchError))
@@ -385,7 +392,7 @@ export default function AdminLeads() {
       <div className="admin-leads__research-actions">
         <label><span>Tulemusi</span><select value={researchLimit} onChange={(event) => setResearchLimit(Number(event.target.value))}>{[2, 4].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
         <button type="button" onClick={() => void runResearch()} disabled={Boolean(busyAction) || researchQuery.trim().length < 10}>
-          {busyAction === 'search' ? 'Otsin ja koostan kirju…' : 'Otsi uusi kliente'}
+          {busyAction === 'search' || busyAction === 'draft_search_run' ? 'Otsin ja koostan kirju…' : 'Otsi uusi kliente'}
         </button>
       </div>
     </section>

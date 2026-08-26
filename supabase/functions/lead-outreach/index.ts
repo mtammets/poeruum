@@ -5,9 +5,7 @@ import {
   LEAD_COPY_PROMPT_ID,
   assessGeneratedLeadDraft,
   assessLeadQualification,
-  assessLeadSearchCandidate,
   buildLeadBatchDraftPrompt,
-  buildDeterministicLeadDraft,
   buildLeadDraftPrompt,
   buildLeadSearchPrompt,
   hasStrongCommerceSignal,
@@ -223,7 +221,6 @@ Deno.serve(async (request) => {
           .filter((value): value is string => Boolean(value)))
         const excludedEmails = new Set([...existingEmails, ...preloadedSuppressedEmails])
         const safetyIdentifier = (await sha256(user.id)).slice(0, 64)
-        const senderName = textValue(Deno.env.get('OUTREACH_SENDER_NAME'), 80) || 'Marek'
         const researchResponse = await callOpenAI({
           model,
           store: false,
@@ -499,113 +496,31 @@ Deno.serve(async (request) => {
           if (selectedCandidates.length >= requestedLimit) break
         }
 
-        let draftResponseId: string | null = null
-        let draftStageDegraded = false
-        const draftsByKey = new Map<string, { subject: string; body: string }>()
-        if (selectedCandidates.length) {
-          try {
-            const draftResponse = await callOpenAI({
-              model,
-              store: false,
-              safety_identifier: safetyIdentifier,
-              reasoning: { effort: 'low' },
-              max_output_tokens: 6_000,
-              instructions: buildLeadBatchDraftPrompt({
-                senderName,
-                candidateCount: selectedCandidates.length,
-              }),
-              input: JSON.stringify({
-                candidates: selectedCandidates.map((candidate) => ({
-                  candidate_key: candidate.candidateKey,
-                  company_name: candidate.candidate.company_name,
-                  segment: candidate.candidate.segment,
-                  summary: candidate.candidate.summary,
-                  evidence: candidate.candidate.evidence,
-                  verified_observation: candidate.candidate.verified_observation,
-                })),
-              }),
-              text: {
-                verbosity: 'medium',
-                format: {
-                  type: 'json_schema',
-                  name: 'poeruum_lead_draft_batch',
-                  description: 'Kontrollitud kandidaatide isikupärased eestikeelsed kirjamustandid.',
-                  schema: leadBatchDraftSchema,
-                  strict: true,
-                },
-              },
-            }, 18_000)
-            draftResponseId = draftResponse.id ?? null
-            const parsedDrafts = JSON.parse(extractOutputText(draftResponse)) as LeadBatchDraftOutput
-            const expectedKeys = new Set(selectedCandidates.map((candidate) => candidate.candidateKey))
-            for (const draft of parsedDrafts.drafts ?? []) {
-              const candidateKey = textValue(draft.candidate_key, 80)
-              if (!expectedKeys.has(candidateKey) || draftsByKey.has(candidateKey)) continue
-              draftsByKey.set(candidateKey, {
-                subject: textValue(draft.draft_subject, 160),
-                body: finalizeGeneratedLeadDraft(draft.draft_body),
-              })
-            }
-          } catch (draftError) {
-            draftStageDegraded = true
-            await captureEdgeError('lead-outreach-search-drafts', draftError, {
-              search_run_id: run.id,
-              candidate_count: selectedCandidates.length,
-            }, 'warning')
-          }
-        }
-
         let insertedCount = 0
         let eligibleCount = 0
         let reviewCount = 0
         let newCount = 0
-        let readyCount = 0
-        let aiDraftCount = 0
-        let fallbackDraftCount = 0
         const insertedLeads: Array<{
           id: string
           decision: 'eligible' | 'review'
-          status: 'new' | 'ready'
-          draftSource: 'openai' | 'deterministic_repair'
         }> = []
         for (const candidate of selectedCandidates) {
-          let draft = draftsByKey.get(candidate.candidateKey)
-          let assessment = draft
-            ? assessLeadSearchCandidate({
-              ...candidate.candidate,
-              draft_subject: draft.subject,
-              draft_body: draft.body,
-            })
-            : null
-          let draftSource: 'openai' | 'deterministic_repair' = 'openai'
-          if (!draft || !assessment?.draftQuality.ok) {
-            draft = buildDeterministicLeadDraft({
-              company_name: candidate.candidate.company_name,
-              verified_observation: candidate.candidate.verified_observation,
-            })
-            assessment = assessLeadSearchCandidate({
-              ...candidate.candidate,
-              draft_subject: draft.subject,
-              draft_body: draft.body,
-            })
-            draftSource = 'deterministic_repair'
-          }
-          if (!assessment.actionable) {
-            invalidEvidenceCount += 1
-            continue
-          }
-          const quality = draftQualityRecord(assessment.draftQuality)
-          const status = candidate.decision === 'eligible' && quality.passed && candidate.hasReadyEvidence
-            ? 'ready'
-            : 'new'
+          const quality = draftQualityRecord(assessGeneratedLeadDraft({
+            subject: '',
+            body: '',
+            company_name: candidate.candidate.company_name,
+            segment: candidate.candidate.segment,
+            summary: candidate.candidate.summary,
+            evidence: candidate.candidate.evidence,
+          }))
           const { data: lead, error: leadError } = await admin.from('sales_leads').insert({
             ...candidate.rowBase,
-            status,
-            draft_subject: draft.subject,
-            draft_body: draft.body,
+            status: 'new',
+            draft_subject: '',
+            draft_body: '',
             draft_quality: quality,
-            draft_prompt_version: LEAD_COPY_PROMPT_ID,
-            draft_openai_response_id: draftResponseId,
+            draft_prompt_version: null,
+            draft_openai_response_id: null,
           }).select('id').single()
           if (leadError?.code === '23505') {
             duplicateCount += 1
@@ -615,11 +530,8 @@ Deno.serve(async (request) => {
           insertedCount += 1
           if (candidate.decision === 'eligible') eligibleCount += 1
           if (candidate.decision === 'review') reviewCount += 1
-          if (status === 'ready') readyCount += 1
-          if (status === 'new') newCount += 1
-          if (draftSource === 'openai') aiDraftCount += 1
-          if (draftSource === 'deterministic_repair') fallbackDraftCount += 1
-          insertedLeads.push({ id: lead.id, decision: candidate.decision, status, draftSource })
+          newCount += 1
+          insertedLeads.push({ id: lead.id, decision: candidate.decision })
         }
 
         if (insertedLeads.length) {
@@ -631,10 +543,8 @@ Deno.serve(async (request) => {
               search_run_id: run.id,
               prompt_version: LEAD_COPY_PROMPT_ID,
               qualification: lead.decision,
-              status: lead.status,
-              draft_created: true,
-              draft_source: lead.draftSource,
-              draft_response_id: draftResponseId,
+              status: 'new',
+              draft_created: false,
             },
           })))
           if (eventError) {
@@ -659,10 +569,10 @@ Deno.serve(async (request) => {
         const sourceList = prioritizedSources.slice(0, 120)
         const resultDetails = {
           research_response_id: researchResponse.id ?? null,
-          draft_response_id: draftResponseId,
+          draft_response_id: null,
           inserted_ids: insertedLeads.map((lead) => lead.id),
-          drafted_count: insertedCount,
-          ready_count: readyCount,
+          drafted_count: 0,
+          ready_count: 0,
           not_added_count: Math.max(0, foundCount - insertedCount),
           duplicate_count: duplicateCount,
           eligible_count: eligibleCount,
@@ -671,14 +581,14 @@ Deno.serve(async (request) => {
           rejected_count: rejectedCount,
           suppressed_count: suppressedCount,
           invalid_evidence_count: invalidEvidenceCount,
-          ai_draft_count: aiDraftCount,
-          fallback_draft_count: fallbackDraftCount,
-          draft_stage_degraded: draftStageDegraded,
+          ai_draft_count: 0,
+          fallback_draft_count: 0,
+          draft_required: insertedCount > 0,
         }
         const { error: completeError } = await admin.from('lead_search_runs').update({
           status: 'completed',
           openai_response_id: researchResponse.id ?? null,
-          draft_openai_response_id: draftResponseId,
+          draft_openai_response_id: null,
           found_count: foundCount,
           inserted_count: insertedCount,
           source_count: sources.size,
@@ -711,6 +621,205 @@ Deno.serve(async (request) => {
         await searchTask
       }
       return json({ ok: true, accepted: true, search_run_id: run.id }, 202)
+    }
+
+    if (action === 'draft_search_run') {
+      const rateLimit = await checkRateLimit(request, 'lead-outreach-draft-batch', 12, 3600, user.id)
+      if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
+
+      const runId = textValue(input.search_run_id, 60)
+      if (!uuidPattern.test(runId)) return json({ error: 'Kliendiotsingu töö jäi leidmata.' }, 400)
+      const { data: run, error: runError } = await admin.from('lead_search_runs')
+        .select('id,status,model,result_details')
+        .eq('id', runId)
+        .eq('created_by', user.id)
+        .maybeSingle()
+      if (runError) throw runError
+      if (!run) return json({ error: 'Kliendiotsingu töö jäi leidmata.' }, 404)
+      if (run.status !== 'completed') return json({ error: 'Kliendiotsingu uurimisosa ei ole veel valmis.' }, 409)
+
+      const { data: runLeads, error: leadsError } = await admin.from('sales_leads')
+        .select('*')
+        .eq('search_run_id', runId)
+        .eq('created_by', user.id)
+        .in('status', ['new', 'ready'])
+        .order('created_at', { ascending: true })
+        .limit(4)
+      if (leadsError) throw leadsError
+      const leads = runLeads ?? []
+      if (!leads.length) return json({ error: 'Selle otsingu uusi kontakte ei leitud.' }, 404)
+
+      const alreadyDrafted = leads.filter((lead) => (
+        lead.draft_prompt_version === LEAD_COPY_PROMPT_ID
+        && lead.draft_quality?.passed === true
+        && Boolean(textValue(lead.draft_subject, 160))
+        && Boolean(multilineValue(lead.draft_body, 5000))
+      ))
+      if (alreadyDrafted.length === leads.length) {
+        return json({
+          ok: true,
+          search_run_id: runId,
+          drafted_count: alreadyDrafted.length,
+          ready_count: alreadyDrafted.filter((lead) => lead.status === 'ready').length,
+          needs_review_count: alreadyDrafted.filter((lead) => lead.status !== 'ready').length,
+          draft_required: false,
+          inserted_ids: leads.map((lead) => lead.id),
+        })
+      }
+
+      const pendingLeads = leads.filter((lead) => !alreadyDrafted.some((drafted) => drafted.id === lead.id))
+      const senderName = textValue(Deno.env.get('OUTREACH_SENDER_NAME'), 80) || 'Marek'
+      const model = textValue(run.model, 100) || Deno.env.get('OPENAI_LEAD_MODEL')?.trim() || 'gpt-5.6-sol'
+      const draftResponse = await callOpenAI({
+        model,
+        store: false,
+        safety_identifier: (await sha256(user.id)).slice(0, 64),
+        reasoning: { effort: 'low' },
+        max_output_tokens: 6_000,
+        instructions: buildLeadBatchDraftPrompt({
+          senderName,
+          candidateCount: pendingLeads.length,
+        }),
+        input: JSON.stringify({
+          candidates: pendingLeads.map((lead) => {
+            const qualification = lead.qualification && typeof lead.qualification === 'object'
+              ? lead.qualification as Record<string, unknown>
+              : {}
+            const lastRecheck = qualification.last_recheck && typeof qualification.last_recheck === 'object'
+              ? qualification.last_recheck as Record<string, unknown>
+              : {}
+            return {
+              candidate_key: lead.id,
+              company_name: lead.company_name,
+              segment: lead.segment,
+              summary: lead.summary,
+              evidence: lead.evidence,
+              verified_observation: textValue(lastRecheck.verified_observation, 500),
+            }
+          }),
+        }),
+        text: {
+          verbosity: 'medium',
+          format: {
+            type: 'json_schema',
+            name: 'poeruum_lead_draft_batch',
+            description: 'Kontrollitud kandidaatide eraldi kirjutatud eestikeelsed kirjamustandid.',
+            schema: leadBatchDraftSchema,
+            strict: true,
+          },
+        },
+      }, 90_000)
+      const parsedDrafts = JSON.parse(extractOutputText(draftResponse)) as LeadBatchDraftOutput
+      const draftsByLeadId = new Map<string, { subject: string; body: string }>()
+      const expectedLeadIds = new Set(pendingLeads.map((lead) => lead.id))
+      for (const draft of parsedDrafts.drafts ?? []) {
+        const leadId = textValue(draft.candidate_key, 80)
+        if (!expectedLeadIds.has(leadId) || draftsByLeadId.has(leadId)) continue
+        draftsByLeadId.set(leadId, {
+          subject: textValue(draft.draft_subject, 160),
+          body: finalizeGeneratedLeadDraft(draft.draft_body),
+        })
+      }
+
+      let draftedCount = alreadyDrafted.length
+      let readyCount = alreadyDrafted.filter((lead) => lead.status === 'ready').length
+      let failedCount = 0
+      const eventRows: Array<Record<string, unknown>> = []
+      for (const lead of pendingLeads) {
+        const draft = draftsByLeadId.get(lead.id)
+        const qualification = lead.qualification && typeof lead.qualification === 'object'
+          ? lead.qualification as Record<string, unknown>
+          : {}
+        const lastRecheck = qualification.last_recheck && typeof qualification.last_recheck === 'object'
+          ? qualification.last_recheck as Record<string, unknown>
+          : {}
+        const assessment = assessGeneratedLeadDraft({
+          subject: draft?.subject ?? '',
+          body: draft?.body ?? '',
+          company_name: lead.company_name,
+          segment: lead.segment,
+          summary: lead.summary,
+          evidence: [lead.evidence, textValue(lastRecheck.verified_observation, 500)].filter(Boolean).join(' '),
+        })
+        const quality = draftQualityRecord(assessment)
+        if (!draft || !quality.passed) {
+          failedCount += 1
+          await admin.from('sales_leads').update({
+            draft_quality: quality,
+            status: 'new',
+            updated_by: user.id,
+          }).eq('id', lead.id).in('status', ['new', 'ready'])
+          continue
+        }
+
+        const status = qualification.decision === 'eligible'
+          && qualification.ready_evidence_verified === true
+          && storedLeadContactVerificationMatches({
+            qualification,
+            contactEmail: lead.contact_email,
+            emailSourceUrl: lead.email_source_url,
+            websiteUrl: lead.website_url,
+          })
+          ? 'ready'
+          : 'new'
+        const { error: updateError } = await admin.from('sales_leads').update({
+          status,
+          draft_subject: draft.subject,
+          draft_body: draft.body,
+          draft_quality: quality,
+          draft_prompt_version: LEAD_COPY_PROMPT_ID,
+          draft_openai_response_id: draftResponse.id ?? null,
+          updated_by: user.id,
+        }).eq('id', lead.id).in('status', ['new', 'ready'])
+        if (updateError) throw updateError
+        draftedCount += 1
+        if (status === 'ready') readyCount += 1
+        eventRows.push({
+          lead_id: lead.id,
+          actor_id: user.id,
+          event_type: 'drafted',
+          details: {
+            search_run_id: runId,
+            prompt_version: LEAD_COPY_PROMPT_ID,
+            response_id: draftResponse.id ?? null,
+            quality_passed: true,
+            status,
+          },
+        })
+      }
+      if (eventRows.length) {
+        const { error: eventError } = await admin.from('lead_events').insert(eventRows)
+        if (eventError) await captureEdgeError('lead-outreach-draft-batch-events', eventError, { search_run_id: runId }, 'warning')
+      }
+
+      const previousDetails = run.result_details && typeof run.result_details === 'object'
+        ? run.result_details as Record<string, unknown>
+        : {}
+      const resultDetails = {
+        ...previousDetails,
+        draft_response_id: draftResponse.id ?? null,
+        drafted_count: draftedCount,
+        ready_count: readyCount,
+        needs_review_count: Math.max(0, leads.length - readyCount),
+        ai_draft_count: draftedCount,
+        fallback_draft_count: 0,
+        draft_failed_count: failedCount,
+        draft_required: failedCount > 0,
+        draft_stage_degraded: failedCount > 0,
+      }
+      const { error: runUpdateError } = await admin.from('lead_search_runs').update({
+        draft_openai_response_id: draftResponse.id ?? null,
+        result_details: resultDetails,
+      }).eq('id', runId)
+      if (runUpdateError) throw runUpdateError
+
+      return json({
+        ok: true,
+        search_run_id: runId,
+        ...resultDetails,
+        inserted_count: leads.length,
+        inserted_ids: leads.map((lead) => lead.id),
+      })
     }
 
     const leadId = textValue(input.lead_id, 60)
