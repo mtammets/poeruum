@@ -11,6 +11,7 @@ import { products as bundledProducts, type Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { createRandomId } from './lib/randomId'
 import { stripeRequirementsFromStore, type StripeRequirementSummary } from './lib/stripeRequirements'
+import { getStripeRequirementsLinkIntent, getStripeRequirementsStoreTarget, removeStripeRequirementsLinkParam, type StripeRequirementsLinkIntent } from './lib/stripeRequirementsLink'
 import {
   DEFAULT_RETURNS_TEXT,
   FIXED_PLAN_MONTHLY_FEE,
@@ -33,6 +34,7 @@ const StripeEmbeddedOnboarding = lazy(() => import('./StripeEmbeddedOnboarding')
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'product' | 'publish' | 'storefront' | 'sample'
 type RegistryLookupStatus = 'idle' | 'loading' | 'found' | 'not-found' | 'error'
+const STRIPE_REQUIREMENTS_LINK_FAILURE = 'Seda linki ei saanud avada. Logi sisse õige Poeruumi kontoga.'
 
 type RegistryCompany = {
   reg_code: number | string
@@ -215,6 +217,10 @@ function PlatformFlow() {
   const [isStripeOnboardingOpen, setIsStripeOnboardingOpen] = useState(false)
   const [stripeEmbeddedMode, setStripeEmbeddedMode] = useState<'onboarding' | 'management'>('onboarding')
   const [stripeRequirements, setStripeRequirements] = useState<StripeRequirementSummary | null>(null)
+  const [stripeRequirementsLinkIntent, setStripeRequirementsLinkIntent] = useState<StripeRequirementsLinkIntent>(() =>
+    shouldLoadPublicStore ? 'none' : getStripeRequirementsLinkIntent(window.location))
+  const stripeRequirementsLinkPending = stripeRequirementsLinkIntent === 'valid'
+  const [initialMerchantSettingsSection, setInitialMerchantSettingsSection] = useState<'payments' | null>(null)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const mobileNavRef = useRef<HTMLDivElement>(null)
   const [shipping, setShipping] = useState<string[]>(['omniva', 'pickup'])
@@ -591,15 +597,51 @@ function PlatformFlow() {
     }
   }
 
+  const clearStripeRequirementsLink = (notice = '') => {
+    setStripeRequirementsLinkIntent('none')
+    window.history.replaceState(
+      window.history.state,
+      '',
+      removeStripeRequirementsLinkParam(window.location.href),
+    )
+    if (notice) setAuthNotice(notice)
+  }
+
+  const openStripeRequirementsSettings = async (nextStore: StoreRecord) => {
+    await applyStore(nextStore)
+    const target = getStripeRequirementsStoreTarget({
+      isPublished: nextStore.is_published,
+      hasStripeAccount: Boolean(nextStore.stripe_account_id),
+    })
+    setStripeEmbeddedMode('management')
+    setIsStripeOnboardingOpen(target.openEmbeddedManagement)
+    setInitialMerchantSettingsSection(target.initialSettingsSection)
+    setScreen(target.screen)
+    clearStripeRequirementsLink()
+  }
+
   useEffect(() => {
     if (!isSupabaseConfigured) return
     let active = true
     let recoveryMode = window.location.hash.includes('type=recovery')
     if (recoveryMode) setScreen('reset-password')
     const restore = async () => {
+      const initialStripeRequirementsIntent = stripeRequirementsLinkIntent
+      if (initialStripeRequirementsIntent === 'invalid') {
+        clearStripeRequirementsLink(STRIPE_REQUIREMENTS_LINK_FAILURE)
+      } else if (initialStripeRequirementsIntent === 'conflict') {
+        clearStripeRequirementsLink()
+      }
       const { data } = await requireSupabase().auth.getSession()
       if (!data.session || !active || recoveryMode) {
-        if (!data.session && active && !recoveryMode && new URLSearchParams(window.location.search).get('continue_setup') === '1') setScreen('login')
+        if (!data.session && active && !recoveryMode) {
+          if (initialStripeRequirementsIntent === 'valid') {
+            setAuthNotice('Logi sisse, et Stripe’i andmeid täiendada.')
+            setScreen('login')
+          } else if (initialStripeRequirementsIntent === 'invalid') {
+            setScreen('login')
+          } else if (new URLSearchParams(window.location.search).get('continue_setup') === '1') setScreen('login')
+        }
         return
       }
       const { data: refreshedData } = await requireSupabase().auth.refreshSession()
@@ -608,13 +650,30 @@ function PlatformFlow() {
       const isPlatformHostname = hostname === 'localhost' || hostname === '127.0.0.1'
         || hostname === STOREFRONT_ROOT_DOMAIN || hostname.endsWith(`.${STOREFRONT_ROOT_DOMAIN}`)
       if (currentSession.user.app_metadata?.role === 'admin' && isPlatformHostname && !getRequestedStoreSlug(window.location)) {
+        if (initialStripeRequirementsIntent === 'valid' || initialStripeRequirementsIntent === 'invalid') {
+          clearStripeRequirementsLink(STRIPE_REQUIREMENTS_LINK_FAILURE)
+          setScreen('login')
+          return
+        }
         window.location.replace('/admin')
         return
       }
       setOnlineUserId(currentSession.user.app_metadata?.role === 'admin' ? null : currentSession.user.id)
       setEmail(currentSession.user.email ?? '')
       let existing = await getMyStore()
-      if (!existing || !active) return
+      if (!active) return
+      if (!existing) {
+        if (initialStripeRequirementsIntent === 'valid' || initialStripeRequirementsIntent === 'invalid') {
+          clearStripeRequirementsLink(STRIPE_REQUIREMENTS_LINK_FAILURE)
+          setScreen('store')
+        }
+        return
+      }
+
+      if (initialStripeRequirementsIntent === 'valid') {
+        await openStripeRequirementsSettings(existing)
+        return
+      }
 
       const urlParams = new URLSearchParams(window.location.search)
       const billingResult = urlParams.get('billing')
@@ -690,9 +749,9 @@ function PlatformFlow() {
   }, [])
 
   useEffect(() => {
-    if (!onlineUserId || !['login', 'forgot-password', 'account'].includes(screen)) return
+    if (stripeRequirementsLinkPending || !onlineUserId || !['login', 'forgot-password', 'account'].includes(screen)) return
     setScreen(store ? getStoreDestination(store, storedProducts.length) : 'store')
-  }, [onlineUserId, screen, store, storedProducts.length])
+  }, [onlineUserId, screen, store, storedProducts.length, stripeRequirementsLinkPending])
 
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -705,11 +764,22 @@ function PlatformFlow() {
       const form = new FormData(event.currentTarget)
       const existing = await authenticateOwner(email, String(form.get('password') ?? ''), captchaToken)
       if (existing === 'admin') {
+        if (stripeRequirementsLinkPending) {
+          clearStripeRequirementsLink(STRIPE_REQUIREMENTS_LINK_FAILURE)
+          setScreen('login')
+          return
+        }
         window.location.assign('/admin')
         return
       }
-      if (existing) await openOwnedStore(existing)
-      else setScreen('store')
+      if (existing) {
+        if (stripeRequirementsLinkPending) await openStripeRequirementsSettings(existing)
+        else await openOwnedStore(existing)
+      }
+      else {
+        if (stripeRequirementsLinkPending) clearStripeRequirementsLink(STRIPE_REQUIREMENTS_LINK_FAILURE)
+        setScreen('store')
+      }
     } catch (error) {
       if (isEmailNotConfirmedError(error)) {
         setNeedsEmailConfirmation(true)
@@ -1037,6 +1107,8 @@ function PlatformFlow() {
     setIsStripeOnboardingOpen(false)
     setStripeEmbeddedMode('onboarding')
     setStripeRequirements(null)
+    setStripeRequirementsLinkIntent(shouldLoadPublicStore ? 'none' : getStripeRequirementsLinkIntent(window.location))
+    setInitialMerchantSettingsSection(null)
     setIsBillingCardOpen(false)
     setIsPublishing(false)
     setIsMobileNavOpen(false)
@@ -1250,7 +1322,7 @@ function PlatformFlow() {
   </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => setInitialMerchantSettingsSection(null)} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
     {stripeEmbeddedOverlay}
   </>
 
@@ -1606,6 +1678,7 @@ function PlatformFlow() {
           </button>
         </div></>}
       {isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
+        mode={stripeEmbeddedMode}
         onExit={finishStripeEmbeddedOnboarding}
         onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}

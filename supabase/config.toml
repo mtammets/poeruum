@@ -10,6 +10,9 @@ verify_jwt = false
 [functions.stripe-connect-webhook]
 verify_jwt = false
 
+[functions.stripe-requirement-notifications]
+verify_jwt = false
+
 [functions.stripe-connect]
 verify_jwt = true
 

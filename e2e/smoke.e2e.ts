@@ -235,11 +235,24 @@ test('a merchant can open Stripe remediation from Poeruum settings', async ({ pa
 
   await page.getByRole('button', { name: /Seaded/ }).click()
   await page.locator('.settings-home button[data-section="payments"]').click()
-  await expect(page.getByText('Stripe vajab lisainfot')).toBeVisible()
+  await expect(page.getByText('Maksete jätkamiseks kinnita ettevõtte andmed')).toBeVisible()
   await expect(page.getByText(/09\.10\.2026/)).toBeVisible()
 
-  await page.getByRole('button', { name: 'Täienda Stripe’i andmeid' }).click()
+  await page.getByRole('button', { name: 'Kinnita ettevõtte andmed' }).click()
   await expect.poll(() => page.evaluate(() => window.__stripeConnectCalls)).toBe(1)
+})
+
+test('a Stripe requirements email target opens merchant payment settings directly', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountStripeRequirementsLinkHarness } = await import('/e2e/settings-harness.tsx')
+    mountStripeRequirementsLinkHarness()
+  })
+
+  const settings = page.getByRole('dialog', { name: 'Seaded' })
+  await expect(settings).toBeVisible()
+  await expect(settings.getByRole('heading', { name: 'Maksed' })).toBeVisible()
+  await expect(settings.locator('.payments-panel')).toBeVisible()
 })
 
 test('an order thumbnail falls back to the current product image', async ({ page }) => {

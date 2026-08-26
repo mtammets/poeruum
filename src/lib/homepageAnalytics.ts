@@ -27,6 +27,7 @@ export const isHomepageAnalyticsLocation = (location: AnalyticsLocation) => {
   if (!['poeruum.ee', 'www.poeruum.ee'].includes(hostname) || location.pathname !== '/') return false
   const params = new URLSearchParams(location.search)
   return !params.has('billing') && !params.has('checkout') && !params.has('stripe_connect')
+    && !params.has('stripe_requirements')
 }
 
 export const getAnalyticsDevice = (viewportWidth: number): AnalyticsDevice => {

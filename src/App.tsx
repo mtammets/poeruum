@@ -235,13 +235,16 @@ export type StorefrontProps = {
   onInitialVisualReady?: () => void
   onExit?: () => void
   initialSettings?: Record<string, unknown>
+  initialSettingsSection?: SettingsSection | null
+  onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {} }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
   const isSeoStorefront = Boolean(storeSlug && !merchantMode && !isShowcasePreview)
+  const shouldOpenInitialSettings = merchantMode && Boolean(initialSettingsSection)
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIndexRef = useRef(0)
   const initialVisualReadyReportedRef = useRef(false)
@@ -250,6 +253,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const storeLogoObjectUrlRef = useRef<string | null>(null)
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
   const storeDescriptionInputRef = useRef<HTMLTextAreaElement>(null)
+  const initialSettingsSectionOpenedRef = useRef(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [isProductVisualActive, setIsProductVisualActive] = useState(() => window.scrollY <= 24)
   const [mayLoadNonCriticalImages, setMayLoadNonCriticalImages] = useState(false)
@@ -270,8 +274,8 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [loginRecoveryMessage, setLoginRecoveryMessage] = useState('')
   const [isLoggedIn, setIsLoggedIn] = useState(merchantMode)
   const [isCustomerPreview, setIsCustomerPreview] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isSettingsHome, setIsSettingsHome] = useState(true)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(shouldOpenInitialSettings)
+  const [isSettingsHome, setIsSettingsHome] = useState(!shouldOpenInitialSettings)
   const [settingsSaveStatus, setSettingsSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [isPublicationBusy, setIsPublicationBusy] = useState(false)
   const [isSetupContinuationBusy, setIsSetupContinuationBusy] = useState(false)
@@ -285,7 +289,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [settingsCompositionRevision, setSettingsCompositionRevision] = useState(0)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(true)
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>('store')
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSettingsSection ?? 'store')
   const [isOrdersOpen, setIsOrdersOpen] = useState(false)
   const [orders, setOrders] = useState<StoreOrder[]>([])
   const [orderLayout, setOrderLayout] = useState<'grid' | 'list'>('grid')
@@ -348,6 +352,12 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [customDomain, setCustomDomain] = useState('')
   const [customDomainStatus, setCustomDomainStatus] = useState<CustomDomainStatus>('idle')
   const [customDomainRecord, setCustomDomainRecord] = useState<CustomDomainRecord | null>(null)
+
+  useEffect(() => {
+    if (!shouldOpenInitialSettings || initialSettingsSectionOpenedRef.current) return
+    initialSettingsSectionOpenedRef.current = true
+    onInitialSettingsSectionOpened?.()
+  }, [onInitialSettingsSectionOpened, shouldOpenInitialSettings])
   const [customDomainError, setCustomDomainError] = useState('')
   const [isCustomDomainBusy, setIsCustomDomainBusy] = useState(false)
   const [autoSwipeEnabled, setAutoSwipeEnabled] = useState(() => localStorage.getItem('autoSwipeEnabled') !== 'false')
@@ -2177,8 +2187,9 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }
   const stripeActionRequired = stripeRequirementsNeedAction(stripeRequirements)
   const stripeRequirementDeadline = formatStripeRequirementDeadline(stripeRequirements?.currentDeadline)
+  const stripePaymentsRestricted = Boolean(stripeRequirements?.pastDue || stripeRequirements?.disabledReason)
   const stripeManagementLabel = stripeActionRequired
-    ? 'Täienda Stripe’i andmeid'
+    ? 'Kinnita ettevõtte andmed'
     : paymentsReady ? 'Halda Stripe’i andmeid' : 'Jätka Stripe’i seadistamist'
   const setupChecklist = [
     { id: 'store', label: 'Poe põhiandmed', done: Boolean(editableStoreName.trim()), section: 'store' as const },
@@ -2923,19 +2934,21 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
                 const isCurrentProvider = activePaymentProvider === id
                 return <button type="button" disabled={isCurrentProvider} aria-pressed={isCurrentProvider} className={isCurrentProvider ? `is-active${paymentsReady ? '' : ' is-pending'}` : ''} onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider(id) : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')} key={id}>
                 <span className="settings-provider-logo is-stripe">S</span>
-                <span><strong>{name}</strong><small>{isCurrentProvider ? stripeActionRequired ? 'Stripe vajab ettevõtte andmete täiendamist.' : paymentsReady ? connectedDetail : 'Teenusepakkuja kontrollib sinu andmeid. Makseid saab vastu võtta pärast kinnitamist.' : disconnectedDetail}</small></span>
+                <span><strong>{name}</strong><small>{isCurrentProvider ? stripeActionRequired ? 'Poeruumi maksepartner vajab sinu ettevõtte andmete kinnitamist.' : paymentsReady ? connectedDetail : 'Teenusepakkuja kontrollib sinu andmeid. Makseid saab vastu võtta pärast kinnitamist.' : disconnectedDetail}</small></span>
                 <i className={`settings-provider-status${stripeActionRequired ? ' is-warning' : ''}`}>{isCurrentProvider ? stripeActionRequired ? <span>Vajab tegevust</span> : paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
               </button>})}
             </div>
             {stripeActionRequired && <div className="settings-payment-requirement" role="alert">
               <span aria-hidden="true">!</span>
-              <div><strong>Stripe vajab lisainfot</strong><p>{stripeRequirementDeadline
-                ? `Täienda ettevõtte andmeid enne ${stripeRequirementDeadline}, et väljamaksed jätkuksid.`
-                : 'Täienda ettevõtte andmeid, et maksed ja väljamaksed saaksid jätkuda.'}</p></div>
+              <div><strong>Maksete jätkamiseks kinnita ettevõtte andmed</strong><p>Stripe on Poeruumi maksepartner, mis töötleb kaardi- ja nutimakseid ning kannab raha sulle välja. {stripePaymentsRestricted
+                ? 'Kinnita ettevõtte andmed kohe, et maksed ja väljamaksed saaksid taastuda.'
+                : stripeRequirementDeadline
+                  ? `Kinnita ettevõtte andmed enne ${stripeRequirementDeadline}, et maksed ja väljamaksed saaksid jätkuda.`
+                  : 'Kinnita ettevõtte andmed, et maksed ja väljamaksed saaksid jätkuda.'}</p></div>
             </div>}
             {!stripeActionRequired && stripeRequirements?.pendingVerification && <div className="settings-payment-requirement is-reviewing" role="status">
               <span aria-hidden="true">✓</span>
-              <div><strong>Stripe kontrollib andmeid</strong><p>Praegu ei pea sa midagi tegema.</p></div>
+              <div><strong>Ettevõtte andmeid kontrollitakse</strong><p>Stripe on Poeruumi maksepartner. Andmed on saadetud ja praegu ei pea sa midagi tegema.</p></div>
             </div>}
             {activePaymentProvider === 'stripe' && <button className={`settings-secondary-action${stripeActionRequired ? ' is-warning' : ''}`} type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
               <span>{stripeManagementLabel}</span>

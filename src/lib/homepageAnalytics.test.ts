@@ -15,6 +15,7 @@ describe('homepage analytics privacy helpers', () => {
     expect(isHomepageAnalyticsLocation({ hostname: 'poeruum.ee', pathname: '/admin', search: '' })).toBe(false)
     expect(isHomepageAnalyticsLocation({ hostname: 'localhost', pathname: '/', search: '' })).toBe(false)
     expect(isHomepageAnalyticsLocation({ hostname: 'poeruum.ee', pathname: '/', search: '?billing=success' })).toBe(false)
+    expect(isHomepageAnalyticsLocation({ hostname: 'poeruum.ee', pathname: '/', search: '?stripe_requirements=1' })).toBe(false)
   })
 
   it('keeps only the external referrer hostname', () => {

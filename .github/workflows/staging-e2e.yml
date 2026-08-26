@@ -119,6 +119,7 @@ jobs:
       - name: Deploy temporary Edge Functions
         run: |
           npx supabase functions deploy stripe-webhook --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          npx supabase functions deploy stripe-requirement-notifications --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy stripe-billing-checkout --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy stripe-billing-cancel --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy stripe-store-checkout --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt

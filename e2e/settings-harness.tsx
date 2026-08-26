@@ -60,3 +60,27 @@ export function mountStripeRequirementsHarness() {
     },
   }))
 }
+
+export function mountStripeRequirementsLinkHarness() {
+  const root = document.createElement('div')
+  root.id = 'stripe-requirements-link-harness'
+  document.body.replaceChildren(root)
+  createRoot(root).render(createElement(Storefront, {
+    storeId: '10000000-0000-4000-8000-000000000097',
+    seedProducts: [],
+    storeName: 'Stripe lingi testipood',
+    storeSlug: 'stripe-lingi-testipood',
+    initialSettings: {},
+    initialSettingsSection: 'payments',
+    merchantMode: true,
+    initialPublished: true,
+    paymentsReady: true,
+    stripeRequirements: {
+      dueCount: 1,
+      pastDue: false,
+      currentDeadline: '2026-10-09T00:00:00.000Z',
+      pendingVerification: false,
+      disabledReason: null,
+    },
+  }))
+}
