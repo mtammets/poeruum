@@ -17,20 +17,16 @@ import {
 import {
   classifyContactEmail,
   contactMatchesWebsite,
-  extractOpenAIResponseSources,
+  domainsRelated,
   finalizeGeneratedLeadDraft,
   multilineValue,
   normalizeEmail,
   normalizePublicUrl,
+  sourceKey,
   sourceMatches,
   textValue,
+  websiteDomain,
 } from '../_shared/lead-utils.ts'
-import {
-  hasCompleteLeadQualificationEvidence,
-  storedLeadContactVerificationMatches,
-  verifyLeadContactEvidence,
-  verifyLeadWebEvidence,
-} from '../_shared/lead-verification.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,15 +52,16 @@ const defaultSearchQuery = [
   'Sobivad näiteks käsitöö, disaini, kodutoodete, aksessuaaride, kosmeetika, kunsti ja kohalike tarbekaupade müüjad.',
 ].join(' ')
 
+type OpenAISource = { url?: string; title?: string }
 type OpenAIOutputContent = {
   type?: string
   text?: string
   refusal?: string
+  annotations?: Array<{ type?: string; url?: string; title?: string }>
 }
 type OpenAIOutputItem = {
   type?: string
-  status?: string
-  action?: Record<string, unknown>
+  action?: { sources?: OpenAISource[] }
   content?: OpenAIOutputContent[]
 }
 type OpenAIResponse = {
@@ -107,6 +104,57 @@ const extractOutputText = (response: OpenAIResponse) => {
   throw new Error('OpenAI ei tagastanud oodatud väljundit.')
 }
 
+const extractSources = (response: OpenAIResponse) => {
+  const sources = new Map<string, { url: string; title: string }>()
+  const add = (source: OpenAISource) => {
+    const url = normalizePublicUrl(source.url)
+    const key = sourceKey(url)
+    if (!url || !key || sources.has(key)) return
+    sources.set(key, { url, title: textValue(source.title, 300) })
+  }
+  for (const item of response.output ?? []) {
+    for (const source of item.action?.sources ?? []) add(source)
+    for (const content of item.content ?? []) {
+      for (const annotation of content.annotations ?? []) {
+        if (annotation.type === 'url_citation') add(annotation)
+      }
+    }
+  }
+  return sources
+}
+
+const siteCheckKinds = new Set<LeadSiteCheck['kind']>([
+  'market',
+  'business_size',
+  'product_type',
+  'sales_audience',
+  'commerce',
+  'purchase_complexity',
+  'standard_products',
+  'contact',
+])
+
+const verifiedSiteChecks = (value: unknown, sourceKeys: Set<string>, websiteValue: unknown) => {
+  if (!Array.isArray(value)) return [] as LeadSiteCheck[]
+  const domain = websiteDomain(websiteValue)
+  if (!domain) return [] as LeadSiteCheck[]
+  return value.slice(0, 12).flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Record<string, unknown>
+    const kind = textValue(record.kind, 40) as LeadSiteCheck['kind']
+    const url = normalizePublicUrl(record.url)
+    const finding = textValue(record.finding, 400)
+    if (
+      !siteCheckKinds.has(kind)
+      || !url
+      || !finding
+      || !sourceMatches(url, sourceKeys)
+      || !domainsRelated(domain, websiteDomain(url))
+    ) return []
+    return [{ kind, url, finding }]
+  })
+}
+
 const draftQualityRecord = (assessment: ReturnType<typeof assessGeneratedLeadDraft>) => ({
   passed: assessment.ok,
   score: Math.max(0, 100 - assessment.issues.length * 15),
@@ -120,6 +168,24 @@ const draftQualityRecord = (assessment: ReturnType<typeof assessGeneratedLeadDra
   },
   prompt_version: assessment.promptId,
 })
+
+const blockingSignalLabels: Record<string, string> = {
+  functional_store: 'ettevõttel on juba toimiv e-pood',
+  service_or_digital: 'põhitegevus ei ole sobiv füüsiliste toodete veebimüük',
+  wholesale_only: 'ettevõte müüb ainult hulgiklientidele',
+  larger_or_chain: 'tegu on suurema ettevõtte või ketiga',
+  not_estonia: 'Eesti turul tegutsemine ei leidnud kinnitust',
+  complex_quote_without_standard_products: 'müük vajab keerukat hinnapäringut ja tavatooteid ei leitud',
+  missing_verification: 'värske kontrollitav allikas puudub',
+  other_uncertainty: 'sobivus jäi värske kontrolli järel ebaselgeks',
+}
+
+const draftExclusionReason = (draft: VerifiedLeadDraftOutput) => {
+  const messages = draft.blocking_signals.map((signal) => blockingSignalLabels[signal]).filter(Boolean)
+  if (messages.length) return messages.join('; ')
+  if (draft.current_qualification === 'review') return 'sobivus jäi värske kontrolli järel ebaselgeks'
+  return 'ettevõte ei vasta värske kontrolli põhjal Poeruumi sihtrühmale'
+}
 
 const callOpenAI = async (payload: Record<string, unknown>) => {
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -211,7 +277,7 @@ Deno.serve(async (request) => {
               timezone: 'Europe/Tallinn',
             },
           }],
-          tool_choice: 'required',
+          tool_choice: 'auto',
           max_tool_calls: 12,
           include: ['web_search_call.action.sources'],
           instructions: buildLeadSearchPrompt({ requestedLimit }),
@@ -229,38 +295,31 @@ Deno.serve(async (request) => {
         })
 
         const parsed = JSON.parse(extractOutputText(response)) as LeadResearchOutput
-        const sources = extractOpenAIResponseSources(response)
-        const hasCompletedWebSearch = (response.output ?? []).some((item) => (
-          item.type === 'web_search_call' && item.status === 'completed'
-        ))
-        if (!hasCompletedWebSearch || !sources.size) {
-          throw new Error('OpenAI veebiuuring ei tagastanud kontrollitavaid allikaid. Proovi uuesti.')
-        }
+        const sources = extractSources(response)
+        const sourceKeys = new Set(sources.keys())
         let insertedCount = 0
         let eligibleCount = 0
         let reviewCount = 0
         let rejectedCount = 0
-        const insertedLeads: Array<{ id: string; decision: 'eligible' }> = []
+        const insertedLeads: Array<{ id: string; decision: 'eligible' | 'review' }> = []
 
         for (const candidate of (parsed.candidates ?? []).slice(0, requestedLimit)) {
           const companyName = textValue(candidate.company_name, 200)
           const websiteUrl = normalizePublicUrl(candidate.website_url)
-          const domain = websiteUrl ? new URL(websiteUrl).hostname.toLowerCase().replace(/^www\./, '') : null
+          const domain = websiteDomain(websiteUrl)
           const sourceUrl = normalizePublicUrl(candidate.source_url)
-          if (!companyName || !websiteUrl || !domain || !sourceUrl) continue
-          const webEvidence = verifyLeadWebEvidence({
-            response,
-            websiteUrl,
-            siteChecks: candidate.site_checks,
-            verificationUrl: sourceUrl,
-            commerceCheckUrl: candidate.commerce_check_url,
-          })
-          if (!webEvidence.verificationIsUsable) continue
-          const siteChecks = webEvidence.siteChecks
+          if (!companyName || !websiteUrl || !domain || !sourceUrl || !sourceMatches(sourceUrl, sourceKeys)) continue
+          if (!domainsRelated(domain, websiteDomain(sourceUrl))) continue
+
+          const siteChecks = verifiedSiteChecks(candidate.site_checks, sourceKeys, websiteUrl)
           if (siteChecks.length < 2) continue
           const hasCheck = (kind: LeadSiteCheck['kind']) => siteChecks.some((check) => check.kind === kind)
-          const commerceCheckUrl = webEvidence.commerceCheckUrl
-          const hasCommerceCheck = webEvidence.commerceCheckIsUsable
+          const commerceCheckUrl = normalizePublicUrl(candidate.commerce_check_url)
+          const hasCommerceCheck = Boolean(
+            commerceCheckUrl
+            && sourceMatches(commerceCheckUrl, sourceKeys)
+            && siteChecks.some((check) => check.kind === 'commerce' && sourceKey(check.url) === sourceKey(commerceCheckUrl)),
+          )
           const classifications = {
             market: hasCheck('market') ? candidate.market : 'unknown',
             business_size: hasCheck('business_size') ? candidate.business_size : 'unknown',
@@ -275,13 +334,9 @@ Deno.serve(async (request) => {
             rejectedCount += 1
             continue
           }
-          if (qualification.decision === 'review') {
-            reviewCount += 1
-            continue
-          }
 
           const rawEmailSourceUrl = normalizePublicUrl(candidate.email_source_url)
-          const emailSourceUrl = rawEmailSourceUrl && sourceMatches(rawEmailSourceUrl, webEvidence.sourceKeys)
+          const emailSourceUrl = rawEmailSourceUrl && sourceMatches(rawEmailSourceUrl, sourceKeys)
             ? rawEmailSourceUrl
             : null
           const contactEmail = emailSourceUrl ? normalizeEmail(candidate.contact_email) : null
@@ -325,7 +380,8 @@ Deno.serve(async (request) => {
           if (leadError?.code === '23505') continue
           if (leadError || !lead) throw leadError || new Error('Kontakti ei salvestatud.')
           insertedCount += 1
-          eligibleCount += 1
+          if (qualification.decision === 'eligible') eligibleCount += 1
+          else reviewCount += 1
           insertedLeads.push({ id: lead.id, decision: qualification.decision })
         }
 
@@ -361,7 +417,6 @@ Deno.serve(async (request) => {
           search_run_id: run.id,
           found_count: foundCount,
           inserted_count: insertedCount,
-          not_added_count: Math.max(0, foundCount - insertedCount),
           duplicate_or_rejected_count: Math.max(0, foundCount - insertedCount),
           eligible_count: eligibleCount,
           review_count: reviewCount,
@@ -414,15 +469,7 @@ Deno.serve(async (request) => {
       })
       const quality = draftQualityRecord(assessment)
       const status = contactKind === 'general_business'
-        && (
-          contactMatchesWebsite(contactEmail, lead.website_url, emailSourceUrl)
-          || storedLeadContactVerificationMatches({
-            qualification,
-            contactEmail,
-            emailSourceUrl,
-            websiteUrl: lead.website_url,
-          })
-        )
+        && contactMatchesWebsite(contactEmail, lead.website_url, emailSourceUrl)
         && qualification.decision === 'eligible'
         && quality.passed
         ? 'ready'
@@ -481,7 +528,7 @@ Deno.serve(async (request) => {
             timezone: 'Europe/Tallinn',
           },
         }],
-        tool_choice: 'required',
+        tool_choice: 'auto',
         max_tool_calls: 8,
         include: ['web_search_call.action.sources'],
         instructions: buildLeadDraftPrompt({ senderName }),
@@ -489,8 +536,6 @@ Deno.serve(async (request) => {
           company_name: lead.company_name,
           website_url: lead.website_url,
           source_url: lead.source_url,
-          contact_email: lead.contact_email,
-          email_source_url: lead.email_source_url,
           segment: lead.segment,
           summary: lead.summary,
           fit_reason: lead.fit_reason,
@@ -510,17 +555,16 @@ Deno.serve(async (request) => {
         },
       })
       const draft = JSON.parse(extractOutputText(response)) as VerifiedLeadDraftOutput
-      const webEvidence = verifyLeadWebEvidence({
-        response,
-        websiteUrl: lead.website_url,
-        siteChecks: draft.site_checks,
-        verificationUrl: draft.verification_url,
-        commerceCheckUrl: draft.commerce_check_url,
-      })
-      const siteChecks = webEvidence.siteChecks
+      const sources = extractSources(response)
+      const sourceKeys = new Set(sources.keys())
+      const siteChecks = verifiedSiteChecks(draft.site_checks, sourceKeys, lead.website_url)
       const hasCheck = (kind: LeadSiteCheck['kind']) => siteChecks.some((check) => check.kind === kind)
-      const commerceCheckUrl = webEvidence.commerceCheckUrl
-      const hasCommerceCheck = webEvidence.commerceCheckIsUsable
+      const commerceCheckUrl = normalizePublicUrl(draft.commerce_check_url)
+      const hasCommerceCheck = Boolean(
+        commerceCheckUrl
+        && sourceMatches(commerceCheckUrl, sourceKeys)
+        && siteChecks.some((check) => check.kind === 'commerce' && sourceKey(check.url) === sourceKey(commerceCheckUrl)),
+      )
       const classifications = {
         market: hasCheck('market') ? draft.market : 'unknown',
         business_size: hasCheck('business_size') ? draft.business_size : 'unknown',
@@ -533,44 +577,13 @@ Deno.serve(async (request) => {
         has_standard_products: hasCheck('standard_products') ? draft.has_standard_products : null,
       }
       const freshQualification = assessLeadQualification(classifications)
-      const verificationUrl = webEvidence.verificationUrl
-      const verificationIsUsable = webEvidence.verificationIsUsable
+      const verificationUrl = normalizePublicUrl(draft.verification_url)
+      const verificationIsUsable = Boolean(
+        verificationUrl
+        && sourceMatches(verificationUrl, sourceKeys)
+        && domainsRelated(websiteDomain(lead.website_url), websiteDomain(verificationUrl)),
+      )
       const verifiedObservation = textValue(draft.verified_observation, 500)
-      const requiresDraftEvidence = draft.recommendation === 'send'
-      const hasCompleteQualificationEvidence = hasCompleteLeadQualificationEvidence(siteChecks)
-      const verificationIncomplete = !webEvidence.hasCompletedWebSearch
-        || !webEvidence.sources.size
-        || !siteChecks.length
-        || (freshQualification.decision !== 'reject' && !hasCompleteQualificationEvidence)
-        || (requiresDraftEvidence && (!verificationIsUsable || !verifiedObservation))
-
-      if (verificationIncomplete) {
-        const reason = 'Veebikontroll ei saanud ettevõtte lehti usaldusväärselt kinnitada. Proovi uuesti.'
-        await admin.from('lead_events').insert({
-          lead_id: leadId,
-          actor_id: user.id,
-          event_type: 'draft_verification_failed',
-          details: {
-            model,
-            prompt_version: LEAD_COPY_PROMPT_ID,
-            response_id: response.id ?? null,
-            had_web_search_call: webEvidence.hasCompletedWebSearch,
-            source_count: webEvidence.sources.size,
-            raw_site_check_count: Array.isArray(draft.site_checks) ? draft.site_checks.length : 0,
-            verified_site_check_count: siteChecks.length,
-            has_complete_qualification_evidence: hasCompleteQualificationEvidence,
-            verification_url: verificationUrl,
-          },
-        })
-        return json({
-          ok: true,
-          verification_incomplete: true,
-          retryable: true,
-          reason,
-          status: lead.status,
-        })
-      }
-
       const eligibleNow = draft.recommendation === 'send'
         && draft.current_qualification === 'eligible'
         && Array.isArray(draft.blocking_signals)
@@ -586,18 +599,19 @@ Deno.serve(async (request) => {
         const serverReasons = freshQualification.reasons
           .filter((item) => item.severity !== 'pass')
           .map((item) => item.message)
-        const rejected = freshQualification.decision === 'reject'
-        const recheckDecision = rejected ? 'reject' : 'review'
-        const rawReason = serverReasons.length
-          ? serverReasons.join(' ')
-          : 'Värske veebikontrolli soovitus ja kontrollitud sobivusandmed ei olnud omavahel kooskõlas'
-        const normalizedReason = rawReason.trim().replace(/\s+/g, ' ')
-        const capitalizedReason = normalizedReason
-          ? `${normalizedReason.charAt(0).toLocaleUpperCase('et-EE')}${normalizedReason.slice(1)}`
-          : rejected
-            ? 'Ettevõte ei vasta praegu Poeruumi sihtkliendi tingimustele'
-            : 'Ettevõtte sobivus vajab enne kirja koostamist käsitsi kontrolli'
-        const reason = /[.!?]$/.test(capitalizedReason) ? capitalizedReason : `${capitalizedReason}.`
+        const reason = !verificationIsUsable
+          ? 'värske kontrollitav ettevõtteallikas puudub või ei vasta veebidomeenile'
+          : serverReasons.length ? serverReasons.join(' ') : draftExclusionReason(draft)
+        const quality = {
+          passed: false,
+          score: 0,
+          issues: [reason],
+          issue_codes: ['qualification_failed'],
+          prompt_version: LEAD_COPY_PROMPT_ID,
+        }
+        const recheckDecision = freshQualification.decision === 'eligible'
+          ? draft.current_qualification === 'reject' ? 'reject' : 'review'
+          : freshQualification.decision
         const qualification = {
           ...previousQualification,
           ...classifications,
@@ -611,26 +625,20 @@ Deno.serve(async (request) => {
             decision: recheckDecision,
             blocking_signals: draft.blocking_signals,
             verification_url: verificationUrl,
-            outcome: rejected ? 'not_recommended' : 'needs_review',
-            response_id: response.id ?? null,
             checked_at: new Date().toISOString(),
             prompt_version: LEAD_COPY_PROMPT_ID,
           },
         }
-        const updateValues: Record<string, unknown> = {
+        const { data: updatedLead, error: updateError } = await admin.from('sales_leads').update({
           qualification,
-          status: rejected ? 'archived' : 'new',
+          fit_score: recheckDecision === 'reject' ? 0 : Math.min(freshQualification.score, 40),
+          fit_reason: reason,
+          draft_quality: quality,
+          draft_prompt_version: LEAD_COPY_PROMPT_ID,
+          draft_openai_response_id: response.id ?? null,
+          status: 'new',
           updated_by: user.id,
-        }
-        if (rejected) {
-          updateValues.fit_score = 0
-          updateValues.draft_subject = ''
-          updateValues.draft_body = ''
-          updateValues.draft_quality = {}
-          updateValues.draft_prompt_version = null
-          updateValues.draft_openai_response_id = null
-        }
-        const { data: updatedLead, error: updateError } = await admin.from('sales_leads').update(updateValues)
+        })
           .eq('id', leadId)
           .eq('status', lead.status)
           .eq('updated_at', lead.updated_at)
@@ -642,22 +650,15 @@ Deno.serve(async (request) => {
         await admin.from('lead_events').insert({
           lead_id: leadId,
           actor_id: user.id,
-          event_type: rejected ? 'draft_excluded' : 'draft_review_required',
+          event_type: 'draft_excluded',
           details: {
             model,
             prompt_version: LEAD_COPY_PROMPT_ID,
             reason,
-            decision: recheckDecision,
             blocking_signals: draft.blocking_signals,
           },
         })
-        return json({
-          ok: true,
-          excluded: rejected,
-          needs_review: !rejected,
-          reason,
-          status: rejected ? 'archived' : 'new',
-        })
+        return json({ ok: true, excluded: true, reason, status: 'new', quality })
       }
 
       const subject = textValue(draft.subject, 160)
@@ -672,13 +673,6 @@ Deno.serve(async (request) => {
         evidence: `${lead.evidence ?? ''} ${verifiedObservation}`,
       })
       const quality = draftQualityRecord(assessment)
-      const verifiedContactEvidence = verifyLeadContactEvidence({
-        contactEmail: lead.contact_email,
-        emailSourceUrl: lead.email_source_url,
-        websiteUrl: lead.website_url,
-        siteChecks,
-        openedSourceKeys: webEvidence.openedSourceKeys,
-      })
       const qualification = {
         ...previousQualification,
         ...classifications,
@@ -688,13 +682,6 @@ Deno.serve(async (request) => {
         issues: [],
         reasons: freshQualification.reasons,
         site_checks: siteChecks,
-        contact_verification: verifiedContactEvidence
-          ? {
-            ...verifiedContactEvidence,
-            checked_at: new Date().toISOString(),
-            prompt_version: LEAD_COPY_PROMPT_ID,
-          }
-          : null,
         last_recheck: {
           decision: 'eligible',
           blocking_signals: [],
@@ -705,15 +692,7 @@ Deno.serve(async (request) => {
         },
       }
       const status = lead.contact_kind === 'general_business'
-        && (
-          contactMatchesWebsite(lead.contact_email, lead.website_url, lead.email_source_url)
-          || storedLeadContactVerificationMatches({
-            qualification,
-            contactEmail: lead.contact_email,
-            emailSourceUrl: lead.email_source_url,
-            websiteUrl: lead.website_url,
-          })
-        )
+        && contactMatchesWebsite(lead.contact_email, lead.website_url, lead.email_source_url)
         && quality.passed
         ? 'ready'
         : 'new'
@@ -803,16 +782,8 @@ Deno.serve(async (request) => {
       if (storedQuality.passed !== true || storedQualification.decision !== 'eligible') {
         return json({ error: 'Kiri peab enne saatmist läbima värske sobivus- ja kvaliteedikontrolli.' }, 409)
       }
-      if (
-        !contactMatchesWebsite(lead.contact_email, lead.website_url, lead.email_source_url)
-        && !storedLeadContactVerificationMatches({
-          qualification: storedQualification,
-          contactEmail: lead.contact_email,
-          emailSourceUrl: lead.email_source_url,
-          websiteUrl: lead.website_url,
-        })
-      ) {
-        return json({ error: 'Üldkontakt peab kuuluma ettevõtte domeenile või olema värskelt kinnitatud ettevõtte ametlikul kontaktilehel.' }, 409)
+      if (!contactMatchesWebsite(lead.contact_email, lead.website_url, lead.email_source_url)) {
+        return json({ error: 'Üldkontakti domeen ja avalik kontaktiallikas peavad kuuluma ettevõtte veebidomeenile.' }, 409)
       }
       const rateLimit = await checkRateLimit(request, 'lead-outreach-send', 40, 3600, user.id)
       if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)

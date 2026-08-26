@@ -20,20 +20,6 @@ type LeadDraftQuality = {
   issues?: string[]
 }
 
-const technicalVerificationIssue = /v[aä]rske kontrollitav ettev[oõ]tteallikas puudub|ei vasta veebidomeenile/iu
-
-const displayLeadIssue = (value: unknown) => {
-  const issue = String(value ?? '').trim()
-  if (technicalVerificationIssue.test(issue)) {
-    return 'Veebikontroll ei saanud ettevõtte lehte tehniliselt kinnitada. Proovi kirja koostamist uuesti.'
-  }
-  return issue
-}
-
-const displayLeadIssues = (issues: unknown) => Array.isArray(issues)
-  ? issues.map(displayLeadIssue).filter(Boolean).join(' ')
-  : ''
-
 type SalesLead = {
   id: string
   company_name: string
@@ -194,10 +180,10 @@ export default function AdminLeads() {
     try {
       const result = await invoke('search', { query: researchQuery, limit: researchLimit })
       const inserted = Number(result.inserted_count ?? 0)
-      const skipped = Number(result.not_added_count ?? result.duplicate_or_rejected_count ?? 0)
-      setNotice(inserted
-        ? `Lisatud ${inserted} kontrollitud sobivat kandidaati${skipped ? `; ${skipped} ebapiisava tõendi, välistava tunnuse või duplikaadi tõttu ei lisatud` : ''}.`
-        : `Sobivaid uusi kandidaate ei lisatud${skipped ? `; ${skipped} tulemust ei läbinud kontrolli või oli juba nimekirjas` : ''}.`)
+      const eligible = Number(result.eligible_count ?? 0)
+      const review = Number(result.review_count ?? 0)
+      const rejected = Number(result.duplicate_or_rejected_count ?? 0)
+      setNotice(`Lisatud ${inserted} kandidaati: ${eligible} kontrollitud sobivat ja ${review} käsikontrolli vajavat${rejected ? `; ${rejected} duplikaati või välistatud tulemust ei lisatud` : ''}.`)
       await loadLeads(null)
     } catch (researchError) {
       setError(getErrorMessage(researchError))
@@ -221,20 +207,10 @@ export default function AdminLeads() {
 
   const regenerateDraft = async () => {
     if (!selected) return
-    const localDraftBeforeRequest = draft
     try {
       const result = await invoke('draft', { lead_id: selected.id, feedback: draftFeedback })
-      if (result.verification_incomplete) {
-        setError(String(result.reason || 'Veebikontroll ei saanud ettevõtte lehti kinnitada. Proovi uuesti.'))
-        return
-      }
       if (result.excluded) {
-        setNotice(`Ettevõte eemaldati aktiivsete hulgast: ${String(result.reason || 'värske kontroll leidis selge välistava tunnuse')}`)
-      } else if (result.needs_review) {
-        setNotice(`Kirja ei koostatud, sest sobivus jäi ebaselgeks: ${String(result.reason || 'kontrolli allikaid ja proovi uuesti')}`)
-        await loadLeads(selected.id)
-        if (localDraftBeforeRequest) setDraft(localDraftBeforeRequest)
-        return
+        setNotice(`OpenAI värske veebikontroll ei soovita sellele ettevõttele kirjutada: ${String(result.reason || 'ettevõte ei vasta Poeruumi sihtrühmale')}`)
       } else if ((result.quality as LeadDraftQuality | undefined)?.passed === false) {
         const issues = (result.quality as LeadDraftQuality).issues?.join(' ') || 'Mustand vajab käsitsi kontrolli.'
         setNotice(`OpenAI koostas mustandi, kuid kvaliteedivärav jättis selle kontrolli: ${issues}`)
@@ -242,7 +218,7 @@ export default function AdminLeads() {
         setNotice('OpenAI kontrollis ettevõtet uuesti ja koostas kvaliteedivärava läbinud kirja. Vaata see enne saatmist üle.')
       }
       setDraftFeedback('')
-      await loadLeads(result.excluded ? null : selected.id)
+      await loadLeads(selected.id)
     } catch (draftError) {
       setError(getErrorMessage(draftError))
     }
@@ -344,11 +320,11 @@ export default function AdminLeads() {
           </header>
 
           <div className="admin-leads__evidence">
-            <div><span>{selected.qualification?.decision === 'reject' ? 'Esialgne sobivus' : 'Miks sobib'}</span><p>{displayLeadIssue(selected.fit_reason) || 'Põhjendus puudub.'}</p></div>
+            <div><span>Miks sobib</span><p>{selected.fit_reason || 'Põhjendus puudub.'}</p></div>
             <div><span>Avalik tõend</span><p>{selected.evidence || 'Tõend puudub.'}</p></div>
             {selected.qualification?.last_recheck?.verified_observation && <div><span>Kirja värske tähelepanek</span><p>{selected.qualification.last_recheck.verified_observation}</p></div>}
-            {selected.qualification?.decision === 'review' && <div className="admin-leads__qualification"><span>Vajab sobivuse kontrolli</span><p>{displayLeadIssues(selected.qualification.issues) || 'Veebiallikad ei andnud sobivuse kohta ühest vastust.'}</p></div>}
-            {selected.qualification?.decision === 'reject' && <div className="admin-leads__qualification is-reject"><span>Värske kontroll välistas kontakti</span><p>{displayLeadIssues(selected.qualification.issues) || 'Ettevõte ei vasta praegu Poeruumi sihtrühmale.'}</p></div>}
+            {selected.qualification?.decision === 'review' && <div className="admin-leads__qualification"><span>Vajab sobivuse kontrolli</span><p>{selected.qualification.issues?.join(' ') || 'Veebiallikad ei andnud sobivuse kohta ühest vastust.'}</p></div>}
+            {selected.qualification?.decision === 'reject' && <div className="admin-leads__qualification is-reject"><span>Värske kontroll välistas kontakti</span><p>{selected.qualification.issues?.join(' ') || 'Ettevõte ei vasta praegu Poeruumi sihtrühmale.'}</p></div>}
             <nav>
               <a href={selected.website_url} target="_blank" rel="noreferrer">Veebileht ↗</a>
               <a href={selected.source_url} target="_blank" rel="noreferrer">Sobivuse allikas ↗</a>
@@ -365,7 +341,7 @@ export default function AdminLeads() {
             <label><span>Leht, kus üldkontakt on avalik</span><input type="url" placeholder="https://ettevote.ee/kontakt" value={draft.email_source_url ?? ''} onChange={(event) => setDraft({ ...draft, email_source_url: event.target.value || null })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
             <label><span>Kirja teema</span><input maxLength={160} value={draft.draft_subject} onChange={(event) => setDraft({ ...draft, draft_subject: event.target.value })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
             <label><span>Kirja sisu</span><textarea rows={9} maxLength={5000} value={draft.draft_body} onChange={(event) => setDraft({ ...draft, draft_body: event.target.value })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
-            {Boolean(draft.draft_body.trim()) && selected.draft_quality?.passed === false && Boolean(selected.draft_quality.issues?.length) && <div className="admin-leads__quality" role="status"><strong>Mustand vajab parandamist</strong><span>{displayLeadIssues(selected.draft_quality.issues)}</span></div>}
+            {selected.draft_quality?.passed === false && Boolean(selected.draft_quality.issues?.length) && <div className="admin-leads__quality" role="status"><strong>Mustand vajab parandamist</strong><span>{selected.draft_quality.issues?.join(' ')}</span></div>}
             {['new', 'ready'].includes(selected.status) && <label><span>Soov OpenAI-le järgmise variandi jaoks</span><textarea rows={2} maxLength={500} value={draftFeedback} onChange={(event) => setDraftFeedback(event.target.value)} placeholder="Soovi korral: vähem ametlik, rõhuta telefonist haldamist…" /></label>}
             <small className="admin-leads__policy">Saata saab ainult kontrollitud avalikule üldpostkastile. Süsteem kontrollib mustandi konkreetsust, tooni ja faktipiire ning lisab allkirja, kontakti allika ja loobumisvõimaluse.</small>
             <div className="admin-leads__buttons">
