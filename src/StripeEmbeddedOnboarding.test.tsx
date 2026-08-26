@@ -59,7 +59,7 @@ describe('Stripe remediation form', () => {
     }))
 
     expect(html).toContain('aria-label="Ettevõtte andmete kinnitamine"')
-    expect(html).toContain('Üks selge ja turvaline kinnitus')
+    expect(html).not.toContain('Stripe’i eraldi sisselogimisakent')
     expect(html).toContain('data-stripe-component="onboarding"')
     expect(html).not.toContain('data-stripe-component="management"')
     expect(html).not.toContain('data-stripe-component="notification-banner"')

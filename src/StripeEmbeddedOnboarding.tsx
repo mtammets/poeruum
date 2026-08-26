@@ -160,10 +160,6 @@ export default function StripeEmbeddedOnboarding({
           <p>Hetk palun…</p>
         </>}
       </div>}
-      {isRemediation && <div className="stripe-remediation-intro" role="note">
-        <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8 7 10 4.2-2 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg></span>
-        <div><strong>Üks selge ja turvaline kinnitus</strong><p>Vorm avaneb siin Poeruumis. Stripe’i eraldi sisselogimisakent ei avata ja väljamaksekontot selles vormis muuta ei saa.</p></div>
-      </div>}
       <ConnectComponentsProvider connectInstance={connectInstance}>
         {isManagement ? <div className="stripe-embedded__management" key={renderAttempt}>
           <ConnectNotificationBanner
