@@ -5,7 +5,6 @@ type LeadStatus = 'new' | 'ready' | 'sending' | 'sent' | 'replied' | 'unsubscrib
 
 type LeadQualification = {
   decision?: 'eligible' | 'review' | 'reject'
-  ready_evidence_verified?: boolean
   commerce_status?: string
   purchase_complexity?: string
   issues?: string[]
@@ -64,14 +63,6 @@ type SalesLead = {
 type LeadDraft = Pick<SalesLead, 'company_name' | 'contact_email' | 'email_source_url' | 'draft_subject' | 'draft_body'>
 type LeadFilter = 'active' | 'ready' | 'sent' | 'replied' | 'blocked' | 'archived'
 
-type LeadSearchRun = {
-  status: string
-  error_message: string | null
-  found_count: number | null
-  inserted_count: number | null
-  result_details: Record<string, unknown> | null
-}
-
 const defaultQuery = 'Leia Eesti mikro- ja väikeettevõtteid, kes müüvad enda valmistatud füüsilisi tooteid ning võtavad tellimusi sotsiaalmeedias, kontaktivormi või e-posti kaudu.'
 
 const statusLabels: Record<LeadStatus, string> = {
@@ -112,14 +103,6 @@ const getErrorMessage = (error: unknown) => {
   if (error && typeof error === 'object' && 'message' in error) return String(error.message)
   return 'Toiming ebaõnnestus.'
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value)
-  && typeof value === 'object'
-  && !Array.isArray(value)
-
-const wait = (milliseconds: number) => new Promise<void>((resolve) => {
-  window.setTimeout(resolve, milliseconds)
-})
 
 export default function AdminLeads() {
   const [leads, setLeads] = useState<SalesLead[]>([])
@@ -207,83 +190,15 @@ export default function AdminLeads() {
     }
   }
 
-  const waitForResearchRun = async (runId: string) => {
-    const deadline = Date.now() + 180_000
-
-    while (Date.now() < deadline) {
-      const { data, error: runError } = await requireSupabase().from('lead_search_runs')
-        .select('status,error_message,found_count,inserted_count,result_details')
-        .eq('id', runId)
-        .single()
-      if (runError) throw runError
-
-      const run = data as LeadSearchRun
-      if (run.status === 'failed') {
-        throw new Error(run.error_message || 'Kliendiotsing ebaõnnestus. Proovi uuesti.')
-      }
-      if (run.status === 'completed') {
-        const details = isRecord(run.result_details) ? run.result_details : {}
-        return {
-          ...details,
-          search_run_id: runId,
-          found_count: Number(run.found_count ?? details.found_count ?? 0),
-          inserted_count: Number(run.inserted_count ?? details.inserted_count ?? 0),
-        }
-      }
-
-      await wait(2_000)
-    }
-
-    throw new Error('Kliendiotsing võtab oodatust kauem. Taustatöö võib veel jätkuda; värskenda mõne minuti pärast nimekirja.')
-  }
-
   const runResearch = async () => {
     try {
-      let result = await invoke('search', { query: researchQuery, limit: researchLimit })
-      if (result.accepted === true) {
-        const runId = typeof result.search_run_id === 'string' ? result.search_run_id : ''
-        if (!runId) throw new Error('Kliendiotsing käivitus vigase töö ID-ga. Proovi uuesti.')
-        setBusyAction('search')
-        try {
-          result = await waitForResearchRun(runId)
-        } finally {
-          setBusyAction('')
-        }
-      }
-
+      const result = await invoke('search', { query: researchQuery, limit: researchLimit })
       const inserted = Number(result.inserted_count ?? 0)
-      const found = Number(result.found_count ?? inserted)
-      const drafted = Number(result.drafted_count ?? inserted)
-      const ready = Number(result.ready_count ?? 0)
       const skipped = Number(result.not_added_count ?? result.duplicate_or_rejected_count ?? 0)
-      const duplicate = Number(result.duplicate_count ?? 0)
-      const rejected = Number(result.rejected_count ?? 0)
-      const suppressed = Number(result.suppressed_count ?? 0)
-      const invalidEvidence = Number(result.invalid_evidence_count ?? 0)
-      const needsReview = Number(result.needs_review_count ?? 0)
-      const insertedIds = Array.isArray(result.inserted_ids)
-        ? result.inserted_ids.filter((value): value is string => typeof value === 'string')
-        : []
-      if (!inserted) {
-        const reasons = [
-          duplicate ? `${duplicate} ${duplicate === 1 ? 'oli juba nimekirjas' : 'olid juba nimekirjas'}` : '',
-          rejected ? `${rejected} ei vastanud sihtrühmale` : '',
-          suppressed ? `${suppressed} puhul kehtis kontaktikeeld` : '',
-          invalidEvidence ? `${invalidEvidence} puhul puudus kontrollitav avalik kontakt või tõend` : '',
-          needsReview ? `${needsReview} puhul on vaja lisakontrolli` : '',
-        ].filter(Boolean)
-        const fallbackReason = !reasons.length && skipped
-          ? ` ${skipped} tulemust ei läbinud kontrolli või oli juba nimekirjas.`
-          : ''
-        throw new Error(`Otsing kontrollis ${found} võimalikku ettevõtet, kuid ei leidnud ühtegi uut avaliku üldkontaktiga klienti, kellele kiri koostada.${reasons.length ? ` Välja jäeti: ${reasons.join(', ')}.` : fallbackReason} Midagi ei lisatud ega saadetud.`)
-      }
-      const skippedNotice = skipped === 1
-        ? '; 1 kontrollitud tulemust ei lisatud, sest see oli duplikaat, sobimatu või ebapiisava tõendiga'
-        : skipped > 1
-          ? `; ${skipped} kontrollitud tulemust ei lisatud, sest need olid duplikaadid, sobimatud või ebapiisava tõendiga`
-          : ''
-      setNotice(`Leitud ${inserted === 1 ? '1 uus klient' : `${inserted} uut klienti`} ja koostatud ${drafted === 1 ? '1 kiri' : `${drafted} kirja`}. ${ready} ${ready === 1 ? 'kiri on' : 'kirja on'} kohe saatmiseks valmis${skippedNotice}.`)
-      await loadLeads(insertedIds[0] ?? null)
+      setNotice(inserted
+        ? `Lisatud ${inserted} kontrollitud sobivat kandidaati${skipped ? `; ${skipped} ebapiisava tõendi, välistava tunnuse või duplikaadi tõttu ei lisatud` : ''}.`
+        : `Sobivaid uusi kandidaate ei lisatud${skipped ? `; ${skipped} tulemust ei läbinud kontrolli või oli juba nimekirjas` : ''}.`)
+      await loadLeads(null)
     } catch (researchError) {
       setError(getErrorMessage(researchError))
     }
@@ -376,7 +291,7 @@ export default function AdminLeads() {
       <div>
         <span>AVALIKU VEEBI UURING</span>
         <h2>Leia Poeruumile sobivad ettevõtted</h2>
-        <p>OpenAI leiab sobivad ettevõtted ja nende avalikud üldkontaktid, kontrollib müügiviisi ning koostab igale lisatud kliendile kohe personaalse kirjamustandi.</p>
+        <p>OpenAI kontrollib esmalt tooteid, olemasolevat ostukorvi ja tellimisteekonda. Kirja koostad pärast kandidaadi allikate ülevaatamist.</p>
       </div>
       <label>
         <span>Milliseid ettevõtteid otsida?</span>
@@ -385,7 +300,7 @@ export default function AdminLeads() {
       <div className="admin-leads__research-actions">
         <label><span>Tulemusi</span><select value={researchLimit} onChange={(event) => setResearchLimit(Number(event.target.value))}>{[2, 4].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
         <button type="button" onClick={() => void runResearch()} disabled={Boolean(busyAction) || researchQuery.trim().length < 10}>
-          {busyAction === 'search' ? 'Otsin ja koostan kirju…' : 'Otsi uusi kliente'}
+          {busyAction === 'search' ? 'OpenAI otsib…' : 'Otsi uusi kliente'}
         </button>
       </div>
     </section>
@@ -433,7 +348,6 @@ export default function AdminLeads() {
             <div><span>Avalik tõend</span><p>{selected.evidence || 'Tõend puudub.'}</p></div>
             {selected.qualification?.last_recheck?.verified_observation && <div><span>Kirja värske tähelepanek</span><p>{selected.qualification.last_recheck.verified_observation}</p></div>}
             {selected.qualification?.decision === 'review' && <div className="admin-leads__qualification"><span>Vajab sobivuse kontrolli</span><p>{displayLeadIssues(selected.qualification.issues) || 'Veebiallikad ei andnud sobivuse kohta ühest vastust.'}</p></div>}
-            {selected.status === 'new' && selected.qualification?.decision === 'eligible' && selected.qualification?.ready_evidence_verified !== true && <div className="admin-leads__qualification"><span>Enne saatmist ava tõendilehed</span><p>Kontakt ja kiri on leitud. Saatmisvalmiduse kinnitamiseks vali „Kontrolli enne saatmist”; süsteem avab ettevõtte toote-, tellimis- ja kontaktilehed uuesti.</p></div>}
             {selected.qualification?.decision === 'reject' && <div className="admin-leads__qualification is-reject"><span>Värske kontroll välistas kontakti</span><p>{displayLeadIssues(selected.qualification.issues) || 'Ettevõte ei vasta praegu Poeruumi sihtrühmale.'}</p></div>}
             <nav>
               <a href={selected.website_url} target="_blank" rel="noreferrer">Veebileht ↗</a>
@@ -456,7 +370,7 @@ export default function AdminLeads() {
             <small className="admin-leads__policy">Saata saab ainult kontrollitud avalikule üldpostkastile. Süsteem kontrollib mustandi konkreetsust, tooni ja faktipiire ning lisab allkirja, kontakti allika ja loobumisvõimaluse.</small>
             <div className="admin-leads__buttons">
               {['new', 'ready', 'archived'].includes(selected.status) && <button type="submit" disabled={Boolean(busyAction)}>{busyAction === 'save' ? 'Salvestan…' : 'Salvesta'}</button>}
-              {['new', 'ready'].includes(selected.status) && <button type="button" className="is-secondary" onClick={() => void regenerateDraft()} disabled={Boolean(busyAction)}>{busyAction === 'draft' ? 'Kontrollin ja koostan…' : selected.qualification?.ready_evidence_verified !== true ? 'Kontrolli enne saatmist' : draft.draft_body.trim() ? 'Koosta parem variant' : 'Kontrolli ja koosta kiri'}</button>}
+              {['new', 'ready'].includes(selected.status) && <button type="button" className="is-secondary" onClick={() => void regenerateDraft()} disabled={Boolean(busyAction)}>{busyAction === 'draft' ? 'Kontrollin ja koostan…' : draft.draft_body.trim() ? 'Koosta parem variant' : 'Kontrolli ja koosta kiri'}</button>}
               {selected.status === 'ready' && <button type="button" className="is-send" onClick={() => void sendLead()} disabled={Boolean(busyAction)}>{busyAction === 'send' ? 'Saadan…' : 'Kinnita ja saada'}</button>}
               {['new', 'ready'].includes(selected.status) && <button type="button" className="is-quiet" onClick={() => void simpleAction('archive')} disabled={Boolean(busyAction)}>Arhiveeri</button>}
               {selected.contact_email && !['unsubscribed', 'bounced', 'complained'].includes(selected.status) && <button type="button" className="is-danger" onClick={() => void simpleAction('suppress')} disabled={Boolean(busyAction)}>Ära enam kontakteeru</button>}
