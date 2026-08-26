@@ -15,12 +15,14 @@ import {
   storedLeadContactVerificationMatches,
   verifyLeadContactEvidence,
   verifyLeadWebEvidence,
+  verifiedObservationMatchesSiteChecks,
 } from '../../supabase/functions/_shared/lead-verification'
 
 describe('lead outreach public data safeguards', () => {
   it('allows known company mailboxes but rejects personal or unclear addresses', () => {
     expect(classifyContactEmail('info@ettevote.ee')).toBe('general_business')
     expect(classifyContactEmail('Tere.Pood@ettevote.ee')).toBe('general_business')
+    expect(classifyContactEmail('keraamika@evelinsamuel.com')).toBe('general_business')
     expect(classifyContactEmail('mari@ettevote.ee')).toBe('personal_or_unclear')
     expect(classifyContactEmail('info@gmail.com')).toBe('personal_or_unclear')
     expect(classifyContactEmail('ettevote@gmail.com')).toBe('personal_or_unclear')
@@ -169,6 +171,37 @@ describe('lead outreach public data safeguards', () => {
     expect(result.commerceCheckIsUsable).toBe(true)
   })
 
+  it('grounds the personalized observation in a product finding from the exact verification page', () => {
+    const siteChecks = [{
+      kind: 'product_type' as const,
+      url: 'https://ettevote.ee/tooted/',
+      finding: 'Tootelehel on käsitsi glasuuritud keraamilised kruusid ja vaagnad.',
+    }]
+
+    expect(verifiedObservationMatchesSiteChecks({
+      verifiedObservation: 'Eriti jäid silma teie käsitsi glasuuritud kruusid.',
+      verificationUrl: 'https://ettevote.ee/tooted/',
+      siteChecks,
+    })).toBe(true)
+    expect(verifiedObservationMatchesSiteChecks({
+      verifiedObservation: 'Eriti jäid silma teie naturaalsest villast sallid.',
+      verificationUrl: 'https://ettevote.ee/tooted/',
+      siteChecks,
+    })).toBe(false)
+  })
+
+  it('rejects an observation copied from a different page than the declared verification page', () => {
+    expect(verifiedObservationMatchesSiteChecks({
+      verifiedObservation: 'Eriti jäid silma teie tammepuidust abilauad.',
+      verificationUrl: 'https://ettevote.ee/tooted/',
+      siteChecks: [{
+        kind: 'product_type',
+        url: 'https://ettevote.ee/eritellimus/',
+        finding: 'Eritellimuse lehel on tammepuidust abilauad.',
+      }],
+    })).toBe(false)
+  })
+
   it('rejects evidence without sources or a completed web-search call', () => {
     const input = {
       websiteUrl: 'https://puuskulptuurid.ee/',
@@ -214,6 +247,32 @@ describe('lead outreach public data safeguards', () => {
     }
     expect(missingSources.hasCompletedWebSearch).toBe(true)
     expect(missingTool.hasCompletedWebSearch).toBe(false)
+  })
+
+  it('does not treat a company URL from search results as an opened evidence page', () => {
+    const evidenceUrl = 'https://puuskulptuurid.ee/puukujude-tellimine/'
+    const result = verifyLeadWebEvidence({
+      response: {
+        output: [{
+          type: 'web_search_call',
+          status: 'completed',
+          action: { type: 'search', sources: [{ url: evidenceUrl }] },
+        }],
+      },
+      websiteUrl: 'https://puuskulptuurid.ee/',
+      siteChecks: [
+        { kind: 'product_type', url: evidenceUrl, finding: 'Lehel pakutakse puukujusid.' },
+        { kind: 'commerce', url: evidenceUrl, finding: 'Tellimus esitatakse vormi kaudu.' },
+      ],
+      verificationUrl: evidenceUrl,
+      commerceCheckUrl: evidenceUrl,
+    })
+
+    expect(result.sources.has('puuskulptuurid.ee/puukujude-tellimine')).toBe(true)
+    expect(result.openedSourceKeys.size).toBe(0)
+    expect(result.siteChecks).toEqual([])
+    expect(result.verificationIsUsable).toBe(false)
+    expect(result.commerceCheckIsUsable).toBe(false)
   })
 
   it('does not trust an open-page URL from an incomplete tool call', () => {
@@ -378,29 +437,73 @@ describe('lead outreach public data safeguards', () => {
     expect(result.siteChecks).toEqual([])
   })
 
-  it('verifies a brand-domain mailbox only from the exact company contact page', () => {
+  it('verifies a same-domain mailbox only from the exact company contact page', () => {
     const verification = verifyLeadContactEvidence({
-      contactEmail: 'info@puuvagi.ee',
+      contactEmail: 'info@puuskulptuurid.ee',
       emailSourceUrl: 'https://puuskulptuurid.ee/puukujude-tellimine/',
       websiteUrl: 'https://puuskulptuurid.ee/',
       openedSourceKeys: new Set(['puuskulptuurid.ee/puukujude-tellimine']),
       siteChecks: [{
         kind: 'contact',
         url: 'https://www.puuskulptuurid.ee/puukujude-tellimine/',
-        finding: 'Tellimiseks on avalik üldpostkast info@puuvagi.ee.',
+        finding: 'Tellimiseks on avalik üldpostkast info@puuskulptuurid.ee.',
       }],
     })
 
     expect(verification).toEqual({
-      email: 'info@puuvagi.ee',
+      email: 'info@puuskulptuurid.ee',
       source_url: 'https://puuskulptuurid.ee/puukujude-tellimine/',
       website_domain: 'puuskulptuurid.ee',
+      source_was_opened: true,
     })
     expect(storedLeadContactVerificationMatches({
       qualification: { contact_verification: verification },
-      contactEmail: 'INFO@PUUVAGI.EE',
+      contactEmail: 'INFO@PUUSKULPTUURID.EE',
       emailSourceUrl: 'https://www.puuskulptuurid.ee/puukujude-tellimine/?utm_source=test',
       websiteUrl: 'https://www.puuskulptuurid.ee/',
+    })).toBe(true)
+  })
+
+  it('does not treat an external partner mailbox as the company contact', () => {
+    expect(verifyLeadContactEvidence({
+      contactEmail: 'info@agentuur.ee',
+      emailSourceUrl: 'https://puuskulptuurid.ee/kontakt/',
+      websiteUrl: 'https://puuskulptuurid.ee/',
+      openedSourceKeys: new Set(['puuskulptuurid.ee/kontakt']),
+      siteChecks: [{
+        kind: 'contact',
+        url: 'https://puuskulptuurid.ee/kontakt/',
+        finding: 'Veebilehel on koostööpartneri aadress info@agentuur.ee.',
+      }],
+    })).toBeNull()
+  })
+
+  it('accepts a public role mailbox on an official alias domain named by the company', () => {
+    const verification = verifyLeadContactEvidence({
+      contactEmail: 'info@oselwood.ee',
+      emailSourceUrl: 'https://solidfurn.ee/',
+      websiteUrl: 'https://solidfurn.ee/',
+      companyName: 'Solidfurn / Öselwood OÜ',
+      openedSourceKeys: new Set(['solidfurn.ee/']),
+      siteChecks: [{
+        kind: 'contact',
+        url: 'https://solidfurn.ee/',
+        finding: 'Avalik ettevõtte üldpostkast on info@oselwood.ee.',
+      }],
+    })
+
+    expect(verification).toEqual({
+      email: 'info@oselwood.ee',
+      source_url: 'https://solidfurn.ee/',
+      website_domain: 'solidfurn.ee',
+      source_was_opened: true,
+      email_domain_alias_verified: true,
+    })
+    expect(storedLeadContactVerificationMatches({
+      qualification: { contact_verification: verification },
+      contactEmail: 'info@oselwood.ee',
+      emailSourceUrl: 'https://solidfurn.ee/',
+      websiteUrl: 'https://solidfurn.ee/',
     })).toBe(true)
   })
 
@@ -410,6 +513,7 @@ describe('lead outreach public data safeguards', () => {
         email: 'info@puuvagi.ee',
         source_url: 'https://puuskulptuurid.ee/puukujude-tellimine/',
         website_domain: 'puuskulptuurid.ee',
+        source_was_opened: true,
       },
     }
 
@@ -456,6 +560,30 @@ describe('lead outreach public data safeguards', () => {
         finding: 'Otsingutulemus väidab, et lehel on info@puuvagi.ee.',
       }],
     })).toBeNull()
+  })
+
+  it('keeps source-listed contact evidence non-sendable until the exact page was opened', () => {
+    const verification = verifyLeadContactEvidence({
+      contactEmail: 'info@puuskulptuurid.ee',
+      emailSourceUrl: 'https://puuskulptuurid.ee/puukujude-tellimine/',
+      websiteUrl: 'https://puuskulptuurid.ee/',
+      openedSourceKeys: new Set(),
+      sourceKeys: new Set(['puuskulptuurid.ee/puukujude-tellimine']),
+      requireOpenedSource: false,
+      siteChecks: [{
+        kind: 'contact',
+        url: 'https://puuskulptuurid.ee/puukujude-tellimine/',
+        finding: 'Avalik üldpostkast on info@puuskulptuurid.ee.',
+      }],
+    })
+
+    expect(verification?.source_was_opened).toBe(false)
+    expect(storedLeadContactVerificationMatches({
+      qualification: { contact_verification: verification },
+      contactEmail: 'info@puuskulptuurid.ee',
+      emailSourceUrl: 'https://puuskulptuurid.ee/puukujude-tellimine/',
+      websiteUrl: 'https://puuskulptuurid.ee/',
+    })).toBe(false)
   })
 
   it('requires the mailbox and contact source to belong to the company website', () => {

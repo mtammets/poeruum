@@ -5,31 +5,40 @@ import {
   LEAD_COPY_PROMPT_ID,
   assessGeneratedLeadDraft,
   assessLeadQualification,
+  assessLeadSearchCandidate,
+  buildLeadBatchDraftPrompt,
+  buildDeterministicLeadDraft,
   buildLeadDraftPrompt,
   buildLeadSearchPrompt,
   hasStrongCommerceSignal,
+  leadBatchDraftSchema,
   leadDraftSchema,
-  leadResearchSchema,
-  type LeadResearchOutput,
+  leadSearchResearchSchema,
+  type LeadBatchDraftOutput,
+  type LeadSearchResearchCandidate,
+  type LeadSearchResearchOutput,
   type LeadSiteCheck,
   type VerifiedLeadDraftOutput,
 } from '../_shared/lead-copy.ts'
 import {
   classifyContactEmail,
-  contactMatchesWebsite,
+  domainsRelated,
   extractOpenAIResponseSources,
   finalizeGeneratedLeadDraft,
   multilineValue,
   normalizeEmail,
   normalizePublicUrl,
+  sourceKey,
   sourceMatches,
   textValue,
+  websiteDomain,
 } from '../_shared/lead-utils.ts'
 import {
   hasCompleteLeadQualificationEvidence,
   storedLeadContactVerificationMatches,
   verifyLeadContactEvidence,
   verifyLeadWebEvidence,
+  verifiedObservationMatchesSiteChecks,
 } from '../_shared/lead-verification.ts'
 
 const corsHeaders = {
@@ -121,7 +130,7 @@ const draftQualityRecord = (assessment: ReturnType<typeof assessGeneratedLeadDra
   prompt_version: assessment.promptId,
 })
 
-const callOpenAI = async (payload: Record<string, unknown>) => {
+const callOpenAI = async (payload: Record<string, unknown>, timeoutMs = 112_000) => {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -130,7 +139,7 @@ const callOpenAI = async (payload: Record<string, unknown>) => {
       'User-Agent': 'poeruum-lead-outreach/1.0',
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(115_000),
+    signal: AbortSignal.timeout(timeoutMs),
   })
   const result = await response.json().catch(() => ({})) as OpenAIResponse
   if (!response.ok) {
@@ -195,16 +204,34 @@ Deno.serve(async (request) => {
       }).select('id').single()
       if (runError || !run) throw runError || new Error('Otsingukorda ei loodud.')
 
-      try {
+      const executeSearch = async () => {
+        try {
+          const [existingResult, suppressionsResult] = await Promise.all([
+          admin.from('sales_leads').select('website_domain,contact_email').limit(1000),
+          admin.from('lead_suppressions').select('email').limit(1000),
+        ])
+        if (existingResult.error) throw existingResult.error
+        if (suppressionsResult.error) throw suppressionsResult.error
+        const existingDomains = new Set((existingResult.data ?? [])
+          .map((item) => String(item.website_domain ?? '').trim().toLowerCase().replace(/^www\./, ''))
+          .filter(Boolean))
+        const existingEmails = new Set((existingResult.data ?? [])
+          .map((item) => normalizeEmail(item.contact_email))
+          .filter((value): value is string => Boolean(value)))
+        const preloadedSuppressedEmails = new Set((suppressionsResult.data ?? [])
+          .map((item) => normalizeEmail(item.email))
+          .filter((value): value is string => Boolean(value)))
+        const excludedEmails = new Set([...existingEmails, ...preloadedSuppressedEmails])
         const safetyIdentifier = (await sha256(user.id)).slice(0, 64)
-        const response = await callOpenAI({
+        const senderName = textValue(Deno.env.get('OUTREACH_SENDER_NAME'), 80) || 'Marek'
+        const researchResponse = await callOpenAI({
           model,
           store: false,
           safety_identifier: safetyIdentifier,
-          reasoning: { effort: 'medium' },
+          reasoning: { effort: 'low' },
           tools: [{
             type: 'web_search',
-            search_context_size: 'high',
+            search_context_size: 'medium',
             user_location: {
               type: 'approximate',
               country: 'EE',
@@ -212,121 +239,387 @@ Deno.serve(async (request) => {
             },
           }],
           tool_choice: 'required',
-          max_tool_calls: 12,
+          max_tool_calls: 14,
+          max_output_tokens: 9_000,
           include: ['web_search_call.action.sources'],
           instructions: buildLeadSearchPrompt({ requestedLimit }),
-          input: query,
+          input: JSON.stringify({
+            search_request: query,
+            requested_contacts: requestedLimit,
+            excluded_website_domains: [...existingDomains].slice(0, 250),
+            excluded_contact_emails: [...excludedEmails].slice(0, 250),
+          }),
           text: {
-            verbosity: 'medium',
+            verbosity: 'low',
             format: {
               type: 'json_schema',
               name: 'poeruum_lead_research',
-              description: 'Avalikest allikatest kontrollitud kvalifitseerimisfaktid, ilma kirjamustandita.',
-              schema: leadResearchSchema,
+              description: 'Avalikest allikatest kontrollitud kontaktid ja sobivusfaktid.',
+              schema: leadSearchResearchSchema,
               strict: true,
             },
           },
-        })
+        }, 115_000)
 
-        const parsed = JSON.parse(extractOutputText(response)) as LeadResearchOutput
-        const sources = extractOpenAIResponseSources(response)
-        const hasCompletedWebSearch = (response.output ?? []).some((item) => (
+        const parsed = JSON.parse(extractOutputText(researchResponse)) as LeadSearchResearchOutput
+        const sources = extractOpenAIResponseSources(researchResponse)
+        const hasCompletedWebSearch = (researchResponse.output ?? []).some((item) => (
           item.type === 'web_search_call' && item.status === 'completed'
         ))
         if (!hasCompletedWebSearch || !sources.size) {
           throw new Error('OpenAI veebiuuring ei tagastanud kontrollitavaid allikaid. Proovi uuesti.')
         }
-        let insertedCount = 0
-        let eligibleCount = 0
-        let reviewCount = 0
+        let duplicateCount = 0
         let rejectedCount = 0
-        const insertedLeads: Array<{ id: string; decision: 'eligible' }> = []
+        let invalidEvidenceCount = 0
+        let suppressedCount = 0
+        const preparedCandidates: Array<{
+          candidateKey: string
+          candidate: LeadSearchResearchCandidate
+          rowBase: Record<string, unknown>
+          decision: 'eligible' | 'review'
+          hasReadyEvidence: boolean
+          priority: number
+        }> = []
+        const preparedDomains = new Set<string>()
+        const preparedEmails = new Set<string>()
+        const domainAlreadyKnown = (candidateDomain: string) => (
+          [...existingDomains, ...preparedDomains].some((knownDomain) => domainsRelated(candidateDomain, knownDomain))
+        )
 
-        for (const candidate of (parsed.candidates ?? []).slice(0, requestedLimit)) {
+        for (const candidate of (parsed.candidates ?? []).slice(0, 6)) {
           const companyName = textValue(candidate.company_name, 200)
           const websiteUrl = normalizePublicUrl(candidate.website_url)
-          const domain = websiteUrl ? new URL(websiteUrl).hostname.toLowerCase().replace(/^www\./, '') : null
+          const domain = websiteDomain(websiteUrl)
           const sourceUrl = normalizePublicUrl(candidate.source_url)
-          if (!companyName || !websiteUrl || !domain || !sourceUrl) continue
+          if (!companyName || !websiteUrl || !domain || !sourceUrl) {
+            invalidEvidenceCount += 1
+            continue
+          }
+          if (domainAlreadyKnown(domain)) {
+            duplicateCount += 1
+            continue
+          }
           const webEvidence = verifyLeadWebEvidence({
-            response,
+            response: researchResponse,
             websiteUrl,
             siteChecks: candidate.site_checks,
-            verificationUrl: sourceUrl,
+            verificationUrl: candidate.verification_url,
             commerceCheckUrl: candidate.commerce_check_url,
+            requireOpenedCompanyPages: false,
           })
-          if (!webEvidence.verificationIsUsable) continue
+          const verificationUrl = webEvidence.verificationUrl
+          const verifiedObservation = textValue(candidate.verified_observation, 500)
+          if (
+            !verificationUrl
+            || !verifiedObservation
+            || !webEvidence.verificationIsUsable
+            || !sourceMatches(sourceUrl, webEvidence.sourceKeys)
+            || !domainsRelated(domain, websiteDomain(sourceUrl))
+          ) {
+            invalidEvidenceCount += 1
+            continue
+          }
           const siteChecks = webEvidence.siteChecks
-          if (siteChecks.length < 2) continue
           const hasCheck = (kind: LeadSiteCheck['kind']) => siteChecks.some((check) => check.kind === kind)
           const commerceCheckUrl = webEvidence.commerceCheckUrl
           const hasCommerceCheck = webEvidence.commerceCheckIsUsable
+          if (
+            siteChecks.length < 3
+            || !hasCheck('product_type')
+            || !hasCheck('commerce')
+            || !hasCheck('contact')
+            || !hasCommerceCheck
+            || !verifiedObservationMatchesSiteChecks({
+              verifiedObservation,
+              verificationUrl,
+              siteChecks,
+            })
+          ) {
+            invalidEvidenceCount += 1
+            continue
+          }
           const classifications = {
             market: hasCheck('market') ? candidate.market : 'unknown',
             business_size: hasCheck('business_size') ? candidate.business_size : 'unknown',
             product_type: hasCheck('product_type') ? candidate.product_type : 'unknown',
             sales_audience: hasCheck('sales_audience') ? candidate.sales_audience : 'unknown',
-            commerce_status: hasCommerceCheck ? candidate.commerce_status : 'unknown',
+            commerce_status: hasStrongCommerceSignal(siteChecks)
+              ? 'functional_store'
+              : hasCommerceCheck ? candidate.commerce_status : 'unknown',
             purchase_complexity: hasCheck('purchase_complexity') ? candidate.purchase_complexity : 'unknown',
             has_standard_products: hasCheck('standard_products') ? candidate.has_standard_products : null,
           }
+          const emailSourceUrl = normalizePublicUrl(candidate.email_source_url)
+          const contactEmail = normalizeEmail(candidate.contact_email)
+          const contactKind = classifyContactEmail(contactEmail)
+          if (
+            !emailSourceUrl
+            || !contactEmail
+            || contactKind !== 'general_business'
+            || existingEmails.has(contactEmail)
+            || preloadedSuppressedEmails.has(contactEmail)
+            || preparedEmails.has(contactEmail)
+          ) {
+            if (contactEmail && preloadedSuppressedEmails.has(contactEmail)) {
+              suppressedCount += 1
+            } else if (contactEmail && (existingEmails.has(contactEmail) || preparedEmails.has(contactEmail))) {
+              duplicateCount += 1
+            } else {
+              invalidEvidenceCount += 1
+            }
+            continue
+          }
+          const contactVerification = verifyLeadContactEvidence({
+            contactEmail,
+            emailSourceUrl,
+            websiteUrl,
+            companyName,
+            siteChecks,
+            openedSourceKeys: webEvidence.openedSourceKeys,
+            sourceKeys: webEvidence.sourceKeys,
+            requireOpenedSource: false,
+          })
+          if (!contactVerification) {
+            invalidEvidenceCount += 1
+            continue
+          }
+          const normalizedCandidate: LeadSearchResearchCandidate = {
+            ...candidate,
+            ...classifications,
+            company_name: companyName,
+            website_url: websiteUrl,
+            source_url: sourceUrl,
+            email_source_url: emailSourceUrl,
+            contact_email: contactEmail,
+            commerce_check_url: commerceCheckUrl,
+            site_checks: siteChecks,
+            verification_url: verificationUrl,
+            verified_observation: verifiedObservation,
+          }
           const qualification = assessLeadQualification(classifications)
-          if (qualification.decision === 'reject') {
+          const decision = qualification.decision
+          if (decision === 'reject') {
             rejectedCount += 1
             continue
           }
-          if (qualification.decision === 'review') {
-            reviewCount += 1
-            continue
-          }
-
-          const rawEmailSourceUrl = normalizePublicUrl(candidate.email_source_url)
-          const emailSourceUrl = rawEmailSourceUrl && sourceMatches(rawEmailSourceUrl, webEvidence.sourceKeys)
-            ? rawEmailSourceUrl
-            : null
-          const contactEmail = emailSourceUrl ? normalizeEmail(candidate.contact_email) : null
-          const contactKind = classifyContactEmail(contactEmail)
+          const hasOpenedCheck = (kind: LeadSiteCheck['kind']) => siteChecks.some((check) => (
+            check.kind === kind && sourceMatches(check.url, webEvidence.openedSourceKeys)
+          ))
+          const requiredOpenedKinds: LeadSiteCheck['kind'][] = [
+            'market',
+            'business_size',
+            'product_type',
+            'sales_audience',
+            'commerce',
+            'purchase_complexity',
+            'standard_products',
+          ]
+          const hasReadyEvidence = requiredOpenedKinds.every(hasOpenedCheck)
+            && sourceMatches(verificationUrl, webEvidence.openedSourceKeys)
+            && sourceMatches(commerceCheckUrl, webEvidence.openedSourceKeys)
+            && contactVerification.source_was_opened
           const qualificationRecord = {
             ...classifications,
             commerce_check_url: hasCommerceCheck ? commerceCheckUrl : null,
-            decision: qualification.decision,
+            decision,
             score: qualification.score,
             issues: qualification.reasons.filter((reason) => reason.severity !== 'pass').map((reason) => reason.message),
             reasons: qualification.reasons,
             site_checks: siteChecks,
+            ready_evidence_verified: hasReadyEvidence,
+            contact_verification: {
+              ...contactVerification,
+              checked_at: new Date().toISOString(),
+              prompt_version: LEAD_COPY_PROMPT_ID,
+            },
+            last_recheck: {
+              decision,
+              verification_url: verificationUrl,
+              verified_observation: verifiedObservation,
+              response_id: researchResponse.id ?? null,
+              checked_at: new Date().toISOString(),
+              prompt_version: LEAD_COPY_PROMPT_ID,
+            },
             prompt_version: LEAD_COPY_PROMPT_ID,
           }
           const fitReason = qualification.reasons.map((reason) => reason.message).join(' ')
           const evidence = textValue(candidate.evidence, 1200)
             || siteChecks.slice(0, 3).map((check) => check.finding).join(' ')
+          const candidateKey = `candidate-${preparedCandidates.length + 1}`
+          preparedCandidates.push({
+            candidateKey,
+            candidate: normalizedCandidate,
+            rowBase: {
+              search_run_id: run.id,
+              company_name: companyName,
+              website_url: websiteUrl,
+              website_domain: domain,
+              source_url: sourceUrl,
+              email_source_url: emailSourceUrl,
+              contact_email: contactEmail,
+              contact_kind: contactKind,
+              location: textValue(candidate.location, 160),
+              segment: textValue(candidate.segment, 160),
+              summary: textValue(candidate.summary, 1000),
+              fit_reason: textValue(fitReason, 1200),
+              evidence,
+              fit_score: qualification.score,
+              qualification: qualificationRecord,
+              created_by: user.id,
+              updated_by: user.id,
+            },
+            decision,
+            hasReadyEvidence,
+            priority: (hasReadyEvidence ? 1_000 : 0) + (decision === 'eligible' ? 200 : 0) + qualification.score,
+          })
+          preparedDomains.add(domain)
+          preparedEmails.add(contactEmail)
+        }
 
+        preparedCandidates.sort((left, right) => right.priority - left.priority)
+        const candidateEmails = preparedCandidates
+          .map((candidate) => normalizeEmail(candidate.rowBase.contact_email))
+          .filter((value): value is string => Boolean(value))
+        const { data: currentSuppressions, error: currentSuppressionsError } = candidateEmails.length
+          ? await admin.from('lead_suppressions').select('email').in('email', candidateEmails)
+          : { data: [], error: null }
+        if (currentSuppressionsError) throw currentSuppressionsError
+        const suppressedEmails = new Set((currentSuppressions ?? [])
+          .map((item) => normalizeEmail(item.email))
+          .filter((value): value is string => Boolean(value)))
+        const selectedCandidates: typeof preparedCandidates = []
+        for (const candidate of preparedCandidates) {
+          const candidateEmail = normalizeEmail(candidate.rowBase.contact_email)
+          if (candidateEmail && suppressedEmails.has(candidateEmail)) {
+            suppressedCount += 1
+            continue
+          }
+          selectedCandidates.push(candidate)
+          if (selectedCandidates.length >= requestedLimit) break
+        }
+
+        let draftResponseId: string | null = null
+        let draftStageDegraded = false
+        const draftsByKey = new Map<string, { subject: string; body: string }>()
+        if (selectedCandidates.length) {
+          try {
+            const draftResponse = await callOpenAI({
+              model,
+              store: false,
+              safety_identifier: safetyIdentifier,
+              reasoning: { effort: 'low' },
+              max_output_tokens: 6_000,
+              instructions: buildLeadBatchDraftPrompt({
+                senderName,
+                candidateCount: selectedCandidates.length,
+              }),
+              input: JSON.stringify({
+                candidates: selectedCandidates.map((candidate) => ({
+                  candidate_key: candidate.candidateKey,
+                  company_name: candidate.candidate.company_name,
+                  segment: candidate.candidate.segment,
+                  summary: candidate.candidate.summary,
+                  evidence: candidate.candidate.evidence,
+                  verified_observation: candidate.candidate.verified_observation,
+                })),
+              }),
+              text: {
+                verbosity: 'medium',
+                format: {
+                  type: 'json_schema',
+                  name: 'poeruum_lead_draft_batch',
+                  description: 'Kontrollitud kandidaatide isikupärased eestikeelsed kirjamustandid.',
+                  schema: leadBatchDraftSchema,
+                  strict: true,
+                },
+              },
+            }, 18_000)
+            draftResponseId = draftResponse.id ?? null
+            const parsedDrafts = JSON.parse(extractOutputText(draftResponse)) as LeadBatchDraftOutput
+            const expectedKeys = new Set(selectedCandidates.map((candidate) => candidate.candidateKey))
+            for (const draft of parsedDrafts.drafts ?? []) {
+              const candidateKey = textValue(draft.candidate_key, 80)
+              if (!expectedKeys.has(candidateKey) || draftsByKey.has(candidateKey)) continue
+              draftsByKey.set(candidateKey, {
+                subject: textValue(draft.draft_subject, 160),
+                body: finalizeGeneratedLeadDraft(draft.draft_body),
+              })
+            }
+          } catch (draftError) {
+            draftStageDegraded = true
+            await captureEdgeError('lead-outreach-search-drafts', draftError, {
+              search_run_id: run.id,
+              candidate_count: selectedCandidates.length,
+            }, 'warning')
+          }
+        }
+
+        let insertedCount = 0
+        let eligibleCount = 0
+        let reviewCount = 0
+        let newCount = 0
+        let readyCount = 0
+        let aiDraftCount = 0
+        let fallbackDraftCount = 0
+        const insertedLeads: Array<{
+          id: string
+          decision: 'eligible' | 'review'
+          status: 'new' | 'ready'
+          draftSource: 'openai' | 'deterministic_repair'
+        }> = []
+        for (const candidate of selectedCandidates) {
+          let draft = draftsByKey.get(candidate.candidateKey)
+          let assessment = draft
+            ? assessLeadSearchCandidate({
+              ...candidate.candidate,
+              draft_subject: draft.subject,
+              draft_body: draft.body,
+            })
+            : null
+          let draftSource: 'openai' | 'deterministic_repair' = 'openai'
+          if (!draft || !assessment?.draftQuality.ok) {
+            draft = buildDeterministicLeadDraft({
+              company_name: candidate.candidate.company_name,
+              verified_observation: candidate.candidate.verified_observation,
+            })
+            assessment = assessLeadSearchCandidate({
+              ...candidate.candidate,
+              draft_subject: draft.subject,
+              draft_body: draft.body,
+            })
+            draftSource = 'deterministic_repair'
+          }
+          if (!assessment.actionable) {
+            invalidEvidenceCount += 1
+            continue
+          }
+          const quality = draftQualityRecord(assessment.draftQuality)
+          const status = candidate.decision === 'eligible' && quality.passed && candidate.hasReadyEvidence
+            ? 'ready'
+            : 'new'
           const { data: lead, error: leadError } = await admin.from('sales_leads').insert({
-            search_run_id: run.id,
-            company_name: companyName,
-            website_url: websiteUrl,
-            website_domain: domain,
-            source_url: sourceUrl,
-            email_source_url: emailSourceUrl,
-            contact_email: contactEmail,
-            contact_kind: contactKind,
-            location: textValue(candidate.location, 160),
-            segment: textValue(candidate.segment, 160),
-            summary: textValue(candidate.summary, 1000),
-            fit_reason: textValue(fitReason, 1200),
-            evidence,
-            fit_score: qualification.score,
-            qualification: qualificationRecord,
-            status: 'new',
-            draft_subject: '',
-            draft_body: '',
-            created_by: user.id,
-            updated_by: user.id,
+            ...candidate.rowBase,
+            status,
+            draft_subject: draft.subject,
+            draft_body: draft.body,
+            draft_quality: quality,
+            draft_prompt_version: LEAD_COPY_PROMPT_ID,
+            draft_openai_response_id: draftResponseId,
           }).select('id').single()
-          if (leadError?.code === '23505') continue
+          if (leadError?.code === '23505') {
+            duplicateCount += 1
+            continue
+          }
           if (leadError || !lead) throw leadError || new Error('Kontakti ei salvestatud.')
           insertedCount += 1
-          eligibleCount += 1
-          insertedLeads.push({ id: lead.id, decision: qualification.decision })
+          if (candidate.decision === 'eligible') eligibleCount += 1
+          if (candidate.decision === 'review') reviewCount += 1
+          if (status === 'ready') readyCount += 1
+          if (status === 'new') newCount += 1
+          if (draftSource === 'openai') aiDraftCount += 1
+          if (draftSource === 'deterministic_repair') fallbackDraftCount += 1
+          insertedLeads.push({ id: lead.id, decision: candidate.decision, status, draftSource })
         }
 
         if (insertedLeads.length) {
@@ -338,44 +631,86 @@ Deno.serve(async (request) => {
               search_run_id: run.id,
               prompt_version: LEAD_COPY_PROMPT_ID,
               qualification: lead.decision,
+              status: lead.status,
+              draft_created: true,
+              draft_source: lead.draftSource,
+              draft_response_id: draftResponseId,
             },
           })))
-          if (eventError) throw eventError
+          if (eventError) {
+            await captureEdgeError('lead-outreach-search-events', eventError, {
+              search_run_id: run.id,
+              inserted_count: insertedLeads.length,
+            }, 'warning')
+          }
         }
 
         const foundCount = Array.isArray(parsed.candidates) ? parsed.candidates.length : 0
-        const sourceList = [...sources.values()].slice(0, 60)
+        const usedSourceKeys = new Set(selectedCandidates.flatMap((candidate) => [
+          candidate.candidate.source_url,
+          candidate.candidate.email_source_url,
+          candidate.candidate.verification_url,
+          candidate.candidate.commerce_check_url,
+          ...candidate.candidate.site_checks.map((check) => check.url),
+        ].map(sourceKey).filter((value): value is string => Boolean(value))))
+        const prioritizedSources = [...sources.entries()]
+          .sort(([leftKey], [rightKey]) => Number(usedSourceKeys.has(rightKey)) - Number(usedSourceKeys.has(leftKey)))
+          .map(([, source]) => source)
+        const sourceList = prioritizedSources.slice(0, 120)
+        const resultDetails = {
+          research_response_id: researchResponse.id ?? null,
+          draft_response_id: draftResponseId,
+          inserted_ids: insertedLeads.map((lead) => lead.id),
+          drafted_count: insertedCount,
+          ready_count: readyCount,
+          not_added_count: Math.max(0, foundCount - insertedCount),
+          duplicate_count: duplicateCount,
+          eligible_count: eligibleCount,
+          review_count: reviewCount,
+          needs_review_count: newCount,
+          rejected_count: rejectedCount,
+          suppressed_count: suppressedCount,
+          invalid_evidence_count: invalidEvidenceCount,
+          ai_draft_count: aiDraftCount,
+          fallback_draft_count: fallbackDraftCount,
+          draft_stage_degraded: draftStageDegraded,
+        }
         const { error: completeError } = await admin.from('lead_search_runs').update({
           status: 'completed',
-          openai_response_id: response.id ?? null,
+          openai_response_id: researchResponse.id ?? null,
+          draft_openai_response_id: draftResponseId,
           found_count: foundCount,
           inserted_count: insertedCount,
           source_count: sources.size,
           sources: sourceList,
+          result_details: resultDetails,
           completed_at: new Date().toISOString(),
         }).eq('id', run.id)
         if (completeError) throw completeError
 
-        return json({
-          ok: true,
-          search_run_id: run.id,
-          found_count: foundCount,
-          inserted_count: insertedCount,
-          not_added_count: Math.max(0, foundCount - insertedCount),
-          duplicate_or_rejected_count: Math.max(0, foundCount - insertedCount),
-          eligible_count: eligibleCount,
-          review_count: reviewCount,
-          rejected_count: rejectedCount,
-          source_count: sources.size,
-        })
-      } catch (error) {
-        await admin.from('lead_search_runs').update({
-          status: 'failed',
-          error_message: errorMessage(error).slice(0, 1000),
-          completed_at: new Date().toISOString(),
-        }).eq('id', run.id)
-        throw error
+        } catch (error) {
+          const message = errorMessage(error).slice(0, 1000)
+          await admin.from('lead_search_runs').update({
+            status: 'failed',
+            error_message: message,
+            result_details: { failure_stage: 'research_or_drafting' },
+            completed_at: new Date().toISOString(),
+          }).eq('id', run.id)
+          await captureEdgeError('lead-outreach-search', error, { search_run_id: run.id })
+          console.error(error)
+        }
       }
+
+      const searchTask = executeSearch()
+      const edgeRuntime = (globalThis as unknown as {
+        EdgeRuntime?: { waitUntil(promise: Promise<unknown>): void }
+      }).EdgeRuntime
+      if (edgeRuntime) {
+        edgeRuntime.waitUntil(searchTask)
+      } else {
+        await searchTask
+      }
+      return json({ ok: true, accepted: true, search_run_id: run.id }, 202)
     }
 
     const leadId = textValue(input.lead_id, 60)
@@ -414,16 +749,14 @@ Deno.serve(async (request) => {
       })
       const quality = draftQualityRecord(assessment)
       const status = contactKind === 'general_business'
-        && (
-          contactMatchesWebsite(contactEmail, lead.website_url, emailSourceUrl)
-          || storedLeadContactVerificationMatches({
-            qualification,
-            contactEmail,
-            emailSourceUrl,
-            websiteUrl: lead.website_url,
-          })
-        )
+        && storedLeadContactVerificationMatches({
+          qualification,
+          contactEmail,
+          emailSourceUrl,
+          websiteUrl: lead.website_url,
+        })
         && qualification.decision === 'eligible'
+        && qualification.ready_evidence_verified === true
         && quality.passed
         ? 'ready'
         : 'new'
@@ -536,13 +869,18 @@ Deno.serve(async (request) => {
       const verificationUrl = webEvidence.verificationUrl
       const verificationIsUsable = webEvidence.verificationIsUsable
       const verifiedObservation = textValue(draft.verified_observation, 500)
+      const observationIsVerified = verifiedObservationMatchesSiteChecks({
+        verifiedObservation,
+        verificationUrl,
+        siteChecks,
+      })
       const requiresDraftEvidence = draft.recommendation === 'send'
       const hasCompleteQualificationEvidence = hasCompleteLeadQualificationEvidence(siteChecks)
       const verificationIncomplete = !webEvidence.hasCompletedWebSearch
         || !webEvidence.sources.size
         || !siteChecks.length
         || (freshQualification.decision !== 'reject' && !hasCompleteQualificationEvidence)
-        || (requiresDraftEvidence && (!verificationIsUsable || !verifiedObservation))
+        || (requiresDraftEvidence && (!verificationIsUsable || !observationIsVerified))
 
       if (verificationIncomplete) {
         const reason = 'Veebikontroll ei saanud ettevõtte lehti usaldusväärselt kinnitada. Proovi uuesti.'
@@ -577,7 +915,7 @@ Deno.serve(async (request) => {
         && draft.blocking_signals.length === 0
         && freshQualification.decision === 'eligible'
         && verificationIsUsable
-        && Boolean(verifiedObservation)
+        && observationIsVerified
       const previousQualification = lead.qualification && typeof lead.qualification === 'object'
         ? lead.qualification as Record<string, unknown>
         : {}
@@ -607,6 +945,7 @@ Deno.serve(async (request) => {
           issues: [reason],
           reasons: freshQualification.reasons,
           site_checks: siteChecks,
+          ready_evidence_verified: false,
           last_recheck: {
             decision: recheckDecision,
             blocking_signals: draft.blocking_signals,
@@ -676,6 +1015,7 @@ Deno.serve(async (request) => {
         contactEmail: lead.contact_email,
         emailSourceUrl: lead.email_source_url,
         websiteUrl: lead.website_url,
+        companyName: lead.company_name,
         siteChecks,
         openedSourceKeys: webEvidence.openedSourceKeys,
       })
@@ -688,6 +1028,7 @@ Deno.serve(async (request) => {
         issues: [],
         reasons: freshQualification.reasons,
         site_checks: siteChecks,
+        ready_evidence_verified: Boolean(verifiedContactEvidence),
         contact_verification: verifiedContactEvidence
           ? {
             ...verifiedContactEvidence,
@@ -705,15 +1046,12 @@ Deno.serve(async (request) => {
         },
       }
       const status = lead.contact_kind === 'general_business'
-        && (
-          contactMatchesWebsite(lead.contact_email, lead.website_url, lead.email_source_url)
-          || storedLeadContactVerificationMatches({
-            qualification,
-            contactEmail: lead.contact_email,
-            emailSourceUrl: lead.email_source_url,
-            websiteUrl: lead.website_url,
-          })
-        )
+        && storedLeadContactVerificationMatches({
+          qualification,
+          contactEmail: lead.contact_email,
+          emailSourceUrl: lead.email_source_url,
+          websiteUrl: lead.website_url,
+        })
         && quality.passed
         ? 'ready'
         : 'new'
@@ -800,19 +1138,20 @@ Deno.serve(async (request) => {
       const storedQualification = lead.qualification && typeof lead.qualification === 'object'
         ? lead.qualification as Record<string, unknown>
         : {}
-      if (storedQuality.passed !== true || storedQualification.decision !== 'eligible') {
+      if (
+        storedQuality.passed !== true
+        || storedQualification.decision !== 'eligible'
+        || storedQualification.ready_evidence_verified !== true
+      ) {
         return json({ error: 'Kiri peab enne saatmist läbima värske sobivus- ja kvaliteedikontrolli.' }, 409)
       }
-      if (
-        !contactMatchesWebsite(lead.contact_email, lead.website_url, lead.email_source_url)
-        && !storedLeadContactVerificationMatches({
+      if (!storedLeadContactVerificationMatches({
           qualification: storedQualification,
           contactEmail: lead.contact_email,
           emailSourceUrl: lead.email_source_url,
           websiteUrl: lead.website_url,
-        })
-      ) {
-        return json({ error: 'Üldkontakt peab kuuluma ettevõtte domeenile või olema värskelt kinnitatud ettevõtte ametlikul kontaktilehel.' }, 409)
+        })) {
+        return json({ error: 'Üldkontakt peab olema värskelt kinnitatud ettevõtte avatud ametlikul kontaktilehel.' }, 409)
       }
       const rateLimit = await checkRateLimit(request, 'lead-outreach-send', 40, 3600, user.id)
       if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
