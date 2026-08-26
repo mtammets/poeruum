@@ -7,6 +7,8 @@ import {
 const input = {
   body: 'Tere!\n\nMärkasin, et võtate keraamika tellimusi Instagrami kaudu.\n\nKas selline lahendus võiks sinu ettevõttele sobida?',
   senderName: 'Marek',
+  emailSourceUrl: 'https://ettevote.ee/kontakt/',
+  unsubscribeUrl: 'https://poeruum.ee/loobu/?token=12345678-1234-4234-8234-123456789abc',
 }
 
 describe('lead outreach email', () => {
@@ -17,13 +19,18 @@ describe('lead outreach email', () => {
     })
     expect(text).toContain('<script>alert("x")</script>')
     expect(text.match(/Parimat/g)).toHaveLength(1)
+    expect(text).toContain('Parimat\nMarek\nPoeruum\n\n—\nAvaliku kontakti allikas:')
   })
 
-  it('ends after the personal signature without a campaign footer', () => {
+  it('appends a compact transparency footer after the personal signature', () => {
     const text = renderLeadText(input)
-    expect(text).toMatch(/Parimat\nMarek\nPoeruum · poeruum\.ee$/)
+    expect(text).toContain(`${input.body}\n\nParimat\nMarek\nPoeruum · poeruum.ee`)
+    expect(text.endsWith([
+      '—',
+      `Avaliku kontakti allikas: ${input.emailSourceUrl}`,
+      `Kirjadest saab tasuta loobuda: vasta „ei soovi” või ava ${input.unsubscribeUrl}`,
+    ].join('\n'))).toBe(true)
     expect(text).not.toContain('Poeruum on Animaator OÜ teenus.')
-    expect(text).not.toContain('vasta sellele kirjale „ei soovi”')
   })
 
   it('recognizes clear opt-out replies without treating ordinary replies as opt-outs', () => {

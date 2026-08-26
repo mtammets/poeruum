@@ -1,6 +1,8 @@
 export type LeadEmailInput = {
   body: string
   senderName: string
+  emailSourceUrl: string
+  unsubscribeUrl: string
 }
 
 const hasPersonalSignature = (body: string, senderName: string) => {
@@ -20,9 +22,16 @@ const signatureText = (input: LeadEmailInput) => {
   return `Parimat\n${input.senderName}\nPoeruum · poeruum.ee`
 }
 
+const transparencyText = (input: LeadEmailInput) => [
+  '—',
+  `Avaliku kontakti allikas: ${input.emailSourceUrl.trim()}`,
+  `Kirjadest saab tasuta loobuda: vasta „ei soovi” või ava ${input.unsubscribeUrl.trim()}`,
+].join('\n')
+
 export const renderLeadText = (input: LeadEmailInput) => [
   input.body.trim(),
   signatureText(input),
+  transparencyText(input),
 ].filter(Boolean).join('\n\n').trim()
 
 export const isLeadOptOutReply = (value: unknown) => {

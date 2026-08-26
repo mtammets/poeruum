@@ -3,8 +3,6 @@ import {
   classifyContactEmail,
   contactMatchesWebsite,
   finalizeGeneratedLeadDraft,
-  leadClosingQuestion,
-  leadPricingSentence,
   normalizeEmail,
   normalizePublicUrl,
   sourceKey,
@@ -45,20 +43,18 @@ describe('lead outreach public data safeguards', () => {
     expect(contactMatchesWebsite('info@ettevote.ee', 'https://ettevote.ee', 'https://kataloog.ee/ettevote')).toBe(false)
   })
 
-  it('adds the truthful pricing sentence and selected closing to every generated draft', () => {
+  it('preserves a model-selected natural closing instead of injecting fixed boilerplate', () => {
     const draft = finalizeGeneratedLeadDraft(
-      'Tere!\n\nNägin, et võtate tellimusi Instagramis.\n\nKas soovid rohkem infot?',
+      'Tere!\r\n\r\nTeie käsitsi glasuuritud kruusid jäid silma.\r\n\r\nKas soovite näidispoe linki?',
     )
-    expect(draft).toContain(`\n\n${leadPricingSentence}\n\n`)
-    expect(draft).toMatch(new RegExp(`${leadClosingQuestion.replace('?', '\\?')}$`))
-    expect(draft).not.toContain('Kas soovid rohkem infot?')
+    expect(draft).toBe('Tere!\n\nTeie käsitsi glasuuritud kruusid jäid silma.\n\nKas soovite näidispoe linki?')
+    expect(draft).not.toContain('Kas selline lahendus võiks')
   })
 
-  it('does not duplicate mandatory generated-draft paragraphs', () => {
+  it('normalizes excessive whitespace without rewriting the generated message', () => {
     const draft = finalizeGeneratedLeadDraft(
-      `Tere!\n\n${leadPricingSentence}\n\n${leadClosingQuestion}`,
+      '  Tere!  \n\n\n  Üks konkreetne tähelepanek.  \n\n  Kas teema on praegu ajakohane?  ',
     )
-    expect(draft.match(/Paindlikul paketil kuutasu ei ole/g)).toHaveLength(1)
-    expect(draft.match(/Kas selline lahendus võiks/g)).toHaveLength(1)
+    expect(draft).toBe('Tere!\n\nÜks konkreetne tähelepanek.\n\nKas teema on praegu ajakohane?')
   })
 })
