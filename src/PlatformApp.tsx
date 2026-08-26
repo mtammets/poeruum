@@ -621,7 +621,7 @@ function PlatformFlow() {
     // before the return intent is consumed. Draft stores use the dedicated
     // payments screen and can complete the intent immediately.
     if (!target.initialSettingsSection) {
-      clearStripeRequirementsLink('Ettevõtte andmete kinnitamine on avatud maksete vaates.')
+      clearStripeRequirementsLink()
     }
   }
 
@@ -1335,7 +1335,7 @@ function PlatformFlow() {
   </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink('Ettevõtte andmete kinnitamine on avatud maksete vaates.') }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
     {stripeEmbeddedOverlay}
   </>
 
