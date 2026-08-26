@@ -3,23 +3,6 @@ import { requireSupabase } from './lib/supabase'
 
 type LeadStatus = 'new' | 'ready' | 'sending' | 'sent' | 'replied' | 'unsubscribed' | 'bounced' | 'complained' | 'archived'
 
-type LeadQualification = {
-  decision?: 'eligible' | 'review' | 'reject'
-  commerce_status?: string
-  purchase_complexity?: string
-  issues?: string[]
-  last_recheck?: {
-    verification_url?: string | null
-    verified_observation?: string
-  }
-}
-
-type LeadDraftQuality = {
-  passed?: boolean
-  score?: number
-  issues?: string[]
-}
-
 type SalesLead = {
   id: string
   company_name: string
@@ -34,11 +17,9 @@ type SalesLead = {
   fit_reason: string
   evidence: string
   fit_score: number
-  qualification: LeadQualification
   status: LeadStatus
   draft_subject: string
   draft_body: string
-  draft_quality: LeadDraftQuality
   delivery_status: 'sent' | 'delivered' | 'failed' | 'bounced' | 'complained' | null
   sent_at: string | null
   replied_at: string | null
@@ -97,19 +78,18 @@ export default function AdminLeads() {
   const [filter, setFilter] = useState<LeadFilter>('active')
   const [search, setSearch] = useState('')
   const [researchQuery, setResearchQuery] = useState(defaultQuery)
-  const [researchLimit, setResearchLimit] = useState(4)
+  const [researchLimit, setResearchLimit] = useState(8)
   const [loading, setLoading] = useState(true)
   const [busyAction, setBusyAction] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [draftFeedback, setDraftFeedback] = useState('')
 
   const loadLeads = useCallback(async (preferredId?: string | null) => {
     setLoading(true)
     setError('')
     try {
       const { data, error: loadError } = await requireSupabase().from('sales_leads')
-        .select('id,company_name,website_url,source_url,email_source_url,contact_email,contact_kind,location,segment,summary,fit_reason,evidence,fit_score,qualification,status,draft_subject,draft_body,draft_quality,delivery_status,sent_at,replied_at,created_at,updated_at')
+        .select('id,company_name,website_url,source_url,email_source_url,contact_email,contact_kind,location,segment,summary,fit_reason,evidence,fit_score,status,draft_subject,draft_body,delivery_status,sent_at,replied_at,created_at,updated_at')
         .order('created_at', { ascending: false })
         .limit(250)
       if (loadError) throw loadError
@@ -180,10 +160,8 @@ export default function AdminLeads() {
     try {
       const result = await invoke('search', { query: researchQuery, limit: researchLimit })
       const inserted = Number(result.inserted_count ?? 0)
-      const eligible = Number(result.eligible_count ?? 0)
-      const review = Number(result.review_count ?? 0)
       const rejected = Number(result.duplicate_or_rejected_count ?? 0)
-      setNotice(`Lisatud ${inserted} kandidaati: ${eligible} kontrollitud sobivat ja ${review} käsikontrolli vajavat${rejected ? `; ${rejected} duplikaati või välistatud tulemust ei lisatud` : ''}.`)
+      setNotice(`OpenAI lisas ${inserted} uut kandidaati${rejected ? `; ${rejected} duplikaati või ebapiisava tõendiga tulemust jäeti välja` : ''}.`)
       await loadLeads(null)
     } catch (researchError) {
       setError(getErrorMessage(researchError))
@@ -195,10 +173,8 @@ export default function AdminLeads() {
     try {
       const result = await invoke('save', { lead_id: selected.id, ...draft })
       setNotice(result.status === 'ready'
-        ? 'Kontakt ja kvaliteedikontrolli läbinud kiri on saatmiseks valmis.'
-        : Array.isArray((result.quality as LeadDraftQuality | undefined)?.issues) && (result.quality as LeadDraftQuality).issues?.length
-          ? `Kiri salvestati, kuid vajab parandamist: ${(result.quality as LeadDraftQuality).issues?.join(' ')}`
-          : 'Kontakt on salvestatud, kuid saatmiseks on vaja kontrollitud üldkontakti ja kvaliteedikontrolli läbinud kirja.')
+        ? 'Kontakt ja kiri on salvestatud ning saatmiseks valmis.'
+        : 'Kontakt on salvestatud, kuid saatmiseks on vaja ettevõtte üldkontakti, selle avalikku allikat ning valmis kirja.')
       await loadLeads(selected.id)
     } catch (saveError) {
       setError(getErrorMessage(saveError))
@@ -208,16 +184,8 @@ export default function AdminLeads() {
   const regenerateDraft = async () => {
     if (!selected) return
     try {
-      const result = await invoke('draft', { lead_id: selected.id, feedback: draftFeedback })
-      if (result.excluded) {
-        setNotice(`OpenAI värske veebikontroll ei soovita sellele ettevõttele kirjutada: ${String(result.reason || 'ettevõte ei vasta Poeruumi sihtrühmale')}`)
-      } else if ((result.quality as LeadDraftQuality | undefined)?.passed === false) {
-        const issues = (result.quality as LeadDraftQuality).issues?.join(' ') || 'Mustand vajab käsitsi kontrolli.'
-        setNotice(`OpenAI koostas mustandi, kuid kvaliteedivärav jättis selle kontrolli: ${issues}`)
-      } else {
-        setNotice('OpenAI kontrollis ettevõtet uuesti ja koostas kvaliteedivärava läbinud kirja. Vaata see enne saatmist üle.')
-      }
-      setDraftFeedback('')
+      await invoke('draft', { lead_id: selected.id })
+      setNotice('OpenAI koostas uue kirjamustandi. Vaata see enne saatmist üle.')
       await loadLeads(selected.id)
     } catch (draftError) {
       setError(getErrorMessage(draftError))
@@ -259,7 +227,6 @@ export default function AdminLeads() {
     setDraft(toDraft(lead))
     setError('')
     setNotice('')
-    setDraftFeedback('')
   }
 
   return <section className="admin-leads">
@@ -267,14 +234,14 @@ export default function AdminLeads() {
       <div>
         <span>AVALIKU VEEBI UURING</span>
         <h2>Leia Poeruumile sobivad ettevõtted</h2>
-        <p>OpenAI kontrollib esmalt tooteid, olemasolevat ostukorvi ja tellimisteekonda. Kirja koostad pärast kandidaadi allikate ülevaatamist.</p>
+        <p>OpenAI otsib avalikest allikatest, kontrollib sobivust ja koostab mustandi. Ühtegi kirja ei saadeta automaatselt.</p>
       </div>
       <label>
         <span>Milliseid ettevõtteid otsida?</span>
         <textarea rows={3} maxLength={1000} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
       </label>
       <div className="admin-leads__research-actions">
-        <label><span>Tulemusi</span><select value={researchLimit} onChange={(event) => setResearchLimit(Number(event.target.value))}>{[2, 4].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
+        <label><span>Tulemusi</span><select value={researchLimit} onChange={(event) => setResearchLimit(Number(event.target.value))}>{[4, 6, 8].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
         <button type="button" onClick={() => void runResearch()} disabled={Boolean(busyAction) || researchQuery.trim().length < 10}>
           {busyAction === 'search' ? 'OpenAI otsib…' : 'Otsi uusi kliente'}
         </button>
@@ -322,13 +289,9 @@ export default function AdminLeads() {
           <div className="admin-leads__evidence">
             <div><span>Miks sobib</span><p>{selected.fit_reason || 'Põhjendus puudub.'}</p></div>
             <div><span>Avalik tõend</span><p>{selected.evidence || 'Tõend puudub.'}</p></div>
-            {selected.qualification?.last_recheck?.verified_observation && <div><span>Kirja värske tähelepanek</span><p>{selected.qualification.last_recheck.verified_observation}</p></div>}
-            {selected.qualification?.decision === 'review' && <div className="admin-leads__qualification"><span>Vajab sobivuse kontrolli</span><p>{selected.qualification.issues?.join(' ') || 'Veebiallikad ei andnud sobivuse kohta ühest vastust.'}</p></div>}
-            {selected.qualification?.decision === 'reject' && <div className="admin-leads__qualification is-reject"><span>Värske kontroll välistas kontakti</span><p>{selected.qualification.issues?.join(' ') || 'Ettevõte ei vasta praegu Poeruumi sihtrühmale.'}</p></div>}
             <nav>
               <a href={selected.website_url} target="_blank" rel="noreferrer">Veebileht ↗</a>
               <a href={selected.source_url} target="_blank" rel="noreferrer">Sobivuse allikas ↗</a>
-              {selected.qualification?.last_recheck?.verification_url && <a href={selected.qualification.last_recheck.verification_url} target="_blank" rel="noreferrer">Kirja faktiallikas ↗</a>}
               {selected.email_source_url && <a href={selected.email_source_url} target="_blank" rel="noreferrer">Kontakti allikas ↗</a>}
             </nav>
           </div>
@@ -341,12 +304,10 @@ export default function AdminLeads() {
             <label><span>Leht, kus üldkontakt on avalik</span><input type="url" placeholder="https://ettevote.ee/kontakt" value={draft.email_source_url ?? ''} onChange={(event) => setDraft({ ...draft, email_source_url: event.target.value || null })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
             <label><span>Kirja teema</span><input maxLength={160} value={draft.draft_subject} onChange={(event) => setDraft({ ...draft, draft_subject: event.target.value })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
             <label><span>Kirja sisu</span><textarea rows={9} maxLength={5000} value={draft.draft_body} onChange={(event) => setDraft({ ...draft, draft_body: event.target.value })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
-            {selected.draft_quality?.passed === false && Boolean(selected.draft_quality.issues?.length) && <div className="admin-leads__quality" role="status"><strong>Mustand vajab parandamist</strong><span>{selected.draft_quality.issues?.join(' ')}</span></div>}
-            {['new', 'ready'].includes(selected.status) && <label><span>Soov OpenAI-le järgmise variandi jaoks</span><textarea rows={2} maxLength={500} value={draftFeedback} onChange={(event) => setDraftFeedback(event.target.value)} placeholder="Soovi korral: vähem ametlik, rõhuta telefonist haldamist…" /></label>}
-            <small className="admin-leads__policy">Saata saab ainult kontrollitud avalikule üldpostkastile. Süsteem kontrollib mustandi konkreetsust, tooni ja faktipiire ning lisab allkirja, kontakti allika ja loobumisvõimaluse.</small>
+            <small className="admin-leads__policy">Saata saab ainult ettevõtte veebidomeeniga seotud avalikule üldpostkastile. Süsteem lisab saatja allkirja ja kiri saadetakse alles pärast sinu kinnitust.</small>
             <div className="admin-leads__buttons">
               {['new', 'ready', 'archived'].includes(selected.status) && <button type="submit" disabled={Boolean(busyAction)}>{busyAction === 'save' ? 'Salvestan…' : 'Salvesta'}</button>}
-              {['new', 'ready'].includes(selected.status) && <button type="button" className="is-secondary" onClick={() => void regenerateDraft()} disabled={Boolean(busyAction)}>{busyAction === 'draft' ? 'Kontrollin ja koostan…' : draft.draft_body.trim() ? 'Koosta parem variant' : 'Kontrolli ja koosta kiri'}</button>}
+              {['new', 'ready'].includes(selected.status) && <button type="button" className="is-secondary" onClick={() => void regenerateDraft()} disabled={Boolean(busyAction)}>{busyAction === 'draft' ? 'Koostan…' : 'Koosta kiri uuesti'}</button>}
               {selected.status === 'ready' && <button type="button" className="is-send" onClick={() => void sendLead()} disabled={Boolean(busyAction)}>{busyAction === 'send' ? 'Saadan…' : 'Kinnita ja saada'}</button>}
               {['new', 'ready'].includes(selected.status) && <button type="button" className="is-quiet" onClick={() => void simpleAction('archive')} disabled={Boolean(busyAction)}>Arhiveeri</button>}
               {selected.contact_email && !['unsubscribed', 'bounced', 'complained'].includes(selected.status) && <button type="button" className="is-danger" onClick={() => void simpleAction('suppress')} disabled={Boolean(busyAction)}>Ära enam kontakteeru</button>}

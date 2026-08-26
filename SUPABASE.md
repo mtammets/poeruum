@@ -76,9 +76,7 @@ Kui Supabase, Resend ja nende webhook on juba seadistatud, lisa lokaalsesse `.en
 OPENAI_API_KEY=sk-...
 ```
 
-Valikulised seaded on `OPENAI_LEAD_MODEL` (vaikimisi parimale kirjakvaliteedile suunatud `gpt-5.6-sol`), `OUTREACH_SENDER_NAME`, `OUTREACH_FROM_EMAIL`, `OUTREACH_REPLY_TO` ja `OUTREACH_DAILY_SEND_LIMIT` (vaikimisi 20). Kiirema ja soodsama, kuid veidi ebaühtlasema tulemuse jaoks võib mudeli teadlikult vahetada. Vaikimisi kuvatakse saatjana `Marek Tammets | Poeruum`; saatja domeen peab olema Resendis kinnitatud. Funktsioon kasutab ka olemasolevaid `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `APP_URL`, `RATE_LIMIT_SALT`, `POERUUM_SUPABASE_PUBLISHABLE_KEY` ja `POERUUM_SUPABASE_SECRET_KEY` väärtusi.
-
-Kliendiotsing ja kirja koostamine on kaks eraldi etappi. Otsing kontrollib kuni nelja kandidaadi puhul vähemalt toote- ja tellimisvoo allikaid ning ei koosta veel kirja. Olemasolev ostukorv või kassa, teenuseäri, suur kett või täielikult eritellimusel hinnapäringuvoog välistab kandidaadi; ebakindel tulemus jääb administraatorile kontrollimiseks. Valitud kandidaadi kirja koostamisel tehakse värske veebikontroll, seejärel rakendatakse serveripoolset tooni-, konkreetsuse- ja faktipiiride kvaliteediväravat. Ainult kontrolli läbinud mustand saab oleku „Saatmiseks valmis”.
+Valikulised seaded on `OPENAI_LEAD_MODEL` (vaikimisi tasakaalustatud ja kiire `gpt-5.6-terra`), `OUTREACH_SENDER_NAME`, `OUTREACH_FROM_EMAIL`, `OUTREACH_REPLY_TO` ja `OUTREACH_DAILY_SEND_LIMIT` (vaikimisi 20). Vaikimisi kuvatakse saatjana `Marek Tammets | Poeruum`; saatja domeen peab olema Resendis kinnitatud. Funktsioon kasutab ka olemasolevaid `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `APP_URL`, `RATE_LIMIT_SALT`, `POERUUM_SUPABASE_PUBLISHABLE_KEY` ja `POERUUM_SUPABASE_SECRET_KEY` väärtusi.
 
 Pärast võtme lisamist teeb üks käsk kõik ülejäänu: sünkroonib kliendiotsingu seaded Supabase Edge Functionite secret’ideks, rakendab migratsioonid ning paigaldab kliendiotsingu, loobumise, Resendi webhooki ja säilitustähtaja funktsioonid.
 
