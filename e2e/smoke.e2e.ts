@@ -240,6 +240,7 @@ test('a merchant can open Stripe remediation from Poeruum settings', async ({ pa
 
   await page.getByRole('button', { name: 'Kinnita ettevõtte andmed' }).click()
   await expect.poll(() => page.evaluate(() => window.__stripeConnectCalls)).toBe(1)
+  await expect.poll(() => page.evaluate(() => window.__stripeConnectPurpose)).toBe('requirements')
 })
 
 test('a Stripe requirements email target opens merchant payment settings directly', async ({ page }) => {

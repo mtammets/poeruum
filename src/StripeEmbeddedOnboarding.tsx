@@ -6,13 +6,16 @@ import {
   ConnectComponentsProvider,
   ConnectNotificationBanner,
 } from '@stripe/react-connect-js'
+import { BrandMark } from './Brand'
 import { invokeStripeConnect } from './lib/database'
 
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
 const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
 
+export type StripeEmbeddedMode = 'onboarding' | 'management' | 'remediation'
+
 export type StripeEmbeddedOnboardingProps = {
-  mode?: 'onboarding' | 'management'
+  mode?: StripeEmbeddedMode
   onExit: () => Promise<void>
   onClose: () => Promise<void>
   onError: (message: string) => void
@@ -26,6 +29,13 @@ export default function StripeEmbeddedOnboarding({
   onError,
   onNotificationsChange,
 }: StripeEmbeddedOnboardingProps) {
+  const isManagement = mode === 'management'
+  const isRemediation = mode === 'remediation'
+  const title = isRemediation ? 'Ettevõtte andmete kinnitamine' : isManagement ? 'Stripe’i andmed' : 'Stripe’i konto seadistamine'
+  const subtitle = isRemediation ? 'Turvaline Stripe’i vorm Poeruumi sees' : isManagement ? 'Ettevõtte andmed ja kontrollid' : 'Maksete vastuvõtt'
+  const onboardingCollectionOptions = isRemediation
+    ? { fields: 'currently_due' as const, futureRequirements: 'include' as const }
+    : { fields: 'eventually_due' as const, futureRequirements: 'include' as const }
   const [loadPhase, setLoadPhase] = useState<'connecting' | 'loading' | 'ready' | 'error'>('connecting')
   const [isClosing, setIsClosing] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
@@ -119,7 +129,7 @@ export default function StripeEmbeddedOnboarding({
 
   const handleLoaderStart = () => {
     setLoadPhase('loading')
-    if (mode === 'management') {
+    if (isManagement) {
       window.requestAnimationFrame(() => setLoadPhase('ready'))
     }
   }
@@ -130,12 +140,12 @@ export default function StripeEmbeddedOnboarding({
   }
 
   if (!connectInstance) return null
-  return <section className="stripe-embedded" aria-label={mode === 'management' ? 'Stripe’i andmed' : 'Stripe’i konto seadistamine'}>
-    <header><div><i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>{mode === 'management' ? 'Stripe’i andmed' : 'Stripe’i konto seadistamine'}</strong><small>{mode === 'management' ? 'Ettevõtte andmed ja kontrollid' : 'Maksete vastuvõtt'}{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
+  return <section className={`stripe-embedded is-${mode}`} aria-label={title}>
+    <header><div>{isRemediation ? <BrandMark className="stripe-embedded__poeruum-mark" /> : <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i>}<span><strong>{title}</strong><small>{subtitle}{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
     <div className={`stripe-embedded__component is-${loadPhase}${isCompleting ? ' is-completing' : ''}`}>
       {isCompleting && <div className="stripe-completing" role="status" aria-live="polite">
         <span aria-hidden="true" />
-        <h2>Kontrollime maksete valmisolekut</h2>
+        <h2>{isRemediation ? 'Kontrollime esitatud andmeid' : 'Kontrollime maksete valmisolekut'}</h2>
         <p>Stripe salvestas andmed. Hetk palun…</p>
       </div>}
       {loadPhase !== 'ready' && <div className={`stripe-preparing${loadPhase === 'error' ? ' is-error' : ''}`} aria-live="polite">
@@ -146,12 +156,16 @@ export default function StripeEmbeddedOnboarding({
           <button type="button" onClick={retryStripeForm}>Proovi uuesti</button>
         </> : <>
           <span className="stripe-preparing__loader" aria-hidden="true"><i /></span>
-          <h2>{loadPhase === 'connecting' ? 'Ühendame Stripe’iga' : 'Avame Stripe’i vormi'}</h2>
+          <h2>{loadPhase === 'connecting' ? 'Ühendame turvaliselt Stripe’iga' : isRemediation ? 'Avame ettevõtte andmete vormi' : 'Avame Stripe’i vormi'}</h2>
           <p>Hetk palun…</p>
         </>}
       </div>}
+      {isRemediation && <div className="stripe-remediation-intro" role="note">
+        <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8 7 10 4.2-2 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg></span>
+        <div><strong>Üks selge ja turvaline kinnitus</strong><p>Vorm avaneb siin Poeruumis. Stripe’i eraldi sisselogimisakent ei avata ja väljamaksekontot selles vormis muuta ei saa.</p></div>
+      </div>}
       <ConnectComponentsProvider connectInstance={connectInstance}>
-        {mode === 'management' ? <div className="stripe-embedded__management" key={renderAttempt}>
+        {isManagement ? <div className="stripe-embedded__management" key={renderAttempt}>
           <ConnectNotificationBanner
             collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
             onNotificationsChange={({ actionRequired }) => onNotificationsChange?.(actionRequired)}
@@ -165,7 +179,7 @@ export default function StripeEmbeddedOnboarding({
           />
         </div> : <ConnectAccountOnboarding
           key={renderAttempt}
-          collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }}
+          collectionOptions={onboardingCollectionOptions}
           onExit={() => void completeStripeForm()}
           onLoaderStart={handleLoaderStart}
           onStepChange={() => {

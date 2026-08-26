@@ -7,6 +7,12 @@ import {
   stripeRequirementStoreUpdate,
   summarizeStripeRequirements,
 } from '../_shared/stripe-connect-requirements.ts'
+import {
+  canCreateStripeConnectAccount,
+  getStripeConnectSessionComponents,
+  parseStripeConnectSessionMode,
+  resolveStripeConnectSessionMode,
+} from '../_shared/stripe-connect-session.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,6 +35,14 @@ const stripeAccountStatus = (account: Stripe.Account) => account.charges_enabled
 const isPoeruumManagedAccount = (account: Stripe.Account) =>
   account.controller?.requirement_collection === 'application'
   && account.controller?.stripe_dashboard?.type === 'none'
+
+const remediationUnavailable = () => json({
+  error: 'Ettevõtte andmete kinnitamise vormi ei saa avada, sest Poeruumiga ühendatud Stripe’i kontot ei leitud. Palun võta ühendust Poeruumi toega.',
+}, 409)
+
+const storedAccountUnavailable = () => json({
+  error: 'Stripe’i kontot ei saa turvaliselt avada. Poeruum ei muutnud konto ühendust. Palun võta ühendust Poeruumi toega.',
+}, 409)
 
 type PoeruumStore = {
   id: string
@@ -120,10 +134,11 @@ Deno.serve(async (request) => {
 
     const body = await request.json().catch(() => ({})) as {
       action?: string
-      mode?: 'onboarding' | 'management'
+      mode?: 'onboarding' | 'management' | 'remediation'
     }
-    const requestedMode = body.mode === 'management' ? 'management' : 'onboarding'
+    const requestedMode = parseStripeConnectSessionMode(body.mode)
     let accountId = typeof store.stripe_account_id === 'string' ? store.stripe_account_id : null
+    const hasStoredAccountId = Boolean(accountId)
     let hasExistingManagedAccount = false
     if (accountId) assertStoredStripeMode(store.stripe_account_mode, stripeMode, 'Poe Stripe’i konto')
 
@@ -156,19 +171,27 @@ Deno.serve(async (request) => {
 
     if (body.action !== 'start') return json({ error: 'Tundmatu tegevus.' }, 400)
 
+    // A compliance link may only continue an existing Poeruum-managed account.
+    // Never create or replace a payout account from an emailed remediation link.
+    if (!accountId && !canCreateStripeConnectAccount(hasStoredAccountId, requestedMode)) {
+      return requestedMode === 'remediation' ? remediationUnavailable() : storedAccountUnavailable()
+    }
+
     if (accountId) {
-      const retrievedAccount = await stripe.accounts.retrieve(accountId)
-      const existingAccountDeleted = 'deleted' in retrievedAccount && retrievedAccount.deleted
-      if (existingAccountDeleted) {
-        accountId = null
-      } else if (!isPoeruumManagedAccount(retrievedAccount)) {
-        // Standard/Full Dashboard accounts always require a Stripe-hosted login.
-        // Keep the old test account intact in Stripe, but replace its Poeruum link
-        // with an account whose entire onboarding can run inside Poeruum.
-        accountId = null
-      } else {
-        hasExistingManagedAccount = true
+      let retrievedAccount: Stripe.Account | Stripe.DeletedAccount
+      try {
+        retrievedAccount = await stripe.accounts.retrieve(accountId)
+      } catch (error) {
+        if ((error as { code?: unknown })?.code === 'resource_missing') return storedAccountUnavailable()
+        throw error
       }
+      const existingAccountDeleted = 'deleted' in retrievedAccount && retrievedAccount.deleted
+      if (existingAccountDeleted || !isPoeruumManagedAccount(retrievedAccount)) {
+        // Account replacement is a separate recovery decision. Never orphan a
+        // stored payout account merely because a form was opened.
+        return requestedMode === 'remediation' ? remediationUnavailable() : storedAccountUnavailable()
+      }
+      hasExistingManagedAccount = true
     }
 
     if (!accountId) {
@@ -184,36 +207,8 @@ Deno.serve(async (request) => {
       if (error) throw error
     }
 
-    // A returning connected account always uses the authenticated management
-    // surface. This prevents a client from requesting the less restrictive
-    // first-time onboarding session for an established payout account.
-    const sessionMode = hasExistingManagedAccount ? 'management' : requestedMode
-    const components: Stripe.AccountSessionCreateParams.Components = sessionMode === 'management'
-      ? {
-          account_management: {
-            enabled: true,
-            features: {
-              external_account_collection: true,
-              disable_stripe_user_authentication: false,
-            },
-          },
-          notification_banner: {
-            enabled: true,
-            features: {
-              external_account_collection: true,
-              disable_stripe_user_authentication: false,
-            },
-          },
-        }
-      : {
-          account_onboarding: {
-            enabled: true,
-            features: {
-              external_account_collection: true,
-              disable_stripe_user_authentication: true,
-            },
-          },
-        }
+    const sessionMode = resolveStripeConnectSessionMode(hasExistingManagedAccount, requestedMode)
+    const components: Stripe.AccountSessionCreateParams.Components = getStripeConnectSessionComponents(sessionMode)
 
     const accountSession = await stripe.accountSessions.create({
       account: accountId,

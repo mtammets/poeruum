@@ -207,7 +207,7 @@ export async function setStorePublication(storeId: string, published: boolean) {
 
 export async function invokeStripeConnect(
   action: 'start' | 'status',
-  mode?: 'onboarding' | 'management',
+  mode?: 'onboarding' | 'management' | 'remediation',
 ) {
   const { data, error } = await requireSupabase().functions.invoke('stripe-connect', {
     body: { action, ...(action === 'start' && mode ? { mode } : {}) },

@@ -379,6 +379,8 @@ button, a, summary { touch-action: manipulation; }
 .stripe-embedded > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem; border-bottom: 1px solid #e7eae5; background: #fbfcfa; }
 .stripe-embedded > header > div { display: flex; align-items: center; gap: .7rem; min-width: 0; }
 .stripe-embedded > header .provider-logo { display: grid; flex: 0 0 auto; width: 4rem; height: 2.5rem; place-items: center; border: 1px solid #e3e4df; border-radius: .65rem; background: #fff; }
+.stripe-embedded > header .stripe-embedded__poeruum-mark { width: 2.5rem; height: 2.5rem; }
+.stripe-embedded.is-remediation > header { background: #f6f9f4; }
 .stripe-embedded > header > div > span { display: grid; gap: .08rem; min-width: 0; }
 .stripe-embedded > header strong { color: var(--platform-ink); font-size: .82rem; line-height: 1.25; }
 .stripe-embedded > header small { color: #788179; font-size: .62rem; line-height: 1.35; }
@@ -395,6 +397,12 @@ button, a, summary { touch-action: manipulation; }
 .stripe-embedded stripe-connect-account-onboarding { display: block; box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
 .stripe-embedded__management { display: grid; gap: .8rem; min-width: 0; }
 .stripe-embedded__management > [data-stripe-connect-js-wrapper] { box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
+.stripe-remediation-intro { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .7rem; margin-bottom: .8rem; padding: .8rem; border: 1px solid #dbe6dc; border-radius: .8rem; background: #f5f9f3; color: var(--platform-ink); }
+.stripe-remediation-intro > span { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: 50%; background: var(--platform-green); color: #fff; }
+.stripe-remediation-intro svg { width: 1.05rem; height: 1.05rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.stripe-remediation-intro > div { display: grid; gap: .18rem; min-width: 0; }
+.stripe-remediation-intro strong { font-size: .76rem; line-height: 1.35; }
+.stripe-remediation-intro p { margin: 0; color: #66736b; font-size: .66rem; line-height: 1.5; }
 .stripe-preparing { position: absolute; z-index: 3; inset: 0; display: grid; align-content: center; justify-items: center; padding: 2.2rem 1.5rem; background: linear-gradient(180deg, #fff 0%, #fbfcfa 100%); color: var(--platform-ink); text-align: center; }
 .stripe-preparing__loader { position: relative; display: block; width: 2.8rem; height: 2.8rem; margin-bottom: 1.25rem; border: 2px solid #dce4da; border-top-color: var(--platform-green); border-radius: 50%; animation: stripe-loader-spin 1.15s linear infinite; }
 .stripe-preparing__loader > i { position: absolute; top: -.2rem; right: -.2rem; width: .58rem; height: .58rem; border-radius: 50%; background: var(--platform-lime); box-shadow: 0 0 0 .24rem #e5f25a30; }

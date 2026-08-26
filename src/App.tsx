@@ -225,7 +225,7 @@ export type StorefrontProps = {
   billingInvoiceUrl?: string | null
   billingDowngradedAt?: string | null
   initialProductSlug?: string | null
-  onConnectPaymentProvider?: (provider: PaymentProvider) => void
+  onConnectPaymentProvider?: (provider: PaymentProvider, purpose?: 'requirements' | 'management') => void
   onStoreChange?: (store: StoreRecord) => void
   onAccountDeleted?: () => void
   ownerEmail?: string
@@ -2965,7 +2965,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <span aria-hidden="true">✓</span>
               <div><strong>Ettevõtte andmeid kontrollitakse</strong><p>Stripe on Poeruumi maksepartner. Andmed on saadetud ja praegu ei pea sa midagi tegema.</p></div>
             </div>}
-            {activePaymentProvider === 'stripe' && <button className={`settings-secondary-action${stripeActionRequired ? ' is-warning' : ''}`} type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
+            {activePaymentProvider === 'stripe' && <button className={`settings-secondary-action${stripeActionRequired ? ' is-warning' : ''}`} type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', stripeActionRequired ? 'requirements' : 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
               <span>{stripeManagementLabel}</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>}

@@ -6,6 +6,7 @@ declare global {
   interface Window {
     __updateSettingsHarness?: (settings: Record<string, unknown>) => void
     __stripeConnectCalls?: number
+    __stripeConnectPurpose?: 'requirements' | 'management'
     __openLateStripeRequirementsSettings?: () => void
   }
 }
@@ -37,6 +38,7 @@ export function mountSettingsHarness() {
 
 export function mountStripeRequirementsHarness() {
   window.__stripeConnectCalls = 0
+  window.__stripeConnectPurpose = undefined
   const root = document.createElement('div')
   root.id = 'stripe-requirements-harness'
   document.body.replaceChildren(root)
@@ -56,8 +58,9 @@ export function mountStripeRequirementsHarness() {
       pendingVerification: false,
       disabledReason: null,
     },
-    onConnectPaymentProvider: () => {
+    onConnectPaymentProvider: (_provider, purpose) => {
       window.__stripeConnectCalls = (window.__stripeConnectCalls ?? 0) + 1
+      window.__stripeConnectPurpose = purpose
     },
   }))
 }

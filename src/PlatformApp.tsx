@@ -10,7 +10,7 @@ import { isHomepageAnalyticsLocation, startHomepageEngagementTracking, trackHome
 import { products as bundledProducts, type Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { createRandomId } from './lib/randomId'
-import { stripeRequirementsFromStore, type StripeRequirementSummary } from './lib/stripeRequirements'
+import { stripeRequirementsFromStore, stripeRequirementsNeedAction, type StripeRequirementSummary } from './lib/stripeRequirements'
 import { getStripeRequirementsLinkIntent, getStripeRequirementsStoreTarget, removeStripeRequirementsLinkParam, type StripeRequirementsLinkIntent } from './lib/stripeRequirementsLink'
 import {
   DEFAULT_RETURNS_TEXT,
@@ -215,7 +215,7 @@ function PlatformFlow() {
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'connected' | 'pending'>('idle')
   const [isStripeConnecting, setIsStripeConnecting] = useState(false)
   const [isStripeOnboardingOpen, setIsStripeOnboardingOpen] = useState(false)
-  const [stripeEmbeddedMode, setStripeEmbeddedMode] = useState<'onboarding' | 'management'>('onboarding')
+  const [stripeEmbeddedMode, setStripeEmbeddedMode] = useState<'onboarding' | 'management' | 'remediation'>('onboarding')
   const [stripeRequirements, setStripeRequirements] = useState<StripeRequirementSummary | null>(null)
   const [stripeRequirementsLinkIntent, setStripeRequirementsLinkIntent] = useState<StripeRequirementsLinkIntent>(() =>
     shouldLoadPublicStore ? 'none' : getStripeRequirementsLinkIntent(window.location))
@@ -613,8 +613,8 @@ function PlatformFlow() {
       isPublished: nextStore.is_published,
       hasStripeAccount: Boolean(nextStore.stripe_account_id),
     })
-    setStripeEmbeddedMode('management')
-    setIsStripeOnboardingOpen(target.openEmbeddedManagement)
+    setStripeEmbeddedMode('remediation')
+    setIsStripeOnboardingOpen(target.openEmbeddedRemediation)
     setInitialMerchantSettingsSection(target.initialSettingsSection)
     setScreen(target.screen)
     // A published storefront confirms the settings panel actually opened
@@ -961,7 +961,7 @@ function PlatformFlow() {
     return saved
   }
 
-  const startStripeConnect = async () => {
+  const startStripeConnect = async (purpose?: 'requirements' | 'management') => {
     setIsStripeConnecting(true)
     setAuthError('')
     setAuthNotice('')
@@ -969,7 +969,10 @@ function PlatformFlow() {
       const saved = await persistStore({ payment_provider: 'stripe' }, store?.is_published ? 'complete' : 'payments')
       setPayment('stripe')
       setPaymentStatus(saved.stripe_account_id ? saved.payment_status : 'pending')
-      setStripeEmbeddedMode(saved.stripe_account_id ? 'management' : 'onboarding')
+      const nextMode = saved.stripe_account_id
+        ? (purpose === 'requirements' || stripeRequirementsNeedAction(stripeRequirements) ? 'remediation' : 'management')
+        : 'onboarding'
+      setStripeEmbeddedMode(nextMode)
       setStore(saved)
       setIsStripeOnboardingOpen(true)
       setIsStripeConnecting(false)
@@ -987,9 +990,13 @@ function PlatformFlow() {
       if (result.requirements) setStripeRequirements(result.requirements)
       const refreshedStore = await getMyStore()
       if (refreshedStore) await applyStore(refreshedStore)
-      setAuthNotice(result.status === 'connected'
-        ? 'Stripe on ühendatud ja maksed on aktiivsed.'
-        : 'Stripe salvestas andmed. Konto kontroll või seadistamine on veel pooleli.')
+      setAuthNotice(stripeEmbeddedMode === 'remediation'
+        ? result.requirements?.dueCount
+          ? 'Stripe salvestas andmed. Mõni kinnitus on veel pooleli.'
+          : 'Ettevõtte andmed on esitatud. Stripe kontrollib neid turvaliselt.'
+        : result.status === 'connected'
+          ? 'Stripe on ühendatud ja maksed on aktiivsed.'
+          : 'Stripe salvestas andmed. Konto kontroll või seadistamine on veel pooleli.')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Stripe’i staatuse kontroll ebaõnnestus.'
       setAuthError(message)
@@ -1235,8 +1242,9 @@ function PlatformFlow() {
   const returnNotice = authNotice ? <div className="app-return-notice" role="status" aria-live="polite">
     <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
   </div> : null
+  const stripeEmbeddedDialogLabel = stripeEmbeddedMode === 'remediation' ? 'Ettevõtte andmete kinnitamine' : 'Stripe’i andmed'
   const stripeEmbeddedOverlay = isStripeOnboardingOpen && (screen === 'storefront' || screen === 'product')
-    ? <div className="stripe-connect-overlay stripe-connect-overlay--embedded" role="dialog" aria-modal="true" aria-label="Stripe’i andmed">
+    ? <div className="stripe-connect-overlay stripe-connect-overlay--embedded" role="dialog" aria-modal="true" aria-label={stripeEmbeddedDialogLabel}>
       <div className="stripe-connect-embedded-shell">
         <StripeEmbeddedOnboarding
           mode={stripeEmbeddedMode}
@@ -1310,7 +1318,7 @@ function PlatformFlow() {
     onOwnerLogin={signInFromStore}
     onBackToSetup={() => setScreen('shipping')}
     onContinueSetup={continueFromFirstProduct}
-    onConnectPaymentProvider={() => void startStripeConnect()}
+    onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)}
     onStoreChange={(nextStore) => {
       setStore(nextStore)
       setStoreName(nextStore.name)
@@ -1327,7 +1335,7 @@ function PlatformFlow() {
   </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink('Ettevõtte andmete kinnitamine on avatud maksete vaates.') }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={() => void startStripeConnect()} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink('Ettevõtte andmete kinnitamine on avatud maksete vaates.') }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
     {stripeEmbeddedOverlay}
   </>
 
@@ -1687,7 +1695,7 @@ function PlatformFlow() {
         onExit={finishStripeEmbeddedOnboarding}
         onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
-      /> : <>{paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect()}>
+      /> : <>{paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect('requirements')}>
         <strong>{isStripeConnecting ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : 'Seadista Stripe'}</strong><span>→</span>
       </button> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}

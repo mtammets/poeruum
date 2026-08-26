@@ -32,11 +32,11 @@ describe('Poeruum Stripe requirements links', () => {
       .toBe('/?billing=success')
   })
 
-  it('opens published stores in payment settings with embedded management', () => {
+  it('opens published stores in payment settings with focused remediation', () => {
     expect(getStripeRequirementsStoreTarget({ isPublished: true, hasStripeAccount: true })).toEqual({
       screen: 'storefront',
       initialSettingsSection: 'payments',
-      openEmbeddedManagement: true,
+      openEmbeddedRemediation: true,
     })
   })
 
@@ -44,9 +44,9 @@ describe('Poeruum Stripe requirements links', () => {
     expect(getStripeRequirementsStoreTarget({ isPublished: false, hasStripeAccount: true })).toEqual({
       screen: 'payments',
       initialSettingsSection: null,
-      openEmbeddedManagement: true,
+      openEmbeddedRemediation: true,
     })
-    expect(getStripeRequirementsStoreTarget({ isPublished: true, hasStripeAccount: false }).openEmbeddedManagement)
+    expect(getStripeRequirementsStoreTarget({ isPublished: true, hasStripeAccount: false }).openEmbeddedRemediation)
       .toBe(false)
   })
 })

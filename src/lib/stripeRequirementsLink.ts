@@ -27,5 +27,5 @@ export const getStripeRequirementsStoreTarget = (store: {
 }) => ({
   screen: store.isPublished ? 'storefront' as const : 'payments' as const,
   initialSettingsSection: store.isPublished ? 'payments' as const : null,
-  openEmbeddedManagement: store.hasStripeAccount,
+  openEmbeddedRemediation: store.hasStripeAccount,
 })
