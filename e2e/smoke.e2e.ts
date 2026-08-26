@@ -255,6 +255,22 @@ test('a Stripe requirements email target opens merchant payment settings directl
   await expect(settings.locator('.payments-panel')).toBeVisible()
 })
 
+test('a late Stripe requirements target opens payment settings on an already mounted storefront', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountLateStripeRequirementsLinkHarness } = await import('/e2e/settings-harness.tsx')
+    mountLateStripeRequirementsLinkHarness()
+  })
+
+  await expect(page.getByRole('dialog', { name: 'Seaded' })).toHaveCount(0)
+  await page.evaluate(() => window.__openLateStripeRequirementsSettings?.())
+
+  const settings = page.getByRole('dialog', { name: 'Seaded' })
+  await expect(settings).toBeVisible()
+  await expect(settings.getByRole('heading', { name: 'Maksed' })).toBeVisible()
+  await expect(settings.locator('.payments-panel')).toBeVisible()
+})
+
 test('an order thumbnail falls back to the current product image', async ({ page }) => {
   const imageBody = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="lime"/></svg>'
   await page.route('**/e2e-images/missing.jpg', (route) => route.fulfill({ status: 404 }))

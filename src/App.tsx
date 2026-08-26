@@ -253,7 +253,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const storeLogoObjectUrlRef = useRef<string | null>(null)
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
   const storeDescriptionInputRef = useRef<HTMLTextAreaElement>(null)
-  const initialSettingsSectionOpenedRef = useRef(false)
+  const initialSettingsSectionOpenedRef = useRef<SettingsSection | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [isProductVisualActive, setIsProductVisualActive] = useState(() => window.scrollY <= 24)
   const [mayLoadNonCriticalImages, setMayLoadNonCriticalImages] = useState(false)
@@ -354,10 +354,25 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [customDomainRecord, setCustomDomainRecord] = useState<CustomDomainRecord | null>(null)
 
   useEffect(() => {
-    if (!shouldOpenInitialSettings || initialSettingsSectionOpenedRef.current) return
-    initialSettingsSectionOpenedRef.current = true
+    if (!merchantMode || !initialSettingsSection) {
+      initialSettingsSectionOpenedRef.current = null
+      return
+    }
+    // The merchant storefront can already be mounted when an authenticated
+    // return link is resolved. Initial state alone would miss that late target,
+    // so actively open the requested settings section as well.
+    setSettingsSection(initialSettingsSection)
+    setIsSettingsHome(false)
+    setIsSettingsOpen(true)
+  }, [initialSettingsSection, merchantMode])
+
+  useEffect(() => {
+    if (!merchantMode || !initialSettingsSection
+      || !isSettingsOpen || isSettingsHome || settingsSection !== initialSettingsSection
+      || initialSettingsSectionOpenedRef.current === initialSettingsSection) return
+    initialSettingsSectionOpenedRef.current = initialSettingsSection
     onInitialSettingsSectionOpened?.()
-  }, [onInitialSettingsSectionOpened, shouldOpenInitialSettings])
+  }, [initialSettingsSection, isSettingsHome, isSettingsOpen, merchantMode, onInitialSettingsSectionOpened, settingsSection])
   const [customDomainError, setCustomDomainError] = useState('')
   const [isCustomDomainBusy, setIsCustomDomainBusy] = useState(false)
   const [autoSwipeEnabled, setAutoSwipeEnabled] = useState(() => localStorage.getItem('autoSwipeEnabled') !== 'false')

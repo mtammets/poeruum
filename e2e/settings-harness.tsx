@@ -6,6 +6,7 @@ declare global {
   interface Window {
     __updateSettingsHarness?: (settings: Record<string, unknown>) => void
     __stripeConnectCalls?: number
+    __openLateStripeRequirementsSettings?: () => void
   }
 }
 
@@ -83,4 +84,36 @@ export function mountStripeRequirementsLinkHarness() {
       disabledReason: null,
     },
   }))
+}
+
+function LateStripeRequirementsLinkHarness() {
+  const [initialSettingsSection, setInitialSettingsSection] = useState<'payments' | null>(null)
+  window.__openLateStripeRequirementsSettings = () => setInitialSettingsSection('payments')
+
+  return createElement(Storefront, {
+    storeId: '10000000-0000-4000-8000-000000000096',
+    seedProducts: [],
+    storeName: 'Stripe hilise lingi testipood',
+    storeSlug: 'stripe-hilise-lingi-testipood',
+    initialSettings: {},
+    initialSettingsSection,
+    onInitialSettingsSectionOpened: () => setInitialSettingsSection(null),
+    merchantMode: true,
+    initialPublished: true,
+    paymentsReady: true,
+    stripeRequirements: {
+      dueCount: 1,
+      pastDue: false,
+      currentDeadline: '2026-10-09T00:00:00.000Z',
+      pendingVerification: false,
+      disabledReason: null,
+    },
+  })
+}
+
+export function mountLateStripeRequirementsLinkHarness() {
+  const root = document.createElement('div')
+  root.id = 'late-stripe-requirements-link-harness'
+  document.body.replaceChildren(root)
+  createRoot(root).render(createElement(LateStripeRequirementsLinkHarness))
 }

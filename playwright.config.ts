@@ -13,9 +13,17 @@ export default defineConfig({
   },
   projects: [{
     name: 'chromium',
+    testIgnore: '**/platform-auth.e2e.ts',
     use: { ...devices['Desktop Chrome'] },
+  }, {
+    name: 'platform-auth',
+    testMatch: '**/platform-auth.e2e.ts',
+    use: {
+      ...devices['Desktop Chrome'],
+      baseURL: 'http://localhost:4174',
+    },
   }],
-  webServer: {
+  webServer: [{
     command: 'npm run dev -- --host 127.0.0.1 --port 4173',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
@@ -26,5 +34,16 @@ export default defineConfig({
       VITE_STRIPE_PUBLISHABLE_KEY: '',
       VITE_TURNSTILE_SITE_KEY: 'playwright-test-site-key',
     },
-  },
+  }, {
+    command: 'npm run dev -- --host 127.0.0.1 --port 4174',
+    url: 'http://localhost:4174',
+    reuseExistingServer: !process.env.CI,
+    env: {
+      ...process.env,
+      VITE_SUPABASE_URL: 'http://localhost:4174/__e2e_supabase',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'playwright-anon-key',
+      VITE_STRIPE_PUBLISHABLE_KEY: '',
+      VITE_TURNSTILE_SITE_KEY: '',
+    },
+  }],
 })

@@ -27,7 +27,8 @@ const PlatformWithSupport = () => <Suspense fallback={<LoadingScreen />}>
   <Suspense fallback={null}><SupportCenter /></Suspense>
 </Suspense>
 
-const hasAppReturnState = ['billing', 'checkout'].some((key) => new URLSearchParams(window.location.search).has(key))
+const hasAppReturnState = ['billing', 'checkout', 'stripe_requirements']
+  .some((key) => new URLSearchParams(window.location.search).has(key))
 const isDeindexedTestStorePath = /^\/p\/test(?:\/|$)/i.test(window.location.pathname)
 
 if (isDeindexedTestStorePath) {
