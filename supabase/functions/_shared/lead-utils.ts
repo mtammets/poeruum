@@ -132,6 +132,60 @@ export const sourceKey = (value: unknown) => {
   return `${hostname}${pathname}`.toLowerCase()
 }
 
+export const extractOpenAIResponseSources = (response: unknown) => {
+  const sources = new Map<string, { url: string; title: string }>()
+  const add = (value: unknown) => {
+    if (!value || typeof value !== 'object') return
+    const source = value as Record<string, unknown>
+    const url = normalizePublicUrl(source.url)
+    const key = sourceKey(url)
+    if (!url || !key) return
+
+    const title = textValue(source.title, 300)
+    const existing = sources.get(key)
+    if (!existing) {
+      sources.set(key, { url, title })
+    } else if (!existing.title && title) {
+      sources.set(key, { ...existing, title })
+    }
+  }
+
+  if (!response || typeof response !== 'object') return sources
+  const output = (response as Record<string, unknown>).output
+  if (!Array.isArray(output)) return sources
+
+  for (const item of output) {
+    if (!item || typeof item !== 'object') continue
+    const outputItem = item as Record<string, unknown>
+    const action = outputItem.action && typeof outputItem.action === 'object'
+      ? outputItem.action as Record<string, unknown>
+      : null
+
+    if (action && outputItem.type === 'web_search_call' && outputItem.status === 'completed') {
+      if (Array.isArray(action.sources)) {
+        for (const source of action.sources) add(source)
+      }
+      if (action.type === 'open_page' || action.type === 'find_in_page') add(action)
+    }
+
+    if (!Array.isArray(outputItem.content)) continue
+    for (const content of outputItem.content) {
+      if (!content || typeof content !== 'object') continue
+      const outputContent = content as Record<string, unknown>
+      if (outputContent.type !== 'output_text' || !Array.isArray(outputContent.annotations)) continue
+      for (const annotation of outputContent.annotations) {
+        if (
+          annotation
+          && typeof annotation === 'object'
+          && (annotation as Record<string, unknown>).type === 'url_citation'
+        ) add(annotation)
+      }
+    }
+  }
+
+  return sources
+}
+
 export const sourceMatches = (candidate: unknown, sourceUrls: Set<string>) => {
   const key = sourceKey(candidate)
   return Boolean(key && sourceUrls.has(key))

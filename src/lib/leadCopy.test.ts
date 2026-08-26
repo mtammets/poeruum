@@ -86,7 +86,7 @@ describe('lead copy prompt contract', () => {
     expect(leadDraftSchema.properties).toHaveProperty('blocking_signals')
     expect(leadDraftSchema.properties).toHaveProperty('commerce_status')
     expect(leadDraftSchema.properties).toHaveProperty('commerce_check_url')
-    expect(leadDraftSchema.properties.site_checks.minItems).toBe(5)
+    expect(leadDraftSchema.properties.site_checks.minItems).toBe(7)
     expect(leadDraftSchema.properties).toHaveProperty('verification_url')
     expect(leadDraftSchema.properties).toHaveProperty('verified_observation')
   })
@@ -190,6 +190,26 @@ describe('lead qualification assessor', () => {
 })
 
 describe('lead copy deterministic quality gate', () => {
+  it('accepts a concise verified draft with a natural conditional CTA', () => {
+    const result = assessGeneratedLeadDraft({
+      subject: 'Puuseente lihtsam veebimüük',
+      body: [
+        'Tere!',
+        'Teie eriilmelised tammest puuseened, mida pakute koduaia kaunistuseks hinnaga 15–75 eurot, on hea näide väikesest valmistootest, mida ostjal võiks olla mugav kohe valida.',
+        'Olen Marek Poeruumist. Poeruumis saaksite vabamüügis puuseente jaoks luua lihtsa ostuvoo, kus ostja lisab tavatoote ostukorvi ja maksab pärast Stripe’i ühendamist kaardiga.',
+        'Lähemalt: https://poeruum.ee/',
+        'Eritellimusel skulptuuride arutelu võiks jääda senise päringuviisi juurde, valmistooted oleksid aga ostjale eraldi selgelt leitavad.',
+        'Kas saadaksin teile vaatamiseks avaliku näidispoe lingi?',
+      ].join('\n\n'),
+      company_name: 'Puu Vägi OÜ',
+      segment: 'Eritellimusel puuskulptuurid ja puidust aiaobjektid',
+      summary: 'Puu Vägi valmistab puukujusid ja müüb ka valmis tammest puuseeni.',
+      evidence: 'Puu Vägi pakub eriilmelisi tammest puuseeni koduaia kaunistuseks hinnaga 15–75 eurot.',
+    })
+
+    expect(result.ok).toBe(true)
+  })
+
   it('accepts a grounded, warm draft with one approved benefit and a low-friction CTA', () => {
     const result = assessGeneratedLeadDraft({ ...companyFacts, ...validDraft })
 
