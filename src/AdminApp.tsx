@@ -4,6 +4,7 @@ import { createRandomId } from './lib/randomId'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Brand } from './Brand'
+import { hasAdminRole } from './lib/adminAccess'
 import { Storefront } from './App'
 import { getShowcaseStore, listProducts, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
@@ -375,7 +376,15 @@ function AdminIcon({ name }: { name: AdminIconName }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
 }
 
-function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
+function AdminLogin({
+  accessError,
+  onSignInAttempt,
+  onSignedIn,
+}: {
+  accessError: string
+  onSignInAttempt: () => void
+  onSignedIn: (session: Session) => void
+}) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -386,19 +395,21 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
+    onSignInAttempt()
     setIsBusy(true)
     if (isCaptchaConfigured && !captchaToken) {
       setError(getCaptchaRequiredMessage())
       setIsBusy(false)
       return
     }
-    const { error: authError } = await requireSupabase().auth.signInWithPassword({
+    const { data, error: authError } = await requireSupabase().auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
       options: { captchaToken: captchaToken || undefined },
     })
     if (authError) setError('E-posti aadress või parool ei ole õige.')
-    else onSignedIn()
+    else if (data.session) onSignedIn(data.session)
+    else setError('Sisselogimine ebaõnnestus. Proovi uuesti.')
     setIsBusy(false)
     setCaptchaToken('')
     setCaptchaResetKey((value) => value + 1)
@@ -414,7 +425,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
         <label>E-post<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label>
         <label>Parool<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
         <Turnstile key={`admin-login-${captchaResetKey}`} action="admin_login" onToken={setCaptchaToken} />
-        {error && <p className="admin-auth__error" role="alert">{error}</p>}
+        {(error || accessError) && <p className="admin-auth__error" role="alert">{error || accessError}</p>}
         <button type="submit" disabled={isBusy}>{isBusy ? 'Login sisse…' : 'Logi sisse'}<span aria-hidden="true">→</span></button>
       </form>
       <small>Ligipääs on ainult Poeruumi administraatoritele.</small>
@@ -447,6 +458,8 @@ export default function AdminApp() {
   const [activeView, setActiveView] = useState<AdminView>(() => getAdminView())
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(false)
+  const [adminAccessGranted, setAdminAccessGranted] = useState(false)
+  const [adminLoginError, setAdminLoginError] = useState('')
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [rows, setRows] = useState<AdminUserRow[]>([])
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set())
@@ -804,12 +817,46 @@ export default function AdminApp() {
   }, [])
 
   useEffect(() => {
-    if (session) void loadDashboard()
-    else { setRows([]); setRevenue(emptyRevenueDashboard); setHomepageAnalytics(emptyHomepageAnalytics); setOnlineUserIds(new Set()) }
+    if (!session) {
+      setAdminAccessGranted(false)
+      setRows([])
+      setRevenue(emptyRevenueDashboard)
+      setHomepageAnalytics(emptyHomepageAnalytics)
+      setOnlineUserIds(new Set())
+      return
+    }
+
+    let active = true
+    setAdminAccessGranted(false)
+    const verifyAdminAccess = async () => {
+      const client = requireSupabase()
+      const { data, error: refreshError } = await client.auth.refreshSession()
+      const refreshedSession = data.session
+      if (!active) return
+
+      if (refreshError || !refreshedSession || !hasAdminRole(refreshedSession.user)) {
+        setAdminLoginError(refreshError
+          ? 'Sisselogitud sessiooni ei õnnestunud kontrollida. Logi uuesti sisse.'
+          : 'Sellel kontol puudub administraatori ligipääs.')
+        try {
+          await client.auth.signOut({ scope: 'local' })
+        } finally {
+          if (active) setSession(null)
+        }
+        return
+      }
+
+      setSession(refreshedSession)
+      setAdminLoginError('')
+      setAdminAccessGranted(true)
+      void loadDashboard({ refreshAuth: false })
+    }
+    void verifyAdminAccess()
+    return () => { active = false }
   }, [session?.user.id])
 
   useEffect(() => {
-    if (!session) return
+    if (!session || !adminAccessGranted) return
     const client = requireSupabase()
     void loadOnlineUsers()
     const channel = client.channel(`admin-online-${session.user.id}`)
@@ -822,10 +869,10 @@ export default function AdminApp() {
       window.clearInterval(expiryRefresh)
       void client.removeChannel(channel)
     }
-  }, [session?.user.id])
+  }, [session?.user.id, adminAccessGranted])
 
   useEffect(() => {
-    if (!session) return
+    if (!session || !adminAccessGranted) return
     const client = requireSupabase()
     const channel = client.channel(`admin-revenue-${session.user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'revenue_events' }, (payload) => {
@@ -836,10 +883,10 @@ export default function AdminApp() {
       })
       .subscribe()
     return () => { void client.removeChannel(channel) }
-  }, [session?.user.id])
+  }, [session?.user.id, adminAccessGranted])
 
   useEffect(() => {
-    if (!session) return
+    if (!session || !adminAccessGranted) return
     const client = requireSupabase()
     const channel = client.channel(`admin-dashboard-${session.user.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'admin_dashboard_refresh', filter: 'id=eq.true' }, () => {
@@ -855,7 +902,7 @@ export default function AdminApp() {
       dashboardRefreshTimerRef.current = null
       void client.removeChannel(channel)
     }
-  }, [session?.user.id])
+  }, [session?.user.id, adminAccessGranted])
 
   const visibleRows = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase('et')
@@ -881,9 +928,13 @@ export default function AdminApp() {
       })
   }, [rows, filter, search, sort, onlineUserIds])
 
-  if (!authReady || isSigningOut) return <main className="admin-loading"><span /><p>{isSigningOut ? 'Login välja…' : 'Avan administraatori töölauda…'}</p></main>
+  if (!authReady || isSigningOut || (session && !adminAccessGranted)) return <main className="admin-loading"><span /><p>{isSigningOut ? 'Login välja…' : 'Kontrollin administraatori ligipääsu…'}</p></main>
   if (!isSupabaseConfigured) return <main className="admin-auth"><section className="admin-auth__card"><span>SEADISTUS PUUDUB</span><h1>Supabase pole ühendatud</h1><p>Lisa lokaalsesse <code>.env</code> faili Supabase’i võtmed ja laadi leht uuesti.</p><a href="/">Tagasi Poeruumi</a></section></main>
-  if (!session) return <AdminLogin onSignedIn={() => void loadDashboard()} />
+  if (!session) return <AdminLogin
+    accessError={adminLoginError}
+    onSignInAttempt={() => setAdminLoginError('')}
+    onSignedIn={setSession}
+  />
 
   if (isManagingShowcase && showcaseStore) return <Storefront
     key={`admin-platform-${showcaseStore.id}`}
