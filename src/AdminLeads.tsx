@@ -227,8 +227,6 @@ export default function AdminLeads() {
       setError('Sul on salvestamata muudatusi. Salvesta kiri enne saatmist.')
       return
     }
-    const confirmed = window.confirm(`Saadan kirja ettevõttele ${selected.company_name} aadressil ${selected.contact_email}? Seda toimingut ei saa tagasi võtta.`)
-    if (!confirmed) return
     try {
       await invoke('send', { lead_id: selected.id })
       setNotice(`Kiri saadeti aadressile ${selected.contact_email}.`)
@@ -358,7 +356,7 @@ export default function AdminLeads() {
               </div>
               <label><span>Kontakti allikas</span><input type="url" placeholder="https://ettevote.ee/kontakt" value={draft.email_source_url ?? ''} onChange={(event) => setDraft({ ...draft, email_source_url: event.target.value || null })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
             </details>
-            <small className="admin-leads__policy">Süsteem lisab saatja allkirja. Kiri saadetakse alles pärast sinu kinnitust.</small>
+            <small className="admin-leads__policy">Süsteem lisab saatja allkirja automaatselt.</small>
             <div className="admin-leads__buttons">
               {['new', 'ready', 'archived'].includes(selected.status) && <button type="submit" disabled={Boolean(busyAction)}>{busyAction === 'save' ? 'Salvestan…' : 'Salvesta'}</button>}
               {['new', 'ready'].includes(selected.status) && <button type="button" className="is-secondary" onClick={() => void restoreTemplate()} disabled={Boolean(busyAction)}>{busyAction === 'draft' ? 'Taastan…' : 'Taasta kirjamall'}</button>}
