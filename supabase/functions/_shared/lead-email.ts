@@ -17,7 +17,7 @@ const hasPersonalSignature = (body: string, senderName: string) => {
 
 const signatureText = (input: LeadEmailInput) => {
   if (hasPersonalSignature(input.body, input.senderName)) return ''
-  return `Parimat\n${input.senderName}\nPoeruum · poeruum.ee`
+  return `Parimat\n${input.senderName}\nPoeruum · https://poeruum.ee`
 }
 
 export const renderLeadText = (input: LeadEmailInput) => [

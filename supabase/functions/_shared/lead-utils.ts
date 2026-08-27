@@ -37,6 +37,7 @@ const generalMailboxNames = new Set([
   'tere',
   'turundus',
 ])
+const permanentlyDeletableLeadStatuses = new Set(['new', 'ready', 'archived'])
 
 export const textValue = (value: unknown, max: number) => String(value ?? '')
   .replace(/\p{Cc}/gu, ' ')
@@ -51,28 +52,21 @@ export const multilineValue = (value: unknown, max: number) => String(value ?? '
   .trim()
   .slice(0, max)
 
+export const canPermanentlyDeleteLead = (status: unknown) => permanentlyDeletableLeadStatuses.has(String(status))
+
 export const leadPricingSentence = 'Paindlikul paketil kuutasu ei ole – Poeruumi tasu tekib ainult siis, kui poe kaudu müük toimub.'
-export const leadClosingQuestion = 'Kas selline lahendus võiks sinu ettevõttele sobida?'
 
-export const finalizeGeneratedLeadDraft = (value: unknown) => {
-  const raw = multilineValue(value, 5000)
-  if (!raw) return ''
-
-  const paragraphs = multilineValue(
-    raw
-      .replaceAll(leadPricingSentence, '')
-      .replaceAll(leadClosingQuestion, ''),
-    5000,
-  ).split(/\n{2,}/).filter(Boolean)
-  const lastParagraph = paragraphs.at(-1)
-  if (paragraphs.length > 1 && lastParagraph?.endsWith('?')) paragraphs.pop()
-
-  return [
-    paragraphs.join('\n\n').trim(),
+export const createLeadOutreachTemplate = () => ({
+  subject: 'Poeruum – e-pood telefonist',
+  body: [
+    'Tere!',
+    'Leidsin teie ettevõtte ja mõtlesin, et Poeruum võib teile huvi pakkuda.',
+    'Poeruum on e-poe loomise ja haldamise teenus. Poe saab üles seada umbes 10 minutiga ning tooteid ja tellimusi saab hallata otse telefonist.',
     leadPricingSentence,
-    leadClosingQuestion,
-  ].filter(Boolean).join('\n\n').slice(0, 5000)
-}
+    'Poeruumiga saate tutvuda siin:\nhttps://poeruum.ee',
+    'Kui tekib küsimusi, vastan hea meelega.',
+  ].join('\n\n'),
+})
 
 export const normalizeEmail = (value: unknown) => {
   const email = String(value ?? '').trim().toLowerCase()
@@ -149,4 +143,71 @@ export const sourceKey = (value: unknown) => {
 export const sourceMatches = (candidate: unknown, sourceUrls: Set<string>) => {
   const key = sourceKey(candidate)
   return Boolean(key && sourceUrls.has(key))
+}
+
+export type LeadResearchCandidateInput = {
+  company_name?: unknown
+  website_url?: unknown
+  source_url?: unknown
+  email_source_url?: unknown
+  contact_email?: unknown
+  location?: unknown
+  segment?: unknown
+  summary?: unknown
+  fit_reason?: unknown
+  evidence?: unknown
+}
+
+export type ValidatedLeadResearchCandidate = {
+  company_name: string
+  website_url: string
+  website_domain: string
+  source_url: string
+  email_source_url: string
+  contact_email: string
+  contact_kind: 'general_business'
+  location: string
+  segment: string
+  summary: string
+  fit_reason: string
+  evidence: string
+}
+
+export const validateLeadResearchCandidate = (
+  candidate: LeadResearchCandidateInput,
+  sourceUrls: Set<string>,
+): ValidatedLeadResearchCandidate | null => {
+  const companyName = textValue(candidate.company_name, 200)
+  const websiteUrl = normalizePublicUrl(candidate.website_url)
+  const website = websiteDomain(websiteUrl)
+  const sourceUrl = normalizePublicUrl(candidate.source_url)
+  if (!companyName || !websiteUrl || !website || !sourceUrl || !sourceMatches(sourceUrl, sourceUrls)) return null
+
+  const rawEmailSourceUrl = normalizePublicUrl(candidate.email_source_url)
+  const emailSourceUrl = rawEmailSourceUrl && sourceMatches(rawEmailSourceUrl, sourceUrls)
+    ? rawEmailSourceUrl
+    : null
+  const contactEmail = emailSourceUrl ? normalizeEmail(candidate.contact_email) : null
+  if (classifyContactEmail(contactEmail) !== 'general_business') return null
+  if (!contactMatchesWebsite(contactEmail, websiteUrl, emailSourceUrl)) return null
+
+  const summary = textValue(candidate.summary, 1000)
+  const fitReason = textValue(candidate.fit_reason, 1200)
+  const evidence = textValue(candidate.evidence, 1200)
+  if (!summary || !fitReason || !evidence || !emailSourceUrl || !contactEmail) return null
+
+  return {
+    company_name: companyName,
+    website_url: websiteUrl,
+    website_domain: website,
+    source_url: sourceUrl,
+    email_source_url: emailSourceUrl,
+    contact_email: contactEmail,
+    contact_kind: 'general_business',
+    location: textValue(candidate.location, 160),
+    segment: textValue(candidate.segment, 160),
+    summary,
+    fit_reason: fitReason,
+    evidence,
+  }
 }

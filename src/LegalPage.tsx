@@ -175,7 +175,7 @@ function Privacy() {
         <li>Render — veebimajutus, võrguühendus ja domeenide tehniline teenindamine;</li>
         <li>Stripe — maksed, väljamaksed, kaupmehe tuvastamine ja korduv arveldus;</li>
         <li>Resend — tehingulised e-kirjad ja tugisuhtlus;</li>
-        <li>OpenAI — avalike ettevõtteallikate otsing, sobivuse kokkuvõte ja kirjamustandi koostamine; päringutes välditakse teadlikult eraisikute andmeid;</li>
+        <li>OpenAI — avalike ettevõtteallikate otsing ja sobivuse kokkuvõte; päringutes välditakse teadlikult eraisikute andmeid;</li>
         <li>Cloudflare — Turnstile’i kuritarvitusevastane kontroll;</li>
         <li>valitud tarnepakkujad — tarnevalikute ja saadetiste korraldamine;</li>
         <li>ametlikud registrid ja aadressiteenused — ettevõtte- ja aadressiandmete kontrollimine.</li>

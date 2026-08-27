@@ -28,7 +28,7 @@ type SalesLead = {
 }
 
 type LeadDraft = Pick<SalesLead, 'company_name' | 'contact_email' | 'email_source_url' | 'draft_subject' | 'draft_body'>
-type LeadFilter = 'active' | 'ready' | 'sent' | 'replied' | 'blocked' | 'archived'
+type LeadFilter = 'active' | 'sent' | 'replied' | 'incomplete' | 'blocked' | 'archived'
 
 const defaultQuery = 'Leia Eesti mikro- ja väikeettevõtteid, kes müüvad enda valmistatud füüsilisi tooteid ning võtavad tellimusi sotsiaalmeedias, kontaktivormi või e-posti kaudu.'
 
@@ -44,14 +44,23 @@ const statusLabels: Record<LeadStatus, string> = {
   archived: 'Arhiveeritud',
 }
 
-const filters: Array<{ id: LeadFilter; label: string }> = [
-  { id: 'active', label: 'Aktiivsed' },
-  { id: 'ready', label: 'Saatmiseks valmis' },
+const primaryFilters: Array<{ id: 'active' | 'sent' | 'replied'; label: string }> = [
+  { id: 'active', label: 'Uued' },
   { id: 'sent', label: 'Saadetud' },
   { id: 'replied', label: 'Vastanud' },
-  { id: 'blocked', label: 'Loobunud / blokeeritud' },
-  { id: 'archived', label: 'Arhiiv' },
 ]
+
+const hasReviewableContact = (lead: SalesLead) => lead.contact_kind === 'general_business'
+  && Boolean(lead.contact_email && lead.email_source_url)
+
+const isActiveLead = (lead: SalesLead) => ['ready', 'sending'].includes(lead.status)
+  || (lead.status === 'new' && hasReviewableContact(lead))
+
+const isIncompleteLead = (lead: SalesLead) => lead.status === 'new' && !hasReviewableContact(lead)
+
+const statusLabel = (lead: SalesLead) => lead.status === 'new'
+  ? hasReviewableContact(lead) ? 'Kiri puudub' : 'Kontakt puudub'
+  : statusLabels[lead.status]
 
 const toDraft = (lead: SalesLead): LeadDraft => ({
   company_name: lead.company_name,
@@ -79,6 +88,7 @@ export default function AdminLeads() {
   const [search, setSearch] = useState('')
   const [researchQuery, setResearchQuery] = useState(defaultQuery)
   const [researchLimit, setResearchLimit] = useState(8)
+  const [researchOpen, setResearchOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busyAction, setBusyAction] = useState('')
   const [error, setError] = useState('')
@@ -110,12 +120,20 @@ export default function AdminLeads() {
     void loadLeads(null)
   }, [])
 
+  useEffect(() => {
+    if (!notice) return
+    const timeoutId = window.setTimeout(() => setNotice(''), 4500)
+    return () => window.clearTimeout(timeoutId)
+  }, [notice])
+
   const selected = leads.find((lead) => lead.id === selectedId) ?? null
   const visibleLeads = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('et')
     return leads.filter((lead) => {
       const matchesFilter = filter === 'active'
-        ? ['new', 'ready', 'sending'].includes(lead.status)
+        ? isActiveLead(lead)
+        : filter === 'incomplete'
+          ? isIncompleteLead(lead)
         : filter === 'blocked'
           ? ['unsubscribed', 'bounced', 'complained'].includes(lead.status)
           : lead.status === filter
@@ -125,11 +143,20 @@ export default function AdminLeads() {
     })
   }, [filter, leads, search])
 
+  useEffect(() => {
+    if (visibleLeads.some((lead) => lead.id === selectedId)) return
+    const nextSelected = visibleLeads[0] ?? null
+    setSelectedId(nextSelected?.id ?? null)
+    setDraft(nextSelected ? toDraft(nextSelected) : null)
+  }, [selectedId, visibleLeads])
+
   const counts = useMemo(() => ({
-    active: leads.filter((lead) => ['new', 'ready', 'sending'].includes(lead.status)).length,
-    ready: leads.filter((lead) => lead.status === 'ready').length,
+    active: leads.filter(isActiveLead).length,
     sent: leads.filter((lead) => lead.status === 'sent').length,
     replied: leads.filter((lead) => lead.status === 'replied').length,
+    incomplete: leads.filter(isIncompleteLead).length,
+    blocked: leads.filter((lead) => ['unsubscribed', 'bounced', 'complained'].includes(lead.status)).length,
+    archived: leads.filter((lead) => lead.status === 'archived').length,
   }), [leads])
 
   const invoke = async (action: string, body: Record<string, unknown> = {}) => {
@@ -161,7 +188,8 @@ export default function AdminLeads() {
       const result = await invoke('search', { query: researchQuery, limit: researchLimit })
       const inserted = Number(result.inserted_count ?? 0)
       const rejected = Number(result.duplicate_or_rejected_count ?? 0)
-      setNotice(`OpenAI lisas ${inserted} uut kandidaati${rejected ? `; ${rejected} duplikaati või ebapiisava tõendiga tulemust jäeti välja` : ''}.`)
+      setNotice(`Leidsin ${inserted} kontrollitud ${inserted === 1 ? 'kandidaadi' : 'kandidaati'}${rejected ? `; ${rejected} duplikaati või ebapiisava infoga tulemust jäeti välja` : ''}.`)
+      setResearchOpen(false)
       await loadLeads(null)
     } catch (researchError) {
       setError(getErrorMessage(researchError))
@@ -181,11 +209,12 @@ export default function AdminLeads() {
     }
   }
 
-  const regenerateDraft = async () => {
+  const restoreTemplate = async () => {
     if (!selected) return
+    if (!window.confirm('Kas taastan kinnitatud kirjamalli? Praegune kirja teema ja sisu asendatakse.')) return
     try {
       await invoke('draft', { lead_id: selected.id })
-      setNotice('OpenAI koostas uue kirjamustandi. Vaata see enne saatmist üle.')
+      setNotice('Kirjamall taastati. Vaata see enne saatmist üle.')
       await loadLeads(selected.id)
     } catch (draftError) {
       setError(getErrorMessage(draftError))
@@ -222,6 +251,19 @@ export default function AdminLeads() {
     }
   }
 
+  const deleteLead = async () => {
+    if (!selected) return
+    const confirmed = window.confirm(`Kas kustutan ettevõtte ${selected.company_name} kliendiotsingust jäädavalt? Seda ei saa tagasi võtta.`)
+    if (!confirmed) return
+    try {
+      await invoke('delete', { lead_id: selected.id })
+      setNotice('Ettevõte kustutati kliendiotsingust.')
+      await loadLeads(null)
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError))
+    }
+  }
+
   const chooseLead = (lead: SalesLead) => {
     setSelectedId(lead.id)
     setDraft(toDraft(lead))
@@ -230,87 +272,100 @@ export default function AdminLeads() {
   }
 
   return <section className="admin-leads">
-    <section className="admin-leads__research">
-      <div>
-        <span>AVALIKU VEEBI UURING</span>
-        <h2>Leia Poeruumile sobivad ettevõtted</h2>
-        <p>OpenAI otsib avalikest allikatest, kontrollib sobivust ja koostab mustandi. Ühtegi kirja ei saadeta automaatselt.</p>
-      </div>
-      <label>
-        <span>Milliseid ettevõtteid otsida?</span>
-        <textarea rows={3} maxLength={1000} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
-      </label>
-      <div className="admin-leads__research-actions">
-        <label><span>Tulemusi</span><select value={researchLimit} onChange={(event) => setResearchLimit(Number(event.target.value))}>{[4, 6, 8].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
-        <button type="button" onClick={() => void runResearch()} disabled={Boolean(busyAction) || researchQuery.trim().length < 10}>
-          {busyAction === 'search' ? 'OpenAI otsib…' : 'Otsi uusi kliente'}
-        </button>
-      </div>
-    </section>
-
-    <section className="admin-leads__kpis" aria-label="Kliendiotsingu kokkuvõte">
-      <article><span>Aktiivseid</span><strong>{counts.active}</strong></article>
-      <article><span>Saatmiseks valmis</span><strong>{counts.ready}</strong></article>
-      <article><span>Saadetud</span><strong>{counts.sent}</strong></article>
-      <article><span>Vastanud</span><strong>{counts.replied}</strong></article>
-    </section>
-
-    {(error || notice) && <div className={`admin-leads__notice${error ? ' is-error' : ''}`} role={error ? 'alert' : 'status'}>{error || notice}</div>}
+    {(error || notice) && <div className={`admin-leads__notice${error ? ' is-error' : ''}`} role={error ? 'alert' : 'status'}>
+      <span>{error || notice}</span>
+      <button type="button" aria-label="Sulge teade" onClick={() => { setError(''); setNotice('') }}>×</button>
+    </div>}
 
     <section className="admin-leads__panel">
       <header>
         <div className="admin-leads__filters" role="group" aria-label="Filtreeri müügikontakte">
-          {filters.map((item) => <button type="button" key={item.id} className={filter === item.id ? 'is-active' : ''} onClick={() => setFilter(item.id)}>{item.label}</button>)}
+          {primaryFilters.map((item) => <button type="button" key={item.id} className={filter === item.id ? 'is-active' : ''} onClick={() => setFilter(item.id)}>{item.label}<span>{counts[item.id]}</span></button>)}
+          <select
+            className={['incomplete', 'blocked', 'archived'].includes(filter) ? 'is-active' : undefined}
+            aria-label="Muud kontaktid"
+            value={['incomplete', 'blocked', 'archived'].includes(filter) ? filter : ''}
+            onChange={(event) => setFilter(event.target.value as LeadFilter)}
+          >
+            <option value="" disabled>Veel</option>
+            <option value="incomplete">Vajab kontrolli ({counts.incomplete})</option>
+            <option value="blocked">Loobunud / blokeeritud ({counts.blocked})</option>
+            <option value="archived">Arhiiv ({counts.archived})</option>
+          </select>
         </div>
         <label className="admin-leads__search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Otsi nime või e-posti" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <button className="admin-leads__refresh" type="button" onClick={() => void loadLeads()} disabled={loading}>↻</button>
+        <button className="admin-leads__new" type="button" onClick={() => setResearchOpen((open) => !open)} aria-expanded={researchOpen}>
+          {researchOpen ? 'Sulge' : 'Leia ettevõtteid'}
+        </button>
       </header>
 
-      <div className="admin-leads__workspace">
+      {researchOpen && <div className="admin-leads__research-form">
+        <label>
+          <span>Milliseid ettevõtteid otsida?</span>
+          <textarea rows={3} maxLength={1000} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
+        </label>
+        <div className="admin-leads__research-actions">
+          <label><span>Tulemusi</span><select value={researchLimit} onChange={(event) => setResearchLimit(Number(event.target.value))}>{[4, 6, 8].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
+          <button type="button" onClick={() => void runResearch()} disabled={Boolean(busyAction) || researchQuery.trim().length < 10}>
+            {busyAction === 'search' ? 'Otsin…' : 'Alusta otsingut'}
+          </button>
+        </div>
+      </div>}
+
+      {loading && !leads.length ? <div className="admin-leads__empty-state">Laadin kontakte…</div> : visibleLeads.length ? <div className="admin-leads__workspace">
         <div className="admin-leads__list">
-          {loading && !leads.length ? <div className="admin-leads__empty">Laadin kontakte…</div> : visibleLeads.length ? visibleLeads.map((lead) => <button
+          {visibleLeads.map((lead) => <button
             type="button"
             key={lead.id}
             className={selectedId === lead.id ? 'is-active' : undefined}
             onClick={() => chooseLead(lead)}
           >
-            <i>{lead.fit_score}</i>
             <span><strong>{lead.company_name}</strong><small>{lead.segment || lead.location || 'Segment määramata'}</small><em>{lead.contact_email || 'Üldkontakt puudub'}</em></span>
-            <b className={`is-${lead.status}`}>{statusLabels[lead.status]}</b>
-          </button>) : <div className="admin-leads__empty"><strong>Kontakte ei leitud</strong><span>Muuda filtrit või käivita uus otsing.</span></div>}
+            <b className={`is-${lead.status}`}>{statusLabel(lead)}</b>
+          </button>)}
         </div>
 
         {selected && draft ? <article className="admin-leads__detail">
           <header>
-            <div><span>SOBIVUS {selected.fit_score}/100</span><h2>{selected.company_name}</h2><p>{selected.summary || 'Kokkuvõte puudub.'}</p></div>
-            <b className={`is-${selected.status}`}>{statusLabels[selected.status]}</b>
+            <div><span>{selected.segment || selected.location || 'KLIENDIKANDIDAAT'}</span><h2>{selected.company_name}</h2><p>{selected.summary || 'Kokkuvõte puudub.'}</p><a href={selected.website_url} target="_blank" rel="noreferrer">Ava veebileht ↗</a></div>
+            <b className={`is-${selected.status}`}>{statusLabel(selected)}</b>
           </header>
 
-          <div className="admin-leads__evidence">
-            <div><span>Miks sobib</span><p>{selected.fit_reason || 'Põhjendus puudub.'}</p></div>
-            <div><span>Avalik tõend</span><p>{selected.evidence || 'Tõend puudub.'}</p></div>
-            <nav>
-              <a href={selected.website_url} target="_blank" rel="noreferrer">Veebileht ↗</a>
-              <a href={selected.source_url} target="_blank" rel="noreferrer">Sobivuse allikas ↗</a>
-              {selected.email_source_url && <a href={selected.email_source_url} target="_blank" rel="noreferrer">Kontakti allikas ↗</a>}
-            </nav>
+          <div className="admin-leads__reason">
+            <div><span>Miks valitud</span><p>{selected.fit_reason || selected.evidence || 'Põhjendus puudub.'}</p></div>
+            <a href={selected.source_url} target="_blank" rel="noreferrer">Vaata allikat ↗</a>
           </div>
 
+          <details className="admin-leads__research-details">
+            <summary>Uuringu detailid</summary>
+            <div><span>Leitud info</span><p>{selected.evidence || 'Lisainfo puudub.'}</p></div>
+            <nav>
+              <a href={selected.website_url} target="_blank" rel="noreferrer">Veebileht ↗</a>
+              <a href={selected.source_url} target="_blank" rel="noreferrer">Uuringu allikas ↗</a>
+              {selected.email_source_url && <a href={selected.email_source_url} target="_blank" rel="noreferrer">Kontakti allikas ↗</a>}
+            </nav>
+          </details>
+
           <form onSubmit={(event) => { event.preventDefault(); void saveLead() }}>
-            <div className="admin-leads__fields">
-              <label><span>Ettevõtte nimi</span><input value={draft.company_name} onChange={(event) => setDraft({ ...draft, company_name: event.target.value })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
-              <label><span>Ettevõtte üldkontakt</span><input type="email" placeholder="info@ettevote.ee" value={draft.contact_email ?? ''} onChange={(event) => setDraft({ ...draft, contact_email: event.target.value || null })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
-            </div>
-            <label><span>Leht, kus üldkontakt on avalik</span><input type="url" placeholder="https://ettevote.ee/kontakt" value={draft.email_source_url ?? ''} onChange={(event) => setDraft({ ...draft, email_source_url: event.target.value || null })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
             <label><span>Kirja teema</span><input maxLength={160} value={draft.draft_subject} onChange={(event) => setDraft({ ...draft, draft_subject: event.target.value })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
             <label><span>Kirja sisu</span><textarea rows={9} maxLength={5000} value={draft.draft_body} onChange={(event) => setDraft({ ...draft, draft_body: event.target.value })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
-            <small className="admin-leads__policy">Saata saab ainult ettevõtte veebidomeeniga seotud avalikule üldpostkastile. Süsteem lisab saatja allkirja ja kiri saadetakse alles pärast sinu kinnitust.</small>
+            <details className="admin-leads__contact-details">
+              <summary><span>Kontakti andmed</span><small>{draft.contact_email || 'Kontakt puudub'}</small></summary>
+              <div className="admin-leads__fields">
+                <label><span>Ettevõtte nimi</span><input value={draft.company_name} onChange={(event) => setDraft({ ...draft, company_name: event.target.value })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
+                <label><span>Ettevõtte üldkontakt</span><input type="email" placeholder="info@ettevote.ee" value={draft.contact_email ?? ''} onChange={(event) => setDraft({ ...draft, contact_email: event.target.value || null })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
+              </div>
+              <label><span>Kontakti allikas</span><input type="url" placeholder="https://ettevote.ee/kontakt" value={draft.email_source_url ?? ''} onChange={(event) => setDraft({ ...draft, email_source_url: event.target.value || null })} disabled={!['new', 'ready', 'archived'].includes(selected.status)} /></label>
+            </details>
+            <small className="admin-leads__policy">Süsteem lisab saatja allkirja. Kiri saadetakse alles pärast sinu kinnitust.</small>
             <div className="admin-leads__buttons">
               {['new', 'ready', 'archived'].includes(selected.status) && <button type="submit" disabled={Boolean(busyAction)}>{busyAction === 'save' ? 'Salvestan…' : 'Salvesta'}</button>}
-              {['new', 'ready'].includes(selected.status) && <button type="button" className="is-secondary" onClick={() => void regenerateDraft()} disabled={Boolean(busyAction)}>{busyAction === 'draft' ? 'Koostan…' : 'Koosta kiri uuesti'}</button>}
-              {selected.status === 'ready' && <button type="button" className="is-send" onClick={() => void sendLead()} disabled={Boolean(busyAction)}>{busyAction === 'send' ? 'Saadan…' : 'Kinnita ja saada'}</button>}
-              {['new', 'ready'].includes(selected.status) && <button type="button" className="is-quiet" onClick={() => void simpleAction('archive')} disabled={Boolean(busyAction)}>Arhiveeri</button>}
+              {['new', 'ready'].includes(selected.status) && <button type="button" className="is-secondary" onClick={() => void restoreTemplate()} disabled={Boolean(busyAction)}>{busyAction === 'draft' ? 'Taastan…' : 'Taasta kirjamall'}</button>}
+              {selected.status === 'ready' && <button type="button" className="is-send" onClick={() => void sendLead()} disabled={Boolean(busyAction)}>{busyAction === 'send' ? 'Saadan…' : 'Saada kiri'}</button>}
+              {['new', 'ready'].includes(selected.status) && <button type="button" className="is-quiet" onClick={() => void simpleAction('archive')} disabled={Boolean(busyAction)}>Jäta vahele</button>}
               {selected.contact_email && !['unsubscribed', 'bounced', 'complained'].includes(selected.status) && <button type="button" className="is-danger" onClick={() => void simpleAction('suppress')} disabled={Boolean(busyAction)}>Ära enam kontakteeru</button>}
+              {['new', 'ready', 'archived'].includes(selected.status) && <button type="button" className="is-delete" onClick={() => void deleteLead()} disabled={Boolean(busyAction)}>{busyAction === 'delete' ? 'Kustutan…' : 'Kustuta'}</button>}
             </div>
           </form>
 
@@ -320,7 +375,11 @@ export default function AdminLeads() {
             {selected.replied_at && <span>Vastas {formatDate(selected.replied_at)}</span>}
           </footer>}
         </article> : <div className="admin-leads__placeholder">Vali kontakt, et näha allikaid ja kirjamustandit.</div>}
-      </div>
+      </div> : <div className="admin-leads__empty-state">
+        <strong>Siin pole veel ettevõtteid</strong>
+        <span>Vali teine filter või käivita uus otsing.</span>
+        <button type="button" onClick={() => setResearchOpen(true)}>Leia uusi ettevõtteid</button>
+      </div>}
     </section>
   </section>
 }

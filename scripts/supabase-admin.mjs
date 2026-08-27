@@ -45,6 +45,7 @@ const syncLeadSecrets = () => {
     'OUTREACH_SENDER_NAME',
     'OUTREACH_FROM_EMAIL',
     'OUTREACH_REPLY_TO',
+    'OUTREACH_BCC_EMAIL',
     'OUTREACH_DAILY_SEND_LIMIT',
   ]
   if (!process.env.OPENAI_API_KEY?.trim()) {

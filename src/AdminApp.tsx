@@ -1145,7 +1145,7 @@ export default function AdminApp() {
           </a>
           <a href="/admin/leads" onClick={(event) => navigateToView(event, 'leads')}>
             <span><AdminIcon name="leads" /></span>
-            <div><small>KLIENDIOTSING</small><strong>Leia uusi kasutajaid</strong><p>Uuri avalikke allikaid, vaata OpenAI mustandid üle ja saada kinnitatud kiri.</p></div>
+            <div><small>KLIENDIOTSING</small><strong>Leia uusi kasutajaid</strong><p>Uuri OpenAI abil avalikke allikaid, vaata kontaktid üle ja saada kinnitatud kirjamall.</p></div>
             <b><i>→</i></b>
           </a>
         </nav>

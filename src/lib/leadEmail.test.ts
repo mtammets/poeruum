@@ -21,7 +21,7 @@ describe('lead outreach email', () => {
 
   it('ends after the personal signature without a campaign footer', () => {
     const text = renderLeadText(input)
-    expect(text).toMatch(/Parimat\nMarek\nPoeruum · poeruum\.ee$/)
+    expect(text).toMatch(/Parimat\nMarek\nPoeruum · https:\/\/poeruum\.ee$/)
     expect(text).not.toContain('Poeruum on Animaator OÜ teenus.')
     expect(text).not.toContain('vasta sellele kirjale „ei soovi”')
   })
