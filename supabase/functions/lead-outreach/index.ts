@@ -502,7 +502,7 @@ Deno.serve(async (request) => {
         || configuredSender.match(/^[^\s@]+@[^\s@]+$/)?.[0]
         || 'teavitused@send.poeruum.ee'
       const from = Deno.env.get('OUTREACH_FROM_EMAIL')?.trim()
-        || `Marek Tammets | Poeruum <${senderAddress}>`
+        || `Poeruum <${senderAddress}>`
       const replyTo = Deno.env.get('OUTREACH_REPLY_TO')?.trim()
         || Deno.env.get('SUPPORT_PUBLIC_EMAIL')?.trim()
         || 'info@poeruum.ee'
