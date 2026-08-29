@@ -16,3 +16,6 @@ vite.config.d.ts
 .env
 .env.*
 !.env.example
+
+# Local production-data safety exports; never commit these files.
+.local-backups/

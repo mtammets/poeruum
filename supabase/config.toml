@@ -59,7 +59,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.lead-outreach]
-verify_jwt = true
+verify_jwt = false
 
 [functions.lead-unsubscribe]
 verify_jwt = false

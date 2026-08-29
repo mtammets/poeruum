@@ -1,0 +1,80 @@
+name: Outreach automation
+
+on:
+  schedule:
+    # Registry import. The source file is updated once per day.
+    - cron: '17 4 * * *'
+    # First send run and one safe retry within the Resend idempotency window.
+    - cron: '17 6,7 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Töö
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - import
+          - send
+
+permissions:
+  contents: read
+
+concurrency:
+  group: outreach-automation
+  cancel-in-progress: false
+
+env:
+  SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://foctericixquaogwboqg.supabase.co' }}
+  OUTREACH_AUTOMATION_SECRET: ${{ secrets.OUTREACH_AUTOMATION_SECRET }}
+  RIK_GENERAL_DATA_URL: https://avaandmed.ariregister.rik.ee/sites/default/files/avaandmed/ettevotja_rekvisiidid__yldandmed.json.zip
+
+jobs:
+  import:
+    name: Import new public contacts
+    if: github.event.schedule == '17 4 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.mode == 'all' || inputs.mode == 'import'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check automation secret
+        shell: bash
+        run: test -n "$OUTREACH_AUTOMATION_SECRET"
+
+      - name: Download daily e-Business Register data
+        shell: bash
+        run: curl --fail --location --retry 3 --retry-all-errors --silent --show-error --output "$RUNNER_TEMP/rik-general-data.json.zip" "$RIK_GENERAL_DATA_URL"
+
+      - name: Stream and import eligible contacts
+        shell: bash
+        run: |
+          source_updated_at="$(curl --fail --silent --show-error --head "$RIK_GENERAL_DATA_URL" | awk 'BEGIN{IGNORECASE=1} /^last-modified:/{sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit}')"
+          RIK_SOURCE_UPDATED_AT="$source_updated_at" node scripts/import-rik-outreach.mjs "$RUNNER_TEMP/rik-general-data.json.zip"
+
+  send:
+    name: Send today's queue
+    needs: import
+    if: always() && (needs.import.result == 'success' || needs.import.result == 'skipped') && (github.event.schedule == '17 6,7 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.mode == 'all' || inputs.mode == 'send')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check automation secret
+        shell: bash
+        run: test -n "$OUTREACH_AUTOMATION_SECRET"
+
+      - name: Run automatic sender
+        shell: bash
+        run: |
+          response="$(curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $OUTREACH_AUTOMATION_SECRET" \
+            --header 'Content-Type: application/json' \
+            --data '{"action":"run-send"}' \
+            "$SUPABASE_URL/functions/v1/lead-outreach")"
+          node -e 'const value=JSON.parse(process.argv[1]); if(value.ok !== true) { console.error(value.error || "Saatmistöö ebaõnnestus."); process.exit(1) } console.log(JSON.stringify(value))' "$response"

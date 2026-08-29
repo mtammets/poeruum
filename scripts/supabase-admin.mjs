@@ -40,16 +40,14 @@ const run = (args) => {
 
 const syncLeadSecrets = () => {
   const secretNames = [
-    'OPENAI_API_KEY',
-    'OPENAI_LEAD_MODEL',
+    'OUTREACH_AUTOMATION_SECRET',
     'OUTREACH_SENDER_NAME',
     'OUTREACH_FROM_EMAIL',
     'OUTREACH_REPLY_TO',
     'OUTREACH_BCC_EMAIL',
-    'OUTREACH_DAILY_SEND_LIMIT',
   ]
-  if (!process.env.OPENAI_API_KEY?.trim()) {
-    console.error('Puudub OPENAI_API_KEY. Lisa see lokaalsesse .env faili.')
+  if (!process.env.OUTREACH_AUTOMATION_SECRET?.trim()) {
+    console.error('Puudub OUTREACH_AUTOMATION_SECRET. Lisa see lokaalsesse .env faili.')
     process.exit(1)
   }
   const values = secretNames
@@ -69,14 +67,14 @@ if (action === 'deploy') {
 if (action === 'leads') {
   syncLeadSecrets()
   run(['db', 'push', '--linked'])
-  run(['functions', 'deploy', 'lead-outreach', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'lead-outreach', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'lead-unsubscribe', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'resend-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'data-retention-reaper', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   process.exit(0)
 }
 if (action === 'functions') {
-  if (process.env.OPENAI_API_KEY?.trim()) syncLeadSecrets()
+  if (process.env.OUTREACH_AUTOMATION_SECRET?.trim()) syncLeadSecrets()
   run(['functions', 'deploy', 'delete-account', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   run(['functions', 'deploy', 'stripe-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'stripe-connect-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
@@ -97,7 +95,7 @@ if (action === 'functions') {
   run(['functions', 'deploy', 'health-check', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'monitor-health', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'support-actions', '--project-ref', process.env.SUPABASE_PROJECT_REF])
-  run(['functions', 'deploy', 'lead-outreach', '--project-ref', process.env.SUPABASE_PROJECT_REF])
+  run(['functions', 'deploy', 'lead-outreach', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'lead-unsubscribe', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'resend-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'storefront-sitemap', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
