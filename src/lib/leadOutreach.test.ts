@@ -4,6 +4,8 @@ import {
   classifyContactEmail,
   contactMatchesWebsite,
   createLeadOutreachTemplate,
+  hasPublicLeadContact,
+  leadWebsiteKey,
   leadPricingSentence,
   normalizeEmail,
   normalizePublicUrl,
@@ -36,6 +38,12 @@ describe('lead outreach public data safeguards', () => {
     expect(normalizePublicUrl('http://localhost/contact')).toBeNull()
   })
 
+  it('keeps different social profiles as different company identities', () => {
+    expect(leadWebsiteKey('https://instagram.com/esimene/')).toBe('instagram.com/esimene')
+    expect(leadWebsiteKey('https://instagram.com/teine/')).toBe('instagram.com/teine')
+    expect(leadWebsiteKey('https://ettevote.ee/tooted')).toBe('ettevote.ee')
+  })
+
   it('requires the exact contact source to appear in OpenAI web-search sources', () => {
     const source = sourceKey('https://ettevote.ee/kontakt/')
     const sources = new Set(source ? [source] : [])
@@ -51,11 +59,14 @@ describe('lead outreach public data safeguards', () => {
     expect(contactMatchesWebsite('info@ettevote.ee', 'https://ettevote.ee', 'https://kataloog.ee/ettevote')).toBe(false)
   })
 
-  it('accepts only complete research candidates backed by the returned web sources', () => {
-    const sourceKeys = new Set([
-      sourceKey('https://ettevote.ee/tooted'),
-      sourceKey('https://ettevote.ee/kontakt'),
-    ].filter((value): value is string => Boolean(value)))
+  it('allows any publicly listed business contact to be reviewed and sent manually', () => {
+    expect(hasPublicLeadContact('mari@ettevote.ee', 'https://ettevote.ee/kontakt')).toBe(true)
+    expect(hasPublicLeadContact('ettevote@gmail.com', 'https://instagram.com/ettevote')).toBe(true)
+    expect(hasPublicLeadContact('ettevote@gmail.com', null)).toBe(false)
+    expect(hasPublicLeadContact('not-an-email', 'https://ettevote.ee/kontakt')).toBe(false)
+  })
+
+  it('accepts a complete research candidate', () => {
     const candidate = {
       company_name: ' Näidis OÜ ',
       website_url: 'https://www.ettevote.ee/?utm_source=search',
@@ -72,7 +83,7 @@ describe('lead outreach public data safeguards', () => {
       draft_body: 'Seda välja ei kasutata',
     }
 
-    expect(validateLeadResearchCandidate(candidate, sourceKeys)).toEqual({
+    expect(validateLeadResearchCandidate(candidate)).toEqual({
       company_name: 'Näidis OÜ',
       website_url: 'https://www.ettevote.ee/',
       website_domain: 'ettevote.ee',
@@ -88,10 +99,7 @@ describe('lead outreach public data safeguards', () => {
     })
   })
 
-  it('rejects incomplete, personal, unrelated, or uncited research contacts', () => {
-    const productSource = sourceKey('https://ettevote.ee/tooted')
-    const contactSource = sourceKey('https://ettevote.ee/kontakt')
-    const sourceKeys = new Set([productSource, contactSource].filter((value): value is string => Boolean(value)))
+  it('keeps useful candidates even when their contact needs manual review', () => {
     const candidate = {
       company_name: 'Näidis OÜ',
       website_url: 'https://ettevote.ee',
@@ -105,10 +113,15 @@ describe('lead outreach public data safeguards', () => {
       evidence: 'Toodete lehel puudub ostukorv.',
     }
 
-    expect(validateLeadResearchCandidate({ ...candidate, contact_email: 'mari@ettevote.ee' }, sourceKeys)).toBeNull()
-    expect(validateLeadResearchCandidate({ ...candidate, contact_email: 'info@teine.ee' }, sourceKeys)).toBeNull()
-    expect(validateLeadResearchCandidate(candidate, new Set(productSource ? [productSource] : []))).toBeNull()
-    expect(validateLeadResearchCandidate({ ...candidate, evidence: '' }, sourceKeys)).toBeNull()
+    expect(validateLeadResearchCandidate({ ...candidate, contact_email: 'mari@ettevote.ee' })?.contact_kind)
+      .toBe('personal_or_unclear')
+    expect(validateLeadResearchCandidate({ ...candidate, contact_email: null, email_source_url: null })).toMatchObject({
+      contact_email: null,
+      email_source_url: null,
+      contact_kind: 'missing',
+    })
+    expect(validateLeadResearchCandidate({ ...candidate, evidence: '' })).not.toBeNull()
+    expect(validateLeadResearchCandidate({ ...candidate, website_url: 'not-a-url' })).toBeNull()
   })
 
   it('uses one approved outreach template instead of generated sales copy', () => {

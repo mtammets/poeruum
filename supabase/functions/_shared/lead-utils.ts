@@ -37,6 +37,17 @@ const generalMailboxNames = new Set([
   'tere',
   'turundus',
 ])
+const sharedProfileHostnames = new Set([
+  'etsy.com',
+  'facebook.com',
+  'instagram.com',
+  'linktr.ee',
+  'linkedin.com',
+  'pinterest.com',
+  'sites.google.com',
+  'tiktok.com',
+  'youtube.com',
+])
 const permanentlyDeletableLeadStatuses = new Set(['new', 'ready', 'archived'])
 
 export const textValue = (value: unknown, max: number) => String(value ?? '')
@@ -115,6 +126,19 @@ export const websiteDomain = (value: unknown) => {
   return new URL(normalized).hostname.toLowerCase().replace(/^www\./, '')
 }
 
+export const leadWebsiteKey = (value: unknown) => {
+  const normalized = normalizePublicUrl(value)
+  if (!normalized) return null
+  const url = new URL(normalized)
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+  if (!sharedProfileHostnames.has(hostname)) return hostname
+
+  const pathname = url.pathname.replace(/^\/+|\/+$/g, '').toLowerCase()
+  const profile = pathname || url.searchParams.get('id')?.trim().toLowerCase()
+  if (!profile) return null
+  return `${hostname}/${profile}${url.searchParams.get('id') ? `?id=${url.searchParams.get('id')}` : ''}`.slice(0, 253)
+}
+
 export const domainsRelated = (left: unknown, right: unknown) => {
   const a = String(left ?? '').trim().toLowerCase().replace(/^www\./, '')
   const b = String(right ?? '').trim().toLowerCase().replace(/^www\./, '')
@@ -130,6 +154,10 @@ export const contactMatchesWebsite = (emailValue: unknown, websiteValue: unknown
   const emailDomain = email.split('@')[1]
   return domainsRelated(website, emailSource) && domainsRelated(website, emailDomain)
 }
+
+export const hasPublicLeadContact = (emailValue: unknown, emailSourceValue: unknown) => Boolean(
+  normalizeEmail(emailValue) && normalizePublicUrl(emailSourceValue),
+)
 
 export const sourceKey = (value: unknown) => {
   const normalized = normalizePublicUrl(value)
@@ -163,9 +191,9 @@ export type ValidatedLeadResearchCandidate = {
   website_url: string
   website_domain: string
   source_url: string
-  email_source_url: string
-  contact_email: string
-  contact_kind: 'general_business'
+  email_source_url: string | null
+  contact_email: string | null
+  contact_kind: 'general_business' | 'personal_or_unclear' | 'missing'
   location: string
   segment: string
   summary: string
@@ -175,26 +203,20 @@ export type ValidatedLeadResearchCandidate = {
 
 export const validateLeadResearchCandidate = (
   candidate: LeadResearchCandidateInput,
-  sourceUrls: Set<string>,
 ): ValidatedLeadResearchCandidate | null => {
   const companyName = textValue(candidate.company_name, 200)
   const websiteUrl = normalizePublicUrl(candidate.website_url)
-  const website = websiteDomain(websiteUrl)
+  const website = leadWebsiteKey(websiteUrl)
   const sourceUrl = normalizePublicUrl(candidate.source_url)
-  if (!companyName || !websiteUrl || !website || !sourceUrl || !sourceMatches(sourceUrl, sourceUrls)) return null
+  if (!companyName || !websiteUrl || !website || !sourceUrl) return null
 
-  const rawEmailSourceUrl = normalizePublicUrl(candidate.email_source_url)
-  const emailSourceUrl = rawEmailSourceUrl && sourceMatches(rawEmailSourceUrl, sourceUrls)
-    ? rawEmailSourceUrl
-    : null
-  const contactEmail = emailSourceUrl ? normalizeEmail(candidate.contact_email) : null
-  if (classifyContactEmail(contactEmail) !== 'general_business') return null
-  if (!contactMatchesWebsite(contactEmail, websiteUrl, emailSourceUrl)) return null
+  const emailSourceUrl = normalizePublicUrl(candidate.email_source_url)
+  const contactEmail = normalizeEmail(candidate.contact_email)
+  const contactKind = classifyContactEmail(contactEmail)
 
   const summary = textValue(candidate.summary, 1000)
   const fitReason = textValue(candidate.fit_reason, 1200)
   const evidence = textValue(candidate.evidence, 1200)
-  if (!summary || !fitReason || !evidence || !emailSourceUrl || !contactEmail) return null
 
   return {
     company_name: companyName,
@@ -203,7 +225,7 @@ export const validateLeadResearchCandidate = (
     source_url: sourceUrl,
     email_source_url: emailSourceUrl,
     contact_email: contactEmail,
-    contact_kind: 'general_business',
+    contact_kind: contactKind,
     location: textValue(candidate.location, 160),
     segment: textValue(candidate.segment, 160),
     summary,

@@ -50,16 +50,14 @@ const primaryFilters: Array<{ id: 'active' | 'sent' | 'replied'; label: string }
   { id: 'replied', label: 'Vastanud' },
 ]
 
-const hasReviewableContact = (lead: SalesLead) => lead.contact_kind === 'general_business'
-  && Boolean(lead.contact_email && lead.email_source_url)
+const hasReviewableContact = (lead: SalesLead) => Boolean(lead.contact_email && lead.email_source_url)
 
-const isActiveLead = (lead: SalesLead) => ['ready', 'sending'].includes(lead.status)
-  || (lead.status === 'new' && hasReviewableContact(lead))
+const isActiveLead = (lead: SalesLead) => ['new', 'ready', 'sending'].includes(lead.status)
 
 const isIncompleteLead = (lead: SalesLead) => lead.status === 'new' && !hasReviewableContact(lead)
 
 const statusLabel = (lead: SalesLead) => lead.status === 'new'
-  ? hasReviewableContact(lead) ? 'Kiri puudub' : 'Kontakt puudub'
+  ? lead.contact_email ? 'Kontrolli kontakti' : 'Kontakt puudub'
   : statusLabels[lead.status]
 
 const toDraft = (lead: SalesLead): LeadDraft => ({
@@ -187,8 +185,10 @@ export default function AdminLeads() {
     try {
       const result = await invoke('search', { query: researchQuery, limit: researchLimit })
       const inserted = Number(result.inserted_count ?? 0)
-      const rejected = Number(result.duplicate_or_rejected_count ?? 0)
-      setNotice(`Leidsin ${inserted} kontrollitud ${inserted === 1 ? 'kandidaadi' : 'kandidaati'}${rejected ? `; ${rejected} duplikaati või ebapiisava infoga tulemust jäeti välja` : ''}.`)
+      const duplicates = Number(result.duplicate_count ?? 0)
+      const rejected = Number(result.rejected_count ?? 0)
+      setNotice(`Leidsin ${inserted} ${inserted === 1 ? 'uue ettevõtte' : 'uut ettevõtet'}${duplicates ? `; ${duplicates} oli juba nimekirjas` : ''}${rejected ? `; ${rejected} tulemusel puudusid ettevõtte põhiandmed` : ''}.`)
+      setFilter('active')
       setResearchOpen(false)
       await loadLeads(null)
     } catch (researchError) {
