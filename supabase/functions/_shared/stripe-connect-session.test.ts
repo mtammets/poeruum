@@ -17,8 +17,35 @@ describe('Stripe Connect account session modes', () => {
 
   it('keeps remediation focused for an existing managed account', () => {
     expect(resolveStripeConnectSessionMode(true, 'remediation')).toBe('remediation')
-    expect(resolveStripeConnectSessionMode(true, 'onboarding')).toBe('management')
+    expect(resolveStripeConnectSessionMode(true, 'onboarding')).toBe('remediation')
+    expect(resolveStripeConnectSessionMode(true, 'onboarding', false)).toBe('onboarding')
     expect(resolveStripeConnectSessionMode(false, 'onboarding')).toBe('onboarding')
+  })
+
+  it('keeps the rendered onboarding component available if completion races the session request', () => {
+    const mode = resolveStripeConnectSessionMode(true, 'onboarding', true)
+    expect(getStripeConnectSessionComponents(mode)).toEqual({
+      account_onboarding: {
+        enabled: true,
+        features: {
+          external_account_collection: false,
+          disable_stripe_user_authentication: true,
+        },
+      },
+    })
+  })
+
+  it('keeps payout-account collection available when initial onboarding was interrupted', () => {
+    const mode = resolveStripeConnectSessionMode(true, 'onboarding', false)
+    expect(getStripeConnectSessionComponents(mode)).toEqual({
+      account_onboarding: {
+        enabled: true,
+        features: {
+          external_account_collection: true,
+          disable_stripe_user_authentication: true,
+        },
+      },
+    })
   })
 
   it('creates an account only for explicit first-time onboarding', () => {

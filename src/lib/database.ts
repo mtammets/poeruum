@@ -225,6 +225,7 @@ export async function invokeStripeConnect(
     status?: StoreRecord['payment_status']
     chargesEnabled?: boolean
     payoutsEnabled?: boolean
+    detailsSubmitted?: boolean
     requirements?: StripeRequirementSummary
   }
 }

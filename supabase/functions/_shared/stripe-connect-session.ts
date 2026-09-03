@@ -8,11 +8,14 @@ export const parseStripeConnectSessionMode = (value: unknown): StripeConnectSess
 export const resolveStripeConnectSessionMode = (
   hasExistingManagedAccount: boolean,
   requestedMode: StripeConnectSessionMode,
+  hasCompletedOnboarding = true,
 ): StripeConnectSessionMode => {
   // Never let an established payout account fall back to the broad first-time
-  // onboarding session. The focused remediation session is deliberately safe
-  // for returning accounts because it cannot collect or change bank details.
-  if (hasExistingManagedAccount && requestedMode === 'onboarding') return 'management'
+  // onboarding session. An account whose onboarding was interrupted must be
+  // allowed back into that flow so it can still provide its payout account.
+  // Keep the account-onboarding component enabled during a status race, but
+  // remove external-account collection once initial onboarding is complete.
+  if (hasExistingManagedAccount && requestedMode === 'onboarding' && hasCompletedOnboarding) return 'remediation'
   return requestedMode
 }
 

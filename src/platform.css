@@ -573,10 +573,12 @@ button, a, summary { touch-action: manipulation; }
 .publish-payment-status { position: relative; z-index: 1; display: grid; grid-template-columns: 4.1rem minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .65rem; border: 1px solid #dfe5db; border-radius: .85rem; background: #ffffffc7; }
 .publish-payment-status > .provider-logo { display: grid; width: 4.1rem; height: 2.35rem; place-items: center; border: 1px solid #e5e7e1; border-radius: .58rem; background: #fff; font-style: normal; }
 .publish-payment-status > .provider-logo--montonio { border-color: #173b3120; background: #173b31; }
-.publish-payment-status > strong { min-width: 0; color: var(--platform-green); font-size: .72rem; }
+.publish-payment-status > span { display: grid; min-width: 0; gap: .08rem; }
+.publish-payment-status > span > strong { color: var(--platform-green); font-size: .72rem; }
+.publish-payment-status > span > small { color: #7b847d; font-size: .58rem; line-height: 1.3; }
 .publish-payment-status > button { width: 1.85rem; height: 1.85rem; border-radius: .55rem; }
 .publish-payment-status.is-pending { border-color: #e4dcc2; background: #fffdf5d9; }
-.publish-payment-status.is-pending > strong { color: #75642c; }
+.publish-payment-status.is-pending > span > strong { color: #75642c; }
 .publish-seller-row { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .72rem .25rem .12rem; border-top: 1px solid #dce4d8; }
 .publish-seller-row > span { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: .22rem; }
 .publish-seller-row strong { color: #334139; font-size: .7rem; }

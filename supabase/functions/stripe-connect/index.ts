@@ -140,13 +140,14 @@ Deno.serve(async (request) => {
     let accountId = typeof store.stripe_account_id === 'string' ? store.stripe_account_id : null
     const hasStoredAccountId = Boolean(accountId)
     let hasExistingManagedAccount = false
+    let hasCompletedOnboarding = false
     if (accountId) assertStoredStripeMode(store.stripe_account_mode, stripeMode, 'Poe Stripe’i konto')
 
     if (body.action === 'status') {
       if (!accountId) {
         const { error } = await admin.from('stores').update(emptyStripeRequirementStoreUpdate()).eq('id', store.id)
         if (error) throw error
-        return json({ status: 'idle' })
+        return json({ status: 'idle', detailsSubmitted: false })
       }
       const account = await stripe.accounts.retrieve(accountId)
       if ('deleted' in account && account.deleted) {
@@ -155,7 +156,7 @@ Deno.serve(async (request) => {
           stripe_account_charges_enabled: false, stripe_account_payouts_enabled: false, stripe_account_mode: null,
           ...emptyStripeRequirementStoreUpdate(),
         }).eq('id', store.id)
-        return json({ status: 'idle' })
+        return json({ status: 'idle', detailsSubmitted: false })
       }
       const status = stripeAccountStatus(account)
       const requirements = summarizeStripeRequirements(account)
@@ -166,7 +167,13 @@ Deno.serve(async (request) => {
         ...stripeRequirementStoreUpdate(requirements),
       }).eq('id', store.id)
       if (error) throw error
-      return json({ status, chargesEnabled: account.charges_enabled, payoutsEnabled: account.payouts_enabled, requirements })
+      return json({
+        status,
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled,
+        detailsSubmitted: account.details_submitted,
+        requirements,
+      })
     }
 
     if (body.action !== 'start') return json({ error: 'Tundmatu tegevus.' }, 400)
@@ -192,6 +199,7 @@ Deno.serve(async (request) => {
         return requestedMode === 'remediation' ? remediationUnavailable() : storedAccountUnavailable()
       }
       hasExistingManagedAccount = true
+      hasCompletedOnboarding = retrievedAccount.details_submitted
     }
 
     if (!accountId) {
@@ -207,7 +215,7 @@ Deno.serve(async (request) => {
       if (error) throw error
     }
 
-    const sessionMode = resolveStripeConnectSessionMode(hasExistingManagedAccount, requestedMode)
+    const sessionMode = resolveStripeConnectSessionMode(hasExistingManagedAccount, requestedMode, hasCompletedOnboarding)
     const components: Stripe.AccountSessionCreateParams.Components = getStripeConnectSessionComponents(sessionMode)
 
     const accountSession = await stripe.accountSessions.create({

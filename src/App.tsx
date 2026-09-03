@@ -2482,7 +2482,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         )}
 
         {activeProductHasSale && saleBadgeStyle !== 'price' && <div className={`sale-badge sale-badge--${saleBadgeStyle}`} aria-label={`Soodushind, ${activeProductDiscount}% odavam`}>
-          {saleBadgeStyle === 'quirky' && <><span aria-hidden="true">Veider</span><strong aria-hidden="true"><i>S</i><i>o</i><i>o</i><i>d</i><i>u</i><i>k</i><i>a</i><i>s</i></strong></>}
+          {saleBadgeStyle === 'quirky' && <strong aria-hidden="true"><i>S</i><i>o</i><i>o</i><i>d</i><i>u</i><i>k</i><i>a</i><i>s</i></strong>}
           {saleBadgeStyle === 'classic' && <span className="sale-badge__classic" aria-hidden="true">−{activeProductDiscount}%</span>}
           {saleBadgeStyle === 'elegant' && <span className="sale-badge__elegant" aria-hidden="true">Eripakkumine</span>}
           {saleBadgeStyle === 'minimal' && <span className="sale-badge__minimal" aria-hidden="true">Soodus · −{activeProductDiscount}%</span>}
@@ -2912,7 +2912,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <div className="settings-sale-style">
               <span className="settings-section-label">Soodushinna stiil</span>
               <div>{([
-                ['quirky', 'Veider', 'Veider\nSoodukas'],
+                ['quirky', 'Soodukas', 'Soodukas'],
                 ['classic', 'Klassikaline', '−30%'],
                 ['price', 'Hinnasilt', '18 €|12 €'],
                 ['elegant', 'Elegantne', 'Eripakkumine'],
@@ -2967,6 +2967,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             </div>}
             {activePaymentProvider === 'stripe' && <button className={`settings-secondary-action${stripeActionRequired ? ' is-warning' : ''}`} type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', stripeActionRequired ? 'requirements' : 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
               <span>{stripeManagementLabel}</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+            </button>}
+            {activePaymentProvider === 'stripe' && stripeActionRequired && <button className="settings-secondary-action" type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
+              <span>Halda Stripe’i kontot ja väljamakseid</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>}
           </div>}

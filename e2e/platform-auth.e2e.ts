@@ -69,15 +69,34 @@ const store = {
   },
 }
 
+const connectedStripeStatus = {
+  status: 'connected',
+  chargesEnabled: true,
+  payoutsEnabled: true,
+  detailsSubmitted: true,
+  requirements: {
+    dueCount: 1,
+    pastDue: false,
+    currentDeadline: '2026-10-09T00:00:00.000Z',
+    pendingVerification: false,
+    disabledReason: null,
+  },
+}
+
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({
   status,
   contentType: 'application/json',
   body: JSON.stringify(body),
 })
 
-const installSupabaseBackend = async (page: Page) => {
+const installSupabaseBackend = async (
+  page: Page,
+  storeFixture: Record<string, unknown> = store,
+  stripeStatusFixture: Record<string, unknown> = connectedStripeStatus,
+) => {
   let passwordSignIns = 0
   let sessionRefreshes = 0
+  let currentStore = { ...storeFixture }
 
   await page.route('**/__e2e_supabase/**', async (route) => {
     const request = route.request()
@@ -108,8 +127,13 @@ const installSupabaseBackend = async (page: Page) => {
     }
 
     if (url.pathname.endsWith('/rest/v1/stores')) {
+      if (request.method() === 'PATCH') {
+        currentStore = { ...currentStore, ...request.postDataJSON() as Record<string, unknown> }
+        await json(route, currentStore)
+        return
+      }
       const isOwnedStoreRequest = url.searchParams.get('owner_id') === `eq.${USER_ID}`
-      if (isOwnedStoreRequest) await json(route, [store])
+      if (isOwnedStoreRequest) await json(route, [currentStore])
       else await json(route, [])
       return
     }
@@ -120,18 +144,7 @@ const installSupabaseBackend = async (page: Page) => {
     }
 
     if (url.pathname.endsWith('/functions/v1/stripe-connect')) {
-      await json(route, {
-        status: 'connected',
-        chargesEnabled: true,
-        payoutsEnabled: true,
-        requirements: {
-          dueCount: 1,
-          pastDue: false,
-          currentDeadline: '2026-10-09T00:00:00.000Z',
-          pendingVerification: false,
-          disabledReason: null,
-        },
-      })
+      await json(route, stripeStatusFixture)
       return
     }
 
@@ -153,6 +166,49 @@ const installSupabaseBackend = async (page: Page) => {
     sessionRefreshes: () => sessionRefreshes,
   }
 }
+
+test('a draft can continue setup while Stripe verifies submitted details', async ({ page }) => {
+  const pendingStore = {
+    ...store,
+    is_published: false,
+    payment_status: 'pending',
+    stripe_account_charges_enabled: false,
+    stripe_account_payouts_enabled: false,
+    stripe_account_requirements_due_count: 0,
+    stripe_account_requirements_past_due: false,
+    stripe_account_requirements_deadline: null,
+    stripe_account_requirements_pending_verification: true,
+    stripe_account_requirements_disabled_reason: 'requirements.pending_verification',
+    settings: { ...store.settings, onboardingStep: 'payments' },
+  }
+  const pendingStripeStatus = {
+    status: 'pending',
+    chargesEnabled: false,
+    payoutsEnabled: false,
+    detailsSubmitted: true,
+    requirements: {
+      dueCount: 0,
+      pastDue: false,
+      currentDeadline: null,
+      pendingVerification: true,
+      disabledReason: 'requirements.pending_verification',
+    },
+  }
+  await installSupabaseBackend(page, pendingStore, pendingStripeStatus)
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Logi sisse' }).first().click()
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+
+  await expect(page.getByRole('heading', { name: 'Kuidas kliendid maksavad?' })).toBeVisible()
+  await expect(page.getByText('Stripe kontrollib andmeid')).toBeVisible()
+  await expect(page.getByText(/Kõik vajalik on esitatud/)).toBeVisible()
+  await page.getByRole('button', { name: /Jätka tarnega/ }).click()
+  await expect(page.getByRole('heading', { name: 'Vali tarneviisid' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Jätka Stripe’i seadistamist/ })).toHaveCount(0)
+})
 
 test('Stripe requirements email link survives login and opens the owned store payment settings', async ({ page }) => {
   const backend = await installSupabaseBackend(page)
