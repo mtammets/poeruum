@@ -42,6 +42,14 @@ export type PublicStoreRecord = Pick<
   'id' | 'name' | 'slug' | 'is_published' | 'payment_provider' | 'payment_status' | 'shipping' | 'settings'
 >
 
+export type ProductCategory = {
+  id: string
+  storeId: string
+  name: string
+  slug: string
+  sortOrder: number
+}
+
 export type StoreContentInput = Pick<
   StoreRecord,
   'name' | 'slug' | 'payment_provider' | 'shipping' | 'settings'
@@ -312,8 +320,65 @@ export async function listProducts(storeId: string) {
   return (data ?? []).filter((row) => isSupabaseProductImageUrl(row.image_url)).map(productFromRow)
 }
 
+export const createProductCategorySlug = (value: string) => value
+  .trim()
+  .toLocaleLowerCase('et')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '')
+  .slice(0, 60)
+
+const productCategoryFromRow = (row: Record<string, unknown>): ProductCategory => ({
+  id: String(row.id),
+  storeId: String(row.store_id),
+  name: String(row.name),
+  slug: String(row.slug),
+  sortOrder: Number(row.sort_order ?? 0),
+})
+
+export async function listProductCategories(storeId: string) {
+  const { data, error } = await requireSupabase()
+    .from('product_categories')
+    .select('*')
+    .eq('store_id', storeId)
+    .order('sort_order')
+    .order('name')
+  throwIfError(error)
+  return (data ?? []).map((row) => productCategoryFromRow(row as Record<string, unknown>))
+}
+
+export async function createProductCategory(storeId: string, name: string, sortOrder = 0) {
+  const normalizedName = name.trim().replace(/\s+/g, ' ')
+  if (!normalizedName) throw new Error('Lisa kategooria nimi.')
+  if (normalizedName.length > 60) throw new Error('Kategooria nimi võib olla kuni 60 tähemärki.')
+  const slug = createProductCategorySlug(normalizedName)
+  if (!slug) throw new Error('Kategooria nimes peab olema vähemalt üks täht või number.')
+
+  const client = requireSupabase()
+  const existing = await client
+    .from('product_categories')
+    .select('*')
+    .eq('store_id', storeId)
+    .eq('slug', slug)
+    .maybeSingle()
+  throwIfError(existing.error)
+  if (existing.data) return productCategoryFromRow(existing.data as Record<string, unknown>)
+
+  const { data, error } = await client
+    .from('product_categories')
+    .insert({ store_id: storeId, name: normalizedName, slug, sort_order: sortOrder })
+    .select()
+    .single()
+  if (error?.message.toLowerCase().includes('row-level security')) {
+    throw new Error('Sul puudub selle poe kategooriate muutmise õigus. Logi uuesti sisse ja proovi uuesti.')
+  }
+  throwIfError(error)
+  return productCategoryFromRow(data as Record<string, unknown>)
+}
+
 const productFromRow = (row: Record<string, unknown>): Product => ({
-  id: String(row.id), name: String(row.name), image: String(row.image_url), gallery: row.gallery as string[] | undefined,
+  id: String(row.id), categoryId: row.category_id == null ? undefined : String(row.category_id), name: String(row.name), image: String(row.image_url), gallery: row.gallery as string[] | undefined,
   alt: String(row.alt ?? row.name), description: row.description as string | undefined,
   price: row.price == null ? undefined : Number(row.price), salePrice: row.sale_price == null ? undefined : Number(row.sale_price),
   objectPosition: row.object_position as string | undefined, slug: row.slug as string | undefined,
@@ -325,7 +390,7 @@ const productFromRow = (row: Record<string, unknown>): Product => ({
 })
 
 const productToRow = (storeId: string, product: Product) => ({
-  id: product.id, store_id: storeId, name: product.name, image_url: product.image, gallery: product.gallery ?? [product.image],
+  id: product.id, store_id: storeId, category_id: product.categoryId ?? null, name: product.name, image_url: product.image, gallery: product.gallery ?? [product.image],
   alt: product.alt, description: product.description ?? '', price: product.price ?? null, sale_price: product.salePrice ?? null,
   object_position: product.objectPosition ?? null, slug: product.slug ?? null, seo_title: product.seoTitle ?? null,
   image_transforms: product.imageTransforms ?? {},

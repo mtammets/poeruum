@@ -276,6 +276,48 @@ test('a stale settings response cannot overwrite text being typed', async ({ pag
   await expect(description).toHaveValue('Telefonis kirjutatud uus tekst')
 })
 
+test('customers filter products by category inside search', async ({ page }) => {
+  const imageBody = '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="navy"/></svg>'
+  await page.route('**/e2e-images/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: imageBody }))
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountCategorySearchHarness } = await import('/e2e/settings-harness.tsx')
+    mountCategorySearchHarness()
+  })
+
+  await page.getByRole('button', { name: 'Otsi ja sirvi kategooriaid' }).click()
+  const search = page.getByRole('dialog', { name: 'Tooteotsing ja kategooriad' })
+  await expect(search.getByRole('heading', { name: 'Kategooriad' })).toBeVisible()
+  await expect(search.getByRole('button', { name: /Ehted 1/ })).toBeVisible()
+  await expect(search.getByRole('button', { name: /Kodu 2/ })).toBeVisible()
+  await expect(search.getByRole('button', { name: /Tühi/ })).toHaveCount(0)
+
+  await search.getByRole('button', { name: /Ehted 1/ }).click()
+  await expect(search.locator('.search-results > button')).toHaveCount(1)
+  await expect(search.getByText('Hõbedane sõrmus')).toBeVisible()
+  await expect(search.getByText('Savikruus')).toHaveCount(0)
+
+  await search.getByRole('button', { name: 'Eemalda filter' }).click()
+  await expect(search.locator('.search-results > button')).toHaveCount(3)
+})
+
+test('a merchant creates and selects a category while editing a product', async ({ page }) => {
+  const imageBody = '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="navy"/></svg>'
+  await page.route('**/e2e-images/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: imageBody }))
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountCategoryEditorHarness } = await import('/e2e/settings-harness.tsx')
+    mountCategoryEditorHarness()
+  })
+
+  await page.getByRole('button', { name: 'Muuda toodet' }).click()
+  await page.getByRole('button', { name: '+ Uus' }).click()
+  await page.getByLabel('Uue kategooria nimi').fill('Kingitused')
+  await page.getByRole('button', { name: 'Loo', exact: true }).click()
+  await expect(page.getByLabel('Toote kategooria')).toHaveValue(/category-/)
+  await expect(page.getByLabel('Toote kategooria').locator('option:checked')).toHaveText('Kingitused')
+})
+
 test('a merchant can open Stripe remediation from Poeruum settings', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(async () => {

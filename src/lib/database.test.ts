@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getImageFallbackMimeType, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
+import { createProductCategorySlug, getImageFallbackMimeType, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
 import { requireSupabase } from './supabase'
 
 vi.mock('./supabase', () => ({
@@ -10,6 +10,13 @@ const store = {
   id: '10000000-0000-4000-8000-000000000001',
   is_published: true,
 } as StoreRecord
+
+describe('product category slugs', () => {
+  it('normalizes Estonian names into store-scoped URL-safe identifiers', () => {
+    expect(createProductCategorySlug('  Köögi tarvikud  ')).toBe('koogi-tarvikud')
+    expect(createProductCategorySlug('Ehted & kingitused')).toBe('ehted-kingitused')
+  })
+})
 
 describe('setStorePublication', () => {
   const rpc = vi.fn()

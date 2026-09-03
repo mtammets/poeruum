@@ -23,6 +23,7 @@ export type ProductImageAsset = {
 
 export type Product = {
   id: string
+  categoryId?: string
   name: string
   image: string
   gallery?: string[]

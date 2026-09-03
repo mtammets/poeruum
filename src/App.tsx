@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
-import { cancelStripeBilling, listOrders, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, setStorePublication, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type StoreRecord } from './lib/database'
+import { cancelStripeBilling, createProductCategory, createProductCategorySlug, listOrders, listProductCategories, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, setStorePublication, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type ProductCategory, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
@@ -205,9 +205,56 @@ const normalizeExternalUrl = (value: string) => {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`
 }
 
+type ProductCategoryPickerProps = {
+  categories: ProductCategory[]
+  value: string
+  onChange: (categoryId: string) => void
+  onCreate: (name: string) => Promise<ProductCategory>
+}
+
+function ProductCategoryPicker({ categories, value, onChange, onCreate }: ProductCategoryPickerProps) {
+  const [isCreating, setIsCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [error, setError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const saveCategory = async () => {
+    if (isSaving) return
+    setIsSaving(true)
+    setError('')
+    try {
+      const category = await onCreate(newName)
+      onChange(category.id)
+      setNewName('')
+      setIsCreating(false)
+    } catch (categoryError) {
+      setError(categoryError instanceof Error ? categoryError.message : 'Kategooria loomine ebaõnnestus.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return <div className="product-category-picker">
+    <span>Kategooria <small>valikuline</small></span>
+    <div className="product-category-picker__select">
+      <select aria-label="Toote kategooria" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Kategooriata</option>
+        {categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
+      </select>
+      <button type="button" onClick={() => { setIsCreating((open) => !open); setError('') }}>+ Uus</button>
+    </div>
+    {isCreating && <div className="product-category-picker__create">
+      <input autoFocus maxLength={60} value={newName} onChange={(event) => { setNewName(event.target.value); setError('') }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void saveCategory() } }} placeholder="Näiteks Ehted" aria-label="Uue kategooria nimi" />
+      <button type="button" disabled={isSaving || !newName.trim()} onClick={() => void saveCategory()}>{isSaving ? 'Loon…' : 'Loo'}</button>
+    </div>}
+    {error && <small className="product-category-picker__error" role="alert">{error}</small>}
+  </div>
+}
+
 export type StorefrontProps = {
   storeId?: string
   seedProducts?: Product[]
+  seedCategories?: ProductCategory[]
   storeName?: string
   storeSlug?: string
   theme?: StoreTheme
@@ -239,7 +286,7 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
@@ -431,6 +478,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [editImageUploads, setEditImageUploads] = useState<EditImageUpload[]>([])
   const [editProductStock, setEditProductStock] = useState('')
   const [editProductOneOfAKind, setEditProductOneOfAKind] = useState(false)
+  const [editProductCategoryId, setEditProductCategoryId] = useState('')
   const [editProductName, setEditProductName] = useState('')
   const [editProductSeoTitle, setEditProductSeoTitle] = useState('')
   const [editProductSlug, setEditProductSlug] = useState('')
@@ -447,6 +495,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const [imageUpload, setImageUpload] = useState<{ images: string[]; progress: number; phase: 'preparing' | 'uploading' | 'ready'; slow?: boolean } | null>(null)
   const [addProductName, setAddProductName] = useState('')
   const [addProductDescription, setAddProductDescription] = useState('')
+  const [addProductCategoryId, setAddProductCategoryId] = useState('')
   const [addProductPrice, setAddProductPrice] = useState('')
   const [addProductSalePrice, setAddProductSalePrice] = useState('')
   const [addProductSeoTitle, setAddProductSeoTitle] = useState('')
@@ -464,8 +513,10 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   const desktopGalleryInputRef = useRef<HTMLInputElement>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchCategoryId, setSearchCategoryId] = useState('')
   const [addedProducts, setAddedProducts] = useState<Product[]>([])
   const [persistedProducts, setPersistedProducts] = useState<Product[]>(seedProducts)
+  const [productCategories, setProductCategories] = useState<ProductCategory[]>(seedCategories ?? [])
   const [draftProductId, setDraftProductId] = useState<string | null>(null)
   const [deletedProductIds, setDeletedProductIds] = useState<string[]>([])
   const [productEdits, setProductEdits] = useState<Record<string, Partial<Product>>>({})
@@ -528,6 +579,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
   }, [storeId])
 
   useEffect(() => setPersistedProducts(seedProducts), [seedProducts])
+  useEffect(() => setProductCategories(seedCategories ?? []), [seedCategories])
 
   useEffect(() => {
     if (!storeId || !merchantMode) return
@@ -569,6 +621,17 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     refreshProducts()
     window.addEventListener('focus', refreshProducts)
     return () => { active = false; window.removeEventListener('focus', refreshProducts) }
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+    let active = true
+    const refreshCategories = () => listProductCategories(storeId)
+      .then((nextCategories) => { if (active) setProductCategories(nextCategories) })
+      .catch((error) => { if (active) setAuthToast(error instanceof Error ? error.message : 'Kategooriate laadimine ebaõnnestus') })
+    refreshCategories()
+    window.addEventListener('focus', refreshCategories)
+    return () => { active = false; window.removeEventListener('focus', refreshCategories) }
   }, [storeId])
 
   useEffect(() => {
@@ -826,6 +889,21 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     } else setStoreAboutImage(null)
   }
 
+  const addProductCategory = async (name: string) => {
+    const normalizedName = name.trim().replace(/\s+/g, ' ')
+    const slug = createProductCategorySlug(normalizedName)
+    if (!normalizedName) throw new Error('Lisa kategooria nimi.')
+    if (!slug) throw new Error('Kategooria nimes peab olema vähemalt üks täht või number.')
+
+    const existing = productCategories.find((category) => category.slug === slug)
+    if (existing) return existing
+    const category = storeId
+      ? await createProductCategory(storeId, normalizedName, productCategories.length)
+      : { id: `category-${Date.now()}`, storeId: '', name: normalizedName, slug, sortOrder: productCategories.length }
+    setProductCategories((current) => current.some((item) => item.id === category.id) ? current : [...current, category])
+    return category
+  }
+
   const openEditProduct = () => {
     if (!activeProduct) return
     const automaticSlug = createUrlSlug(activeProduct.name)
@@ -835,6 +913,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setEditProductImageVariants(activeProduct.imageVariants ?? {})
     setEditProductStock(activeProduct.stock === undefined ? '' : String(activeProduct.stock))
     setEditProductOneOfAKind(Boolean(activeProduct.oneOfAKind))
+    setEditProductCategoryId(activeProduct.categoryId ?? '')
     setEditProductName(activeProduct.name)
     setEditProductSeoTitle(activeProduct.seoTitle ?? '')
     setEditProductSlug(activeProduct.slug || automaticSlug)
@@ -885,6 +964,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     imageGestureStartRef.current = null
     setEditProductStock('')
     setEditProductOneOfAKind(false)
+    setEditProductCategoryId('')
     setEditProductName('')
     setEditProductSeoTitle('')
     setEditProductSlug('')
@@ -1065,6 +1145,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setAddProductImages([])
     setAddProductName('')
     setAddProductDescription('')
+    setAddProductCategoryId('')
     setAddProductPrice('')
     setAddProductSalePrice('')
     setAddProductSeoTitle('')
@@ -1121,6 +1202,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
       setEditProductImageVariants(imageVariants)
       setEditProductStock('1')
       setEditProductOneOfAKind(true)
+      setEditProductCategoryId('')
       setEditProductName('')
       setEditProductSeoTitle('')
       setEditProductSlug('')
@@ -1706,6 +1788,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     const optionValues = editProductOptionValues.split(',').map((value) => value.trim()).filter(Boolean)
     const changes: Partial<Product> = {
       name,
+      categoryId: editProductCategoryId || undefined,
       description,
       price,
       salePrice,
@@ -1754,6 +1837,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setEditProductImageVariants({})
     setEditProductStock('')
     setEditProductOneOfAKind(false)
+    setEditProductCategoryId('')
     setEditProductName('')
     setEditProductSeoTitle('')
     setEditProductSlug('')
@@ -2107,8 +2191,16 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     } catch (error) { setAuthToast(error instanceof Error ? error.message : 'Tellimuse uuendamine ebaõnnestus') }
   }
 
+  const searchableCategories = productCategories
+    .map((category) => ({
+      ...category,
+      productCount: displayProducts.filter((product) => product.categoryId === category.id).length,
+    }))
+    .filter((category) => category.productCount > 0)
+  const normalizedSearchQuery = normalizeSearch(searchQuery.trim())
   const searchResults = displayProducts.filter((product) =>
-    `${product.name} ${product.description ?? ''}`.toLocaleLowerCase('et').includes(searchQuery.trim().toLocaleLowerCase('et')),
+    (!searchCategoryId || product.categoryId === searchCategoryId)
+    && normalizeSearch(`${product.name} ${product.description ?? ''}`).includes(normalizedSearchQuery),
   )
   const storeInitial = editableStoreName.trim().charAt(0).toLocaleUpperCase('et') || 'P'
   const displayedContactEmail = isDemoExperience ? DEMO_SELLER.contactEmail : contactEmail
@@ -2287,6 +2379,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     const product: Product = {
       id: `product-${Date.now()}`,
       name,
+      categoryId: addProductCategoryId || undefined,
       description: addProductDescription.trim(),
       price,
       salePrice: addProductSalePrice.trim() ? Number(addProductSalePrice) : undefined,
@@ -2315,6 +2408,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
     setAddProductImages([])
     setAddProductName('')
     setAddProductDescription('')
+    setAddProductCategoryId('')
     setAddProductPrice('')
     setAddProductSalePrice('')
     setAddProductSeoTitle('')
@@ -2385,7 +2479,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             <strong>{editableStoreName.toLocaleUpperCase('et')}</strong>
           </div>
           {!isEditOpen && <div className="header-actions">
-            <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi tooteid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
+            <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi ja sirvi kategooriaid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
             {isAdminMode ? !adminShowcaseMode && <button className="logout-button" onClick={logOut} aria-label="Logi välja">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14 8l4 4-4 4m4-4H9" /></svg>
             </button> : <button className={`cart-button${addedProductId ? ' is-bumping' : ''}`} onClick={() => { setCartStep('cart'); setIsCartOpen(true) }} aria-label={`Ostukorv, ${cart.reduce((sum, item) => sum + item.quantity, 0)} toodet`}>
@@ -2580,6 +2674,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
             </>}
           </div>
         </div>
+        {isEditOpen && <ProductCategoryPicker categories={productCategories} value={editProductCategoryId} onChange={setEditProductCategoryId} onCreate={addProductCategory} />}
         {isEditOpen && <div className="product-inventory-editor product-inventory-editor--compact">
           <div className="product-inventory-editor__compact-top">
             <label className={editProductOneOfAKind ? 'is-active' : ''}><span><strong>Unikaalne</strong><small>Ainult 1 tk</small></span><input type="checkbox" checked={editProductOneOfAKind} onChange={(event) => { setEditProductOneOfAKind(event.target.checked); if (event.target.checked) setEditProductStock('1') }} /><i aria-hidden="true"><b /></i></label>
@@ -3309,6 +3404,7 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
               <div className="product-editor-form__scroll">
               <label>Nimi<input name="name" value={addProductName} onChange={(event) => { const value = event.target.value; setAddProductName(value); if (!isAddProductSlugCustom) setAddProductSlug(createUrlSlug(value)); setAddProductError('') }} /></label>
               <label className="ai-description-field"><span>Kirjeldus <small>valikuline</small></span><textarea name="description" value={addProductDescription} onChange={(event) => setAddProductDescription(event.target.value)} placeholder="Kirjelda toodet, materjale ja omadusi…" /></label>
+              <ProductCategoryPicker categories={productCategories} value={addProductCategoryId} onChange={setAddProductCategoryId} onCreate={addProductCategory} />
               <label>Hind<input name="price" type="number" inputMode="decimal" min="0" step="0.01" value={addProductPrice} onChange={(event) => { setAddProductPrice(event.target.value); setAddProductError('') }} /></label>
               <label>Soodushind<input name="salePrice" type="number" inputMode="decimal" min="0" step="0.01" value={addProductSalePrice} onChange={(event) => setAddProductSalePrice(event.target.value)} placeholder="Valikuline" /></label>
               <details className="product-seo">
@@ -3334,15 +3430,25 @@ export function Storefront({ storeId, seedProducts = products, storeName = 'POER
         </div>
       )}
       {isSearchOpen && (
-        <div className="search-overlay" role="dialog" aria-modal="true" aria-label="Tooteotsing">
+        <div className="search-overlay" role="dialog" aria-modal="true" aria-label="Tooteotsing ja kategooriad">
           <div className="search-topbar">
             <div className="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Mida sa otsid?" /></div>
-            <button onClick={() => { setIsSearchOpen(false); setSearchQuery('') }} aria-label="Sulge otsing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+            <button onClick={() => { setIsSearchOpen(false); setSearchQuery(''); setSearchCategoryId('') }} aria-label="Sulge otsing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
           </div>
+          {searchableCategories.length > 0 && <section className="search-categories" aria-labelledby="search-categories-title">
+            <div className="search-categories__heading">
+              <h2 id="search-categories-title">Kategooriad</h2>
+              {searchCategoryId && <button type="button" onClick={() => setSearchCategoryId('')}>Eemalda filter</button>}
+            </div>
+            <div className="search-categories__list">
+              <button type="button" className={!searchCategoryId ? 'is-selected' : ''} aria-pressed={!searchCategoryId} onClick={() => setSearchCategoryId('')}><strong>Kõik tooted</strong><small>{displayProducts.length}</small></button>
+              {searchableCategories.map((category) => <button type="button" className={searchCategoryId === category.id ? 'is-selected' : ''} aria-pressed={searchCategoryId === category.id} onClick={() => setSearchCategoryId(category.id)} key={category.id}><strong>{category.name}</strong><small>{category.productCount}</small></button>)}
+            </div>
+          </section>}
           <div className="search-results">
             {searchResults.map((product) => {
               const index = displayProducts.findIndex((item) => item.id === product.id)
-              return <button key={product.id} onClick={() => { setIsSearchOpen(false); setSearchQuery(''); requestAnimationFrame(() => goToProduct(index)) }}>
+              return <button key={product.id} onClick={() => { setIsSearchOpen(false); setSearchQuery(''); setSearchCategoryId(''); requestAnimationFrame(() => goToProduct(index)) }}>
                 <img {...getResponsiveImageProps(product, product.image, 'thumb')} sizes="4rem" alt="" />
                 <span><strong>{product.name}</strong><small>{getProductPrice(product)} €</small></span>
               </button>

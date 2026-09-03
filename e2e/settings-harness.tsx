@@ -1,6 +1,7 @@
 import { createElement, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Storefront } from '../src/App'
+import type { Product } from '../src/products'
 
 declare global {
   interface Window {
@@ -119,4 +120,39 @@ export function mountLateStripeRequirementsLinkHarness() {
   root.id = 'late-stripe-requirements-link-harness'
   document.body.replaceChildren(root)
   createRoot(root).render(createElement(LateStripeRequirementsLinkHarness))
+}
+
+const categoryProducts: Product[] = [
+  { id: 'category-product-1', categoryId: 'category-jewelry', name: 'Hõbedane sõrmus', description: 'Käsitsi valmistatud ehe', image: '/e2e-images/ring.jpg', alt: 'Hõbedane sõrmus', price: 24 },
+  { id: 'category-product-2', categoryId: 'category-home', name: 'Savikruus', description: 'Keraamiline kruus', image: '/e2e-images/cup.jpg', alt: 'Savikruus', price: 18 },
+  { id: 'category-product-3', categoryId: 'category-home', name: 'Lauavaas', description: 'Väike vaas', image: '/e2e-images/vase.jpg', alt: 'Lauavaas', price: 21 },
+]
+
+const categorySeeds = [
+  { id: 'category-jewelry', storeId: '', name: 'Ehted', slug: 'ehted', sortOrder: 0 },
+  { id: 'category-home', storeId: '', name: 'Kodu', slug: 'kodu', sortOrder: 1 },
+  { id: 'category-empty', storeId: '', name: 'Tühi', slug: 'tuhi', sortOrder: 2 },
+]
+
+export function mountCategorySearchHarness() {
+  const root = document.createElement('div')
+  root.id = 'category-search-harness'
+  document.body.replaceChildren(root)
+  createRoot(root).render(createElement(Storefront, {
+    seedProducts: categoryProducts,
+    seedCategories: categorySeeds,
+    storeName: 'Kategooriapood',
+  }))
+}
+
+export function mountCategoryEditorHarness() {
+  const root = document.createElement('div')
+  root.id = 'category-editor-harness'
+  document.body.replaceChildren(root)
+  createRoot(root).render(createElement(Storefront, {
+    seedProducts: categoryProducts,
+    seedCategories: categorySeeds,
+    storeName: 'Kategooriapood',
+    merchantMode: true,
+  }))
 }
