@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { requireSupabase } from './lib/supabase'
 
 export type AdminSupportConversation = {
@@ -52,6 +52,7 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState('')
+  const messagesRef = useRef<HTMLDivElement>(null)
 
   const loadConversations = async () => {
     const { data, error: queryError } = await requireSupabase().rpc('admin_support_conversations')
@@ -93,6 +94,11 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
       }).subscribe()
     return () => { void requireSupabase().removeChannel(channel) }
   }, [selected?.id])
+  useEffect(() => {
+    const messagesElement = messagesRef.current
+    if (!messagesElement) return
+    messagesElement.scrollTop = messagesElement.scrollHeight
+  }, [messages.length, selected?.id])
 
   const filtered = useMemo(() => conversations.filter((item) => filter === 'active'
     ? item.status !== 'resolved'
@@ -151,7 +157,7 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
       </div>
       {selected ? <div className="admin-support__conversation">
         <header><div><small>{selected.origin === 'email' ? 'E-kiri aadressile info@poeruum.ee' : categoryLabel[selected.category] || 'Küsimus'}</small><h3>{selected.subject}</h3><p>{selected.origin === 'email' ? selected.contact_name || 'Väline saatja' : selected.store_name || 'Poodi pole loodud'} · <a href={`mailto:${selected.email}`}>{selected.email}</a>{selected.origin === 'app' && <> · {selected.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</>}</p></div><select value={selected.status} disabled={isSending} onChange={(event) => void setStatus(event.target.value as AdminSupportConversation['status'])}><option value="open">Vajab vastust</option><option value="waiting_user">Ootab kasutajat</option><option value="resolved">Lahendatud</option></select></header>
-        <div className="admin-support__messages">{messages.map((message) => <article className={`is-${message.sender_kind}${message.is_internal ? ' is-internal' : ''}`} key={message.id}>
+        <div className="admin-support__messages" ref={messagesRef}>{messages.map((message) => <article className={`is-${message.sender_kind}${message.is_internal ? ' is-internal' : ''}`} key={message.id}>
           <span>{message.is_internal ? 'Sisemine märkus' : message.sender_kind === 'admin' ? 'Poeruumi tugi' : contactLabel(selected)}<time>{formatTime(message.created_at)}</time></span><p>{message.body}</p>
           {message.attachment_path && <button type="button" onClick={() => void openAttachment(message)}>📎 {message.attachment_name || 'Ava manus'}</button>}
           {message.delivery_status && <small className={`is-${message.delivery_status}`}>{message.delivery_status === 'delivered' ? 'Kohale toimetatud' : message.delivery_status === 'sent' ? 'Saadetud' : message.delivery_status === 'bounced' ? 'Ei jõudnud kohale' : message.delivery_status}</small>}

@@ -210,6 +210,56 @@ test('support launcher is limited to the owner editing view', async ({ page }) =
   await expect(supportProbe).toBeVisible()
 })
 
+test('admin support keeps the reply composer visible while messages scroll', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/admin')
+  await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
+
+  await page.evaluate(() => {
+    const message = `<article><span>Saatja <time>3. sept</time></span><p>${'Pikk klienditoe sõnum. '.repeat(80)}</p></article>`
+    document.body.innerHTML = `<main class="admin-shell">
+      <aside class="admin-sidebar"></aside>
+      <section class="admin-main">
+        <section class="admin-support">
+          <header><div><span>KLIENDITUGI</span><h2>Vestlused</h2><p>Kasutajate küsimused.</p></div></header>
+          <div class="admin-support__filters"><button>Aktiivsed</button></div>
+          <div class="admin-support__workspace">
+            <div class="admin-support__list"></div>
+            <div class="admin-support__conversation">
+              <header><div><small>Poe seadistamine</small><h3>Vestlus</h3><p>Klient</p></div></header>
+              <div class="admin-support__messages">${message.repeat(4)}</div>
+              <form><textarea rows="4" placeholder="Kirjuta saatjale vastus…"></textarea><div><button>Saada vastus</button></div></form>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>`
+  })
+
+  const workspace = page.locator('.admin-support__workspace')
+  const messages = page.locator('.admin-support__messages')
+  const replyForm = page.locator('.admin-support__conversation > form')
+  await expect(replyForm).toBeVisible()
+  await expect(messages).toHaveCSS('overflow-y', 'auto')
+  expect(await page.evaluate(() => {
+    const workspaceElement = document.querySelector<HTMLElement>('.admin-support__workspace')!
+    const messagesElement = document.querySelector<HTMLElement>('.admin-support__messages')!
+    const formElement = document.querySelector<HTMLElement>('.admin-support__conversation > form')!
+    const workspaceBounds = workspaceElement.getBoundingClientRect()
+    const formBounds = formElement.getBoundingClientRect()
+    return {
+      composerInsideWorkspace: formBounds.bottom <= workspaceBounds.bottom + 1,
+      messagesAreScrollable: messagesElement.scrollHeight > messagesElement.clientHeight,
+      workspaceInsideViewport: workspaceBounds.bottom <= window.innerHeight,
+    }
+  })).toEqual({
+    composerInsideWorkspace: true,
+    messagesAreScrollable: true,
+    workspaceInsideViewport: true,
+  })
+  await expect(workspace).toBeVisible()
+})
+
 test('a stale settings response cannot overwrite text being typed', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(async () => {

@@ -384,7 +384,7 @@
 .admin-support__filters button span { display: grid; min-width: 1.15rem; height: 1.15rem; padding: 0 .22rem; place-items: center; border-radius: 999px; background: #edf0ea; font-size: .6875rem; }
 .admin-support__filters button.is-active { background: #e9eddf; color: #245d40; }
 .admin-support__filters button.is-active span { background: #fff; }
-.admin-support__workspace { display: grid; grid-template-columns: minmax(15rem, .8fr) minmax(24rem, 1.6fr); min-height: 31rem; max-height: 42rem; border-top: 1px solid #e6e8e2; }
+.admin-support__workspace { display: grid; grid-template-columns: minmax(15rem, .8fr) minmax(24rem, 1.6fr); height: clamp(28rem, calc(100svh - 12rem), 42rem); min-height: 0; border-top: 1px solid #e6e8e2; }
 .admin-support__list { overflow-y: auto; border-right: 1px solid #e6e8e2; background: #fafbf8; }
 .admin-support__list > button { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .65rem; width: 100%; padding: .8rem .9rem; border: 0; border-bottom: 1px solid #e9ebe6; background: transparent; color: #25362b; font: inherit; text-align: left; cursor: pointer; }
 .admin-support__list > button:hover, .admin-support__list > button.is-selected { background: #fff; }
@@ -403,7 +403,7 @@
 .admin-support__placeholder span { font-size: 1.5rem; }
 .admin-support__placeholder strong { color: #4d5c53; font-size: .9rem; }
 .admin-support__placeholder p { margin: 0; font-size: .75rem; }
-.admin-support__conversation { display: grid; grid-template-rows: auto minmax(10rem, 1fr) auto; min-width: 0; min-height: 0; }
+.admin-support__conversation { display: grid; grid-template-rows: auto minmax(10rem, 1fr) auto; min-width: 0; min-height: 0; overflow: hidden; }
 .admin-support__conversation > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; border-bottom: 1px solid #eaebe7; }
 .admin-support__conversation > header > div { min-width: 0; }
 .admin-support__conversation > header small { color: #87918a; font-size: .6875rem; }
@@ -641,7 +641,7 @@
   .admin-progress__track { width: 100%; }
   .admin-support > header { align-items: flex-start; padding: 1rem; }
   .admin-support__filters { padding-inline: 1rem; }
-  .admin-support__workspace { display: block; max-height: none; }
+  .admin-support__workspace { display: block; height: auto; max-height: none; }
   .admin-support__list { max-height: 22rem; border-right: 0; }
   .admin-support__conversation { min-height: 34rem; border-top: 1px solid #e3e5df; }
   .admin-support__placeholder { display: none; }
