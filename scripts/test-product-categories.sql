@@ -29,6 +29,8 @@ end;
 $$;
 
 reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select set_config('request.jwt.claims', '{}', true);
 set local role anon;
 
 do $$
