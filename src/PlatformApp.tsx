@@ -758,9 +758,9 @@ function PlatformFlow() {
   }, [])
 
   useEffect(() => {
-    if (stripeRequirementsLinkPending || !onlineUserId || !['login', 'forgot-password', 'account'].includes(screen)) return
+    if (stripeRequirementsLinkPending || isAuthBusy || !onlineUserId || !['login', 'forgot-password', 'account'].includes(screen)) return
     setScreen(store ? getStoreDestination(store, storedProducts.length) : 'store')
-  }, [onlineUserId, screen, store, storedProducts.length, stripeRequirementsLinkPending])
+  }, [isAuthBusy, onlineUserId, screen, store, storedProducts.length, stripeRequirementsLinkPending])
 
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1312,6 +1312,10 @@ function PlatformFlow() {
       </div>
     </div>
     : null
+
+  if (isAuthBusy && onlineUserId && ['login', 'forgot-password', 'account'].includes(screen)) {
+    return <main className="platform-loading" aria-label="Laadin sinu poodi" aria-busy="true"><span /></main>
+  }
 
   if (shouldLoadPublicStore && (isPublicStoreLoading || publicStore)) return <div className="public-storefront-bootstrap">
     {!isPublicStoreLoading && publicStore && <Suspense key="storefront-content" fallback={null}><Storefront

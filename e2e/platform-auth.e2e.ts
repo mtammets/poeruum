@@ -95,6 +95,7 @@ const installSupabaseBackend = async (
   page: Page,
   storeFixture: Record<string, unknown> = store,
   stripeStatusFixture: Record<string, unknown> = connectedStripeStatus,
+  options: { beforeProductsResponse?: () => Promise<void> } = {},
 ) => {
   let passwordSignIns = 0
   let sessionRefreshes = 0
@@ -141,6 +142,7 @@ const installSupabaseBackend = async (
     }
 
     if (url.pathname.endsWith('/rest/v1/products')) {
+      await options.beforeProductsResponse?.()
       await json(route, [])
       return
     }
@@ -168,6 +170,27 @@ const installSupabaseBackend = async (
     sessionRefreshes: () => sessionRefreshes,
   }
 }
+
+test('existing merchant never sees new-store onboarding while their store loads', async ({ page }) => {
+  let releaseProducts = () => undefined
+  const productsBlocked = new Promise<void>((resolve) => { releaseProducts = resolve })
+  await installSupabaseBackend(page, store, connectedStripeStatus, {
+    beforeProductsResponse: () => productsBlocked,
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Logi sisse' }).first().click()
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+
+  await expect(page.getByLabel('Laadin sinu poodi')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Mis on sinu poe nimi?' })).toHaveCount(0)
+
+  releaseProducts()
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Mis on sinu poe nimi?' })).toHaveCount(0)
+})
 
 test('a draft can continue setup while Stripe verifies submitted details', async ({ page }) => {
   const pendingStore = {
