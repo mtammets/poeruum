@@ -174,28 +174,6 @@
   color: #fff;
 }
 
-.store-directory__eyebrow {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: .55rem;
-  margin-bottom: clamp(1.25rem, 2vw, 1.75rem);
-  color: rgba(255, 255, 255, .72);
-  font-family: Manrope, sans-serif;
-  font-size: .72rem;
-  font-weight: 750;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-}
-
-.store-directory__eyebrow i {
-  width: .55rem;
-  height: .55rem;
-  border-radius: 50%;
-  background: #e5f25a;
-  box-shadow: 0 0 0 .3rem rgba(229, 242, 90, .12);
-}
-
 .store-directory__intro h1 {
   display: block;
   margin: 0 0 clamp(1.35rem, 2vw, 1.85rem);
@@ -258,12 +236,6 @@
 }
 .store-directory__browse:hover svg { transform: translateY(.15rem); }
 .store-directory__browse:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
-
-.store-directory__hero-actions > span {
-  color: rgba(255, 255, 255, .56);
-  font-size: .75rem;
-  font-weight: 650;
-}
 
 .store-directory__marquee {
   margin-top: clamp(1rem, 1.6vw, 1.4rem);
@@ -336,15 +308,6 @@
   font-weight: 750;
   letter-spacing: -.055em;
   line-height: .95;
-}
-
-.store-directory__section-head span {
-  margin: 0 0 .15rem;
-  color: #6d796f;
-  font-size: .78rem;
-  font-weight: 750;
-  letter-spacing: .14em;
-  text-transform: uppercase;
 }
 
 .store-directory__grid {
@@ -697,7 +660,6 @@
     border-radius: 1.5rem;
   }
   .store-directory__intro { min-height: 21rem; padding: 1rem .45rem .75rem; }
-  .store-directory__eyebrow { margin-bottom: 1.1rem; font-size: .66rem; }
   .store-directory__intro h1 {
     margin-bottom: 1.2rem;
     font-size: clamp(2.35rem, 11vw, 3.35rem);
@@ -717,7 +679,6 @@
   .store-directory__stores { padding-top: 2.75rem; padding-bottom: 5rem; }
   .store-directory__section-head { margin-bottom: 1.25rem; }
   .store-directory__section-head h2 { font-size: 2.2rem; }
-  .store-directory__section-head span { font-size: .7rem; }
   .store-directory__grid { gap: 1.25rem; }
   .store-directory__card { border-radius: 1.25rem; }
   .store-directory__media { aspect-ratio: 5 / 6; }

@@ -182,7 +182,6 @@ export default function Kaubamaja() {
         <img src="/images/poeruumi-kaubamaja-hero.webp" alt="" fetchPriority="high" decoding="async" />
       </div>
       <div className="store-directory__intro">
-        <span className="store-directory__eyebrow"><i aria-hidden="true" /> Kohalik kaubamaja</span>
         <h1 aria-label={directoryHeading}>
           <span aria-hidden="true">Avasta</span>
           <span aria-hidden="true">Poeruumis loodud</span>
@@ -194,7 +193,6 @@ export default function Kaubamaja() {
             Sirvi poode
             <ArrowDown />
           </a>
-          <span>Eesti ettevõtjatelt</span>
         </div>
       </div>
     </header>
@@ -210,7 +208,6 @@ export default function Kaubamaja() {
     <section className="store-directory__stores" aria-labelledby="store-directory-heading">
       <div className="store-directory__section-head">
         <h2 id="store-directory-heading">Poed</h2>
-        <span>Sirvi valikut</span>
       </div>
       {stores.length > 0 ? <div className="store-directory__grid">
         {stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} />)}
