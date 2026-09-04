@@ -163,11 +163,18 @@ export default function Kaubamaja() {
         <span className="store-directory__brand-rule" aria-hidden="true" />
         <span className="store-directory__brand-edition">Kaubamaja</span>
       </a>
-      <a className="store-directory__create" href="https://poeruum.ee/#hind">
-        <span className="store-directory__create-full">Alusta tasuta</span>
-        <span className="store-directory__create-short">Alusta</span>
-        <ArrowUpRight />
-      </a>
+      <div className="store-directory__merchant-entry">
+        <span>Oled ettevõtja?</span>
+        <a
+          className="store-directory__create"
+          href="https://poeruum.ee/#hind"
+          aria-label="Loo oma e-pood"
+        >
+          <span className="store-directory__create-full" aria-hidden="true">Loo oma e-pood</span>
+          <span className="store-directory__create-short" aria-hidden="true">Loo e-pood</span>
+          <ArrowUpRight />
+        </a>
+      </div>
     </nav>
 
     <header className="store-directory__hero">

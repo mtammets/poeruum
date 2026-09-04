@@ -32,12 +32,19 @@ test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Sirvi poode' })).toHaveAttribute('href', '#store-directory-heading')
   await expect(page.getByText('Eesti ettevõtjatelt')).toBeVisible()
   await expect(page.locator('.store-directory__marquee')).toBeVisible()
-  await expect(page.getByRole('link', { name: /Alusta tasuta/ }).first()).toBeVisible()
+  await expect(page.getByText('Oled ettevõtja?', { exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Loo oma e-pood', exact: true })).toHaveAttribute('href', 'https://poeruum.ee/#hind')
   await expect(page.getByText(/loodud Poeruumiga/i)).toHaveCount(0)
   await expect(page.locator('.store-directory__create svg')).toBeVisible()
   await expect(page.getByText('↗')).toHaveCount(0)
   await expect(page).toHaveTitle('Poeruumi Kaubamaja')
   await expect(page.locator('.store-directory')).toHaveCSS('background-color', 'rgb(243, 240, 231)')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByText('Oled ettevõtja?', { exact: true })).toBeHidden()
+  await expect(page.locator('.store-directory__create-short')).toBeVisible()
+  await expect(page.locator('.store-directory__create-full')).toBeHidden()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
 
 test('Poeruum explainer page answers who the platform is for', async ({ page }) => {
