@@ -206,6 +206,35 @@ const normalizeExternalUrl = (value: string) => {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`
 }
 
+const STORE_DIRECTORY_SOURCE = 'kaubamaja'
+const getStoreDirectorySessionKey = (storeSlug: string) => `poeruum:directory-return:${storeSlug}`
+const isStoreDirectoryHostname = (hostname: string) => {
+  const normalized = hostname.toLowerCase().replace(/\.$/, '')
+  return normalized === `kaubamaja.${STOREFRONT_ROOT_DOMAIN}` || normalized === 'kaubamaja.localhost'
+}
+const getStoreDirectoryReturnUrl = () => {
+  const hostname = window.location.hostname.toLowerCase().replace(/\.$/, '')
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
+  if (isLocal) {
+    const port = window.location.port ? `:${window.location.port}` : ''
+    return `${window.location.protocol}//kaubamaja.localhost${port}/#store-directory-heading`
+  }
+  return `https://kaubamaja.${STOREFRONT_ROOT_DOMAIN}/#store-directory-heading`
+}
+const hasStoreDirectoryVisitContext = (storeSlug: string) => {
+  if (new URLSearchParams(window.location.search).get('from') === STORE_DIRECTORY_SOURCE) return true
+  try {
+    if (document.referrer && isStoreDirectoryHostname(new URL(document.referrer).hostname)) return true
+  } catch {
+    // A malformed or privacy-filtered referrer should not block the storefront.
+  }
+  try {
+    return window.sessionStorage.getItem(getStoreDirectorySessionKey(storeSlug)) === '1'
+  } catch {
+    return false
+  }
+}
+
 type ProductCategoryPickerProps = {
   categories: ProductCategory[]
   value: string
@@ -300,6 +329,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const logoTapTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const storeLogoObjectUrlRef = useRef<string | null>(null)
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
+  const directoryCoverObjectUrlRef = useRef<string | null>(null)
   const storeDescriptionInputRef = useRef<HTMLTextAreaElement>(null)
   const initialSettingsSectionOpenedRef = useRef<SettingsSection | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -322,6 +352,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [loginRecoveryMessage, setLoginRecoveryMessage] = useState('')
   const [isLoggedIn, setIsLoggedIn] = useState(merchantMode)
   const [isCustomerPreview, setIsCustomerPreview] = useState(false)
+  const [showStoreDirectoryReturn, setShowStoreDirectoryReturn] = useState(() =>
+    Boolean(isSeoStorefront && storeSlug && hasStoreDirectoryVisitContext(storeSlug)))
   const [isSettingsOpen, setIsSettingsOpen] = useState(shouldOpenInitialSettings)
   const [isSettingsHome, setIsSettingsHome] = useState(!shouldOpenInitialSettings)
   const [settingsSaveStatus, setSettingsSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -361,6 +393,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [productBrand, setProductBrand] = useState('')
   const [searchConsoleVerification, setSearchConsoleVerification] = useState('')
   const [storeAboutImage, setStoreAboutImage] = useState<string | null>(null)
+  const [directoryCover, setDirectoryCover] = useState<string | null>(null)
+  const [directoryDescription, setDirectoryDescription] = useState('')
   const [isStoreVisible, setIsStoreVisible] = useState(initialPublished)
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -400,6 +434,35 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [customDomain, setCustomDomain] = useState('')
   const [customDomainStatus, setCustomDomainStatus] = useState<CustomDomainStatus>('idle')
   const [customDomainRecord, setCustomDomainRecord] = useState<CustomDomainRecord | null>(null)
+
+  useEffect(() => {
+    if (!isSeoStorefront || !storeSlug) {
+      setShowStoreDirectoryReturn(false)
+      return
+    }
+
+    const currentUrl = new URL(window.location.href)
+    const cameFromQuery = currentUrl.searchParams.get('from') === STORE_DIRECTORY_SOURCE
+    let cameFromReferrer = false
+    try {
+      cameFromReferrer = Boolean(document.referrer && isStoreDirectoryHostname(new URL(document.referrer).hostname))
+    } catch {
+      // Ignore a malformed or unavailable referrer.
+    }
+    let remembered = false
+    try {
+      const sessionKey = getStoreDirectorySessionKey(storeSlug)
+      remembered = window.sessionStorage.getItem(sessionKey) === '1'
+      if (cameFromQuery || cameFromReferrer) window.sessionStorage.setItem(sessionKey, '1')
+    } catch {
+      // sessionStorage can be disabled; the query and referrer still work.
+    }
+
+    setShowStoreDirectoryReturn(cameFromQuery || cameFromReferrer || remembered)
+    if (!cameFromQuery) return
+    currentUrl.searchParams.delete('from')
+    window.history.replaceState(window.history.state, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
+  }, [isSeoStorefront, storeSlug])
 
   useEffect(() => {
     if (!merchantMode || !initialSettingsSection) {
@@ -524,6 +587,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const settingsSnapshot = JSON.stringify({
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
+    directoryCover, directoryDescription,
     seoTitle: storeSeoTitle, seoDescription: storeSeoDescription, productBrand, searchConsoleVerification,
     contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, vatRegistered, vatNumber, returnsText, orderNotificationEmail,
@@ -557,6 +621,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     if (value.productBrand != null) setProductBrand(value.productBrand)
     if (value.searchConsoleVerification != null) setSearchConsoleVerification(value.searchConsoleVerification)
     if ('storeAboutImage' in value) setStoreAboutImage(value.storeAboutImage)
+    if ('directoryCover' in value) setDirectoryCover(value.directoryCover)
+    if (value.directoryDescription != null) setDirectoryDescription(value.directoryDescription)
     if (value.contactEmail != null) setContactEmail(value.contactEmail)
     if (value.contactPhone != null) setContactPhone(value.contactPhone)
     if (value.instagramUrl != null) setInstagramUrl(value.instagramUrl)
@@ -769,6 +835,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   useEffect(() => () => {
     if (storeLogoObjectUrlRef.current) URL.revokeObjectURL(storeLogoObjectUrlRef.current)
     if (storeAboutImageObjectUrlRef.current) URL.revokeObjectURL(storeAboutImageObjectUrlRef.current)
+    if (directoryCoverObjectUrlRef.current) URL.revokeObjectURL(directoryCoverObjectUrlRef.current)
     editSessionImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     committedEditImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     if (exitAttentionTimerRef.current !== null) window.clearTimeout(exitAttentionTimerRef.current)
@@ -888,6 +955,54 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       }
       catch (error) { setStoreAboutImage(previousUrl); setAuthToast(error instanceof Error ? error.message : 'Pildi eemaldamine ebaõnnestus') }
     } else setStoreAboutImage(null)
+  }
+
+  const changeDirectoryCover = async (file: File | undefined) => {
+    if (!file || !isImageFile(file)) return
+    if (storeId) {
+      let uploadedUrl = ''
+      const previousUrl = directoryCover
+      try {
+        uploadedUrl = (await uploadImages(storeId, [file], undefined, { maximumSide: 1800, quality: .84 }))[0]
+        setDirectoryCover(uploadedUrl)
+        const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), directoryCover: uploadedUrl })
+        const requestId = ++settingsSaveRequestIdRef.current
+        await persistSettingsInOrder(snapshot)
+        savedSettingsSnapshotRef.current = snapshot
+        if (requestId === settingsSaveRequestIdRef.current) setSettingsSaveStatus('saved')
+        if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
+        return
+      } catch (error) {
+        setDirectoryCover(previousUrl)
+        if (uploadedUrl) void removeStoredProductImages(undefined, [uploadedUrl]).catch(() => undefined)
+        setAuthToast(error instanceof Error ? error.message : 'Kaubamaja kaanepildi üleslaadimine ebaõnnestus')
+        return
+      }
+    }
+    if (directoryCoverObjectUrlRef.current) URL.revokeObjectURL(directoryCoverObjectUrlRef.current)
+    const objectUrl = URL.createObjectURL(file)
+    directoryCoverObjectUrlRef.current = objectUrl
+    setDirectoryCover(objectUrl)
+  }
+
+  const removeDirectoryCover = async () => {
+    if (directoryCoverObjectUrlRef.current) URL.revokeObjectURL(directoryCoverObjectUrlRef.current)
+    directoryCoverObjectUrlRef.current = null
+    const previousUrl = directoryCover
+    if (storeId) {
+      setDirectoryCover(null)
+      const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), directoryCover: null })
+      const requestId = ++settingsSaveRequestIdRef.current
+      try {
+        await persistSettingsInOrder(snapshot)
+        savedSettingsSnapshotRef.current = snapshot
+        if (requestId === settingsSaveRequestIdRef.current) setSettingsSaveStatus('saved')
+        if (previousUrl) void removeStoredProductImages(undefined, [previousUrl]).catch(() => undefined)
+      } catch (error) {
+        setDirectoryCover(previousUrl)
+        setAuthToast(error instanceof Error ? error.message : 'Kaubamaja kaanepildi eemaldamine ebaõnnestus')
+      }
+    } else setDirectoryCover(null)
   }
 
   const addProductCategory = async (name: string) => {
@@ -2442,6 +2557,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       {[0, 1, 2, 3].map((item) => <span key={item}><b>{announcementText}</b><i>✦</i></span>)}
     </span>)}
   </div>
+  const storeDirectoryReturnUrl = getStoreDirectoryReturnUrl()
 
   return (
     <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'} data-product-onboarding={onContinueSetup ? 'true' : 'false'}>
@@ -2469,6 +2585,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         {merchantMode && isCustomerPreview && <button className="merchant-preview-return" type="button" onClick={() => { setIsLoggedIn(true); setIsCustomerPreview(false) }} aria-label="Tagasi poe muutmisvaatesse">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Z"/><path d="m13 7 4 4"/></svg>
         </button>}
+        {showStoreDirectoryReturn && !isAdminMode && <a className="store-directory-return" href={storeDirectoryReturnUrl} aria-label="Tagasi Poeruumi Kaubamajja">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 7-5 5 5 5M5 12h14" /></svg>
+          <span>Kaubamajja</span>
+        </a>}
         <nav className="story-progress" aria-label="Tooted">
           {displayProducts.map((product, index) => (
             <button key={product.id} className={index === activeIndex ? 'is-active' : ''} onClick={() => goToProduct(index)} aria-label={`Toode ${index + 1}`}>
@@ -2541,7 +2661,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <span className="empty-storefront__product-copy"><small>{isProductDropActive ? 'FOTOD VALMIS' : 'JÄRGMINE SAMM'}</small><strong>{isProductDropActive ? 'Lase fotod lahti' : 'Alusta lisamist'}</strong><em className="empty-storefront__drop-copy">Vali arvutist või lohista fotod siia</em></span>
               <svg className="empty-storefront__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
             </button>
-          </div> : <div className="empty-storefront__customer"><h1>Pood avaneb peagi.</h1><p>Esimesed tooted on juba teel.</p>{!isCustomerPreview && <button className="empty-storefront__owner-login" type="button" onClick={openOwnerLogin}>Poe omanik? Logi sisse</button>}</div>}
+          </div> : <div className="empty-storefront__customer"><h1>Pood avaneb peagi.</h1><p>Esimesed tooted on juba teel.</p>{isSeoStorefront && <a className="empty-storefront__directory-link" href={storeDirectoryReturnUrl}>Avasta teisi poode →</a>}{!isCustomerPreview && <button className="empty-storefront__owner-login" type="button" onClick={openOwnerLogin}>Poe omanik? Logi sisse</button>}</div>}
         </div>}
 
         {activeProduct && isEditOpen && <div className="product-image-editor">
@@ -2773,7 +2893,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           <div className="site-footer__bottom">
             <span>© 2026 {editableStoreName}</span>
             <div className="site-footer__meta">
-              {storeSlug ? <span>{storeSlug}.poeruum.ee</span> : <a href="https://poeruum.ee">poeruum.ee</a>}
+              {isSeoStorefront && !isAdminMode
+                ? <a className="site-footer__directory-link" href={storeDirectoryReturnUrl}>Avasta teisi poode →</a>
+                : storeSlug ? <span>{storeSlug}.poeruum.ee</span> : <a href="https://poeruum.ee">poeruum.ee</a>}
               {!isLoggedIn && !isCustomerPreview && <><i aria-hidden="true" /><button type="button" onClick={openOwnerLogin} aria-label="Poe omanikule: ava poe halduse sisselogimine">Poe haldus →</button></>}
             </div>
           </div>
@@ -2896,6 +3018,25 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <div className="settings-fields">
               <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
               <label>Poe tutvustus<textarea ref={storeDescriptionInputRef} rows={4} maxLength={600} value={storeDescription} onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu pood pakub ja miks see eriline on." /><small className="settings-field-note">Kuvatakse ostjale poe jaluses · {storeDescription.length}/600</small></label>
+              {merchantMode && !adminShowcaseMode && <div className="settings-directory-presentation">
+                <header>
+                  <span><strong>Kaubamaja esitlus</strong><small>Vali, kuidas sinu pood Poeruumi Kaubamajas välja näeb.</small></span>
+                </header>
+                <label>Kaubamaja lühitutvustus<textarea rows={2} maxLength={140} value={directoryDescription} onChange={(event) => setDirectoryDescription(event.target.value)} placeholder={storeDescription || 'Üks lühike lause sinu poe väärtusest.'} /><small className="settings-field-note">Kui jätad välja tühjaks, kasutame poe tutvustust · {directoryDescription.length}/140</small></label>
+                <div className="settings-about-image">
+                  <span className="settings-section-label">Kaubamaja kaanepilt <small>valikuline</small></span>
+                  <div>
+                    <label className="settings-about-image__upload">
+                      <span className="settings-about-image__preview">{directoryCover ? <img src={directoryCover} alt="Kaubamaja kaanepildi eelvaade" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m5 17 5-5 3 3 2-2 4 4"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>}</span>
+                      <span className="settings-about-image__copy"><strong>{directoryCover ? 'Vaheta kaanepilti' : 'Lisa kaanepilt'}</strong><small>Soovituslikult rõhtne JPG, PNG või WebP</small></span>
+                      <span className="settings-about-image__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 14v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/></svg></span>
+                      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { changeDirectoryCover(event.target.files?.[0]); event.target.value = '' }} />
+                    </label>
+                    {directoryCover && <button className="settings-about-image__remove" type="button" onClick={removeDirectoryCover} aria-label="Eemalda Kaubamaja kaanepilt">×</button>}
+                  </div>
+                  <small>{directoryCover ? 'Seda pilti kasutatakse ainult Kaubamaja poekaardil.' : 'Kaanepildi puudumisel kasutame esimese nähtava toote pilti.'}</small>
+                </div>
+              </div>}
               <details className="settings-seo-editor">
                 <summary><span><strong>Google ja jagamine</strong><small>Vaikimisi kasutab Poeruum poe nime ja tutvustust</small></span><b>Muuda</b></summary>
                 <div>

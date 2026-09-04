@@ -317,10 +317,8 @@
 }
 
 .store-directory__card {
-  display: flex;
   min-width: 0;
   overflow: hidden;
-  flex-direction: column;
   border: 1px solid rgba(21, 37, 27, .08);
   border-radius: clamp(1.2rem, 2vw, 1.65rem);
   background: #fbfaf5;
@@ -329,12 +327,17 @@
   transition: box-shadow 260ms ease, transform 260ms ease;
 }
 
+.store-directory__card-link {
+  display: block;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
 .store-directory__media {
   position: relative;
-  display: grid;
   overflow: hidden;
-  aspect-ratio: 4 / 3;
-  place-items: center;
+  aspect-ratio: 16 / 10;
   background:
     radial-gradient(circle at 22% 20%, rgba(229, 242, 90, .42), transparent 30%),
     linear-gradient(145deg, #cbd3bc, #5d7966);
@@ -362,35 +365,19 @@
   transition: transform 700ms cubic-bezier(.2, .7, .2, 1), filter 300ms ease;
 }
 
-.store-directory__featured-link {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  color: #fff;
-  text-decoration: none;
-}
-
 .store-directory__card-shade {
   position: absolute;
   z-index: 1;
   inset: 0;
-  background:
-    linear-gradient(180deg, rgba(5, 12, 8, .6) 0%, rgba(5, 12, 8, .08) 38%, transparent 52%),
-    linear-gradient(0deg, rgba(5, 12, 8, .82) 0%, rgba(5, 12, 8, .1) 45%, transparent 63%);
+  background: linear-gradient(0deg, rgba(5, 12, 8, .16), transparent 45%);
   pointer-events: none;
 }
 
 .store-directory__identity {
-  position: absolute;
-  z-index: 2;
-  top: clamp(1rem, 2vw, 1.4rem);
-  left: clamp(1rem, 2vw, 1.4rem);
-  display: inline-flex;
-  max-width: calc(100% - clamp(2rem, 4vw, 2.8rem));
+  display: flex;
+  min-width: 0;
   align-items: center;
-  gap: .75rem;
-  color: #fff;
-  text-decoration: none;
+  gap: 1rem;
 }
 
 .store-directory__identity-mark {
@@ -401,10 +388,10 @@
   height: 3.25rem;
   overflow: hidden;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, .4);
-  border-radius: 50%;
+  border: 1px solid rgba(21, 37, 27, .1);
+  border-radius: 1rem;
   background: #e5f25a;
-  box-shadow: 0 .3rem 1.2rem rgba(0, 0, 0, .2);
+  box-shadow: 0 .3rem 1.1rem rgba(21, 37, 27, .1);
   color: #101510;
 }
 
@@ -423,128 +410,70 @@
   object-fit: cover;
 }
 
-.store-directory__identity > strong {
-  display: -webkit-box;
-  overflow: hidden;
-  font-family: Manrope, sans-serif;
-  font-size: clamp(.82rem, 1.2vw, .98rem);
-  font-weight: 800;
-  letter-spacing: .105em;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, .58);
-  text-overflow: ellipsis;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.store-directory__product {
-  position: absolute;
-  z-index: 2;
-  right: clamp(1rem, 2vw, 1.5rem);
-  bottom: clamp(1.1rem, 2.3vw, 1.6rem);
-  left: clamp(1rem, 2vw, 1.5rem);
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1.25rem;
-}
-
-.store-directory__product-name {
-  display: -webkit-box;
+.store-directory__identity > div {
+  display: grid;
   min-width: 0;
-  margin-bottom: -.1em;
+  gap: .28rem;
+}
+
+.store-directory__identity h3 {
+  display: -webkit-box;
   overflow: hidden;
-  padding-bottom: .1em;
+  margin: 0;
   font-family: Manrope, sans-serif;
-  font-size: clamp(1.45rem, 2.5vw, 2.15rem);
+  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
   font-weight: 750;
-  letter-spacing: -.055em;
-  line-height: 1.08;
+  letter-spacing: -.035em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
   text-overflow: ellipsis;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, .65);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
-.store-directory__product-side {
-  display: grid;
-  flex: 0 0 auto;
-  justify-items: end;
-  gap: .55rem;
-}
-
-.store-directory__product-side > small {
-  padding: .38rem .58rem;
-  border: 1px solid rgba(255, 255, 255, .16);
-  border-radius: 999px;
-  background: rgba(15, 20, 16, .76);
-  font-size: .67rem;
-  font-weight: 750;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-
-.store-directory__price {
-  display: flex;
-  align-items: baseline;
-  gap: .65rem;
-  font-family: Manrope, sans-serif;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, .65);
-  white-space: nowrap;
-}
-
-.store-directory__price del {
-  color: rgba(255, 255, 255, .7);
-  font-size: clamp(.9rem, 1.25vw, 1.05rem);
-  font-weight: 600;
-}
-
-.store-directory__price strong {
-  font-size: clamp(1.45rem, 2.4vw, 2.05rem);
-  font-weight: 800;
-  letter-spacing: -.055em;
-  line-height: 1;
-}
-
-.store-directory__card-copy {
-  display: grid;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1.5rem;
-  padding: clamp(1.15rem, 2.2vw, 1.55rem);
-}
-
-.store-directory__card-copy p {
+.store-directory__identity p {
   display: -webkit-box;
   overflow: hidden;
   margin: 0;
   color: #68736b;
-  font-size: clamp(.93rem, 1.2vw, 1.03rem);
-  line-height: 1.5;
+  font-size: clamp(.88rem, 1.1vw, .98rem);
+  line-height: 1.4;
+  text-overflow: ellipsis;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
+.store-directory__card-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 7.2rem;
+  padding: clamp(1.15rem, 2vw, 1.45rem);
+}
+
 .store-directory__card-cta {
   display: inline-flex;
-  min-height: 2.85rem;
   align-items: center;
-  justify-content: center;
-  padding: .7rem 1rem;
-  border: 1px solid #265f43;
-  border-radius: 999px;
-  background: #265f43;
-  color: #fff;
+  gap: .55rem;
+  color: #265f43;
   font-family: Manrope, sans-serif;
-  font-size: .79rem;
-  font-weight: 750;
-  line-height: 1.25;
-  text-align: center;
-  text-decoration: none;
+  font-size: .82rem;
+  font-weight: 800;
   white-space: nowrap;
-  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.store-directory__card-cta svg {
+  width: 2.65rem;
+  height: 2.65rem;
+  padding: .72rem;
+  border-radius: 50%;
+  background: #e5f25a;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: background 180ms ease, transform 180ms ease;
 }
 
 .store-directory__card:hover {
@@ -552,13 +481,8 @@
   transform: translateY(-5px);
 }
 .store-directory__card:hover .store-directory__cover { transform: scale(1.035); }
-.store-directory__card-cta:hover { background: #e5f25a; color: #15251b; transform: translateY(-1px); }
-.store-directory__identity:focus-visible { outline: 2px solid #e5f25a; outline-offset: 3px; }
-.store-directory__featured-link:focus-visible { outline: none; box-shadow: inset 0 0 0 3px #e5f25a; }
-.store-directory__card-cta:focus-visible { outline: 2px solid #265f43; outline-offset: 4px; }
-
-.store-directory__identity:hover > strong,
-.store-directory__identity:focus-visible > strong { text-decoration: underline; text-underline-offset: .2rem; }
+.store-directory__card:hover .store-directory__card-cta svg { background: #dcea4f; transform: translate(.12rem, -.12rem); }
+.store-directory__card-link:focus-visible { outline: 3px solid #265f43; outline-offset: 4px; }
 
 .store-directory__empty {
   display: grid;
@@ -681,18 +605,14 @@
   .store-directory__section-head h2 { font-size: 2.2rem; }
   .store-directory__grid { gap: 1.25rem; }
   .store-directory__card { border-radius: 1.25rem; }
-  .store-directory__media { aspect-ratio: 5 / 6; }
-  .store-directory__identity { top: .85rem; left: .85rem; gap: .55rem; }
+  .store-directory__media { aspect-ratio: 4 / 3; }
+  .store-directory__identity { gap: .7rem; }
   .store-directory__identity-mark { width: 2.75rem; height: 2.75rem; }
-  .store-directory__identity > strong { font-size: .78rem; }
-  .store-directory__product { right: 1rem; bottom: 1rem; left: 1rem; gap: .75rem; }
-  .store-directory__product-name { font-size: clamp(1.3rem, 6vw, 1.55rem); }
-  .store-directory__price { gap: .45rem; }
-  .store-directory__price del { font-size: .85rem; }
-  .store-directory__price strong { font-size: clamp(1.35rem, 6.5vw, 1.75rem); }
-  .store-directory__card-copy { grid-template-columns: 1fr; gap: 1rem; padding: 1.15rem; }
-  .store-directory__card-copy p { font-size: .95rem; }
-  .store-directory__card-cta { width: 100%; min-height: 3rem; }
+  .store-directory__identity h3 { font-size: 1.1rem; }
+  .store-directory__identity p { font-size: .86rem; }
+  .store-directory__card-copy { grid-template-columns: minmax(0, 1fr) auto; gap: .8rem; min-height: 6.6rem; padding: 1rem; }
+  .store-directory__card-cta { gap: 0; font-size: 0; }
+  .store-directory__card-cta svg { width: 2.55rem; height: 2.55rem; }
 
   .store-directory__footer { align-items: flex-start; font-size: .78rem; }
   .store-directory__footer div { align-items: flex-end; flex-direction: column; gap: .85rem; }

@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
-import {
-  formatStoreDirectoryPrice,
-  getStoreDirectoryFeaturedUrl,
-  normalizeStoreDirectoryCatalog,
-} from '../shared/store-directory.mjs'
+import { getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog } from '../shared/store-directory.mjs'
 import { Brand } from './Brand'
 import { listPublicStoreDirectory } from './lib/database'
 import { applySeoMetadata } from './lib/seo'
@@ -54,19 +50,12 @@ const loadStores = () => {
 }
 
 const StoreCard = ({ store, index }: { store: StoreDirectoryEntry; index: number }) => {
-  const product = store.featuredProduct
-  const regularPrice = product?.price ?? null
-  const salePrice = product?.salePrice ?? null
-  const hasSale = regularPrice !== null && salePrice !== null && salePrice < regularPrice
-  const currentPrice = hasSale ? salePrice : regularPrice
-  const isSoldOut = product?.stock !== null && product?.stock !== undefined && product.stock <= 0
-  const featuredUrl = getStoreDirectoryFeaturedUrl(store)
-  const description = product?.description || store.description
-  const featuredLabel = product ? `Vaata toodet ${product.name} poes ${store.name}` : `Ava pood ${store.name}`
+  const description = store.description || 'Avasta poe valikut.'
+  const visitUrl = getStoreDirectoryVisitUrl(store)
 
   return <article className="store-directory__card">
-    <span className="store-directory__media">
-      <a className="store-directory__featured-link" href={featuredUrl} aria-label={featuredLabel}>
+    <a className="store-directory__card-link" href={visitUrl} aria-label={`Ava pood ${store.name}`}>
+      <div className="store-directory__media">
         {store.imageUrl ? <img
           className="store-directory__cover"
           src={store.imageUrl}
@@ -77,31 +66,24 @@ const StoreCard = ({ store, index }: { store: StoreDirectoryEntry; index: number
           onError={(event) => event.currentTarget.remove()}
         /> : null}
         <span className="store-directory__card-shade" aria-hidden="true" />
-        {product ? <span className="store-directory__product">
-          <span className="store-directory__product-name">{product.name}</span>
-          <span className="store-directory__product-side">
-            {isSoldOut ? <small>Välja müüdud</small> : null}
-            {currentPrice !== null ? <span className="store-directory__price">
-              {hasSale ? <del>{formatStoreDirectoryPrice(regularPrice)}</del> : null}
-              <strong>{formatStoreDirectoryPrice(currentPrice)}</strong>
-            </span> : null}
+      </div>
+      <div className="store-directory__card-copy">
+        <div className="store-directory__identity">
+          <span className="store-directory__identity-mark" aria-hidden="true">
+            <b>{store.name.charAt(0).toLocaleUpperCase('et')}</b>
+            {store.logoUrl ? <img src={store.logoUrl} alt="" loading="lazy" decoding="async" onError={(event) => event.currentTarget.remove()} /> : null}
           </span>
-        </span> : null}
-      </a>
-      <a className="store-directory__identity" href={store.url} aria-label={`Ava pood ${store.name}`}>
-        <span className="store-directory__identity-mark" aria-hidden="true">
-          <b>{store.name.charAt(0).toLocaleUpperCase('et')}</b>
-          {store.logoUrl ? <img src={store.logoUrl} alt="" loading="lazy" decoding="async" onError={(event) => event.currentTarget.remove()} /> : null}
+          <div>
+            <h3>{store.name}</h3>
+            <p>{description}</p>
+          </div>
+        </div>
+        <span className="store-directory__card-cta" aria-hidden="true">
+          Ava pood
+          <ArrowUpRight />
         </span>
-        <strong>{store.name.toLocaleUpperCase('et')}</strong>
-      </a>
-    </span>
-    <div className="store-directory__card-copy">
-      {description ? <p>{description}</p> : null}
-      <a className="store-directory__card-cta" href={featuredUrl}>
-        {product ? 'Vaata toodet' : 'Vaata poodi'}
-      </a>
-    </div>
+      </div>
+    </a>
   </article>
 }
 
@@ -207,7 +189,7 @@ export default function Kaubamaja() {
 
     <section className="store-directory__stores" aria-labelledby="store-directory-heading">
       <div className="store-directory__section-head">
-        <h2 id="store-directory-heading">Poed</h2>
+        <h2 id="store-directory-heading">Leia oma uus lemmikpood</h2>
       </div>
       {stores.length > 0 ? <div className="store-directory__grid">
         {stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} />)}

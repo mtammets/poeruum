@@ -30,6 +30,7 @@ test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await expect(page.locator('.store-directory__hero-media img')).toBeVisible()
   await expect(page.getByText(/Poeruumi Kaubamaja koondab ühte kohta Eesti ettevõtjate e-poed/)).toBeVisible()
   await expect(page.getByRole('link', { name: 'Sirvi poode' })).toHaveAttribute('href', '#store-directory-heading')
+  await expect(page.getByRole('heading', { name: 'Leia oma uus lemmikpood', exact: true })).toBeVisible()
   await expect(page.getByText('Eesti ettevõtjatelt', { exact: true })).toHaveCount(0)
   await expect(page.locator('.store-directory__marquee')).toBeVisible()
   await expect(page.getByText('Oled ettevõtja?', { exact: true })).toBeVisible()
@@ -47,6 +48,50 @@ test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await expect(page.locator('.store-directory__create-short')).toBeVisible()
   await expect(page.locator('.store-directory__create-full')).toBeHidden()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+})
+
+test('Kaubamaja presents the store instead of turning its card into a product ad', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountDirectoryHarness } = await import('/e2e/directory-harness.tsx')
+    mountDirectoryHarness()
+  })
+
+  const cards = page.locator('.store-directory__card')
+  await expect(cards).toHaveCount(2)
+  const firstCard = cards.first()
+  await expect(firstCard.locator('h3')).toHaveText('Keraamika Stuudio')
+  await expect(firstCard.getByText('Eesti savist käsitsi valminud nõud.')).toBeVisible()
+  await expect(firstCard.getByText('Ava pood')).toBeVisible()
+  await expect(firstCard.getByText('Kruus', { exact: true })).toHaveCount(0)
+  await expect(firstCard.getByText('25 €', { exact: true })).toHaveCount(0)
+  await expect(firstCard.locator('.store-directory__card-link')).toHaveAttribute('href', 'https://keraamika-stuudio.poeruum.ee/?from=kaubamaja')
+})
+
+test('storefront keeps a clear return path to Kaubamaja without crowding direct visits', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    const { mountStorefrontFromDirectoryHarness } = await import('/e2e/directory-harness.tsx')
+    mountStorefrontFromDirectoryHarness()
+  })
+
+  const returnUrl = 'http://kaubamaja.localhost:4173/#store-directory-heading'
+  await expect(page.getByRole('link', { name: 'Tagasi Poeruumi Kaubamajja' })).toHaveAttribute('href', returnUrl)
+  await expect(page.locator('.site-footer__directory-link')).toHaveAttribute('href', returnUrl)
+  await expect.poll(() => page.evaluate(() => new URLSearchParams(window.location.search).has('from'))).toBe(false)
+
+  await page.evaluate(async () => {
+    const { remountRememberedDirectoryStorefrontHarness } = await import('/e2e/directory-harness.tsx')
+    remountRememberedDirectoryStorefrontHarness()
+  })
+  await expect(page.getByRole('link', { name: 'Tagasi Poeruumi Kaubamajja' })).toHaveAttribute('href', returnUrl)
+
+  await page.evaluate(async () => {
+    const { mountDirectStorefrontHarness } = await import('/e2e/directory-harness.tsx')
+    mountDirectStorefrontHarness()
+  })
+  await expect(page.getByRole('link', { name: 'Tagasi Poeruumi Kaubamajja' })).toHaveCount(0)
+  await expect(page.locator('.site-footer__directory-link')).toHaveAttribute('href', returnUrl)
 })
 
 test('Poeruum explainer page answers who the platform is for', async ({ page }) => {
@@ -278,7 +323,9 @@ test('a stale settings response cannot overwrite text being typed', async ({ pag
 
   await page.getByRole('button', { name: /Seaded/ }).click()
   await page.locator('.settings-home button[data-section="store"]').click()
-  const description = page.getByLabel('Poe tutvustus')
+  await expect(page.getByLabel('Kaubamaja lühitutvustus')).toBeVisible()
+  await expect(page.getByText('Kaubamaja kaanepilt', { exact: false })).toBeVisible()
+  const description = page.getByRole('textbox', { name: /^Poe tutvustus\b/ })
   await description.fill('Telefonis kirjutatud uus tekst')
 
   await page.evaluate(() => window.__updateSettingsHarness?.({ storeDescription: 'Serverist hilinenud vana tekst' }))

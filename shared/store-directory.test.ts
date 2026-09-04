@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   formatStoreDirectoryPrice,
   getStoreDirectoryFeaturedUrl,
+  getStoreDirectoryVisitUrl,
   normalizeStoreDirectoryCatalog,
 } from './store-directory.mjs'
 
 describe('store directory catalog', () => {
-  it('keeps public store presentation concise and prefers a product image', () => {
+  it('keeps public store presentation concise and prefers the merchant directory cover', () => {
     expect(normalizeStoreDirectoryCatalog([{
       store_id: 'store-1',
       store_name: '  Keraamika Stuudio  ',
@@ -14,6 +15,8 @@ describe('store directory catalog', () => {
       primary_hostname: 'pood.example.ee',
       store_description: '  Käsitsi tehtud   nõud. ',
       store_logo: 'https://images.example.ee/logo.png',
+      directory_description: '  Eesti savist   valminud nõud. ',
+      directory_cover: 'https://images.example.ee/kaubamaja-cover.png',
       products: [{
         id: 'product-1',
         name: 'Kruus',
@@ -31,7 +34,7 @@ describe('store directory catalog', () => {
       slug: 'keraamika-stuudio',
       hostname: 'pood.example.ee',
       url: 'https://pood.example.ee/',
-      imageUrl: 'https://images.example.ee/kruus.jpg',
+      imageUrl: 'https://images.example.ee/kaubamaja-cover.png',
       logoUrl: 'https://images.example.ee/logo.png',
       featuredProduct: {
         id: 'product-1',
@@ -43,8 +46,25 @@ describe('store directory catalog', () => {
         stock: 2,
         oneOfAKind: false,
       },
-      description: 'Käsitsi tehtud nõud.',
+      description: 'Eesti savist valminud nõud.',
     }])
+  })
+
+  it('falls back to the first visible product image and store description', () => {
+    expect(normalizeStoreDirectoryCatalog([{
+      store_id: 'store-1',
+      store_name: 'Hea Pood',
+      store_slug: 'hea-pood',
+      store_description: 'Hoolikalt valitud tooted.',
+      products: [{
+        id: 'product-1',
+        name: 'Toode',
+        image_url: 'https://images.example.ee/toode.jpg',
+      }],
+    }])).toEqual([expect.objectContaining({
+      imageUrl: 'https://images.example.ee/toode.jpg',
+      description: 'Hoolikalt valitud tooted.',
+    })])
   })
 
   it('keeps normalized SSR entries stable and formats Estonian prices', () => {
@@ -74,6 +94,7 @@ describe('store directory catalog', () => {
     expect(formatStoreDirectoryPrice(39.99)).toBe('39,99 €')
     expect(formatStoreDirectoryPrice(45)).toBe('45 €')
     expect(getStoreDirectoryFeaturedUrl(store)).toBe('https://hea-pood.poeruum.ee/toode/toode/')
+    expect(getStoreDirectoryVisitUrl(store)).toBe('https://hea-pood.poeruum.ee/?from=kaubamaja')
   })
 
   it('excludes the directory address itself and malformed entries', () => {

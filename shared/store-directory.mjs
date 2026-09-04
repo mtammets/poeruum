@@ -60,6 +60,20 @@ export function getStoreDirectoryFeaturedUrl(store) {
   }
 }
 
+export function getStoreDirectoryVisitUrl(store) {
+  const record = asRecord(store)
+  const storeUrl = cleanText(record?.url, 2_048)
+  if (!storeUrl) return ''
+
+  try {
+    const url = new globalThis.URL(storeUrl)
+    url.searchParams.set('from', directorySlug)
+    return url.toString()
+  } catch {
+    return storeUrl
+  }
+}
+
 export function normalizeStoreDirectoryCatalog(value) {
   if (!Array.isArray(value)) return []
 
@@ -88,7 +102,8 @@ export function normalizeStoreDirectoryCatalog(value) {
     const productName = cleanText(productRecord?.name, 160)
     const productSlug = cleanText(productRecord?.slug, 160)
     const logoUrl = normalizeImageUrl(record.logoUrl ?? record.store_logo)
-    const imageUrl = normalizeImageUrl(record.imageUrl)
+    const directoryCoverUrl = normalizeImageUrl(record.directoryCoverUrl ?? record.directory_cover)
+    const imageUrl = directoryCoverUrl || normalizeImageUrl(record.imageUrl)
       || normalizeImageUrl(productRecord?.imageUrl ?? productRecord?.image_url)
       || logoUrl
     const hostname = normalizeHostname(record.primary_hostname ?? record.hostname, slug)
@@ -113,7 +128,8 @@ export function normalizeStoreDirectoryCatalog(value) {
       imageUrl,
       logoUrl,
       featuredProduct,
-      description: cleanText(record.store_description ?? record.description, 180),
+      description: cleanText(record.directory_description, 140)
+        || cleanText(record.store_description ?? record.description, 140),
     }]
   })
 }

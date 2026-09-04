@@ -23,4 +23,5 @@ export type StoreDirectoryEntry = {
 
 export function formatStoreDirectoryPrice(value: number): string
 export function getStoreDirectoryFeaturedUrl(store: StoreDirectoryEntry): string
+export function getStoreDirectoryVisitUrl(store: StoreDirectoryEntry): string
 export function normalizeStoreDirectoryCatalog(value: unknown): StoreDirectoryEntry[]
