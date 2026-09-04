@@ -748,8 +748,8 @@ function PlatformFlow() {
         setScreen('reset-password')
         return
       }
-      // Keep the loaded store in memory after sign-out so the merchant can
-      // continue viewing it as a customer. Account deletion clears it explicitly.
+      // Keep the loaded store in memory across auth changes. The logout callback
+      // controls the destination, while account deletion clears it explicitly.
     })
     restore()
       .catch((error) => active && setAuthError(error instanceof Error ? error.message : 'Andmete laadimine ebaõnnestus.'))

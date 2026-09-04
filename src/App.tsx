@@ -1894,13 +1894,17 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     setIsBillingCardOpen(false)
   }
 
-  const logOut = async () => {
-    if (isSupabaseConfigured) await requireSupabase().auth.signOut({ scope: 'local' })
-    if (onContinueSetup) {
-      onExit?.()
+  const leaveAfterLogout = () => {
+    if (merchantMode && onExit) {
+      onExit()
       return
     }
     showStoreAsCustomer()
+  }
+
+  const logOut = async () => {
+    if (isSupabaseConfigured) await requireSupabase().auth.signOut({ scope: 'local' })
+    leaveAfterLogout()
   }
 
   const requestLoginPasswordReset = async () => {
@@ -1939,7 +1943,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     setIsSessionActionBusy(true)
     await requireSupabase().auth.signOut({ scope: 'global' })
     setIsSessionActionBusy(false)
-    showStoreAsCustomer()
+    leaveAfterLogout()
   }
 
   const openAccountDeletion = () => {

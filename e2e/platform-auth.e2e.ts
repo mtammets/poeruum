@@ -192,6 +192,26 @@ test('existing merchant never sees new-store onboarding while their store loads'
   await expect(page.getByRole('heading', { name: 'Mis on sinu poe nimi?' })).toHaveCount(0)
 })
 
+test('merchant logout returns to the Poeruum homepage', async ({ page }) => {
+  await installSupabaseBackend(page)
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Logi sisse' }).first().click()
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: 'Seaded' })
+  await settings.getByRole('button', { name: /Konto/ }).click()
+  await settings.getByRole('button', { name: 'Logi välja', exact: true }).click()
+
+  await expect(page.getByRole('heading', { name: /Sinu e-pood/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Logi sisse' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Tagasi poe muutmisvaatesse' })).toHaveCount(0)
+})
+
 test('a draft can continue setup while Stripe verifies submitted details', async ({ page }) => {
   const pendingStore = {
     ...store,
