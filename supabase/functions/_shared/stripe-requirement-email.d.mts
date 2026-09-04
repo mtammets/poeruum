@@ -10,6 +10,7 @@ export type StripeRequirementEmailState = {
   pastDue?: boolean | null
   pendingVerification?: boolean | null
   disabledReason?: string | null
+  issues?: unknown
 }
 
 export type StripeRequirementEmailInput = {

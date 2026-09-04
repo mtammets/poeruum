@@ -7,7 +7,7 @@ import {
 } from '../supabase/functions/_shared/stripe-requirement-email.mjs'
 
 export const STRIPE_REQUIREMENT_PREVIEW_RECIPIENT = 'marek@tammets.ee'
-export const STRIPE_REQUIREMENT_PREVIEW_IDEMPOTENCY_KEY = 'preview-stripe-requirement-marek-20260826-v1'
+export const STRIPE_REQUIREMENT_PREVIEW_IDEMPOTENCY_KEY = 'preview-stripe-requirement-marek-20260904-v2'
 export const STRIPE_REQUIREMENT_PREVIEW_TAG = Object.freeze({
   name: 'email_type',
   value: 'preview_stripe_requirement',
@@ -34,6 +34,10 @@ export const buildStripeRequirementPreviewRequest = ({ recipient, apiKey }) => {
       pastDue: false,
       pendingVerification: false,
       disabledReason: null,
+      issues: [{
+        code: 'verification_document_address_mismatch',
+        requirement: 'company.verification.document',
+      }],
     },
   })
   if (!email) throw new Error('Stripe’i nõuete eelvaate koostamine ebaõnnestus.')

@@ -44,6 +44,7 @@ describe('getPaymentSetupState', () => {
     currentDeadline: null,
     pendingVerification: true,
     disabledReason: 'requirements.pending_verification',
+    issues: [],
   }
 
   it('lets setup continue while Stripe verifies already submitted details', () => {
@@ -74,6 +75,7 @@ describe('getStripeSetupMode', () => {
     currentDeadline: null,
     pendingVerification: false,
     disabledReason: null,
+    issues: [],
   }
 
   it('starts or resumes first-time onboarding with payout account collection', () => {

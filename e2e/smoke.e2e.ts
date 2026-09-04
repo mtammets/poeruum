@@ -327,7 +327,9 @@ test('a merchant can open Stripe remediation from Poeruum settings', async ({ pa
 
   await page.getByRole('button', { name: /Seaded/ }).click()
   await page.locator('.settings-home button[data-section="payments"]').click()
-  await expect(page.getByText('Maksete jätkamiseks kinnita ettevõtte andmed')).toBeVisible()
+  await expect(page.getByText('Stripe leidis andmetes parandamist vajava koha')).toBeVisible()
+  await expect(page.getByText('Dokumendil olev aadress ei ühti ettevõtte aadressiga')).toBeVisible()
+  await expect(page.getByText(/Stripe’i kontol ja üles laaditud kehtival dokumendil/)).toBeVisible()
   await expect(page.getByText(/09\.10\.2026/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Kinnita ettevõtte andmed' }).click()

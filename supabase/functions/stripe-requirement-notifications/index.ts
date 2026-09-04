@@ -15,6 +15,7 @@ type StripeRequirementEmailClaim = {
   due_count: number
   past_due: boolean
   disabled: boolean
+  issues?: unknown
 }
 
 const requiredEnv = (name: string) => {
@@ -51,6 +52,7 @@ const sendEmail = async (claim: StripeRequirementEmailClaim) => {
       dueCount: claim.due_count,
       pastDue: claim.past_due,
       disabledReason: claim.disabled ? 'restricted' : null,
+      issues: claim.issues,
     },
   })
   if (!email) throw new Error('Teavituse claim ei sisalda tegevust nõudvat Stripe’i olekut.')
@@ -107,7 +109,15 @@ Deno.serve(async (request) => {
     if (!claim) break
 
     try {
-      await sendEmail(claim)
+      const { data: store, error: storeError } = await admin.from('stores')
+        .select('stripe_account_requirement_issues')
+        .eq('id', claim.store_id)
+        .maybeSingle()
+      if (storeError) throw storeError
+      await sendEmail({
+        ...claim,
+        issues: store?.stripe_account_requirement_issues ?? [],
+      })
       const { data: completed, error: completeError } = await admin.rpc('complete_stripe_requirement_notification', {
         target_notification_id: claim.notification_id,
       })

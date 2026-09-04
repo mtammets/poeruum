@@ -26,6 +26,7 @@ import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
 import StorefrontCart from './StorefrontCart'
 import {
   formatStripeRequirementDeadline,
+  stripeRequirementIssueCopies,
   stripeRequirementsNeedAction,
   type StripeRequirementSummary,
 } from './lib/stripeRequirements'
@@ -2294,6 +2295,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }
   const stripeActionRequired = stripeRequirementsNeedAction(stripeRequirements)
   const stripeRequirementDeadline = formatStripeRequirementDeadline(stripeRequirements?.currentDeadline)
+  const stripeIssueCopies = stripeRequirementIssueCopies(stripeRequirements)
   const stripePaymentsRestricted = Boolean(stripeRequirements?.pastDue || stripeRequirements?.disabledReason)
   const stripeManagementLabel = stripeActionRequired
     ? 'Kinnita ettevõtte andmed'
@@ -3050,11 +3052,19 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </div>
             {stripeActionRequired && <div className="settings-payment-requirement" role="alert">
               <span aria-hidden="true">!</span>
-              <div><strong>Maksete jätkamiseks kinnita ettevõtte andmed</strong><p>Stripe on Poeruumi maksepartner, mis töötleb kaardi- ja nutimakseid ning kannab raha sulle välja. {stripePaymentsRestricted
-                ? 'Kinnita ettevõtte andmed kohe, et maksed ja väljamaksed saaksid taastuda.'
-                : stripeRequirementDeadline
-                  ? `Kinnita ettevõtte andmed enne ${stripeRequirementDeadline}, et maksed ja väljamaksed saaksid jätkuda.`
-                  : 'Kinnita ettevõtte andmed, et maksed ja väljamaksed saaksid jätkuda.'}</p></div>
+              <div>
+                <strong>{stripeIssueCopies.length ? 'Stripe leidis andmetes parandamist vajava koha' : 'Maksete jätkamiseks kinnita ettevõtte andmed'}</strong>
+                {stripeIssueCopies.length ? <ul>{stripeIssueCopies.map((issue, index) => <li key={`${issue.title}-${index}`}><b>{issue.title}</b><small>{issue.detail}</small></li>)}</ul> : <p>Stripe on Poeruumi maksepartner, mis töötleb kaardi- ja nutimakseid ning kannab raha sulle välja. {stripePaymentsRestricted
+                  ? 'Kinnita ettevõtte andmed kohe, et maksed ja väljamaksed saaksid taastuda.'
+                  : stripeRequirementDeadline
+                    ? `Kinnita ettevõtte andmed enne ${stripeRequirementDeadline}, et maksed ja väljamaksed saaksid jätkuda.`
+                    : 'Kinnita ettevõtte andmed, et maksed ja väljamaksed saaksid jätkuda.'}</p>}
+                {stripeIssueCopies.length > 0 && <p>{stripePaymentsRestricted
+                  ? 'Maksed ja väljamaksed on kuni parandatud andmete kinnitamiseni piiratud.'
+                  : stripeRequirementDeadline
+                    ? `Paranda andmed enne ${stripeRequirementDeadline}.`
+                    : 'Ava allolevast nupust turvaline Stripe’i vorm ja esita parandatud andmed.'}</p>}
+              </div>
             </div>}
             {!stripeActionRequired && stripeRequirements?.pendingVerification && <div className="settings-payment-requirement is-reviewing" role="status">
               <span aria-hidden="true">✓</span>

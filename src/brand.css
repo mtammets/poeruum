@@ -3662,6 +3662,10 @@
 .settings-payment-requirement > div { display: grid; gap: .2rem; }
 .settings-payment-requirement strong { font-size: .72rem; }
 .settings-payment-requirement p { margin: 0; color: rgba(255, 255, 255, .64); font-size: .66rem; line-height: 1.45; }
+.settings-payment-requirement ul { display: grid; gap: .5rem; margin: .3rem 0; padding: 0; list-style: none; }
+.settings-payment-requirement li { display: grid; gap: .12rem; padding: .55rem .6rem; border-radius: .55rem; background: rgba(255, 255, 255, .07); }
+.settings-payment-requirement li b { color: #fff; font-size: .68rem; line-height: 1.4; }
+.settings-payment-requirement li small { color: rgba(255, 255, 255, .66); font-size: .64rem; line-height: 1.45; }
 .settings-payment-requirement.is-reviewing { border-color: rgba(138, 197, 255, .28); background: rgba(138, 197, 255, .08); }
 .settings-payment-requirement.is-reviewing > span { background: #8ac5ff; color: #10202e; }
 .settings-secondary-action.is-warning { border-color: rgba(255, 178, 92, .42); background: rgba(255, 178, 92, .12); color: #ffc37d; }

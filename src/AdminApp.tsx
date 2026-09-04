@@ -15,6 +15,7 @@ import AdminSupport from './AdminSupport'
 import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 import { getStorefrontCanonicalUrl } from './lib/storefrontUrl'
+import { getStripeRequirementIssueCopies } from '../supabase/functions/_shared/stripe-requirement-issues.mjs'
 
 type AdminUserRow = {
   user_id: string
@@ -28,6 +29,7 @@ type AdminUserRow = {
   store_created_at: string | null
   is_published: boolean
   payment_status: 'idle' | 'pending' | 'connected'
+  stripe_account_requirement_issues: unknown
   pricing_plan: 'flexible' | 'fixed'
   product_count: number
   order_count: number
@@ -1321,8 +1323,9 @@ export default function AdminApp() {
               const percent = setupPercent(row)
               const isOnline = onlineUserIds.has(row.user_id)
               const latestEmail = latestEmails.get(row.user_id)
-              const status = percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : null
-              const statusClass = percent === 100 ? 'complete' : percent === 0 ? 'empty' : 'stalled'
+              const [paymentIssue] = getStripeRequirementIssueCopies(row.stripe_account_requirement_issues)
+              const status = paymentIssue ? 'Maksed vajavad tegevust' : percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : null
+              const statusClass = paymentIssue ? 'stalled' : percent === 100 ? 'complete' : percent === 0 ? 'empty' : 'stalled'
               const storefrontUrl = row.is_published && row.store_slug
                 ? getStorefrontCanonicalUrl(row.store_slug, undefined, row.custom_hostname ?? undefined)
                 : null
@@ -1330,7 +1333,7 @@ export default function AdminApp() {
                 <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><div className="admin-user-row__store"><strong>{row.store_name || 'Poodi pole loodud'}</strong>{storefrontUrl && <a href={storefrontUrl} target="_blank" rel="noopener noreferrer" title={storefrontUrl} aria-label={`Ava pood ${row.store_name || row.store_slug} uuel vahelehel`}>Ava pood <span aria-hidden="true">↗</span></a>}</div><a href={`mailto:${row.email}`}>{row.email}</a></div></div>
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
-                <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</small>}</div>
+                <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 && !paymentIssue ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small title={paymentIssue?.detail}>{paymentIssue?.title ?? (row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett')}</small>}</div>
                 <div className={`admin-user-row__support${latestEmail && ['failed', 'bounced', 'complained'].includes(latestEmail.status) ? ' is-error' : ''}`}>{row.open_support_count > 0 ? <a href="/admin/support" onClick={(event) => navigateToView(event, 'support')}><strong>{row.open_support_count} avatud vestlus{row.open_support_count === 1 ? '' : 't'}</strong><small>{formatRelativeTime(row.last_support_at)}</small></a> : latestEmail ? <span><strong>{latestEmail.email_type === 'onboarding_reminder' ? 'Seadistuse meeldetuletus' : latestEmail.email_type === 'support_reply' ? 'Klienditoe vastus' : latestEmail.email_type === 'support_confirmation' ? 'Küsimuse kinnitus' : latestEmail.subject || 'Poeruumi kiri'}</strong><small>{latestEmail.status === 'delivered' ? 'Kohale toimetatud' : latestEmail.status === 'sent' ? 'Saadetud' : latestEmail.status === 'bounced' ? 'Ei jõudnud kohale' : latestEmail.status === 'complained' ? 'Märgiti rämpspostiks' : 'Saatmine ebaõnnestus'} · {formatRelativeTime(latestEmail.status_updated_at)}</small></span> : <span>Suhtlust pole</span>}</div>
                 <div className="admin-user-row__activity"><strong className={isOnline ? 'is-online' : undefined}>{isOnline ? 'Online' : formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
               </article>

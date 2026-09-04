@@ -22,6 +22,7 @@ export type StoreRecord = {
   stripe_account_requirements_deadline: string | null
   stripe_account_requirements_pending_verification: boolean
   stripe_account_requirements_disabled_reason: string | null
+  stripe_account_requirement_issues: Array<{ code: string; requirement: string | null }>
   stripe_account_requirements_updated_at: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null

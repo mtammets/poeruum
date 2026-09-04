@@ -47,6 +47,7 @@ const store = {
   stripe_account_requirements_deadline: '2026-10-09T00:00:00.000Z',
   stripe_account_requirements_pending_verification: false,
   stripe_account_requirements_disabled_reason: null,
+  stripe_account_requirement_issues: [],
   stripe_account_requirements_updated_at: '2026-08-26T06:00:00.000Z',
   stripe_customer_id: null,
   stripe_subscription_id: null,
@@ -80,6 +81,7 @@ const connectedStripeStatus = {
     currentDeadline: '2026-10-09T00:00:00.000Z',
     pendingVerification: false,
     disabledReason: null,
+    issues: [],
   },
 }
 
@@ -179,6 +181,7 @@ test('a draft can continue setup while Stripe verifies submitted details', async
     stripe_account_requirements_deadline: null,
     stripe_account_requirements_pending_verification: true,
     stripe_account_requirements_disabled_reason: 'requirements.pending_verification',
+    stripe_account_requirement_issues: [],
     settings: { ...store.settings, onboardingStep: 'payments' },
   }
   const pendingStripeStatus = {
@@ -192,6 +195,7 @@ test('a draft can continue setup while Stripe verifies submitted details', async
       currentDeadline: null,
       pendingVerification: true,
       disabledReason: 'requirements.pending_verification',
+      issues: [],
     },
   }
   await installSupabaseBackend(page, pendingStore, pendingStripeStatus)

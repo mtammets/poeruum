@@ -566,6 +566,7 @@ function PlatformFlow() {
             stripe_account_requirements_deadline: result.requirements.currentDeadline,
             stripe_account_requirements_pending_verification: result.requirements.pendingVerification,
             stripe_account_requirements_disabled_reason: result.requirements.disabledReason,
+            stripe_account_requirement_issues: result.requirements.issues,
             stripe_account_requirements_updated_at: new Date().toISOString(),
           } : {}),
         } : current)
@@ -1305,6 +1306,7 @@ function PlatformFlow() {
             currentDeadline: current?.currentDeadline ?? null,
             pendingVerification: actionRequired === 0 && current?.pendingVerification === true,
             disabledReason: current?.disabledReason ?? null,
+            issues: current?.issues ?? [],
           }))}
         />
       </div>

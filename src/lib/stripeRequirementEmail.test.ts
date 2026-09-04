@@ -11,6 +11,7 @@ const actionRequired = {
   pastDue: false,
   pendingVerification: false,
   disabledReason: null,
+  issues: [],
 }
 
 const render = (kind: StripeRequirementEmailKind = 'action_required') => renderStripeRequirementEmail({
@@ -54,6 +55,7 @@ describe('Stripe requirement email renderer', () => {
       pastDue: false,
       pendingVerification: true,
       disabledReason: null,
+      issues: [],
     }
     expect(stripeRequirementEmailNeedsAction(pendingOnly)).toBe(false)
     expect(renderStripeRequirementEmail({
@@ -75,6 +77,26 @@ describe('Stripe requirement email renderer', () => {
     })
     expect(fallback?.subject).toBe('Kinnita ettevõtte andmed · Kera Kodustuudio')
     expect(fallback?.text).toContain('esimesel võimalusel')
+  })
+
+  it('tells the merchant the concrete Stripe issue without exposing raw provider text', () => {
+    const email = renderStripeRequirementEmail({
+      kind: 'disabled',
+      storeName: 'VeidradAsjad',
+      requirements: {
+        ...actionRequired,
+        disabledReason: 'requirements.past_due',
+        issues: [{
+          code: 'verification_document_address_mismatch',
+          requirement: 'company.verification.document',
+        }],
+      },
+    })
+
+    expect(email?.html).toContain('Mida tuleb parandada')
+    expect(email?.html).toContain('Dokumendil olev aadress ei ühti ettevõtte aadressiga')
+    expect(email?.text).toContain('Kontrolli, et Stripe’i kontol ja üles laaditud kehtival dokumendil oleks täpselt sama ettevõtte aadress.')
+    expect(email?.text).not.toContain('verification_document_address_mismatch')
   })
 
   it('escapes merchant-controlled content and removes subject header characters', () => {

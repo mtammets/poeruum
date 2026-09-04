@@ -1,5 +1,7 @@
 /* global URL */
 
+import { getStripeRequirementIssueCopies } from './stripe-requirement-issues.mjs'
+
 export const STRIPE_REQUIREMENT_ACTION_URL = 'https://poeruum.ee/?stripe_requirements=1'
 
 export const STRIPE_REQUIREMENT_EMAIL_KINDS = Object.freeze([
@@ -86,6 +88,7 @@ export const stripeRequirementEmailNeedsAction = (requirements = {}) =>
   requirementCount(requirements.dueCount) > 0
   || requirements.pastDue === true
   || (typeof requirements.disabledReason === 'string' && requirements.disabledReason.trim().length > 0)
+  || getStripeRequirementIssueCopies(requirements.issues).length > 0
 
 const copyForKind = (kind, storeName, deadline) => {
   const deadlineDate = deadlineParts(deadline)
@@ -165,6 +168,14 @@ export const renderStripeRequirementEmail = (input) => {
   const actionUrl = safeActionUrl(input.actionUrl)
   const copy = copyForKind(input.kind, storeName, input.deadline)
   const subject = `${input.preview ? '[Eelvaade] ' : ''}${copy.subject}`
+  const issueCopies = getStripeRequirementIssueCopies(input.requirements.issues)
+  const issueHtml = issueCopies.length ? `<div style="margin:0 0 24px;padding:20px;border:1px solid #ffd1c8;border-radius:14px;background:#fff8f5">
+            <div style="margin-bottom:10px;color:#9b3d32;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">Mida tuleb parandada</div>
+            ${issueCopies.map((issue) => `<div style="margin-top:10px"><strong style="display:block;color:#38201d;font-size:15px;line-height:1.45">${escapeHtml(issue.title)}</strong><span style="display:block;margin-top:4px;color:#705954;font-size:14px;line-height:1.55">${escapeHtml(issue.detail)}</span></div>`).join('')}
+          </div>` : ''
+  const issueText = issueCopies.length
+    ? `Mida tuleb parandada:\n${issueCopies.map((issue) => `- ${issue.title}: ${issue.detail}`).join('\n')}`
+    : ''
   const explanation = 'Logi Poeruumi sisse ja järgi Stripe’i vormis näidatud samme. Vorm avaneb Poeruumis ning andmed saadetakse otse Stripe’ile. Poeruum ei näe ega salvesta sinu isikut tõendava dokumendi sisu.'
   const security = 'Ära vasta sellele kirjale isikut tõendava dokumendi, parooli ega Smart-ID või PIN-koodidega. Poeruum ei küsi neid e-kirja teel.'
   const previewNotice = input.preview
@@ -184,6 +195,7 @@ export const renderStripeRequirementEmail = (input) => {
           <h1 style="margin:0 0 16px;color:#171714;font-size:30px;line-height:1.2;letter-spacing:-.03em">${escapeHtml(copy.title)}</h1>
           <p style="margin:0;color:#56534d;font-size:16px;line-height:1.65">${escapeHtml(copy.intro)}</p>
           <div style="margin:24px 0;padding:20px;border-radius:14px;background:#f6f4ef;color:#666159;font-size:14px;line-height:1.6">${escapeHtml(copy.detail)}</div>
+          ${issueHtml}
           <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:999px;background:#171714">
             <a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700">${escapeHtml(copy.action)} &nbsp;→</a>
           </td></tr></table>
@@ -200,6 +212,7 @@ export const renderStripeRequirementEmail = (input) => {
     copy.title,
     copy.intro,
     copy.detail,
+    issueText,
     `${copy.action}: ${actionUrl}`,
     explanation,
     `Turvalisus: ${security}`,

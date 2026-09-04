@@ -58,6 +58,10 @@ export function mountStripeRequirementsHarness() {
       currentDeadline: '2026-10-09T00:00:00.000Z',
       pendingVerification: false,
       disabledReason: null,
+      issues: [{
+        code: 'verification_document_address_mismatch',
+        requirement: 'company.verification.document',
+      }],
     },
     onConnectPaymentProvider: (_provider, purpose) => {
       window.__stripeConnectCalls = (window.__stripeConnectCalls ?? 0) + 1
@@ -86,6 +90,7 @@ export function mountStripeRequirementsLinkHarness() {
       currentDeadline: '2026-10-09T00:00:00.000Z',
       pendingVerification: false,
       disabledReason: null,
+      issues: [],
     },
   }))
 }
@@ -111,6 +116,7 @@ function LateStripeRequirementsLinkHarness() {
       currentDeadline: '2026-10-09T00:00:00.000Z',
       pendingVerification: false,
       disabledReason: null,
+      issues: [],
     },
   })
 }
