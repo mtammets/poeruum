@@ -46,12 +46,15 @@
     "supabase:set-admin": "node scripts/set-admin.mjs"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@stripe/connect-js": "^3.4.6",
     "@stripe/react-connect-js": "^3.4.4",
     "@supabase/supabase-js": "^2.109.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "~6.0.2",
@@ -60,6 +63,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@playwright/test": "^1.62.0",
+    "@types/qrcode": "^1.5.6",
     "@types/ws": "^8.18.1",
     "deno": "2.9.4",
     "dotenv": "^17.4.2",

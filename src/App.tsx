@@ -326,7 +326,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const activeIndexRef = useRef(0)
   const initialVisualReadyReportedRef = useRef(false)
   const logoTapCountRef = useRef(0)
-  const logoTapTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const logoTapTimerRef = useRef<number | null>(null)
   const storeLogoObjectUrlRef = useRef<string | null>(null)
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
   const directoryCoverObjectUrlRef = useRef<string | null>(null)
@@ -1384,7 +1384,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     const track = trackRef.current
     if (!track || !displayProducts.length) return
     let frame = 0
-    let normalizeTimeout: ReturnType<typeof window.setTimeout> | undefined
+    let normalizeTimeout: number | undefined
     const normalizePosition = () => {
       const width = Math.max(track.clientWidth, 1)
       const physicalIndex = Math.round(track.scrollLeft / width)
@@ -1538,8 +1538,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       setIsScreensaverActive(false)
       return
     }
-    let idleTimeout: ReturnType<typeof window.setTimeout> | undefined
-    let autoplayInterval: ReturnType<typeof window.setInterval> | undefined
+    let idleTimeout: number | undefined
+    let autoplayInterval: number | undefined
 
     const stopScreensaver = () => {
       if (idleTimeout !== undefined) window.clearTimeout(idleTimeout)

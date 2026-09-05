@@ -86,6 +86,9 @@ jobs:
       - name: Test product category access boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-product-categories.sql
 
+      - name: Test private business card drafts and concurrent saves
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-business-card-drafts.sql
+
       - name: Test abandoned draft cleanup boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-abandoned-draft-cleanup.sql
 

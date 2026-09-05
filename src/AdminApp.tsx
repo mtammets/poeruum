@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import './admin.css'
 import { createRandomId } from './lib/randomId'
 import type { MouseEvent as ReactMouseEvent } from 'react'
@@ -16,6 +16,8 @@ import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 import { getStorefrontCanonicalUrl } from './lib/storefrontUrl'
 import { getStripeRequirementIssueCopies } from '../supabase/functions/_shared/stripe-requirement-issues.mjs'
+
+const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
 
 type AdminUserRow = {
   user_id: string
@@ -53,7 +55,7 @@ type SetupStep = {
 
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
-type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users'
+type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
@@ -63,6 +65,7 @@ const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
   leads: { path: '/admin/leads', title: 'Kliendiotsing' },
   support: { path: '/admin/support', title: 'Klienditugi' },
   users: { path: '/admin/users', title: 'Kasutajad' },
+  'business-card': { path: '/admin/business-card', title: 'Visiitkaart' },
 }
 
 const getAdminView = (pathname = window.location.pathname): AdminView => {
@@ -71,6 +74,7 @@ const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/leads\/?$/i.test(pathname)) return 'leads'
   if (/^\/admin\/support\/?$/i.test(pathname)) return 'support'
   if (/^\/admin\/users\/?$/i.test(pathname)) return 'users'
+  if (/^\/admin\/business-card\/?$/i.test(pathname)) return 'business-card'
   return 'overview'
 }
 
@@ -356,7 +360,7 @@ const isStalled = (row: AdminUserRow) => {
   return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
-type AdminIconName = 'home' | 'analytics' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue'
+type AdminIconName = 'home' | 'analytics' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue' | 'card'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
@@ -366,6 +370,7 @@ function AdminIcon({ name }: { name: AdminIconName }) {
     leads: <><path d="M4 18.5V14l4-2 3 1.5 4-5 5-2.5" /><path d="m16.5 5.5 3.5.5-.5 3.5" /><circle cx="6" cy="7" r="2.5" /></>,
     users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.4-3.5 2.2-5.3 5.5-5.3s5.1 1.8 5.5 5.3" /><circle cx="17" cy="9" r="2.2" /><path d="M15.5 14.2c3.1-.4 4.8 1.2 5 4" /></>,
     store: <><path d="M4 9h16l-1-4H5L4 9Z"/><path d="M5 9v10h14V9M9 19v-5h6v5"/><path d="M4 9a3 3 0 0 0 5 2 3 3 0 0 0 6 0 3 3 0 0 0 5-2"/></>,
+    card: <><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8" cy="10" r="1.5" /><path d="M5.5 15c.3-1.7 1.2-2.5 2.5-2.5s2.2.8 2.5 2.5M14 10h4M14 14h4" /></>,
     message: <><path d="M4.5 5.5h15v10h-10l-5 3.5V5.5Z"/><path d="M8 9h8M8 12h5"/></>,
     logout: <><path d="M10 5H5v14h5M14 8l4 4-4 4M9 12h9" /></>,
     refresh: <><path d="M19 8a7.5 7.5 0 1 0 .3 7" /><path d="M19 4v4h-4" /></>,
@@ -985,6 +990,7 @@ export default function AdminApp() {
         <a className={activeView === 'overview' ? 'is-active' : undefined} href="/admin" aria-current={activeView === 'overview' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'overview')}><span><AdminIcon name="home" /></span>Ülevaade</a>
         <a className={activeView === 'analytics' ? 'is-active' : undefined} href="/admin/analytics" aria-current={activeView === 'analytics' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'analytics')}><span><AdminIcon name="analytics" /></span>Külastatavus</a>
         <a className={activeView === 'seo' ? 'is-active' : undefined} href="/admin/seo" aria-current={activeView === 'seo' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'seo')}><span><AdminIcon name="seo" /></span>SEO</a>
+        <a className={activeView === 'business-card' ? 'is-active' : undefined} href="/admin/business-card" aria-current={activeView === 'business-card' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'business-card')}><span><AdminIcon name="card" /></span>Visiitkaart</a>
         <a className={activeView === 'leads' ? 'is-active' : undefined} href="/admin/leads" aria-current={activeView === 'leads' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'leads')}><span><AdminIcon name="leads" /></span>Kliendiotsing</a>
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
         <a className={activeView === 'support' ? 'is-active' : undefined} href="/admin/support" aria-current={activeView === 'support' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'support')}><span><AdminIcon name="message" /></span>Klienditugi</a>
@@ -993,10 +999,12 @@ export default function AdminApp() {
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
     </aside>
 
-    <section className="admin-main">
-      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>
+    <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
+      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>
 
-      {error && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
+      {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
+
+      {error && activeView !== 'business-card' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
         {activeView === 'seo' && <div className="admin-seo">

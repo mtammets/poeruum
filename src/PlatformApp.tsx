@@ -1095,7 +1095,7 @@ function PlatformFlow() {
       setIsPhoneDetailsOpen(false)
       return
     }
-    let closeDetailsTimeout: ReturnType<typeof window.setTimeout> | undefined
+    let closeDetailsTimeout: number | undefined
     const showDetails = () => {
       setIsPhoneDetailsOpen(true)
       closeDetailsTimeout = window.setTimeout(() => setIsPhoneDetailsOpen(false), 3600)
