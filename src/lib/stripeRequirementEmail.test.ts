@@ -99,6 +99,27 @@ describe('Stripe requirement email renderer', () => {
     expect(email?.text).not.toContain('verification_document_address_mismatch')
   })
 
+  it('preserves separate home and company address guidance in both email formats', () => {
+    const email = renderStripeRequirementEmail({
+      kind: 'action_required',
+      storeName: 'Kera Kodustuudio',
+      requirements: {
+        ...actionRequired,
+        issues: [
+          { code: 'verification_document_address_mismatch', requirement: 'person_example.verification.additional_document' },
+          { code: 'verification_document_address_mismatch', requirement: 'company.verification.document' },
+        ],
+      },
+    })
+
+    for (const body of [email?.html, email?.text]) {
+      expect(body).toContain('Dokumendil olev aadress ei ühti elukoha aadressiga')
+      expect(body).toContain('Ettevõtte aadress võib sellest erineda')
+      expect(body).toContain('Dokumendil olev aadress ei ühti ettevõtte aadressiga')
+      expect(body).not.toContain('person_example')
+    }
+  })
+
   it('escapes merchant-controlled content and removes subject header characters', () => {
     const email = renderStripeRequirementEmail({
       kind: 'action_required',

@@ -5,14 +5,6 @@ const SAFE_REQUIREMENT = /^[a-z0-9_.]{1,200}$/
 const copy = (title, detail) => ({ title, detail })
 
 const CODE_COPY = Object.freeze({
-  verification_document_address_mismatch: copy(
-    'Dokumendil olev aadress ei ühti ettevõtte aadressiga',
-    'Kontrolli, et Stripe’i kontol ja üles laaditud kehtival dokumendil oleks täpselt sama ettevõtte aadress.',
-  ),
-  verification_document_address_missing: copy(
-    'Dokumendilt puudub kontrollitav aadress',
-    'Laadi üles kehtiv dokument, millel on selgelt näha ettevõtte täielik aadress.',
-  ),
   verification_document_name_mismatch: copy(
     'Dokumendil olev nimi ei ühti sisestatud nimega',
     'Kontrolli, et Stripe’i vormis ja üles laaditud dokumendil oleks sama ettevõtte või isiku ametlik nimi.',
@@ -77,14 +69,6 @@ const CODE_COPY = Object.freeze({
     'Maksu- või registrinumber on vales vormingus',
     'Kontrolli numbrit Stripe’i vormis ja sisesta see nõutud vormingus.',
   ),
-  invalid_street_address: copy(
-    'Sisestatud aadressi ei õnnestunud kinnitada',
-    'Kontrolli Stripe’i vormis tänavat, maja numbrit, linna ja postiindeksit.',
-  ),
-  invalid_address_city_state_postal_code: copy(
-    'Linn, maakond või postiindeks ei vasta aadressile',
-    'Kontrolli Stripe’i vormis ettevõtte täielikku aadressi.',
-  ),
   invalid_url_format: copy(
     'Veebilehe aadress on vales vormingus',
     'Sisesta Stripe’i vormis töötav täielik veebiaadress.',
@@ -137,12 +121,58 @@ const alteredDocumentCodes = new Set([
   'verification_document_manipulated',
 ])
 
+// The error code alone does not identify whose address Stripe is checking.
+const addressSubject = (requirement = '') => {
+  if (/^company\./.test(requirement)) return 'company'
+  if (/^(individual|person_[a-z0-9_]+|representative|owners?|directors?|executives?)\./.test(requirement)) return 'person'
+  return 'unknown'
+}
+
+const addressLabel = (requirement) => {
+  const subject = addressSubject(requirement)
+  return subject === 'company' ? 'Ettevõtte aadress' : subject === 'person' ? 'Elukoha aadress' : 'Sisestatud aadress'
+}
+
+const addressIssueCopy = ({ code, requirement }) => {
+  const subject = addressSubject(requirement ?? '')
+  const label = addressLabel(requirement ?? '')
+  if (code === 'verification_document_address_mismatch') {
+    return copy(
+      `Dokumendil olev aadress ei ühti ${label.toLowerCase()}iga`,
+      subject === 'company'
+        ? 'Kontrolli, et Stripe’i kontol ja üles laaditud kehtival dokumendil oleks täpselt sama ettevõtte aadress.'
+        : subject === 'person'
+          ? 'Kontrolli, et Stripe’i isikuandmetes oleks selle inimese tegelik elukoha aadress ja aadressitõend kinnitaks sama aadressi. Ettevõtte aadress võib sellest erineda.'
+          : 'Kontrolli Stripe’i vormis, kelle aadressi kinnitatakse. Dokument peab vastama selles jaotises sisestatud aadressile.',
+    )
+  }
+  if (code === 'verification_document_address_missing') {
+    return copy(
+      'Dokumendilt puudub kontrollitav aadress',
+      subject === 'company'
+        ? 'Laadi üles kehtiv dokument, millel on selgelt näha ettevõtte täielik aadress.'
+        : subject === 'person'
+          ? 'Laadi üles Stripe’i vormis lubatud aadressitõend, millel on selle inimese nimi ja täielik elukoha aadress.'
+          : 'Laadi üles Stripe’i vormis küsitud dokument, millel on kontrollitava isiku või ettevõtte täielik aadress.',
+    )
+  }
+  if (code === 'invalid_street_address' || code === 'invalid_address_city_state_postal_code') {
+    return copy(
+      code === 'invalid_street_address'
+        ? `${label}i ei õnnestunud kinnitada`
+        : 'Linn, maakond või postiindeks ei vasta aadressile',
+      `Kontrolli Stripe’i vormis ${label.toLowerCase()}i: tänavat, maja numbrit, linna, maakonda ja postiindeksit.`,
+    )
+  }
+  return null
+}
+
 const requirementLabel = (requirement) => {
   if (/company\.verification\.document/.test(requirement)) return 'Ettevõtte tõendusdokument'
   if (/verification\.document/.test(requirement)) return 'Isikut tõendav dokument'
   if (/external_account|bank_account/.test(requirement)) return 'Pangakonto andmed'
   if (/tax_id|registration_number/.test(requirement)) return 'Ettevõtte registreerimisnumber'
-  if (/address/.test(requirement)) return 'Ettevõtte aadress'
+  if (/address/.test(requirement)) return addressLabel(requirement)
   if (/business_profile\.(url|website)/.test(requirement)) return 'Ettevõtte veebileht'
   if (/business_profile/.test(requirement)) return 'Ettevõtte tegevusandmed'
   if (/representative/.test(requirement)) return 'Ettevõtte esindaja andmed'
@@ -177,6 +207,8 @@ export const getStripeRequirementIssueCopy = (issue) => {
   const [normalized] = normalizeStripeRequirementIssues([issue])
   if (!normalized) return null
 
+  const addressCopy = addressIssueCopy(normalized)
+  if (addressCopy) return addressCopy
   const known = CODE_COPY[normalized.code]
   if (known) return known
   if (unreadableDocumentCodes.has(normalized.code)) {

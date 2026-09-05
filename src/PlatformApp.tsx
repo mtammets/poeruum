@@ -1799,7 +1799,8 @@ function PlatformFlow() {
               : <>Äriregistri päring ebaõnnestus. <button type="button" onClick={() => setRegistryLookupAttempt((attempt) => attempt + 1)}>Proovi uuesti</button></>}</p>
       </div>}
       <label>Ettevõtte nimi<input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
-      <label>Ettevõtte aadress<input required value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label>
+      <label>Ettevõtte registrijärgne aadress<input required aria-describedby="setup-business-address-help" value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label>
+      <small id="setup-business-address-help" className="setup-field-note">Ettevõtte esindaja elukoha aadress küsitakse Stripe’i vormis eraldi.</small>
       <label>Klientide kontakt-e-post<input required type="email" value={businessEmail} onChange={(event) => setBusinessEmail(event.target.value)} placeholder="tere@minupood.ee" /></label>
       <label className="setup-vat-toggle"><input type="checkbox" checked={vatRegistered} onChange={(event) => { setVatRegistered(event.target.checked); if (!event.target.checked) setVatNumber('') }} /><span><strong>Olen käibemaksukohustuslane</strong><small>Kasuta poes Eesti standardmäära 24%</small></span></label>
       {vatRegistered && <label>KMKR number<input required value={vatNumber} pattern="EE[0-9]{9}" maxLength={11} onChange={(event) => setVatNumber(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11))} placeholder="EE123456789" /><small>Tootehinnad sisestad koos käibemaksuga.</small></label>}

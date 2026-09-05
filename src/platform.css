@@ -390,6 +390,10 @@ button, a, summary { touch-action: manipulation; }
 .stripe-embedded > header > aside > button:disabled { cursor: wait; opacity: .68; }
 .stripe-embedded > header > aside > button > i { width: .62rem; height: .62rem; border: 1.5px solid #c7cec8; border-top-color: #526058; border-radius: 50%; animation: stripe-loader-spin .75s linear infinite; }
 .stripe-embedded__component { position: relative; display: grid; width: 100%; min-width: 0; transition: min-height 240ms ease, padding 240ms ease; }
+.stripe-embedded__address-guide { display: grid; gap: .4rem; margin: .85rem clamp(.8rem, 2.5vw, 1.15rem) 0; padding: .85rem; border: 1px solid #dce6d9; border-radius: .75rem; background: #f6f9f4; color: #526044; font-size: .78rem; line-height: 1.5; }
+.stripe-embedded__address-guide > strong { color: #263229; font-size: .82rem; }
+.stripe-embedded__address-guide > p { margin: 0; font: inherit; color: inherit; }
+.setup-field-note { color: #657068; font-size: .75rem; font-weight: 400; line-height: 1.5; }
 .stripe-embedded__component:not(.is-ready) { min-height: 22rem; }
 .stripe-embedded__component.is-completing { min-height: 22rem; }
 .stripe-embedded__component.is-ready { padding: .65rem clamp(.8rem, 2.5vw, 1.15rem) 1.15rem; }
