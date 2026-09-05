@@ -583,12 +583,12 @@
     padding: 1rem;
     border-radius: 1.5rem;
   }
-  .store-directory__intro { min-height: 21rem; padding: 1rem .45rem .75rem; }
+  .store-directory__intro { min-height: 0; padding: 1rem .45rem .75rem; }
   .store-directory__intro h1 {
-    margin-bottom: 1.2rem;
+    margin-bottom: 0;
     font-size: clamp(2.35rem, 11vw, 3.35rem);
   }
-  .store-directory__intro p { max-width: 22rem; font-size: 1rem; line-height: 1.45; }
+  .store-directory__intro p { display: none; }
   .store-directory__hero-actions { align-items: flex-start; flex-direction: column; gap: .7rem; margin-top: 1.4rem; }
   .store-directory__browse { min-height: 3rem; }
   .store-directory__hero-media { border-radius: 1rem; }
