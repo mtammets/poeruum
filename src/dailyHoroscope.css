@@ -1,0 +1,52 @@
+.daily-horoscope {
+  display: grid;
+  grid-template-columns: minmax(15rem, .8fr) minmax(0, 1.6fr);
+  align-items: start;
+  gap: clamp(2rem, 5vw, 5rem);
+  margin-top: clamp(2.5rem, 5vw, 4.5rem);
+  padding: clamp(1.5rem, 3vw, 2.75rem);
+  border: 1px solid rgba(38, 95, 67, .13);
+  border-radius: 1.65rem;
+  background: #e9ecdf;
+  color: #173d2b;
+}
+
+.daily-horoscope__heading { display: flex; align-items: center; gap: 1.2rem; padding-top: .25rem; }
+.daily-horoscope__sun { flex: 0 0 auto; width: 3.4rem; height: 3.4rem; stroke: #56785a; stroke-width: 1; }
+.daily-horoscope__heading h2 { margin: 0 0 .45rem; font-family: Manrope, sans-serif; font-size: clamp(1.15rem, 1.6vw, 1.4rem); font-weight: 700; letter-spacing: -.035em; }
+.daily-horoscope__heading time { color: #63745f; font-size: .9rem; }
+.daily-horoscope__reading { min-width: 0; }
+.daily-horoscope__select { position: relative; display: inline-flex; margin-bottom: 1.15rem; }
+.daily-horoscope__select select {
+  min-height: 2.8rem;
+  min-width: 10rem;
+  padding: .6rem 2.7rem .6rem 1rem;
+  border: 1px solid rgba(38, 95, 67, .22);
+  border-radius: 999px;
+  appearance: none;
+  background: #f7f8ef;
+  color: #173d2b;
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.daily-horoscope__select select:hover { border-color: #56785a; }
+.daily-horoscope__select select:focus-visible { outline: 2px solid #265f43; outline-offset: 3px; }
+.daily-horoscope__select svg { position: absolute; top: 50%; right: 1rem; width: 1rem; height: 1rem; transform: translateY(-50%); stroke: currentColor; stroke-width: 1.5; pointer-events: none; }
+.daily-horoscope__text { min-height: 5.2rem; }
+.daily-horoscope__text p { margin: 0; max-width: 44rem; font-size: clamp(1.05rem, 1.5vw, 1.3rem); line-height: 1.6; animation: horoscope-appear 220ms ease-out; }
+
+@keyframes horoscope-appear { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 48rem) {
+  .daily-horoscope { grid-template-columns: 1fr; gap: 1.5rem; border-radius: 1.25rem; }
+  .daily-horoscope__heading { gap: 1rem; }
+  .daily-horoscope__sun { width: 2.75rem; height: 2.75rem; }
+  .daily-horoscope__text { min-height: 0; }
+  .daily-horoscope__select { margin-bottom: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-horoscope__text p { animation: none; }
+}

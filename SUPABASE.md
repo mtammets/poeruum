@@ -1,5 +1,15 @@
 # Supabase'i käivitamine
 
+## Kaubamaja päevahoroskoop
+
+Horoskoobi jaoks rakenda migratsioon `202609070001_daily_horoscope.sql` ja deploy funktsioon `daily-horoscope` (`verify_jwt = false`). Funktsioon kontrollib ise olemasolevat `ONBOARDING_CRON_SECRET` väärtust. Lisa funktsiooni saladustesse `OPENAI_API_KEY`; valikuline `OPENAI_HOROSCOPE_MODEL` on vaikimisi `gpt-5.4`. Kasutatakse ka olemasolevaid `SUPABASE_URL` ja `POERUUM_SUPABASE_SECRET_KEY` väärtusi.
+
+Ajastaja kasutab Vaulti olemasolevaid `onboarding_reminders_url` ja `onboarding_cron_secret` väärtusi. Töö käib iga tunni 15. minutil ja loob ainult puuduvad tänase ning homse väljaande tekstid. Andmebaasilukk väldib sama päeva paralleelset genereerimist. Valmis tekstid avalduvad Eesti kuupäeva järgi; brauser loeb ainult tänaseid tekste ega käivita OpenAI päringuid.
+
+`npm run horoscope:generate` loob kohaliku `.env` võtmega tänase staatilise väljaande faili `public/data/daily-horoscope.json`. See sobib eelvaateks ja sama päeva varuvariandiks; vananenud teksti ei kuvata. Kui tänast väljaannet pole saadaval, jääb plokk peidetuks. Tähemärgi valik säilib külastaja brauseris.
+
+## Projekti seadistamine
+
 1. Loo Supabase'is uus projekt.
 2. Täida lokaalne `.env` fail. Brauserivõtmete kõrval on seal eraldi CLI ja serveripoolse halduse võtmed.
 3. Kontrolli võtmeid käsuga `npm run supabase:check`.

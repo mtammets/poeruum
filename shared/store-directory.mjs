@@ -1,4 +1,25 @@
 const directorySlug = 'kaubamaja'
+
+// Promotional cards stay separate from the public catalog and search results.
+export const storeDirectoryExamples = [
+  {
+    id: 'example-ceramics',
+    name: 'Sinu pood võiks olla siin',
+    description: 'Keraamika, kodukaubad ja sinu looming.',
+    imageUrl: '/images/kaubamaja-example-ceramics.webp',
+    logoUrl: null,
+    url: 'https://poeruum.ee/',
+  },
+  {
+    id: 'example-jewelry',
+    name: 'Sinu pood võiks olla siin',
+    description: 'Ehted, aksessuaarid ja sinu looming.',
+    imageUrl: '/images/kaubamaja-example-jewelry.webp',
+    logoUrl: null,
+    url: 'https://poeruum.ee/',
+  },
+]
+
 const validSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const validHostname = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 

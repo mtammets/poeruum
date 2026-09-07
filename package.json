@@ -14,6 +14,7 @@
     "check:edge": "deno check --node-modules-dir=auto --frozen --minimum-dependency-age=0 supabase/functions/*/index.ts",
     "check": "npm run lint && npm run check:edge && npm run test && npm run build:app && npm audit --omit=dev --audit-level=high",
     "seo:generate": "node scripts/generate-seo-assets.mjs",
+    "horoscope:generate": "deno run --env-file=.env --allow-env=OPENAI_API_KEY,OPENAI_HOROSCOPE_MODEL --allow-net=api.openai.com --allow-write=public/data scripts/generate-daily-horoscope.ts",
     "preview": "vite preview",
     "start": "node server.mjs",
     "test:stripe-billing": "node scripts/stripe-billing-e2e.mjs",

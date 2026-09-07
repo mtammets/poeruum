@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
-import { formatStoreDirectoryPrice, getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog } from '../shared/store-directory.mjs'
+import { formatStoreDirectoryPrice, getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog, storeDirectoryExamples } from '../shared/store-directory.mjs'
 import { Brand } from './Brand'
+import DailyHoroscope from './DailyHoroscope'
 import { listPublicStoreDirectory } from './lib/database'
 import { createStoreDirectorySearch, type DirectoryProductResult } from './lib/directorySearch'
 import { applySeoMetadata } from './lib/seo'
@@ -51,12 +52,16 @@ const loadStores = () => {
   return directoryRequest
 }
 
-const StoreCard = ({ store, index }: { store: StoreDirectoryEntry; index: number }) => {
+const StoreCard = ({ store, index, visitUrl, isExample = false }: {
+  store: Pick<StoreDirectoryEntry, 'name' | 'description' | 'imageUrl' | 'logoUrl'>
+  index: number
+  visitUrl: string
+  isExample?: boolean
+}) => {
   const description = store.description || 'Avasta poe valikut.'
-  const visitUrl = getStoreDirectoryVisitUrl(store)
 
   return <article className="store-directory__card">
-    <a className="store-directory__card-link" href={visitUrl} aria-label={`Ava pood ${store.name}`}>
+    <a className="store-directory__card-link" href={visitUrl} aria-label={isExample ? `${store.name} – loo oma pood Poeruumis` : `Ava pood ${store.name}`}>
       <div className="store-directory__media">
         {store.imageUrl ? <img
           className="store-directory__cover"
@@ -72,7 +77,7 @@ const StoreCard = ({ store, index }: { store: StoreDirectoryEntry; index: number
       <div className="store-directory__card-copy">
         <div className="store-directory__identity">
           <span className="store-directory__identity-mark" aria-hidden="true">
-            <b>{store.name.charAt(0).toLocaleUpperCase('et')}</b>
+            <b>{isExample ? '+' : store.name.charAt(0).toLocaleUpperCase('et')}</b>
             {store.logoUrl ? <img src={store.logoUrl} alt="" loading="lazy" decoding="async" onError={(event) => event.currentTarget.remove()} /> : null}
           </span>
           <div>
@@ -81,7 +86,7 @@ const StoreCard = ({ store, index }: { store: StoreDirectoryEntry; index: number
           </div>
         </div>
         <span className="store-directory__card-cta" aria-hidden="true">
-          Ava pood
+          {isExample ? 'Loo oma pood' : 'Ava pood'}
           <ArrowUpRight />
         </span>
       </div>
@@ -254,7 +259,10 @@ export default function Kaubamaja() {
         {isSearching && stores.length > 0 ? `${results.products.length} ${results.products.length === 1 ? 'toode' : 'toodet'}, ${results.stores.length} ${results.stores.length === 1 ? 'pood' : 'poodi'}.` : ''}
       </p>
       <div id="store-directory-results">
-        {stores.length > 0 ? isSearching ? <>
+        {stores.length === 0 && status !== 'ready' ? <p className="store-directory__notice" role="status">
+          {status === 'loading' ? 'Laadin poode…' : 'Poode ei õnnestunud praegu laadida.'}
+        </p> : null}
+        {isSearching ? <>
           {results.products.length > 0 ? <section className="store-directory__result-group" aria-label="Leitud tooted">
             <p className="store-directory__results-heading">Tooted <span>{results.products.length}</span></p>
             <div className="store-directory__product-grid">
@@ -270,18 +278,16 @@ export default function Kaubamaja() {
           {results.stores.length > 0 ? <section className="store-directory__result-group" aria-label="Leitud poed">
             <p className="store-directory__results-heading">Poed <span>{results.stores.length}</span></p>
             <div className="store-directory__grid">
-              {results.stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} />)}
+              {results.stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} visitUrl={getStoreDirectoryVisitUrl(store)} />)}
             </div>
           </section> : null}
-          {!hasResults ? <div className="store-directory__empty"><p>Vasteid ei leitud. Proovi teist märksõna.</p></div> : null}
+          {!hasResults && (stores.length > 0 || status === 'ready') ? <div className="store-directory__empty"><p>Vasteid ei leitud. Proovi teist märksõna.</p></div> : null}
         </> : <div className="store-directory__grid">
-          {stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} />)}
-        </div> : <div className="store-directory__empty" aria-live="polite">
-          {status === 'loading'
-            ? <span className="store-directory__loader" aria-label="Laadin poode" />
-            : <p>{status === 'error' ? 'Poode ei õnnestunud praegu laadida.' : 'Uued poed jõuavad siia peagi.'}</p>}
+          {stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} visitUrl={getStoreDirectoryVisitUrl(store)} />)}
+          {storeDirectoryExamples.map((store, index) => <StoreCard key={store.id} store={store} index={stores.length + index} visitUrl={store.url} isExample />)}
         </div>}
       </div>
+      {!isSearching ? <DailyHoroscope /> : null}
     </section>
 
     <footer className="store-directory__footer">

@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 
 test('finds products inside stores and restores the directory when cleared', async ({ page }) => {
   const input = page.getByRole('searchbox', { name: 'Otsi poode ja tooteid' })
-  await expect(page.locator('.store-directory__card')).toHaveCount(2)
+  await expect(page.locator('.store-directory__card')).toHaveCount(4)
   await expect(page.locator('.store-directory__product')).toHaveCount(0)
   await input.fill('vaas')
   const product = page.getByRole('region', { name: 'Leitud tooted' })
@@ -26,7 +26,7 @@ test('finds products inside stores and restores the directory when cleared', asy
   await expect(page).toHaveURL(/\?q=vaas$/)
   await page.getByRole('button', { name: 'Tühjenda otsing' }).click()
   await expect(input).toBeFocused()
-  await expect(page.locator('.store-directory__card')).toHaveCount(2)
+  await expect(page.locator('.store-directory__card')).toHaveCount(4)
   await expect(page.locator('.store-directory__product')).toHaveCount(0)
   expect(new URL(page.url()).searchParams.has('q')).toBe(false)
 })
@@ -49,7 +49,7 @@ test('finds store names and descriptions, handles accents, and uses custom produ
   await expect(page.getByText('Vasteid ei leitud. Proovi teist märksõna.')).toBeVisible()
   await expect(product).toHaveCount(0)
   await input.press('Escape')
-  await expect(page.locator('.store-directory__card')).toHaveCount(2)
+  await expect(page.locator('.store-directory__card')).toHaveCount(4)
 })
 
 test('search remains usable on mobile and restores queries from the URL', async ({ page }) => {
@@ -69,7 +69,7 @@ test('search remains usable on mobile and restores queries from the URL', async 
   expect((await clear.boundingBox())?.width).toBeGreaterThanOrEqual(44)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   await clear.click()
-  await expect(page.locator('.store-directory__card')).toHaveCount(2)
+  await expect(page.locator('.store-directory__card')).toHaveCount(4)
 })
 
 test('shows additional matches and resets the result limit for a new search', async ({ page }) => {

@@ -439,6 +439,8 @@
   pointer-events: none;
 }
 
+.store-directory__notice { margin: 0 0 1.25rem; color: #647068; }
+
 .store-directory__identity {
   display: flex;
   min-width: 0;

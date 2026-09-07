@@ -26,6 +26,7 @@ export type StoreDirectoryEntry = {
 }
 
 export function formatStoreDirectoryPrice(value: number): string
+export const storeDirectoryExamples: Pick<StoreDirectoryEntry, 'id' | 'name' | 'description' | 'imageUrl' | 'logoUrl' | 'url'>[]
 export function getStoreDirectoryFeaturedUrl(store: StoreDirectoryEntry): string
 export function getStoreDirectoryVisitUrl(store: StoreDirectoryEntry, product?: StoreDirectoryProduct): string
 export function normalizeStoreDirectoryCatalog(value: unknown): StoreDirectoryEntry[]
