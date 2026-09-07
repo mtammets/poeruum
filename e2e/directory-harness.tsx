@@ -4,7 +4,7 @@ import { Storefront } from '../src/App'
 import Kaubamaja from '../src/Kaubamaja'
 import type { Product } from '../src/products'
 
-export function mountDirectoryHarness() {
+export function mountDirectoryHarness(manyProducts = false) {
   const imageUrl = `${window.location.origin}/images/poeruumi-kaubamaja-hero.webp`
   const data = document.createElement('script')
   data.id = 'poeruum-store-directory-data'
@@ -15,13 +15,18 @@ export function mountDirectoryHarness() {
     store_slug: 'keraamika-stuudio',
     directory_description: 'Eesti savist käsitsi valminud nõud.',
     directory_cover: imageUrl,
-    products: [{ id: 'product-1', name: 'Kruus', image_url: imageUrl, price: 25 }],
+    products: [
+      { id: 'product-1', name: 'Kruus', image_url: imageUrl, price: 25 },
+      { id: 'product-3', name: 'Sinine vaas', slug: 'sinine-vaas', description: 'Käsitsi treitud lillevaas.', image_url: imageUrl, price: 30, sale_price: 24 },
+      ...(manyProducts ? Array.from({ length: 25 }, (_, index) => ({ id: `bowl-${index}`, name: `Kauss ${index + 1}`, image_url: imageUrl, price: 10 })) : []),
+    ],
   }, {
     store_id: 'store-2',
     store_name: 'Põhjala Puit',
     store_slug: 'pohjala-puit',
+    primary_hostname: 'puit.example.ee',
     store_description: 'Ajatud puidust esemed sinu koju.',
-    products: [{ id: 'product-2', name: 'Lõikelaud', image_url: imageUrl, price: 45 }],
+    products: [{ id: 'product-2', name: 'Lõikelaud', slug: 'loikelaud', description: 'Tammepuidust köögitarvik.', image_url: imageUrl, price: 45, stock: 0 }],
   }])
   const root = document.createElement('div')
   root.id = 'directory-harness'

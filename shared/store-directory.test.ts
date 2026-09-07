@@ -41,11 +41,13 @@ describe('store directory catalog', () => {
         name: 'Kruus',
         slug: 'kruus',
         description: 'Treitud sangaga käsitöökruus.',
+        imageUrl: 'https://images.example.ee/kruus.jpg',
         price: 25,
         salePrice: 19.99,
         stock: 2,
         oneOfAKind: false,
       },
+      products: [expect.objectContaining({ id: 'product-1', name: 'Kruus', imageUrl: 'https://images.example.ee/kruus.jpg' })],
       description: 'Eesti savist valminud nõud.',
     }])
   })
@@ -106,5 +108,28 @@ describe('store directory catalog', () => {
       id: 'valid',
       url: 'https://hea-pood.poeruum.ee/',
     })])
+  })
+
+  it('preserves the full public product catalog across server serialization and client normalization', () => {
+    const catalog = normalizeStoreDirectoryCatalog([{
+      store_id: 'store-1', store_name: 'Hea Pood', store_slug: 'hea-pood', primary_hostname: 'pood.example.ee',
+      products: [
+        { id: 'cover', name: 'Kaanetoode', image_url: '/cover.webp' },
+        { id: 'second', name: 'Teine toode', slug: 'teine toode', description: 'Poe sees.', price: '20', sale_price: '15', stock: 0 },
+        { id: 'no-slug', name: 'Ilma aadressita', image_url: 'javascript:alert(1)' },
+        { id: 'hidden', name: 'Peidetud', search_visible: false },
+        { id: 'hidden-normalized', name: 'Peidetud', searchVisible: false },
+        { id: 'second', name: 'Duplikaat' },
+        { id: 'invalid' },
+        null,
+      ],
+    }])
+    expect(normalizeStoreDirectoryCatalog(JSON.parse(JSON.stringify(catalog)))).toEqual(catalog)
+    const [store] = catalog
+    expect(store.products.map((product) => product.id)).toEqual(['cover', 'second', 'no-slug'])
+    expect(store.products[1]).toMatchObject({ price: 20, salePrice: 15, stock: 0 })
+    expect(store.products[2].imageUrl).toBeNull()
+    expect(getStoreDirectoryVisitUrl(store, store.products[1])).toBe('https://pood.example.ee/toode/teine%20toode/?from=kaubamaja')
+    expect(getStoreDirectoryVisitUrl(store, store.products[2])).toBe('https://pood.example.ee/toode/no-slug/?from=kaubamaja')
   })
 })

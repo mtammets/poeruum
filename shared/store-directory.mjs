@@ -38,6 +38,27 @@ const normalizeStock = (value) => {
   return Number.isFinite(number) && number >= 0 ? Math.floor(number) : null
 }
 
+const normalizeProduct = (value) => {
+  const record = asRecord(value)
+  if (!record || record.search_visible === false || record.searchVisible === false) return null
+  const id = cleanText(record.id, 120)
+  const name = cleanText(record.name, 160)
+  if (!id || !name) return null
+  const price = normalizeMoney(record.price)
+  const salePrice = normalizeMoney(record.salePrice ?? record.sale_price)
+  return {
+    id,
+    name,
+    slug: cleanText(record.slug, 160) || id,
+    description: cleanText(record.description, 5_000),
+    imageUrl: normalizeImageUrl(record.imageUrl ?? record.image_url),
+    price,
+    salePrice: price !== null && salePrice !== null && salePrice < price ? salePrice : null,
+    stock: normalizeStock(record.stock),
+    oneOfAKind: record.oneOfAKind === true || record.one_of_a_kind === true,
+  }
+}
+
 export function formatStoreDirectoryPrice(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return ''
   return `${value.toLocaleString('et-EE', {
@@ -60,13 +81,16 @@ export function getStoreDirectoryFeaturedUrl(store) {
   }
 }
 
-export function getStoreDirectoryVisitUrl(store) {
+export function getStoreDirectoryVisitUrl(store, product) {
   const record = asRecord(store)
   const storeUrl = cleanText(record?.url, 2_048)
   if (!storeUrl) return ''
 
   try {
-    const url = new globalThis.URL(storeUrl)
+    const productSlug = cleanText(asRecord(product)?.slug, 160) || cleanText(asRecord(product)?.id, 120)
+    const url = productSlug
+      ? new globalThis.URL(`/toode/${encodeURIComponent(productSlug)}/`, storeUrl)
+      : new globalThis.URL(storeUrl)
     url.searchParams.set('from', directorySlug)
     return url.toString()
   } catch {
@@ -87,36 +111,21 @@ export function normalizeStoreDirectoryCatalog(value) {
     const id = cleanText(record.store_id ?? record.id, 120)
     if (!id || !name || !validSlug.test(slug) || slug === directorySlug || seen.has(id)) return []
 
-    const products = Array.isArray(record.products) ? record.products : []
-    const productWithImage = products.find((product) => {
-      const productRecord = asRecord(product)
-      return productRecord && normalizeImageUrl(productRecord.imageUrl ?? productRecord.image_url)
+    const productIds = new Set()
+    const products = (Array.isArray(record.products) ? record.products : []).flatMap((item) => {
+      const product = normalizeProduct(item)
+      if (!product || productIds.has(product.id)) return []
+      productIds.add(product.id)
+      return [product]
     })
-    const productRecord = asRecord(record.featuredProduct ?? record.featured_product) || asRecord(productWithImage)
-    const price = normalizeMoney(productRecord?.price)
-    const salePriceCandidate = normalizeMoney(productRecord?.salePrice ?? productRecord?.sale_price)
-    const salePrice = price !== null && salePriceCandidate !== null && salePriceCandidate < price
-      ? salePriceCandidate
-      : null
-    const productId = cleanText(productRecord?.id, 120)
-    const productName = cleanText(productRecord?.name, 160)
-    const productSlug = cleanText(productRecord?.slug, 160)
+    const featuredProduct = normalizeProduct(record.featuredProduct ?? record.featured_product)
+      || products.find((product) => product.imageUrl) || null
     const logoUrl = normalizeImageUrl(record.logoUrl ?? record.store_logo)
     const directoryCoverUrl = normalizeImageUrl(record.directoryCoverUrl ?? record.directory_cover)
     const imageUrl = directoryCoverUrl || normalizeImageUrl(record.imageUrl)
-      || normalizeImageUrl(productRecord?.imageUrl ?? productRecord?.image_url)
+      || featuredProduct?.imageUrl
       || logoUrl
     const hostname = normalizeHostname(record.primary_hostname ?? record.hostname, slug)
-    const featuredProduct = productId && productName ? {
-      id: productId,
-      name: productName,
-      slug: productSlug,
-      description: cleanText(productRecord?.description, 5_000),
-      price,
-      salePrice,
-      stock: normalizeStock(productRecord?.stock),
-      oneOfAKind: productRecord?.oneOfAKind === true || productRecord?.one_of_a_kind === true,
-    } : null
 
     seen.add(id)
     return [{
@@ -128,6 +137,7 @@ export function normalizeStoreDirectoryCatalog(value) {
       imageUrl,
       logoUrl,
       featuredProduct,
+      products,
       description: cleanText(record.directory_description, 140)
         || cleanText(record.store_description ?? record.description, 140),
     }]
