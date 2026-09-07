@@ -13,6 +13,8 @@ const readSign = (): ZodiacSign => {
 
 export default function DailyHoroscope() {
   const [horoscope, setHoroscope] = useState<Horoscope | null>(null)
+  const [date, setDate] = useState(tallinnDate)
+  const [isLoading, setIsLoading] = useState(true)
   const [sign, setSign] = useState<ZodiacSign>(readSign)
 
   useEffect(() => {
@@ -24,10 +26,13 @@ export default function DailyHoroscope() {
       if (date === requestedDate) return
       requestedDate = date
       const id = ++requestId
+      setDate(date)
+      setIsLoading(true)
       setHoroscope(null)
       const next = await loadDailyHoroscope(date)
       if (active && id === requestId) {
         setHoroscope(next)
+        setIsLoading(false)
         if (!next) requestedDate = ''
       }
     }
@@ -38,9 +43,8 @@ export default function DailyHoroscope() {
     return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
 
-  if (!horoscope) return null
   const dateLabel = new Intl.DateTimeFormat('et-EE', { day: 'numeric', month: 'long', timeZone: 'Europe/Tallinn' })
-    .format(new Date(`${horoscope.date}T12:00:00Z`))
+    .format(new Date(`${date}T12:00:00Z`))
 
   return <section className="daily-horoscope" aria-labelledby="daily-horoscope-heading">
     <div className="daily-horoscope__heading">
@@ -51,7 +55,7 @@ export default function DailyHoroscope() {
       </svg>
       <div>
         <h2 id="daily-horoscope-heading">Päevahoroskoop</h2>
-        <time dateTime={horoscope.date}>{dateLabel}</time>
+        <time dateTime={date}>{dateLabel}</time>
       </div>
     </div>
     <div className="daily-horoscope__reading">
@@ -66,8 +70,10 @@ export default function DailyHoroscope() {
         </select>
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
       </div>
-      <div className="daily-horoscope__text" aria-live="polite" aria-atomic="true">
-        <p key={sign}>{horoscope.entries[sign]}</p>
+      <div className="daily-horoscope__text" aria-live="polite" aria-atomic="true" aria-busy={isLoading}>
+        <p key={`${date}-${sign}`}>{horoscope ? horoscope.entries[sign]
+          : isLoading ? 'Laadin tänast horoskoopi…'
+            : 'Tänane horoskoop pole veel saadaval. Vaata mõne aja pärast uuesti.'}</p>
       </div>
     </div>
   </section>

@@ -6,7 +6,11 @@ Horoskoobi jaoks rakenda migratsioon `202609070001_daily_horoscope.sql` ja deplo
 
 Ajastaja kasutab Vaulti olemasolevaid `onboarding_reminders_url` ja `onboarding_cron_secret` väärtusi. Töö käib iga tunni 15. minutil ja loob ainult puuduvad tänase ning homse väljaande tekstid. Andmebaasilukk väldib sama päeva paralleelset genereerimist. Valmis tekstid avalduvad Eesti kuupäeva järgi; brauser loeb ainult tänaseid tekste ega käivita OpenAI päringuid.
 
-`npm run horoscope:generate` loob kohaliku `.env` võtmega tänase staatilise väljaande faili `public/data/daily-horoscope.json`. See sobib eelvaateks ja sama päeva varuvariandiks; vananenud teksti ei kuvata. Kui tänast väljaannet pole saadaval, jääb plokk peidetuks. Tähemärgi valik säilib külastaja brauseris.
+Tootmise Supabase'is rakendatud 8. septembril 2026: migratsioon `202609070001`, funktsioon `daily-horoscope` ja aktiivne ajastaja `poeruum-daily-horoscope` (`15 * * * *`). Funktsioon kasutab juba olemasolevaid serveri- ja Vaulti saladusi.
+
+Rakendamise kontrollis lõi ajastajaga sama päring 8. ja 9. septembri väljaanded, mõlemas 12 tähemärki. Korduspäring tagastas `generated: 0`. Avalik API lubas lugeda ainult tänast väljaannet, autentimata genereerimispäring sai vastuse `401` ning brauser kuvas andmebaasi teksti ilma staatilist varufaili kasutamata.
+
+`npm run horoscope:generate` loob kohaliku `.env` võtmega tänase staatilise väljaande faili `public/data/daily-horoscope.json`. See sobib eelvaateks ja sama päeva varuvariandiks; vananenud teksti ei kuvata. Kui tänast väljaannet pole saadaval, jääb rubriik nähtavaks tänase kuupäeva ja selgitusega ning proovib nähtaval lehel iga minuti järel uuesti. Tähemärgi valik säilib külastaja brauseris.
 
 ## Projekti seadistamine
 

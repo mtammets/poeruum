@@ -9,6 +9,7 @@ import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
 import './brand.css'
 import './storeDirectory.css'
+import './directoryStories.css'
 import './aboutPoeruum.css'
 
 const AboutPoeruumPage = lazy(() => import('./AboutPoeruumPage'))

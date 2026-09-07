@@ -8,7 +8,7 @@ type SeoMetadata = {
   imageWidth?: number
   imageHeight?: number
   imageType?: string
-  type?: 'website' | 'product'
+  type?: 'website' | 'product' | 'article'
   noIndex?: boolean
   searchConsoleVerification?: string
   structuredData?: Record<string, unknown>
