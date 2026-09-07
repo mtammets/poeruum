@@ -34,6 +34,9 @@ export const getStripeSetupMode = (
   requirements?: StripeRequirementSummary | null,
 ): StripeSetupMode => {
   if (!hasStripeAccount || (purpose === 'onboarding' && detailsSubmitted === false)) return 'onboarding'
+  // A rejected document can require correcting an already submitted address.
+  // Keep explicit management accessible even when only a document is due.
+  if (purpose === 'management') return 'management'
   if (purpose === 'onboarding' && detailsSubmitted === true) return 'management'
   if (purpose === 'requirements' || stripeRequirementsNeedAction(requirements)) return 'remediation'
   return 'management'

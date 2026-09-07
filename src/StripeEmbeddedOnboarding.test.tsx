@@ -79,4 +79,39 @@ describe('Stripe remediation form', () => {
     await expect(initializeOptions.fetchClientSecret()).resolves.toBe('acct_session_secret')
     expect(stripeMocks.invoke).toHaveBeenCalledWith('start', 'remediation')
   })
+
+  it('offers address editing for a rejected document and uses a management session for editing', async () => {
+    vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test_remediation')
+    stripeMocks.initialize.mockReturnValue({ testConnectInstance: true })
+    stripeMocks.invoke.mockResolvedValue({ clientSecret: 'management_session_secret' })
+    const { default: StripeEmbeddedOnboarding } = await import('./StripeEmbeddedOnboarding')
+    const onManage = vi.fn()
+    const props = {
+      businessAddress: 'Näidise 7–3, Tartu, 51004',
+      requirements: {
+        dueCount: 1, pastDue: true, currentDeadline: null,
+        pendingVerification: false, disabledReason: 'requirements.past_due',
+        issues: [{ code: 'verification_document_address_mismatch', requirement: 'company.verification.document' }],
+      },
+      onManage,
+      onExit: async () => undefined,
+      onClose: async () => undefined,
+      onError: () => undefined,
+    }
+    const html = renderToStaticMarkup(createElement(StripeEmbeddedOnboarding, { ...props, mode: 'remediation' }))
+    expect(html).toContain('Dokumendil olev aadress ei ühti ettevõtte aadressiga')
+    expect(html).toContain('Registrijärgne aadress Poeruumis')
+    expect(html).toContain(props.businessAddress)
+    expect(html).toContain('Muuda andmeid')
+
+    stripeMocks.initialize.mockClear()
+    stripeMocks.onboarding.mockClear()
+    const management = renderToStaticMarkup(createElement(StripeEmbeddedOnboarding, { ...props, mode: 'management' }))
+    expect(management).toContain('data-stripe-component="management"')
+    expect(management).not.toContain('Muuda andmeid')
+    expect(stripeMocks.onboarding).not.toHaveBeenCalled()
+    const initializeOptions = stripeMocks.initialize.mock.calls[0]?.[0] as { fetchClientSecret: () => Promise<string> }
+    await initializeOptions.fetchClientSecret()
+    expect(stripeMocks.invoke).toHaveBeenLastCalledWith('start', 'management')
+  })
 })

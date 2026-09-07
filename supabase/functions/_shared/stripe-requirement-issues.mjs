@@ -140,7 +140,7 @@ const addressIssueCopy = ({ code, requirement }) => {
     return copy(
       `Dokumendil olev aadress ei ühti ${label.toLowerCase()}iga`,
       subject === 'company'
-        ? 'Kontrolli, et Stripe’i kontol ja üles laaditud kehtival dokumendil oleks täpselt sama ettevõtte aadress.'
+        ? 'Kontrolli, kas vorm küsib tegevuskoha või registrijärgset aadressi. Sisesta sellele väljale õige aadress ja esita seda kinnitav dokument.'
         : subject === 'person'
           ? 'Kontrolli, et Stripe’i isikuandmetes oleks selle inimese tegelik elukoha aadress ja aadressitõend kinnitaks sama aadressi. Ettevõtte aadress võib sellest erineda.'
           : 'Kontrolli Stripe’i vormis, kelle aadressi kinnitatakse. Dokument peab vastama selles jaotises sisestatud aadressile.',

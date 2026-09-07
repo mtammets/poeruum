@@ -1,0 +1,19 @@
+.address-preview { max-width: 62rem; margin: auto; padding: 2.5rem 1rem 4rem; color: var(--platform-ink); font-family: "DM Sans", sans-serif; }
+.address-preview__intro { margin-bottom: 1.5rem; }
+.address-preview__intro > span { color: var(--platform-green); font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.address-preview__intro h1 { margin: .5rem 0; font-family: Manrope, sans-serif; font-size: clamp(1.6rem, 5vw, 2.4rem); letter-spacing: -.045em; }
+.address-preview__intro p { margin: 0; color: #657068; font-size: .9rem; }
+.address-preview__controls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .7rem; margin-bottom: 1.25rem; }
+.address-preview__controls > div { display: flex; flex-wrap: wrap; gap: .4rem; }
+.address-preview__controls button, .address-preview__stripe-placeholder button { padding: .65rem .8rem; border: 1px solid #cbd5c5; border-radius: .6rem; background: #fff; color: #265f43; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.address-preview__controls button[aria-pressed="true"] { border-color: #265f43; background: #265f43; color: #fff; }
+.address-preview__controls button:focus-visible, .address-preview__stripe-placeholder button:focus-visible { outline: 3px solid #a4b92e; outline-offset: 3px; }
+.address-preview__stage { max-width: 46rem; margin: auto; }
+.address-preview__stage.is-mobile { max-width: 390px; }
+.address-preview__stripe-placeholder { display: grid; gap: .6rem; margin: 1rem; padding: 1.2rem; border: 1px dashed #cbd5c5; border-radius: .7rem; background: #fafbf8; color: #657068; }
+.address-preview__stripe-placeholder > span { font-size: .65rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.address-preview__stripe-placeholder h2 { margin: 0; color: var(--platform-ink); font-size: 1rem; }
+.address-preview__stripe-placeholder p { margin: 0; font-size: .82rem; line-height: 1.6; }
+.address-preview__stripe-placeholder > small { font-size: .72rem; }
+.address-preview__stripe-placeholder button { justify-self: start; margin-top: .3rem; }
+@media (max-width: 480px) { .address-preview { padding: 1.25rem .65rem 2rem; } }

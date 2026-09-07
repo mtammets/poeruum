@@ -94,4 +94,16 @@ describe('getStripeSetupMode', () => {
   it('keeps completed accounts in authenticated management', () => {
     expect(getStripeSetupMode(true, 'management', true, null)).toBe('management')
   })
+
+  it('allows correcting a submitted address while Stripe requires a replacement document', () => {
+    const rejectedDocument = {
+      ...dueRequirements,
+      pastDue: true,
+      disabledReason: 'requirements.past_due',
+      issues: [{ code: 'verification_document_address_mismatch', requirement: 'company.verification.document' }],
+    }
+    expect(getStripeSetupMode(true, 'requirements', true, rejectedDocument)).toBe('remediation')
+    expect(getStripeSetupMode(true, 'management', true, rejectedDocument)).toBe('management')
+    expect(getStripeSetupMode(true, 'management', undefined, rejectedDocument)).toBe('management')
+  })
 })

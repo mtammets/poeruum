@@ -8,6 +8,8 @@ import {
 } from '@stripe/react-connect-js'
 import { BrandMark } from './Brand'
 import { invokeStripeConnect } from './lib/database'
+import type { StripeRequirementSummary } from './lib/stripeRequirements'
+import StripeAddressGuide from './StripeAddressGuide'
 
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
 const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
@@ -16,6 +18,9 @@ export type StripeEmbeddedMode = 'onboarding' | 'management' | 'remediation'
 
 export type StripeEmbeddedOnboardingProps = {
   mode?: StripeEmbeddedMode
+  businessAddress?: string
+  requirements?: StripeRequirementSummary | null
+  onManage?: () => void
   onExit: () => Promise<void>
   onClose: () => Promise<void>
   onError: (message: string) => void
@@ -24,6 +29,9 @@ export type StripeEmbeddedOnboardingProps = {
 
 export default function StripeEmbeddedOnboarding({
   mode = 'onboarding',
+  businessAddress,
+  requirements,
+  onManage,
   onExit,
   onClose,
   onError,
@@ -142,12 +150,7 @@ export default function StripeEmbeddedOnboarding({
   if (!connectInstance) return null
   return <section className={`stripe-embedded is-${mode}`} aria-label={title}>
     <header><div>{isRemediation ? <BrandMark className="stripe-embedded__poeruum-mark" /> : <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i>}<span><strong>{title}</strong><small>{subtitle}{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
-    <aside className="stripe-embedded__address-guide" aria-label="Aadresside sisestamise juhis">
-      <strong>Ettevõtte aadress ja sinu elukoht</strong>
-      <p><b>Ettevõtte andmed:</b> kontrolli ettevõtte aadressi vastavalt Stripe’i välja juhisele.</p>
-      <p><b>Isikuandmed:</b> sisesta selle inimese tegelik elukoha aadress, kelle andmeid täidad.</p>
-      <p>Need aadressid võivad erineda. Aadressitõend peab vastama selles jaotises sisestatud aadressile, kus Stripe dokumenti küsib.</p>
-    </aside>
+    <StripeAddressGuide businessAddress={businessAddress} requirements={requirements} onManage={isRemediation ? onManage : undefined} />
     <div className={`stripe-embedded__component is-${loadPhase}${isCompleting ? ' is-completing' : ''}`}>
       {isCompleting && <div className="stripe-completing" role="status" aria-live="polite">
         <span aria-hidden="true" />

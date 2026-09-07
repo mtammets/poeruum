@@ -70,7 +70,7 @@ describe('Stripe requirement summaries', () => {
     }])
     expect(stripeRequirementIssueCopies(requirements)).toEqual([{
       title: 'Dokumendil olev aadress ei ühti ettevõtte aadressiga',
-      detail: 'Kontrolli, et Stripe’i kontol ja üles laaditud kehtival dokumendil oleks täpselt sama ettevõtte aadress.',
+      detail: 'Kontrolli, kas vorm küsib tegevuskoha või registrijärgset aadressi. Sisesta sellele väljale õige aadress ja esita seda kinnitav dokument.',
     }])
   })
 

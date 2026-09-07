@@ -1296,7 +1296,11 @@ function PlatformFlow() {
     ? <div className="stripe-connect-overlay stripe-connect-overlay--embedded" role="dialog" aria-modal="true" aria-label={stripeEmbeddedDialogLabel}>
       <div className="stripe-connect-embedded-shell">
         <StripeEmbeddedOnboarding
+          key={stripeEmbeddedMode}
           mode={stripeEmbeddedMode}
+          businessAddress={String(store?.settings?.businessAddress ?? '')}
+          requirements={stripeRequirements}
+          onManage={() => void startStripeConnect('management')}
           onExit={finishStripeEmbeddedOnboarding}
           onClose={finishStripeEmbeddedOnboarding}
           onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
@@ -1746,7 +1750,11 @@ function PlatformFlow() {
           </button>
         </div></>}
       {isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
+        key={stripeEmbeddedMode}
         mode={stripeEmbeddedMode}
+        businessAddress={String(store?.settings?.businessAddress ?? '')}
+        requirements={stripeRequirements}
+        onManage={() => void startStripeConnect('management')}
         onExit={finishStripeEmbeddedOnboarding}
         onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
@@ -1800,7 +1808,7 @@ function PlatformFlow() {
       </div>}
       <label>Ettevõtte nimi<input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
       <label>Ettevõtte registrijärgne aadress<input required aria-describedby="setup-business-address-help" value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label>
-      <small id="setup-business-address-help" className="setup-field-note">Ettevõtte esindaja elukoha aadress küsitakse Stripe’i vormis eraldi.</small>
+      <small id="setup-business-address-help" className="setup-field-note">Ettevõtte kehtiv aadress Äriregistris. Tegelik tegevuskoht võib sellest erineda.</small>
       <label>Klientide kontakt-e-post<input required type="email" value={businessEmail} onChange={(event) => setBusinessEmail(event.target.value)} placeholder="tere@minupood.ee" /></label>
       <label className="setup-vat-toggle"><input type="checkbox" checked={vatRegistered} onChange={(event) => { setVatRegistered(event.target.checked); if (!event.target.checked) setVatNumber('') }} /><span><strong>Olen käibemaksukohustuslane</strong><small>Kasuta poes Eesti standardmäära 24%</small></span></label>
       {vatRegistered && <label>KMKR number<input required value={vatNumber} pattern="EE[0-9]{9}" maxLength={11} onChange={(event) => setVatNumber(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11))} placeholder="EE123456789" /><small>Tootehinnad sisestad koos käibemaksuga.</small></label>}

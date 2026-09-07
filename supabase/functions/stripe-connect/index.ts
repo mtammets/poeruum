@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
+import { getStripePrefill, type PoeruumStore } from '../_shared/stripe-connect-prefill.ts'
 import {
   emptyStripeRequirementStoreUpdate,
   stripeRequirementStoreUpdate,
@@ -43,35 +44,6 @@ const remediationUnavailable = () => json({
 const storedAccountUnavailable = () => json({
   error: 'Stripe’i kontot ei saa turvaliselt avada. Poeruum ei muutnud konto ühendust. Palun võta ühendust Poeruumi toega.',
 }, 409)
-
-type PoeruumStore = {
-  id: string
-  name: string
-  settings?: Record<string, unknown> | null
-}
-
-const getStripePrefill = (store: PoeruumStore, fallbackEmail = '') => {
-  const settings = store.settings && typeof store.settings === 'object' ? store.settings : {}
-  const legalName = String(settings.businessName ?? store.name).trim()
-  const registrationNumber = String(settings.registryCode ?? '').trim()
-  const address = String(settings.businessAddress ?? '').trim()
-  const contactEmail = String(settings.contactEmail ?? fallbackEmail).trim()
-
-  return {
-    email: contactEmail || undefined,
-    business_type: 'company' as const,
-    business_profile: {
-      name: legalName,
-      product_description: `E-pood ${store.name} Poeruumi platvormil`,
-      support_email: contactEmail || undefined,
-    },
-    company: {
-      name: legalName,
-      registration_number: registrationNumber || undefined,
-      address: address ? { country: 'EE', line1: address } : { country: 'EE' },
-    },
-  }
-}
 
 const createPoeruumManagedAccount = async (
   stripe: Stripe,

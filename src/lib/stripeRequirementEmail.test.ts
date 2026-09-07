@@ -95,7 +95,7 @@ describe('Stripe requirement email renderer', () => {
 
     expect(email?.html).toContain('Mida tuleb parandada')
     expect(email?.html).toContain('Dokumendil olev aadress ei ühti ettevõtte aadressiga')
-    expect(email?.text).toContain('Kontrolli, et Stripe’i kontol ja üles laaditud kehtival dokumendil oleks täpselt sama ettevõtte aadress.')
+    expect(email?.text).toContain('Sisesta sellele väljale õige aadress ja esita seda kinnitav dokument.')
     expect(email?.text).not.toContain('verification_document_address_mismatch')
   })
 
