@@ -253,10 +253,8 @@
   display: flex;
   width: max-content;
   will-change: transform;
-  animation: store-directory-marquee 24s linear infinite;
+  animation: store-directory-marquee 48s linear infinite;
 }
-
-.store-directory__marquee:hover .store-directory__marquee-track { animation-play-state: paused; }
 
 .store-directory__marquee-group {
   display: flex;

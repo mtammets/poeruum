@@ -58,7 +58,7 @@ test('Kaubamaja presents the store instead of turning its card into a product ad
   })
 
   const cards = page.locator('.store-directory__card')
-  await expect(cards).toHaveCount(4)
+  await expect(cards).toHaveCount(8)
   const firstCard = cards.first()
   await expect(firstCard.locator('h3')).toHaveText('Keraamika Stuudio')
   await expect(firstCard.getByText('Eesti savist käsitsi valminud nõud.')).toBeVisible()

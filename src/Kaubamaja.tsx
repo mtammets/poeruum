@@ -38,6 +38,8 @@ const marqueeMessages = [
   'Toeta kohalikku',
   'Leia uusi lemmikuid',
 ]
+// Each repeated group must cover the full ribbon, including on wide screens.
+const marqueeLoop = [...marqueeMessages, ...marqueeMessages]
 
 const readInitialStores = () => {
   const element = document.getElementById('poeruum-store-directory-data')
@@ -229,7 +231,7 @@ export default function Kaubamaja() {
     <div className="store-directory__marquee" aria-hidden="true">
       <div className="store-directory__marquee-track">
         {[0, 1].map((group) => <div className="store-directory__marquee-group" key={group}>
-          {marqueeMessages.map((message) => <span key={`${group}-${message}`}>{message}<i>✦</i></span>)}
+          {marqueeLoop.map((message, index) => <span key={`${group}-${index}`}>{message}<i>✦</i></span>)}
         </div>)}
       </div>
     </div>
