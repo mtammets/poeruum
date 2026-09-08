@@ -17,7 +17,7 @@ export const directoryHeroSlides = [
     headingSize: 'large',
     highlight: 'nähtavale.',
     ending: '',
-    description: 'Poeruumi Kaubamajas saavad uued kliendid avastada sinu tooteid ja jõuda otse sinu poodi. Ole leitav koos teiste Eesti tegijatega.',
+    description: 'Poeruumi Kaubamaja aitab ostjatel sinu tooteid avastada ja otse sinu e-poodi jõuda.',
     image: '/images/poeruumi-kaubamaja-hero2.webp',
     action: { label: 'Loo oma e-pood', href: 'https://poeruum.ee/#hind', arrow: 'M5 15 15 5M7 5h8v8' },
   },
