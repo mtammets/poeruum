@@ -49,7 +49,6 @@ export default function DirectoryStoryPage({ story }: { story?: DirectoryStory }
             {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
           </section>)}
           <aside className="directory-story-page__discover" aria-labelledby="story-discover-heading">
-            <span className="directory-story-page__end-mark" aria-hidden="true">✳</span>
             <h2 id="story-discover-heading">Igal lemmikul on oma algus.</h2>
             <p>Avasta Poeruumis loodud Eesti e-poode ja tutvu nende tegijatega.</p>
             <a className="directory-stories__read" href="/#store-directory-heading">Avasta poode <StoryArrow /></a>

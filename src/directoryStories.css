@@ -163,8 +163,7 @@
 .directory-story-page__body h2 { margin: 2.75rem 0 1.15rem; font-family: Manrope, sans-serif; font-size: clamp(1.4rem, 2.5vw, 1.8rem); font-weight: 700; letter-spacing: -.045em; line-height: 1.3; }
 .directory-story-page__body blockquote { margin: 2.5rem 0; padding: .3rem 0 .3rem 1.5rem; border-left: 3px solid #8ca66b; color: #265f43; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(1.65rem, 3vw, 2.15rem); letter-spacing: -.03em; line-height: 1.4; }
 .directory-story-page__discover { margin-top: 3.5rem; padding-top: 2rem; border-top: 1px solid rgba(21, 37, 27, .2); }
-.directory-story-page__end-mark { color: #63825c; font-size: 2rem; }
-.directory-story-page__discover h2 { margin-top: 1rem; }
+.directory-story-page__discover h2 { margin-top: 0; }
 .directory-story-page__discover p { margin-bottom: 0; font-size: 1rem; }
 .directory-story-page__discover .directory-stories__read { margin-top: 1rem; }
 
