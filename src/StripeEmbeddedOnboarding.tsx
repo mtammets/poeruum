@@ -11,8 +11,7 @@ import { invokeStripeConnect } from './lib/database'
 import type { StripeRequirementSummary } from './lib/stripeRequirements'
 import StripeAddressGuide from './StripeAddressGuide'
 
-const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
-const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
+const defaultStripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim()
 
 export type StripeEmbeddedMode = 'onboarding' | 'management' | 'remediation'
 
@@ -25,6 +24,8 @@ export type StripeEmbeddedOnboardingProps = {
   onClose: () => Promise<void>
   onError: (message: string) => void
   onNotificationsChange?: (actionRequired: number) => void
+  connection?: { publishableKey: string; fetchClientSecret: (mode: StripeEmbeddedMode) => Promise<string> }
+  onStepChange?: (step: string) => void
 }
 
 export default function StripeEmbeddedOnboarding({
@@ -36,7 +37,11 @@ export default function StripeEmbeddedOnboarding({
   onClose,
   onError,
   onNotificationsChange,
+  connection,
+  onStepChange,
 }: StripeEmbeddedOnboardingProps) {
+  const stripePublishableKey = connection?.publishableKey ?? defaultStripePublishableKey
+  const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
   const isManagement = mode === 'management'
   const isRemediation = mode === 'remediation'
   const title = isRemediation ? 'Ettevõtte andmete kinnitamine' : isManagement ? 'Stripe’i andmed' : 'Stripe’i konto seadistamine'
@@ -91,6 +96,7 @@ export default function StripeEmbeddedOnboarding({
       },
     },
     fetchClientSecret: async () => {
+      if (connection) return connection.fetchClientSecret(mode)
       const result = await invokeStripeConnect('start', mode)
       if (!result.clientSecret) throw new Error('Stripe ei tagastanud AccountSessioni võtit.')
       return result.clientSecret
@@ -187,9 +193,10 @@ export default function StripeEmbeddedOnboarding({
           collectionOptions={onboardingCollectionOptions}
           onExit={() => void completeStripeForm()}
           onLoaderStart={handleLoaderStart}
-          onStepChange={() => {
+          onStepChange={({ step }) => {
             onError('')
             setLoadPhase('ready')
+            onStepChange?.(step)
           }}
           onLoadError={handleLoadError}
         />}

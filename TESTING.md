@@ -10,6 +10,10 @@ juriidilisi marsruute ning seda, et admini vaade jääb puuduva
 backend-seadistuse korral turvaliselt suletuks. CI paigaldab Chromiumi ja
 käivitab smoke-testid automaatselt iga pull request'i ning `main` push'i järel.
 
+`npm run test:payment-preview` kontrollib eraldi kohalikku maksete eelvaadet
+ilma Stripe’i või Supabase’i võtmeteta. Eelvaate käsitsi avamise ning päris
+Stripe’i testvormi juhend on failis [previews/README.md](previews/README.md).
+
 Andmebaasi täielikuks kontrolliks peab Docker töötama:
 
 ```sh

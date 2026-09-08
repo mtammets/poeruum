@@ -249,12 +249,12 @@ test('a draft can continue setup while Stripe verifies submitted details', async
   await page.getByLabel('Parool').fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
 
-  await expect(page.getByRole('heading', { name: 'Kuidas kliendid maksavad?' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Poe maksed' })).toBeVisible()
   await expect(page.getByText('Stripe kontrollib andmeid')).toBeVisible()
   await expect(page.getByText(/Kõik vajalik on esitatud/)).toBeVisible()
   await page.getByRole('button', { name: /Jätka tarnega/ }).click()
   await expect(page.getByRole('heading', { name: 'Vali tarneviisid' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /Jätka Stripe’i seadistamist/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Jätka maksete seadistamist/ })).toHaveCount(0)
 })
 
 test('Stripe requirements email link survives login and opens the owned store payment settings', async ({ page }) => {

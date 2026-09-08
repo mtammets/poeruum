@@ -45,6 +45,26 @@ afterEach(() => {
 })
 
 describe('Stripe remediation form', () => {
+  it('uses an injected preview connection without calling the production backend', async () => {
+    vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_live_not_used_by_preview')
+    stripeMocks.initialize.mockReturnValue({ testConnectInstance: true })
+    const { default: StripeEmbeddedOnboarding } = await import('./StripeEmbeddedOnboarding')
+    const fetchClientSecret = vi.fn().mockResolvedValue('preview_session_secret')
+    const onStepChange = vi.fn()
+    const html = renderToStaticMarkup(createElement(StripeEmbeddedOnboarding, {
+      connection: { publishableKey: 'pk_test_preview', fetchClientSecret }, onStepChange,
+      onExit: async () => undefined, onClose: async () => undefined, onError: () => undefined,
+    }))
+    expect(html).toContain('Testkeskkond')
+    const options = stripeMocks.initialize.mock.calls[0][0]
+    expect(options.publishableKey).toBe('pk_test_preview')
+    await expect(options.fetchClientSecret()).resolves.toBe('preview_session_secret')
+    expect(fetchClientSecret).toHaveBeenCalledWith('onboarding')
+    expect(stripeMocks.invoke).not.toHaveBeenCalled()
+    stripeMocks.onboarding.mock.calls[0][0].onStepChange({ step: 'business_details' })
+    expect(onStepChange).toHaveBeenCalledWith('business_details')
+  })
+
   it('renders one focused form without broad account management or a notification banner', async () => {
     vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test_remediation')
     stripeMocks.initialize.mockReturnValue({ testConnectInstance: true })

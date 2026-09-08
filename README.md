@@ -60,6 +60,11 @@ Ilma Supabase'i võtmeteta saab avada avalehe, autentimisvaated,
 juriidilised lehed ja admini suletud oleku. Täieliku keskkonna seadistamine on
 kirjeldatud failis [SUPABASE.md](SUPABASE.md).
 
+Maksete seadistamist saab ilma kontot loomata vaadata käsuga
+`npm run dev:payments`, seejärel ava http://127.0.0.1:4185/previews/payments.html.
+Päris Stripe’i testvormi võtmed ja kasutusjuhend on failis
+[previews/README.md](previews/README.md).
+
 ## Kvaliteedikontroll
 
 ```sh

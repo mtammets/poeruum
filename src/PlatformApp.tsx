@@ -174,7 +174,7 @@ function FlowHeader({
   </header>
 }
 
-function SetupShell({
+export function SetupShell({
   screen,
   children,
   onBack,
@@ -1738,16 +1738,12 @@ function PlatformFlow() {
     </form>}
 
     {screen === 'payments' && <div className="setup-form">
-      {!isStripeOnboardingOpen && <><span className="setup-kicker">Maksete vastuvõtmine</span><h1>Kuidas kliendid maksavad?</h1>
+      {!isStripeOnboardingOpen && <><span className="setup-kicker">Maksete vastuvõtmine</span><h1>{paymentNeedsAction ? 'Ühenda poe maksed' : 'Poe maksed'}</h1>
+        <p>{paymentNeedsAction ? 'Maksete vastuvõtmiseks tuleb seadistada Stripe’i konto. ' : ''}Stripe töötleb klientide makseid ja kannab raha sinu pangakontole.</p>
         <div className="provider-list">
-          <button className={payment === 'stripe' ? 'is-selected' : ''} onClick={() => {
-            setPayment('stripe')
-            setPaymentStatus(store?.stripe_account_id
-              ? store.stripe_account_charges_enabled && store.stripe_account_payouts_enabled ? 'connected' : 'pending'
-              : 'idle')
-          }}>
-            <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe <em>Kõige kiirem</em></strong><small>Kaardid, Apple Pay ja Google Pay</small></span><b>{payment === 'stripe' ? '✓' : ''}</b>
-          </button>
+          <div>
+            <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe</strong><small>Kaardid, Apple Pay ja Google Pay</small></span>
+          </div>
         </div></>}
       {isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
         key={stripeEmbeddedMode}
@@ -1759,7 +1755,7 @@ function PlatformFlow() {
         onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
       /> : <>{paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect('onboarding')}>
-        <strong>{isStripeConnecting ? 'Avan Stripe’i…' : paymentStatus === 'pending' ? 'Jätka Stripe’i seadistamist' : 'Seadista Stripe'}</strong><span>→</span>
+        <strong>{isStripeConnecting ? 'Avan maksete seadistust…' : paymentStatus === 'pending' ? 'Jätka maksete seadistamist' : 'Seadista maksed'}</strong><span>→</span>
       </button> : paymentSetupState === 'reviewing' ? <div className="connected-provider is-pending" role="status">
         <span aria-hidden="true">…</span><div><strong>Stripe kontrollib andmeid</strong><small>Kõik vajalik on esitatud. Võid poe seadistamisega jätkata; maksed aktiveeruvad pärast Stripe’i kinnitust.</small></div>
       </div> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}

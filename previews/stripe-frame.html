@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="et" data-app-surface="platform">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Stripe’i testvorm · Poeruum</title>
+  </head>
+  <body><div id="root"></div><script type="module">
+    if (import.meta.env.DEV) {
+      const id = new URLSearchParams(window.location.search).get('session') ?? '';
+      const response = await fetch(`/__preview/sessions/${encodeURIComponent(id)}/auth`);
+      if (response.ok) {
+        sessionStorage.setItem('poeruum-preview-auth', JSON.stringify(await response.json()));
+        await import('/src/dev/StripePreviewFrame.tsx');
+      } else {
+        document.getElementById('root').textContent = 'Eelvaate katse aegus. Ava olukord uuesti eelvaate menüüst.';
+      }
+    }
+  </script></body>
+</html>
