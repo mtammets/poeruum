@@ -170,7 +170,7 @@ export default function StripeEmbeddedOnboarding({
           <p>Stripe’i vormi laadimine võttis liiga kaua.</p>
           <button type="button" onClick={retryStripeForm}>Proovi uuesti</button>
         </> : <>
-          <span className="stripe-preparing__loader" aria-hidden="true"><i /></span>
+          <BrandMark className="stripe-preparing__logo" />
           <h2>{loadPhase === 'connecting' ? 'Ühendame turvaliselt Stripe’iga' : isRemediation ? 'Avame ettevõtte andmete vormi' : 'Avame Stripe’i vormi'}</h2>
           <p>Hetk palun…</p>
         </>}

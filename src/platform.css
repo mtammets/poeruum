@@ -416,8 +416,7 @@ button, a, summary { touch-action: manipulation; }
 .stripe-embedded__management { display: grid; gap: .8rem; min-width: 0; }
 .stripe-embedded__management > [data-stripe-connect-js-wrapper] { box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; }
 .stripe-preparing { position: absolute; z-index: 3; inset: 0; display: grid; align-content: center; justify-items: center; padding: 2.2rem 1.5rem; background: linear-gradient(180deg, #fff 0%, #fbfcfa 100%); color: var(--platform-ink); text-align: center; }
-.stripe-preparing__loader { position: relative; display: block; width: 2.8rem; height: 2.8rem; margin-bottom: 1.25rem; border: 2px solid #dce4da; border-top-color: var(--platform-green); border-radius: 50%; animation: stripe-loader-spin 1.15s linear infinite; }
-.stripe-preparing__loader > i { position: absolute; top: -.2rem; right: -.2rem; width: .58rem; height: .58rem; border-radius: 50%; background: var(--platform-lime); box-shadow: 0 0 0 .24rem #e5f25a30; }
+.stripe-preparing__logo { width: 3.5rem; height: 3.5rem; margin-bottom: 1.25rem; animation: stripe-logo-breathe 1.8s ease-in-out infinite; }
 .stripe-preparing h2 { margin: 0 0 .45rem; font-family: Manrope, sans-serif; font-size: 1.3rem; line-height: 1.15; letter-spacing: -.035em; }
 .stripe-preparing > p { max-width: 25rem; margin: 0; color: #6f7972; font-size: .72rem; line-height: 1.55; }
 .stripe-preparing.is-error { background: #fff; }
@@ -428,6 +427,13 @@ button, a, summary { touch-action: manipulation; }
 .stripe-completing h2 { margin: 0 0 .45rem; font-family: Manrope, sans-serif; font-size: 1.2rem; line-height: 1.2; letter-spacing: -.035em; }
 .stripe-completing p { margin: 0; color: #727c75; font-size: .68rem; }
 @keyframes stripe-loader-spin { to { transform: rotate(360deg); } }
+@keyframes stripe-logo-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stripe-preparing__logo { animation: none; }
+}
 .setup-form > .add-product-error { max-width: 100%; overflow-wrap: anywhere; color: #8d463d; }
 
 .stripe-connect-overlay { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: 1rem; overflow-y: auto; overscroll-behavior: contain; background: #10161cbd; font-family: "DM Sans", sans-serif; backdrop-filter: blur(10px); }
