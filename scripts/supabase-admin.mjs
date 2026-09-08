@@ -102,6 +102,7 @@ if (action === 'functions') {
   run(['functions', 'deploy', 'homepage-social-image', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'admin-homepage-seo', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   run(['functions', 'deploy', 'daily-horoscope', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'product-description', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   process.exit(0)
 }
 

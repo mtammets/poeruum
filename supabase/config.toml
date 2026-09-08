@@ -7,6 +7,9 @@ project_id = "Poeruum"
 [functions.daily-horoscope]
 verify_jwt = false
 
+[functions.product-description]
+verify_jwt = true
+
 [functions.stripe-webhook]
 verify_jwt = false
 

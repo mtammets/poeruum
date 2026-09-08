@@ -21,6 +21,7 @@ import {
 } from './storefrontConfig'
 import BillingPlanDialog from './BillingPlanDialog'
 import ModalCloseButton from './ModalCloseButton'
+import ProductDescriptionGenerator from './ProductDescriptionGenerator'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
 import StorefrontCart from './StorefrontCart'
@@ -490,6 +491,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [autoSwipeDelay, setAutoSwipeDelay] = useState(() => Number(localStorage.getItem('autoSwipeDelay')) || 30)
   const [autoSwipeSpeed, setAutoSwipeSpeed] = useState(() => Number(localStorage.getItem('autoSwipeSpeed')) || 10)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDescriptionGenerating, setIsDescriptionGenerating] = useState(false)
   const [isExitAttentionActive, setIsExitAttentionActive] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false)
@@ -1871,6 +1873,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
 
   const saveEditedProduct = async () => {
     if (!activeProduct) return
+    if (isDescriptionGenerating) { setAuthToast('Oota, kuni kirjeldus on valmis.'); return }
     if (editImageUploads.length) {
       setAuthToast(editImageUploads.some((upload) => upload.phase === 'error') ? 'Paranda ebaõnnestunud pildi üleslaadimine' : 'Oota, kuni pildid on üles laaditud')
       return
@@ -2765,7 +2768,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             {isAdminMode && <div className="admin-actions">
               {isEditOpen ? <>
                 <button onClick={closeEditProduct} tabIndex={-1} aria-label="Loobu muudatustest" title="Loobu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-                <button ref={saveProductButtonRef} className={`save-product-edit${isExitAttentionActive ? ' is-exit-target' : ''}`} disabled={editImageUploads.length > 0} onClick={saveEditedProduct} tabIndex={-1} aria-label="Salvesta muudatused" title="Salvesta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>
+                <button ref={saveProductButtonRef} className={`save-product-edit${isExitAttentionActive ? ' is-exit-target' : ''}`} disabled={editImageUploads.length > 0 || isDescriptionGenerating} onClick={saveEditedProduct} tabIndex={-1} aria-label="Salvesta muudatused" title="Salvesta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>
               </> : <>
                 <button onClick={openEditProduct} aria-label="Muuda toodet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Zm9-9 4 4" /></svg></button>
                 <button onClick={() => setIsDeleteOpen(true)} aria-label="Kustuta toode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
@@ -2774,7 +2777,19 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </div>
         </div>
         <div>
-          <span>Kirjeldus</span>
+          <div className="product-description-heading">
+            <span>Kirjeldus</span>
+            {isEditOpen && isAdminMode && storeId && isSupabaseConfigured && activeEditImage && <ProductDescriptionGenerator
+              key={`${storeId}:${activeProduct.id}:${activeEditImage}`}
+              storeId={storeId}
+              imageUrl={editProductImageVariants[activeEditImage]?.variants.medium.url ?? activeEditImage}
+              disabled={editImageUploads.length > 0}
+              getDetails={() => ({ name: editProductNameRef.current?.textContent ?? '', description: editProductDescriptionRef.current?.textContent ?? '' })}
+              onGenerated={(description) => { if (editProductDescriptionRef.current) editProductDescriptionRef.current.textContent = description }}
+              onNotice={setAuthToast}
+              onBusyChange={setIsDescriptionGenerating}
+            />}
+          </div>
           <p
             key={isEditOpen ? 'editing-description' : 'viewing-description'}
             ref={isEditOpen ? editProductDescriptionRef : undefined}
@@ -2838,7 +2853,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           <span><strong>{isActiveProductSoldOut ? 'Välja müüdud' : activeProduct.oneOfAKind ? 'Ainueksemplar' : activeProduct.stock === 1 ? 'Viimane eksemplar' : 'Laos olemas'}</strong><small>{isActiveProductSoldOut ? 'Hetkel pole tellitav' : 'Saadame 1–2 tööpäevaga'}</small></span>
         </div>}
         <button
-          disabled={isEditOpen ? editImageUploads.length > 0 : isActiveProductSoldOut || Boolean(storeSlug && !sellerDetailsComplete)}
+          disabled={isEditOpen ? editImageUploads.length > 0 || isDescriptionGenerating : isActiveProductSoldOut || Boolean(storeSlug && !sellerDetailsComplete)}
           className={`product-details__buy${isEditOpen ? ' is-publish' : `${isActiveProductInCart ? ' is-in-cart' : ''}${addedProductId === activeProduct.id ? ' is-added' : ''}${isActiveProductSoldOut ? ' is-sold-out' : ''}`}`}
           onClick={() => {
             if (isEditOpen) {
