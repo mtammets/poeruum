@@ -8,7 +8,7 @@ export default function DirectoryStories() {
   return <section className="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
     <header className="directory-stories__heading">
       <h2 id="directory-stories-heading">Poeruumi lood</h2>
-      <p>Hetk lugemiseks, midagi kaasa mõtlemiseks.</p>
+      <p>Lugemiseks ja kaasamõtlemiseks.</p>
     </header>
     <article className="directory-stories__feature">
       <a className="directory-stories__link" href={directoryStoryPath(story)} aria-labelledby="directory-story-title directory-story-read">

@@ -3,6 +3,7 @@ import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
 import { formatStoreDirectoryPrice, getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog, storeDirectoryExamples } from '../shared/store-directory.mjs'
 import { getDirectoryStory } from '../shared/directory-stories.mjs'
 import DailyHoroscope from './DailyHoroscope'
+import DirectoryHero, { directoryHeroSlides } from './DirectoryHero'
 import DirectoryStories from './DirectoryStories'
 import DirectoryStoryPage from './DirectoryStoryPage'
 import StoreDirectoryLayout, { ArrowUpRight } from './StoreDirectoryLayout'
@@ -13,19 +14,9 @@ import { isSupabaseConfigured } from './lib/supabase'
 
 const directoryUrl = 'https://kaubamaja.poeruum.ee/'
 const directoryName = 'Poeruumi Kaubamaja'
-const directoryHeading = 'Avasta Poeruumis loodud Eesti e-poode'
-const directoryDescription = 'Poeruumi Kaubamaja koondab ühte kohta Eesti ettevõtjate e-poed. Sirvi valikut ja leia uusi poode, tooteid ning tegijaid.'
+const directoryDescription = directoryHeroSlides[0].description
 const directoryHeroImage = `${directoryUrl}images/poeruumi-kaubamaja-hero.webp`
 const productPageSize = 24
-
-const ArrowDown = ({ className = '' }: { className?: string }) => <svg
-  className={className}
-  viewBox="0 0 20 20"
-  fill="none"
-  aria-hidden="true"
->
-  <path d="M10 4v12m-5-5 5 5 5-5" />
-</svg>
 
 const marqueeMessages = [
   'Avasta Eesti tegijaid',
@@ -198,25 +189,7 @@ function StoreDirectory() {
   }, [status])
 
   return <StoreDirectoryLayout>
-    <header className="store-directory__hero">
-      <div className="store-directory__hero-media">
-        <img src="/images/poeruumi-kaubamaja-hero.webp" alt="" fetchPriority="high" decoding="async" />
-      </div>
-      <div className="store-directory__intro">
-        <h1 aria-label={directoryHeading}>
-          <span aria-hidden="true">Avasta</span>
-          <span aria-hidden="true">Poeruumis loodud</span>
-          <span aria-hidden="true"><em>Eesti</em> e-poode</span>
-        </h1>
-        <p>{directoryDescription}</p>
-        <div className="store-directory__hero-actions">
-          <a className="store-directory__browse" href="#store-directory-heading">
-            Sirvi poode
-            <ArrowDown />
-          </a>
-        </div>
-      </div>
-    </header>
+    <DirectoryHero />
 
     <div className="store-directory__marquee" aria-hidden="true">
       <div className="store-directory__marquee-track">

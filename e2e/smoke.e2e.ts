@@ -27,7 +27,7 @@ test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await page.goto('http://kaubamaja.localhost:4173/')
 
   await expect(page.getByRole('heading', { name: 'Avasta Poeruumis loodud Eesti e-poode', exact: true })).toBeVisible()
-  await expect(page.locator('.store-directory__hero-media img')).toBeVisible()
+  await expect(page.locator('.store-directory__hero-media img.is-active')).toBeVisible()
   await expect(page.getByText(/Poeruumi Kaubamaja koondab ühte kohta Eesti ettevõtjate e-poed/)).toBeVisible()
   await expect(page.getByRole('link', { name: 'Sirvi poode' })).toHaveAttribute('href', '#store-directory-heading')
   await expect(page.getByRole('heading', { name: 'Leia oma uus lemmikpood', exact: true })).toBeVisible()

@@ -225,7 +225,7 @@ const storyMetaMarkup = (story) => `<div class="directory-stories__meta"><span>$
 
 function renderDirectoryStoryTeaser(story) {
   return `<section class="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
-    <header class="directory-stories__heading"><h2 id="directory-stories-heading">Poeruumi lood</h2><p>Hetk lugemiseks, midagi kaasa mõtlemiseks.</p></header>
+    <header class="directory-stories__heading"><h2 id="directory-stories-heading">Poeruumi lood</h2><p>Lugemiseks ja kaasamõtlemiseks.</p></header>
     <article class="directory-stories__feature"><a class="directory-stories__link" href="${directoryStoryPath(story)}" aria-labelledby="directory-story-title directory-story-read">
       <div class="directory-stories__image"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="1024" loading="lazy" decoding="async"></div>
       <div class="directory-stories__copy">${storyMetaMarkup(story)}<h3 id="directory-story-title">${escapeHtml(story.title)}</h3><p>${escapeHtml(story.intro)}</p><span class="directory-stories__read" id="directory-story-read">Loe lugu ${storyArrowMarkup}</span></div>
