@@ -7,8 +7,10 @@ import {
 } from './stripeRequirementsLink'
 
 describe('Poeruum Stripe requirements links', () => {
-  it('recognizes only the explicit root-page request', () => {
+  it('recognizes explicit requests on the platform and merchant management page', () => {
     expect(isStripeRequirementsLink({ pathname: '/', search: '?stripe_requirements=1' })).toBe(true)
+    expect(isStripeRequirementsLink({ pathname: '/haldus', search: '?stripe_requirements=1' })).toBe(true)
+    expect(isStripeRequirementsLink({ pathname: '/haldus/', search: '?stripe_requirements=1' })).toBe(true)
     expect(isStripeRequirementsLink({ pathname: '/', search: '?stripe_requirements=0' })).toBe(false)
     expect(isStripeRequirementsLink({ pathname: '/', search: '?stripe_requirements=1&stripe_requirements=1' })).toBe(false)
     expect(isStripeRequirementsLink({ pathname: '/p/testipood/', search: '?stripe_requirements=1' })).toBe(false)

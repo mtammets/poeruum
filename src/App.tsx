@@ -5,7 +5,7 @@ import { products, type Product, type ProductImageAsset, type ProductImageTransf
 import { cancelStripeBilling, createProductCategory, createProductCategorySlug, listOrders, listProductCategories, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, setStorePublication, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type ProductCategory, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
-import { getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
+import { getMerchantLoginUrl, getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
 import {
   DEFAULT_RETURNS_TEXT,
@@ -1642,14 +1642,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }
 
   const openOwnerLogin = () => {
-    const hostname = window.location.hostname.toLowerCase().replace(/\.$/, '')
-    const isPoeruumHostname = hostname === STOREFRONT_ROOT_DOMAIN
-      || hostname.endsWith(`.${STOREFRONT_ROOT_DOMAIN}`)
-      || ['localhost', '127.0.0.1'].includes(hostname)
-    if (isCaptchaConfigured && storeSlug && !isPoeruumHostname) {
-      const loginUrl = new URL(getStorefrontCanonicalUrl(storeSlug))
-      loginUrl.searchParams.set('owner_login', '1')
-      window.location.assign(loginUrl)
+    if (storeId && isSupabaseConfigured && !merchantMode) {
+      window.location.assign(getMerchantLoginUrl(window.location))
       return
     }
     // A stale modal must never sit above the login dialog and capture taps.

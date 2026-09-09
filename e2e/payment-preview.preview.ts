@@ -1,4 +1,13 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+async function openPublicationPreview(page: Page, paymentState: 'idle' | 'incomplete' | 'reviewing' | 'connected') {
+  const response = await page.request.post('/__preview/sessions', { data: { kind: 'app', screen: 'publish', paymentState } })
+  expect(response.ok()).toBe(true)
+  const session = await response.json()
+  await page.goto(session.url)
+  await expect(page.locator('.publish-step')).toBeVisible()
+  return page
+}
 
 test('real app screens are available without signup and use isolated fixtures', async ({ page }) => {
   const externalWrites: string[] = []
@@ -23,14 +32,60 @@ test('real app screens are available without signup and use isolated fixtures', 
   expect(externalWrites).toEqual([])
 })
 
-test('publication waiting state reproduces the current app behavior', async ({ page }) => {
-  await page.goto('/previews/payments.html')
-  await page.getByLabel('Maksete olukord').selectOption('reviewing')
-  await page.getByRole('button', { name: /Avaldamine/ }).click()
-  const frame = page.frameLocator('iframe')
-  await frame.getByRole('button', { name: /Kontrolli ja avalda pood/ }).click()
-  await expect(frame.getByRole('alert')).toContainText('Stripe kontrollib veel esitatud andmeid')
-  await page.getByLabel('Maksete olukord').selectOption('connected')
+for (const paymentState of ['idle', 'incomplete'] as const) {
+  test(`publication directs ${paymentState} payments back to setup`, async ({ page }) => {
+    const publicationRequests: string[] = []
+    page.on('request', (request) => {
+      if (request.url().endsWith('/rest/v1/rpc/publish_store')) publicationRequests.push(request.url())
+    })
+    const frame = await openPublicationPreview(page, paymentState)
+    await expect(frame.locator('.publish-ready__copy')).toContainText('on peaaegu valmis')
+    await frame.getByRole('button', { name: 'Lõpeta maksete seadistamine', exact: true }).click()
+    await expect(frame.getByRole('heading', { name: 'Ühenda poe maksed' })).toBeVisible()
+    await expect(frame.getByRole('alert')).toHaveCount(0)
+    expect(publicationRequests).toEqual([])
+  })
+}
+
+test('publication waits for Stripe and refreshing never publishes automatically', async ({ page }) => {
+  const publicationRequests: string[] = []
+  page.on('request', (request) => {
+    if (request.url().endsWith('/rest/v1/rpc/publish_store')) publicationRequests.push(request.url())
+  })
+  const frame = await openPublicationPreview(page, 'reviewing')
+  await expect(frame.getByRole('button', { name: /Avalda pood/ })).toBeDisabled()
+  await expect(frame.locator('.publish-waiting')).toContainText('Saad poe avaldada, kui maksed on aktiveeritud')
+  const refreshResponse = page.waitForResponse((response) => response.url().endsWith('/functions/v1/stripe-connect') && response.request().postDataJSON()?.action === 'status')
+  await frame.getByRole('button', { name: 'Uuenda olekut', exact: true }).click()
+  expect((await refreshResponse).ok()).toBe(true)
+  await expect(frame.getByRole('button', { name: 'Uuenda olekut', exact: true })).toBeEnabled()
+  await expect(frame.getByRole('button', { name: /Avalda pood/ })).toBeDisabled()
+  await expect(frame.getByRole('alert')).toHaveCount(0)
+
+  await page.route('**/functions/v1/stripe-connect', async (route) => {
+    const response = await route.fetch()
+    const status = await response.json()
+    await route.fulfill({ response, json: { ...status, status: 'connected', chargesEnabled: true, payoutsEnabled: true } })
+  })
+  await frame.getByRole('button', { name: 'Uuenda olekut', exact: true }).click()
+  await expect(frame.getByRole('button', { name: /Avalda pood/ })).toBeEnabled()
+  await expect(frame.locator('.publish-waiting')).toHaveCount(0)
+  await expect(frame.locator('.publish-ready__copy')).toContainText('on valmis!')
+  expect(publicationRequests).toEqual([])
+})
+
+test('publication keeps waiting when refreshing the payment status fails', async ({ page }) => {
+  const frame = await openPublicationPreview(page, 'reviewing')
+  await expect(frame.getByRole('button', { name: /Avalda pood/ })).toBeDisabled()
+  await page.route('**/functions/v1/stripe-connect', (route) => route.fulfill({ status: 500, json: { error: 'Maksete olekut ei saanud uuendada.' } }))
+  await frame.getByRole('button', { name: 'Uuenda olekut', exact: true }).click()
+  await expect(frame.getByRole('alert')).toContainText('Maksete olekut ei saanud uuendada')
+  await expect(frame.getByRole('button', { name: /Avalda pood/ })).toBeDisabled()
+  await expect(frame.getByRole('button', { name: 'Uuenda olekut', exact: true })).toBeEnabled()
+})
+
+test('active payments allow the merchant to publish explicitly', async ({ page }) => {
+  const frame = await openPublicationPreview(page, 'connected')
   await frame.getByRole('button', { name: 'Avalda pood', exact: false }).click()
   await expect(frame.getByRole('button', { name: 'Seaded', exact: true })).toBeVisible()
 })

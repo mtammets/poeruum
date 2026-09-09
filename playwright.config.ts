@@ -20,7 +20,7 @@ export default defineConfig({
     testMatch: '**/platform-auth.e2e.ts',
     use: {
       ...devices['Desktop Chrome'],
-      baseURL: 'http://localhost:4174',
+      baseURL: 'http://poeruum.localhost:4174',
     },
   }],
   webServer: [{
@@ -41,6 +41,7 @@ export default defineConfig({
     env: {
       ...process.env,
       VITE_SUPABASE_URL: 'http://localhost:4174/__e2e_supabase',
+      VITE_STOREFRONT_ROOT_DOMAIN: 'poeruum.localhost',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'playwright-anon-key',
       VITE_STRIPE_PUBLISHABLE_KEY: '',
       VITE_TURNSTILE_SITE_KEY: '',

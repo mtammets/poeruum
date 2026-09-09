@@ -34,7 +34,9 @@ export function paymentPreviewPlugin({ origin, getService }) {
     },
     transform(code, id) {
       if (id.replaceAll('\\', '/').endsWith('/src/lib/supabase.ts')) {
-        return code.replace('auth: { persistSession:', "auth: { storage: window.sessionStorage, storageKey: 'poeruum-preview-auth', persistSession:")
+        const storageOption = 'storage: authStorage,'
+        if (!code.includes(storageOption)) throw new Error('Maksete eelvaate eraldatud sisselogimist ei saanud seadistada.')
+        return code.replace(storageOption, "storage: window.sessionStorage, storageKey: 'poeruum-preview-auth',")
       }
     },
     transformIndexHtml: {
@@ -43,7 +45,10 @@ export function paymentPreviewPlugin({ origin, getService }) {
         if (context.path !== '/index.html' && context.path !== '/') return html
         const id = new URL(context.originalUrl ?? '/', origin).searchParams.get('preview_session')
         if (!id || !/^[a-f0-9-]{36}$/.test(id)) return html
-        return html.replace('<script type="module" src="/src/main.tsx"></script>', `<script type="module">
+        // Keep the session bootstrap inline: Vite shares inline module proxies
+        // by HTML path, which can mix session IDs between concurrent previews.
+        return html.replace('<script type="module" src="/src/main.tsx"></script>', `<script>
+        (async () => {
           const response = await fetch('/__preview/sessions/${id}/auth');
           if (response.ok) {
             sessionStorage.setItem('poeruum-preview-auth', JSON.stringify(await response.json()));
@@ -51,6 +56,7 @@ export function paymentPreviewPlugin({ origin, getService }) {
           } else {
             document.getElementById('root').textContent = 'Eelvaate katse aegus. Ava olukord uuesti eelvaate menüüst.';
           }
+        })();
         </script>`)
       },
     },

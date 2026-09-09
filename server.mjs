@@ -398,6 +398,18 @@ createServer(async (req, res) => {
     }
 
     const { pathStore, product: productSlug } = routeFromPath(url.pathname)
+    // Management must boot even for an unpublished shop. This serves only the
+    // app shell; Supabase authenticates the owner before any private data loads.
+    const isMerchantReturn = url.pathname === '/'
+      && ['billing', 'stripe_connect', 'stripe_requirements'].some((key) => url.searchParams.has(key))
+    if ((/^\/haldus\/?$/.test(url.pathname) || isMerchantReturn)
+      && (host === platformHost || host === `www.${platformHost}` || getStoreSlugFromHostname(host, platformHost))) {
+      return send(res, 200, req.method === 'HEAD' ? null : await templatePromise, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-store',
+        'X-Robots-Tag': 'noindex, nofollow',
+      })
+    }
     if (pathStore === 'kaubamaja') {
       const legacyPath = productSlug ? `/toode/${encodeURIComponent(productSlug)}/` : '/'
       return send(res, 301, null, { Location: `https://${legacyKaubamajaStoreSlug}.${platformHost}${legacyPath}` })

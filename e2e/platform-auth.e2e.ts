@@ -87,6 +87,7 @@ const connectedStripeStatus = {
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({
   status,
+  headers: { 'Access-Control-Allow-Origin': '*' },
   contentType: 'application/json',
   body: JSON.stringify(body),
 })
@@ -95,15 +96,37 @@ const installSupabaseBackend = async (
   page: Page,
   storeFixture: Record<string, unknown> = store,
   stripeStatusFixture: Record<string, unknown> = connectedStripeStatus,
-  options: { beforeProductsResponse?: () => Promise<void> } = {},
+  options: { beforeProductsResponse?: () => Promise<void>; publicStore?: typeof store } = {},
 ) => {
   let passwordSignIns = 0
   let sessionRefreshes = 0
   let currentStore = { ...storeFixture }
 
+  await page.route('**/storage/v1/object/public/product-images/auth-preview.svg', (route) =>
+    route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#226748"/></svg>' }))
+
   await page.route('**/__e2e_supabase/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
+
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+      } })
+      return
+    }
+
+    if (url.pathname.endsWith('/rest/v1/rpc/resolve_store_slug_for_hostname')) {
+      await json(route, options.publicStore?.slug ?? null)
+      return
+    }
+
+    if (url.pathname.endsWith('/rest/v1/public_storefronts')) {
+      await json(route, url.searchParams.get('slug') === `eq.${options.publicStore?.slug}` ? options.publicStore : null)
+      return
+    }
 
     if (url.pathname.endsWith('/auth/v1/token')) {
       const grantType = url.searchParams.get('grant_type')
@@ -142,6 +165,14 @@ const installSupabaseBackend = async (
     }
 
     if (url.pathname.endsWith('/rest/v1/products')) {
+      if (options.publicStore && url.searchParams.get('store_id') === `eq.${options.publicStore.id}`) {
+        await json(route, [{
+          id: '30000000-0000-4000-8000-000000000001', store_id: options.publicStore.id,
+          name: 'Teise poe toode', slug: 'teise-poe-toode', price: 19, stock: 3, search_visible: true,
+          image_url: 'http://localhost:4174/storage/v1/object/public/product-images/auth-preview.svg',
+        }])
+        return
+      }
       await options.beforeProductsResponse?.()
       await json(route, [])
       return
@@ -170,6 +201,61 @@ const installSupabaseBackend = async (
     sessionRefreshes: () => sessionRefreshes,
   }
 }
+
+const otherStore = {
+  ...store,
+  id: '10000000-0000-4000-8000-000000000002',
+  owner_id: '20000000-0000-4000-8000-000000000002',
+  name: 'Krük-Krük',
+  slug: 'kruk-kruk',
+  settings: { ...store.settings, editableStoreName: 'Krük-Krük', businessName: 'Teine kaupmees OÜ' },
+}
+
+for (const storefrontUrl of ['http://kruk-kruk.poeruum.localhost:4174/', '/p/kruk-kruk/']) {
+  test(`merchant login leaves the visited store URL: ${storefrontUrl}`, async ({ page }) => {
+    const backend = await installSupabaseBackend(page, store, connectedStripeStatus, { publicStore: otherStore })
+    await page.goto(storefrontUrl)
+    await expect(page.getByRole('heading', { name: 'Teise poe toode', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Poe omanikule: ava poe halduse sisselogimine' }).click()
+    await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
+    await expect(page.getByRole('dialog', { name: 'Logi sisse' })).toHaveCount(0)
+    await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+    await page.getByLabel('Parool').fill('turvaline-testiparool')
+    await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+    await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+    await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+    await expect(page.getByRole('button', { name: store.name, exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Teise poe toode', exact: true })).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+    await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+    expect(backend.passwordSignIns()).toBe(1)
+  })
+}
+
+test('a public store keeps its own content when another merchant is already signed in', async ({ page }) => {
+  const backend = await installSupabaseBackend(page, store, connectedStripeStatus, { publicStore: otherStore })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+  await page.goto('/p/kruk-kruk/')
+  await expect(page.getByRole('heading', { name: 'Teise poe toode', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Seaded/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Poe omanikule: ava poe halduse sisselogimine' }).click()
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+  await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+  expect(backend.passwordSignIns()).toBe(1)
+})
+
+test('legacy storefront owner-login links open the platform login', async ({ page }) => {
+  await installSupabaseBackend(page, store, connectedStripeStatus, { publicStore: otherStore })
+  await page.goto('http://kruk-kruk.poeruum.localhost:4174/?owner_login=1')
+  await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
+  await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Logi sisse' })).toHaveCount(0)
+})
 
 test('existing merchant never sees new-store onboarding while their store loads', async ({ page }) => {
   let releaseProducts = () => undefined
@@ -210,6 +296,42 @@ test('merchant logout returns to the Poeruum homepage', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /Sinu e-pood/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Logi sisse' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Tagasi poe muutmisvaatesse' })).toHaveCount(0)
+  await expect(page).toHaveURL('http://poeruum.localhost:4174/')
+  await page.goto('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+  await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
+  await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
+})
+
+test('a saved login migrates to the owner address and cannot reopen another shop management', async ({ page }) => {
+  const backend = await installSupabaseBackend(page, store, connectedStripeStatus, { publicStore: otherStore })
+  await page.addInitScript(({ accessToken, user }) => {
+    if (location.hostname !== 'poeruum.localhost') return
+    localStorage.setItem('sb-localhost-auth-token', JSON.stringify({
+      access_token: accessToken,
+      refresh_token: 'playwright-refresh-token',
+      token_type: 'bearer',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user,
+    }))
+  }, { accessToken, user })
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+  await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+  await page.goto('http://kruk-kruk.poeruum.localhost:4174/haldus')
+  await expect(page.getByRole('button', { name: store.name, exact: true })).toBeVisible()
+  await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+  expect(backend.passwordSignIns()).toBe(0)
+
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: 'Seaded' })
+  await settings.getByRole('button', { name: /Konto/ }).click()
+  await settings.getByRole('button', { name: 'Logi välja', exact: true }).click()
+  await expect(page).toHaveURL('http://poeruum.localhost:4174/')
+  // The init script recreates an old origin-local session; logout must win.
+  await expect(page.getByRole('button', { name: 'Logi sisse' }).first()).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Logi sisse' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: /Seaded/ })).toHaveCount(0)
 })
 
 test('a draft can continue setup while Stripe verifies submitted details', async ({ page }) => {
@@ -281,7 +403,7 @@ test('Stripe requirements email link survives login and opens the owned store pa
   expect(backend.passwordSignIns()).toBe(1)
 })
 
-test('Stripe requirements email link opens payment settings when PlatformApp restores an existing session', async ({ page }) => {
+test('Stripe return on the shop hostname opens payment settings with the existing session', async ({ page }) => {
   const backend = await installSupabaseBackend(page)
 
   await page.goto('/')
@@ -291,7 +413,7 @@ test('Stripe requirements email link opens payment settings when PlatformApp res
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
   await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
 
-  await page.goto('/?stripe_requirements=1')
+  await page.goto('http://sisselogimise-testipood.poeruum.localhost:4174/?stripe_requirements=1')
 
   const settings = page.getByRole('dialog', { name: 'Seaded' })
   await expect(settings).toBeVisible()

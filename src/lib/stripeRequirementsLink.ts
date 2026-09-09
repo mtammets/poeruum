@@ -7,7 +7,7 @@ export const getStripeRequirementsLinkIntent = (location: StripeRequirementsLink
   const values = params.getAll('stripe_requirements')
   if (!values.length) return 'none'
   if (params.has('billing') || params.has('stripe_connect')) return 'conflict'
-  if (location.pathname !== '/' || values.length !== 1 || values[0] !== '1') return 'invalid'
+  if (!['/', '/haldus', '/haldus/'].includes(location.pathname) || values.length !== 1 || values[0] !== '1') return 'invalid'
   return 'valid'
 }
 

@@ -5,7 +5,7 @@ import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, ge
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPaymentSetupState, getStoreDestination, getStripeSetupMode, type OnboardingStep, type StripeSetupPurpose } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
-import { getRequestedProductSlug, getRequestedStoreSlug, isDedicatedStorefrontHostname, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
+import { getMerchantLoginUrl, getMerchantStoreUrl, getRequestedProductSlug, getRequestedStoreSlug, isDedicatedStorefrontHostname, isMerchantManagementLocation, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { isHomepageAnalyticsLocation, startHomepageEngagementTracking, trackHomepageEvent } from './lib/homepageAnalytics'
 import { products as bundledProducts, type Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
@@ -198,14 +198,18 @@ export function SetupShell({
 
 function PlatformFlow() {
   const requestedStoreSlug = getRequestedStoreSlug(window.location)
-  const shouldLoadPublicStore = isSupabaseConfigured && (
+  const isMerchantLocation = isMerchantManagementLocation(window.location)
+  const shouldLoadPublicStore = isSupabaseConfigured && !isMerchantLocation && (
     requestedStoreSlug !== null || isDedicatedStorefrontHostname(window.location.hostname)
   )
+  const redirectPublicOwnerLogin = shouldLoadPublicStore
+    && new URLSearchParams(window.location.search).get('owner_login') === '1'
   const [screen, setScreen] = useState<Screen>('landing')
   const [showAllFaq, setShowAllFaq] = useState(false)
   const [email, setEmail] = useState('')
   const [onlineUserId, setOnlineUserId] = useState<string | null>(null)
   const [isAuthResolved, setIsAuthResolved] = useState(!isSupabaseConfigured)
+  const [isMerchantRedirecting, setIsMerchantRedirecting] = useState(false)
   const onlinePresenceSessionIdRef = useRef(createRandomId())
   const [storeName, setStoreName] = useState('')
   const [slug, setSlug] = useState('')
@@ -236,6 +240,7 @@ function PlatformFlow() {
   const [businessEmail, setBusinessEmail] = useState('')
   const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [isRefreshingPublicationStatus, setIsRefreshingPublicationStatus] = useState(false)
   const [isSetupExiting, setIsSetupExiting] = useState(false)
   const [setupExitSaveFailed, setSetupExitSaveFailed] = useState(false)
   const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
@@ -591,7 +596,29 @@ function PlatformFlow() {
     }
   }, [onlineUserId, store?.stripe_account_id])
 
+  const redirectToOwnedStore = (nextStore: StoreRecord) => {
+    const target = getMerchantStoreUrl(nextStore.slug, window.location)
+    if (!target || target === window.location.href) return false
+    setIsMerchantRedirecting(true)
+    window.location.replace(target)
+    return true
+  }
+
+  const leaveMerchantStore = () => {
+    if (isMerchantLocation) {
+      window.location.replace(new URL('/', getMerchantLoginUrl(window.location)).href)
+    } else setScreen('landing')
+  }
+
+  useEffect(() => {
+    if (!store || !onlineUserId || shouldLoadPublicStore
+      || ['landing', 'sample', 'login', 'forgot-password', 'reset-password', 'account'].includes(screen)) return
+    // Covers a newly created shop and a changed shop address as well as login.
+    redirectToOwnedStore(store)
+  }, [store?.slug, onlineUserId, screen])
+
   const openOwnedStore = async (nextStore: StoreRecord) => {
+    if (redirectToOwnedStore(nextStore)) return
     const nextProducts = await applyStore(nextStore)
     setScreen(getStoreDestination(nextStore, nextProducts.length))
     const cleanUrl = new URL(window.location.href)
@@ -612,6 +639,7 @@ function PlatformFlow() {
   }
 
   const openStripeRequirementsSettings = async (nextStore: StoreRecord) => {
+    if (redirectToOwnedStore(nextStore)) return
     await applyStore(nextStore)
     const target = getStripeRequirementsStoreTarget({
       isPublished: nextStore.is_published,
@@ -635,6 +663,12 @@ function PlatformFlow() {
     let recoveryMode = window.location.hash.includes('type=recovery')
     if (recoveryMode) setScreen('reset-password')
     const restore = async () => {
+      // A public URL keeps the visited shop, even with another owner's session.
+      // Merchant management has its own route on the authenticated owner's host.
+      if (shouldLoadPublicStore) {
+        if (redirectPublicOwnerLogin) window.location.replace(getMerchantLoginUrl(window.location))
+        return
+      }
       const initialStripeRequirementsIntent = stripeRequirementsLinkIntent
       if (initialStripeRequirementsIntent === 'invalid') {
         clearStripeRequirementsLink(STRIPE_REQUIREMENTS_LINK_FAILURE)
@@ -644,6 +678,10 @@ function PlatformFlow() {
       const { data } = await requireSupabase().auth.getSession()
       if (!data.session || !active || recoveryMode) {
         if (!data.session && active && !recoveryMode) {
+          if (isMerchantLocation) {
+            window.location.replace(getMerchantLoginUrl(window.location))
+            return
+          }
           if (initialStripeRequirementsIntent === 'valid') {
             setAuthNotice('Logi sisse, et Stripe’i andmeid täiendada.')
             setScreen('login')
@@ -672,12 +710,18 @@ function PlatformFlow() {
       let existing = await getMyStore()
       if (!active) return
       if (!existing) {
+        if (isMerchantLocation) {
+          window.location.replace(getMerchantLoginUrl(window.location))
+          return
+        }
         if (initialStripeRequirementsIntent === 'valid' || initialStripeRequirementsIntent === 'invalid') {
           clearStripeRequirementsLink(STRIPE_REQUIREMENTS_LINK_FAILURE)
           setScreen('store')
         }
         return
       }
+
+      if (redirectToOwnedStore(existing)) return
 
       if (initialStripeRequirementsIntent === 'valid') {
         await openStripeRequirementsSettings(existing)
@@ -855,6 +899,10 @@ function PlatformFlow() {
   }
 
   const signInFromStore = async (loginEmail: string, password: string, nextCaptchaToken = '') => {
+    if (shouldLoadPublicStore) {
+      window.location.assign(getMerchantLoginUrl(window.location))
+      return
+    }
     const existing = await authenticateOwner(loginEmail, password, nextCaptchaToken)
     if (existing === 'admin') {
       window.location.assign('/admin')
@@ -1186,6 +1234,21 @@ function PlatformFlow() {
   const selectPricingPlan = (plan: PricingPlan) => {
     setPricingPlan(plan)
   }
+  const refreshPublicationStatus = async () => {
+    if (isRefreshingPublicationStatus) return
+    setIsRefreshingPublicationStatus(true)
+    setAuthError('')
+    try {
+      const result = await invokeStripeConnect('status')
+      if (result.status) setPaymentStatus(result.status)
+      if (result.detailsSubmitted !== undefined) setStripeDetailsSubmitted(result.detailsSubmitted)
+      if (result.requirements) setStripeRequirements(result.requirements)
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Maksete oleku uuendamine ebaõnnestus. Proovi uuesti.')
+    } finally {
+      setIsRefreshingPublicationStatus(false)
+    }
+  }
   const publishStore = async () => {
     if (!businessName.trim() || !/^\d{8}$/.test(registryCode.trim()) || !businessAddress.trim() || !businessEmail.trim()
       || (vatRegistered && !/^EE\d{9}$/.test(vatNumber.trim()))) {
@@ -1260,6 +1323,7 @@ function PlatformFlow() {
       const { error } = await requireSupabase().auth.signOut({ scope: 'local' })
       if (error) throw error
       resetPlatformFlow()
+      leaveMerchantStore()
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     } catch (error) {
       setAuthNotice(error instanceof Error ? error.message : 'Väljalogimine ebaõnnestus.')
@@ -1316,7 +1380,7 @@ function PlatformFlow() {
     </div>
     : null
 
-  if (isAuthBusy && onlineUserId && ['login', 'forgot-password', 'account'].includes(screen)) {
+  if (isMerchantRedirecting || (isMerchantLocation && !isAuthResolved) || redirectPublicOwnerLogin || (isAuthBusy && onlineUserId && ['login', 'forgot-password', 'account'].includes(screen))) {
     return <main className="platform-loading" aria-label="Laadin sinu poodi" aria-busy="true"><span /></main>
   }
 
@@ -1352,7 +1416,7 @@ function PlatformFlow() {
     paymentProvider={sampleStore?.payment_provider}
     paymentsReady={false}
     initialShipping={sampleStore?.shipping}
-    onExit={() => setScreen('landing')}
+    onExit={leaveMerchantStore}
   />
   if (screen === 'product') return <>
   <Storefront
@@ -1386,13 +1450,13 @@ function PlatformFlow() {
       setShipping(nextStore.shipping)
     }}
     onAccountDeleted={handleAccountDeleted}
-    onExit={() => setScreen('landing')}
+    onExit={leaveMerchantStore}
   />
   {stripeEmbeddedOverlay}
   </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={() => setScreen('landing')} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
     {stripeEmbeddedOverlay}
   </>
 
@@ -1661,6 +1725,7 @@ function PlatformFlow() {
     const { error: signOutError } = await requireSupabase().auth.signOut({ scope: 'local' })
     if (signOutError) throw signOutError
     resetPlatformFlow()
+    leaveMerchantStore()
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
   const saveAndExitSetup = async () => {
@@ -1812,7 +1877,7 @@ function PlatformFlow() {
 
     {screen === 'publish' && <div className="setup-form publish-step"><div className="publish-ready">
       <div className="publish-ready__copy">
-        <strong>Sinu Poeruum<br />on valmis!</strong>
+        <strong>Sinu Poeruum<br />{paymentSetupState === 'connected' && storedProducts.length ? 'on valmis!' : 'on peaaegu valmis'}</strong>
       </div>
       <span className="publish-celebration" aria-hidden="true">
         <svg viewBox="0 0 140 120">
@@ -1883,20 +1948,33 @@ function PlatformFlow() {
         </div>
         <small className="publish-fee-note">Paketti saad hiljem muuta · Maksetasud lisanduvad</small>
       </section>
+      {paymentSetupState === 'reviewing' && <div className="publish-waiting">
+        <p id="publish-waiting-description" role="status">Stripe kontrollib sinu esitatud andmeid. Saad poe avaldada, kui maksed on aktiveeritud.</p>
+        <button type="button" disabled={isRefreshingPublicationStatus} onClick={() => void refreshPublicationStatus()}>{isRefreshingPublicationStatus ? 'Uuendan…' : 'Uuenda olekut'}</button>
+      </div>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
-      <button className="publish-button" disabled={isPublishing || !storedProducts.length} onClick={publishStore}>
+      <button className="publish-button" disabled={isPublishing || !storedProducts.length || paymentSetupState === 'reviewing'} aria-busy={isPublishing} aria-describedby={paymentSetupState === 'reviewing' ? 'publish-waiting-description' : undefined} onClick={() => {
+        if (paymentNeedsAction) {
+          setAuthError('')
+          setAuthNotice('')
+          setScreen('payments')
+          window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+          return
+        }
+        void publishStore()
+      }}>
         {isPublishing
-          ? paymentSetupState === 'connected' ? 'Avaldan poodi…' : 'Kontrollin Stripe’i…'
+          ? 'Avaldan poodi…'
           : !storedProducts.length
             ? 'Lisa enne esimene toode'
           : paymentSetupState === 'reviewing'
-            ? 'Kontrolli ja avalda pood'
+            ? 'Avalda pood'
           : paymentSetupState === 'setup-required'
-            ? 'Kontrolli Stripe’i valmisolekut'
+            ? 'Lõpeta maksete seadistamine'
           : pricingPlan === 'fixed' && !fixedPlanTrialStartedAt
             ? 'Jätka maksekaardiga'
             : 'Avalda pood'}
-        <span>{isPublishing ? '◌' : '→'}</span>
+        <span aria-hidden="true">{isPublishing ? '◌' : '→'}</span>
       </button>
       <div className="publish-notes">
         <small className="publish-note">{pricingPlan === 'fixed' && <><span className="publish-trial-copy">Prooviperiood algab avaldamisel.</span><span className="publish-note-separator" aria-hidden="true"> · </span></>}Avaldamisega nõustud <a href="/kasutustingimused" target="_blank" rel="noreferrer">kasutustingimustega</a> ja kinnitad, et oled tutvunud <a href="/privaatsus" target="_blank" rel="noreferrer">privaatsuspoliitikaga</a>.</small>

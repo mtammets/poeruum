@@ -51,6 +51,68 @@ export function isPlatformHostname(hostname: string, rootDomain = STOREFRONT_ROO
 
 type StorefrontLocation = Pick<Location, 'hostname' | 'pathname' | 'search'>
 
+// Only Poeruum-controlled hosts share authentication. Custom shop domains keep
+// their own storage and enter merchant management through the platform login.
+export function getSharedAuthDomain(hostname: string, rootDomain = STOREFRONT_ROOT_DOMAIN) {
+  const normalized = hostname.toLowerCase().replace(/\.$/, '')
+  const root = rootDomain.toLowerCase().replace(/^\.+|\.+$/g, '')
+  if (normalized === root) return root
+  if (!normalized.endsWith(`.${root}`)) return null
+  const subdomain = normalized.slice(0, -(root.length + 1))
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(subdomain) ? root : null
+}
+
+export function getMerchantLoginUrl(location: Pick<Location, 'hostname' | 'origin'> & Partial<Pick<Location, 'search'>>) {
+  const hostname = location.hostname.toLowerCase().replace(/\.$/, '')
+  const localOrigin = new URL(location.origin)
+  let origin = `https://${STOREFRONT_ROOT_DOMAIN}`
+  if (STOREFRONT_ROOT_DOMAIN.endsWith('.localhost') && getSharedAuthDomain(hostname)) {
+    localOrigin.hostname = STOREFRONT_ROOT_DOMAIN
+    origin = localOrigin.origin
+  } else if (hostname.endsWith('.localhost')) {
+    localOrigin.hostname = 'localhost'
+    origin = localOrigin.origin
+  } else if (isPlatformHostname(hostname)
+    && hostname !== STOREFRONT_ROOT_DOMAIN
+    && !hostname.endsWith(`.${STOREFRONT_ROOT_DOMAIN}`)) {
+    origin = localOrigin.origin
+  }
+  const target = new URL('/?continue_setup=1', origin)
+  const params = new URLSearchParams(location.search)
+  for (const key of ['stripe_requirements', 'stripe_connect', 'billing']) {
+    const value = params.get(key)
+    if (value) target.searchParams.set(key, value)
+  }
+  return target.href
+}
+
+export function isMerchantManagementLocation(location: Pick<Location, 'hostname' | 'pathname'> & Partial<Pick<Location, 'search'>>) {
+  const params = new URLSearchParams(location.search)
+  const isPaymentReturn = location.pathname === '/'
+    && getStoreSlugFromHostname(location.hostname) !== null
+    && ['billing', 'stripe_connect', 'stripe_requirements'].some((key) => params.has(key))
+  return getSharedAuthDomain(location.hostname) !== null
+    && (/^\/haldus\/?$/.test(location.pathname) || isPaymentReturn)
+}
+
+export function getMerchantStoreUrl(storeSlug: string, location: Pick<Location, 'hostname' | 'origin' | 'search'>) {
+  // Plain localhost and isolated previews stay on their current origin.
+  if (!getSharedAuthDomain(location.hostname)) return null
+  if (getStoreSlugFromHostname(`${storeSlug}.${STOREFRONT_ROOT_DOMAIN}`) !== storeSlug) return null
+  const target = new URL(`https://${storeSlug}.${STOREFRONT_ROOT_DOMAIN}/haldus`)
+  if (STOREFRONT_ROOT_DOMAIN.endsWith('.localhost')) {
+    const source = new URL(location.origin)
+    target.protocol = source.protocol
+    target.port = source.port
+  }
+  const params = new URLSearchParams(location.search)
+  for (const key of ['stripe_requirements', 'stripe_connect', 'billing']) {
+    const value = params.get(key)
+    if (value) target.searchParams.set(key, value)
+  }
+  return target.href
+}
+
 export function getRequestedStoreSlug(location: StorefrontLocation) {
   const hostnameSlug = getStoreSlugFromHostname(location.hostname)
   if (hostnameSlug) return hostnameSlug
