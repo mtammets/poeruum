@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Brand } from './Brand'
+import { getMerchantLoginUrl } from './lib/storefrontUrl'
 
 export const ArrowUpRight = ({ className = '' }: { className?: string }) => <svg
   className={className}
@@ -19,7 +20,7 @@ export default function StoreDirectoryLayout({ children, isStory = false }: { ch
         <span className="store-directory__brand-edition">Kaubamaja</span>
       </a>
       <div className="store-directory__merchant-entry">
-        <span>Oled ettevõtja?</span>
+        <a className="store-directory__manage" href={getMerchantLoginUrl(window.location)}>Minu poe haldus</a>
         <a className="store-directory__create" href="https://poeruum.ee/#hind" aria-label="Loo oma e-pood">
           <span className="store-directory__create-full" aria-hidden="true">Loo oma e-pood</span>
           <span className="store-directory__create-short" aria-hidden="true">Loo e-pood</span>
