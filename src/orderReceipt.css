@@ -1,0 +1,32 @@
+.order-receipt { min-height: 100dvh; padding: 40px 20px; background: #f4f2e9; color: #252923; font-family: Arial, sans-serif; }
+.order-receipt__sheet { max-width: 660px; margin: 0 auto; padding: 36px; background: #fff; border: 1px solid #dedfd6; border-radius: 20px; }
+.order-receipt header { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid #e7e7e0; font-size: 14px; }
+.order-receipt header span:first-child { font-weight: 700; }
+.order-receipt__status { padding: 32px 0 20px; }
+.order-receipt__symbol { display: inline-grid; place-items: center; min-width: 48px; height: 48px; padding: 0 8px; border-radius: 50%; background: #f0f0e8; font-size: 23px; }
+.order-receipt__symbol--paid { background: #e4f3e4; color: #256735; }
+.order-receipt__symbol--failed { background: #fff0e9; color: #933517; }
+.order-receipt h1 { margin: 20px 0 12px; font-size: clamp(26px, 5vw, 36px); line-height: 1.15; letter-spacing: -.025em; }
+.order-receipt p { margin: 0; line-height: 1.6; }
+.order-receipt__details { display: grid; gap: 14px; margin: 16px 0 28px; }
+.order-receipt__details div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; }
+.order-receipt dt { color: #60665b; }
+.order-receipt dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.order-receipt__items { border-top: 1px solid #e7e7e0; border-bottom: 1px solid #e7e7e0; }
+.order-receipt__item, .order-receipt__amount { display: flex; justify-content: space-between; gap: 24px; padding: 16px 0; }
+.order-receipt__item > div { min-width: 0; overflow-wrap: anywhere; }
+.order-receipt__item > span, .order-receipt__amount > :last-child { white-space: nowrap; }
+.order-receipt__item small { display: block; margin-top: 6px; color: #60665b; line-height: 1.4; }
+.order-receipt__amount { padding: 12px 0; }
+.order-receipt__total { font-size: 22px; padding-bottom: 20px; }
+.order-receipt__delivery { padding: 24px 0; overflow-wrap: anywhere; }
+.order-receipt h2 { margin: 0 0 8px; font-size: 16px; }
+.order-receipt__note { color: #60665b; font-size: 14px; }
+.order-receipt__error { padding: 14px; margin-bottom: 20px !important; border-radius: 8px; background: #fff2ea; color: #843810; }
+.order-receipt__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
+.order-receipt__actions button, .order-receipt__actions a { padding: 12px 16px; border: 1px solid #ced2c7; border-radius: 8px; background: #fff; color: inherit; font: inherit; text-decoration: none; cursor: pointer; }
+.order-receipt__actions .order-receipt__primary { background: #273b29; color: white; border-color: #273b29; }
+.order-receipt__actions button:disabled { opacity: .6; cursor: wait; }
+.order-receipt__actions :focus-visible { outline: 3px solid #477347; outline-offset: 3px; }
+@media (max-width: 480px) { .order-receipt { padding: 16px 10px; } .order-receipt__sheet { padding: 24px 18px; border-radius: 12px; } .order-receipt header { flex-direction: column; gap: 6px; } .order-receipt__actions > * { width: 100%; text-align: center; } }
+@media print { .order-receipt { background: white; padding: 0; } .order-receipt__sheet { border: 0; } .order-receipt__actions { display: none; } }

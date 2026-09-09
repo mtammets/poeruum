@@ -299,8 +299,9 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
             {!paymentsReady || paymentProvider !== 'stripe' ? <div className="payment-pending"><span>…</span><div><strong>Maksed pole veel aktiivsed</strong><small>Poe omanik peab enne ostude vastuvõtmist Stripe’i ühendama.</small></div></div> : <fieldset className="payment stripe-payment">
               <legend>Makseviis</legend>
               <div className="stripe-payment__card">
-                <div className="stripe-secure"><span>⌁</span><strong>Turvaline makse Stripe’is</strong><small>Kaart · Apple Pay · Google Pay</small></div>
-                <small>Pärast tellimuse kinnitamist avaneb Stripe’i turvaline makseleht. Poeruum ei näe ega salvesta sinu kaardiandmeid.</small>
+                <div className="stripe-secure"><span>⌁</span><strong>Turvaline makse Stripe’is</strong><small>Kaart · Link · Apple Pay · Google Pay</small></div>
+                <small>Järgmise nupuga avad makselehe. Makse kinnitad Stripe’is, kus näed sulle saadaolevaid makseviise.</small>
+                <small>Link võib kasutada sinu varem salvestatud makseandmeid. Pärast maksmise kinnitamist võib makse toimuda ilma eraldi pangakinnituseta.</small>
               </div>
             </fieldset>}
             <div className="checkout-summary">
@@ -317,7 +318,7 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
                 : <small>Müüja ei ole käibemaksukohustuslane.</small>}
             </div>
             {paymentError && <p className="add-product-error" role="alert">{paymentError}</p>}
-            <button className="pay" type="submit" disabled={isPaying || !paymentsReady || paymentProvider !== 'stripe'}>{!paymentsReady || paymentProvider !== 'stripe' ? 'Maksed pole aktiivsed' : isPaying ? 'Töötlen makset…' : `Maksa ${orderTotal.toFixed(2).replace('.', ',')} €`}</button>
+            <button className="pay" type="submit" disabled={isPaying || !paymentsReady || paymentProvider !== 'stripe'}>{!paymentsReady || paymentProvider !== 'stripe' ? 'Maksed pole aktiivsed' : isPaying ? 'Avan makselehte…' : `Edasi maksma · ${orderTotal.toFixed(2).replace('.', ',')} €`}</button>
             <button className="checkout-back" type="button" onClick={() => setStep('cart')}>Tagasi ostukorvi</button>
           </form>}
         </>}

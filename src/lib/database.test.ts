@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProductCategorySlug, getImageFallbackMimeType, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
+import { createProductCategorySlug, getImageFallbackMimeType, refundStripeOrder, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
 import { requireSupabase } from './supabase'
 
 vi.mock('./supabase', () => ({
@@ -10,6 +10,23 @@ const store = {
   id: '10000000-0000-4000-8000-000000000001',
   is_published: true,
 } as StoreRecord
+
+describe('refund confirmation', () => {
+  it.each([
+    [{ refunded: false, pending: true }, { refunded: false, pending: true }],
+    [{ refunded: true }, { refunded: true, pending: false }],
+  ])('preserves the server-confirmed refund state %j', async (data, expected) => {
+    const invoke = vi.fn().mockResolvedValue({ data, error: null })
+    vi.mocked(requireSupabase).mockReturnValue({ functions: { invoke } } as unknown as ReturnType<typeof requireSupabase>)
+    await expect(refundStripeOrder(store.id, 'PR-TEST')).resolves.toEqual(expected)
+  })
+
+  it('does not claim a refund started when the server returns no confirmation', async () => {
+    const invoke = vi.fn().mockResolvedValue({ data: {}, error: null })
+    vi.mocked(requireSupabase).mockReturnValue({ functions: { invoke } } as unknown as ReturnType<typeof requireSupabase>)
+    await expect(refundStripeOrder(store.id, 'PR-TEST')).rejects.toThrow('Tagastuse olekut ei õnnestunud kinnitada')
+  })
+})
 
 describe('product category slugs', () => {
   it('normalizes Estonian names into store-scoped URL-safe identifiers', () => {

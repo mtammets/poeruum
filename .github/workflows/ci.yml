@@ -39,8 +39,17 @@ jobs:
       - name: Unit tests
         run: npm run test
 
+      - name: Order email Edge authentication and retry test
+        run: npm run test:order-email-edge
+
+      - name: Order receipt Edge authorization and checkout test
+        run: npm run test:order-receipt-edge
+
       - name: Production build
         run: npm run build:app
+
+      - name: Production receipt routing
+        run: npm run test:order-receipt-server
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -114,6 +123,21 @@ jobs:
 
       - name: Test error monitoring
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-monitoring.sql
+
+      - name: Test payment confirmation before settlement and after refunds
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-paid-order-completion.sql
+
+      - name: Test durable settlements, leases and refunds
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-order-settlements.sql
+
+      - name: Test independent order email jobs and delivery events
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-order-emails.sql
+
+      - name: Test historical email migration and scheduling
+        run: node scripts/test-order-email-migration.mjs
+
+      - name: Test private order receipt credentials and confirmation
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-order-receipts.sql
 
       - name: Lint database schemas
         run: npx supabase db lint --local --schema public,extensions --level warning --fail-on warning

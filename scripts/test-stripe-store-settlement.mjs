@@ -214,6 +214,14 @@ try {
   if (!webhookResponse.ok) throw new Error(`Webhook vastas ${webhookResponse.status}: ${webhookResult.detail ?? webhookResult.error ?? 'tundmatu viga'}`)
 
   order = await waitFor(async () => {
+    // Temporary environments need no recurring Vault schedule; explicitly run
+    // the same authenticated worker to exercise persisted settlement retries.
+    if (process.env.ONBOARDING_CRON_SECRET) {
+      const worker = await fetch(`${supabaseUrl}/functions/v1/stripe-order-settlements`, {
+        method: 'POST', headers: { Authorization: `Bearer ${process.env.ONBOARDING_CRON_SECRET}` },
+      })
+      if (!worker.ok) throw new Error(`Settlement’i taustatöö vastas ${worker.status}.`)
+    }
     const { data, error } = await admin.from('orders').select('*').eq('checkout_request_id', checkoutRequestId).maybeSingle()
     if (error) throw error
     return data?.payment_status === 'paid' && data.stripe_transfer_id ? data : null

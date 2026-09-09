@@ -85,7 +85,7 @@ Deno.serve(async (request) => {
     })
     const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
     const stripeMode = assertStripeMode(stripeSecretKey)
-    const stripe = new Stripe(stripeSecretKey)
+    const stripe = new Stripe(stripeSecretKey, { httpClient: Stripe.createFetchHttpClient(), timeout: 10000, maxNetworkRetries: 1 })
     const { data: store, error: storeError } = await admin.from('stores').select('*').eq('id', storeId).eq('is_published', true).maybeSingle()
     if (storeError) throw storeError
     if (!store) return json({ error: 'Poodi ei leitud või see pole avalik.' }, 404)
@@ -159,6 +159,9 @@ Deno.serve(async (request) => {
       return json({ error: 'Poe käibemaksukohustuslase number puudub või on vigane.' }, 409)
     }
     const deliverySettings = asRecord(settings.deliverySettings)
+    if (!['parcel', 'courier', 'pickup'].includes(body.delivery.type)) {
+      return json({ error: 'Valitud tarneviis pole korrektne.' }, 400)
+    }
     const parcelProviders = asRecord(deliverySettings.parcelProviders)
     let deliveryCents = 0
     if (body.delivery.type === 'parcel') {
@@ -189,7 +192,9 @@ Deno.serve(async (request) => {
       order_items: orderItems,
       customer_name_value: customerName,
       customer_email_value: email,
-      delivery_value: body.delivery.label,
+      delivery_value: body.delivery.type === 'pickup'
+        ? ['Tulen ise järele', String(deliverySettings.pickupAddress ?? '').trim()].filter(Boolean).join(' · ')
+        : body.delivery.label,
       product_subtotal_value: productSubtotalCents / 100,
       total_value: totalCents / 100,
       stripe_mode_value: stripeMode,
@@ -235,6 +240,12 @@ Deno.serve(async (request) => {
     const returnsToStoreSubdomain = new URL(appUrl).hostname === `${store.slug}.${storefrontRootDomain(configuredAppUrl)}`
     const returnsToCustomDomain = customDomain?.hostname === new URL(appUrl).hostname
     const storefrontPath = returnsToStoreSubdomain || returnsToCustomDomain ? '' : `/p/${encodeURIComponent(store.slug)}`
+    const { data: receiptToken, error: receiptError } = await admin.rpc('get_or_create_order_receipt_token', { target_order_id: order.id })
+    if (receiptError) throw receiptError
+    if (typeof receiptToken !== 'string' || !/^[0-9a-f]{64}$/.test(receiptToken)) throw new Error('Tellimuse kinnituslink puudub.')
+    // Success and back navigation both show the server's actual state. A URL
+    // flag alone must never announce success or promise that no charge exists.
+    const receiptUrl = `${appUrl}${storefrontPath}?checkout=status#receipt=${receiptToken}`
     const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
       on_behalf_of: store.stripe_account_id,
       transfer_group: `order_${order.id}`,
@@ -257,8 +268,9 @@ Deno.serve(async (request) => {
         customer_email: email,
         client_reference_id: storeId,
         line_items: lineItems,
-        success_url: `${appUrl}${storefrontPath}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${appUrl}${storefrontPath}?checkout=cancelled`,
+        success_url: receiptUrl,
+        cancel_url: receiptUrl,
+        submit_type: 'pay',
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         metadata: {
           store_id: storeId,
@@ -277,7 +289,8 @@ Deno.serve(async (request) => {
       await admin.rpc('release_stripe_order', { target_order_id: order.id })
       throw error
     }
-    await admin.from('orders').update({ stripe_checkout_session_id: session.id }).eq('id', order.id)
+    const { error: sessionSaveError } = await admin.from('orders').update({ stripe_checkout_session_id: session.id }).eq('id', order.id)
+    if (sessionSaveError) throw sessionSaveError
     if (!session.url) throw new Error('Stripe ei tagastanud makselehe aadressi.')
     return json({ url: session.url })
   } catch (error) {

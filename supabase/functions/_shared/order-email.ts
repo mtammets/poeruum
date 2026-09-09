@@ -129,90 +129,75 @@ const emailShell = (input: { title: string; intro: string; order: OrderRow; stor
 </body></html>`
 }
 
-const sendEmail = async (input: { to: string; subject: string; html: string; text: string; fromName: string; replyTo?: string; idempotencyKey: string }) => {
-  const apiKey = Deno.env.get('RESEND_API_KEY')?.trim()
-  if (!apiKey) throw new Error('Puudub RESEND_API_KEY.')
-  const configuredFrom = Deno.env.get('RESEND_FROM_EMAIL')?.trim() || 'Poeruum <teavitused@send.poeruum.ee>'
-  const senderAddress = configuredFrom.match(/<([^<>]+)>/)?.[1]?.trim() || configuredFrom
-  const from = `${safeSenderName(input.fromName)} via Poeruum <${senderAddress}>`
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': input.idempotencyKey,
-    },
-    body: JSON.stringify({
-      from,
-      to: [input.to],
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-      ...(input.replyTo ? { reply_to: input.replyTo } : {}),
-    }),
-  })
-  if (!response.ok) throw new Error(`Resend vastas ${response.status}: ${await response.text()}`)
+export type OrderEmailKind = 'customer' | 'seller'
+export type OrderEmailPayload = {
+  from: string
+  to: string[]
+  subject: string
+  html: string
+  text: string
+  reply_to?: string
+  tags: { name: string; value: string }[]
 }
+export class OrderEmailInputError extends Error {}
 
-export const sendPaidOrderEmails = async (admin: SupabaseClient, orderId: string) => {
+// Build each recipient independently. The queue saves this exact payload before
+// sending so edits to the shop cannot alter an ambiguous request on retry.
+export const buildPaidOrderEmail = async (admin: SupabaseClient, orderId: string, kind: OrderEmailKind, jobId: string): Promise<OrderEmailPayload | null> => {
   const { data: orderData, error: orderError } = await admin.from('orders').select([
     'id', 'store_id', 'order_number', 'items', 'customer_name', 'customer_email', 'delivery',
     'product_subtotal', 'total', 'seller_vat_registered', 'seller_vat_number', 'seller_vat_rate',
     'seller_vat_amount', 'customer_confirmation_sent_at', 'seller_notification_sent_at',
   ].join(',')).eq('id', orderId).eq('payment_status', 'paid').maybeSingle()
   if (orderError) throw orderError
-  if (!orderData) return
+  if (!orderData) return null
   const order = orderData as unknown as OrderRow
-
   const { data: storeData, error: storeError } = await admin.from('stores').select('id,owner_id,name,settings').eq('id', order.store_id).single()
   if (storeError) throw storeError
   const store = storeData as StoreRow
   const settings = asRecord(store.settings)
+  if ((kind === 'customer' ? settings.customerConfirmations : settings.sellerNotifications) === false) return null
   const storeName = safeSenderName(settings.editableStoreName ?? store.name)
   const contactEmail = String(settings.contactEmail ?? '').trim().toLowerCase()
-  let ownerEmail: string | null = null
   const getOwnerEmail = async () => {
-    if (ownerEmail !== null) return ownerEmail
     const { data, error } = await admin.auth.admin.getUserById(store.owner_id)
-    if (error) console.warn(`Poe ${store.id} omaniku e-posti laadimine ebaõnnestus.`, error)
-    const candidate = data.user?.email?.trim().toLowerCase() ?? ''
-    ownerEmail = isEmail(candidate) ? candidate : ''
-    return ownerEmail
-  }
-  const customerReplyTo = isEmail(contactEmail) ? contactEmail : await getOwnerEmail()
-
-  if (settings.customerConfirmations !== false && !order.customer_confirmation_sent_at) {
-    await sendEmail({
-      to: order.customer_email,
-      fromName: storeName,
-      replyTo: customerReplyTo || undefined,
-      subject: `Tellimus ${order.order_number} on kinnitatud · ${storeName}`,
-      html: emailShell({ title: 'Aitäh tellimuse eest!', intro: `Tere, ${order.customer_name}! Saime sinu tellimuse kätte ja makse õnnestus.`, order, store, settings, canReply: Boolean(customerReplyTo) }),
-      text: `Aitäh tellimuse eest!\n\n${order.customer_name}, sinu tellimus poest ${storeName} on kinnitatud.\n\n${renderTextItems(order.items)}\n\nTarne: ${order.delivery}\n${order.seller_vat_registered ? `Käibemaks ${order.seller_vat_rate}%: ${formatMoney(order.seller_vat_amount)}\n` : 'Müüja ei ole käibemaksukohustuslane.\n'}Kokku: ${formatMoney(order.total)}\nTellimus: ${order.order_number}${customerReplyTo ? `\n\nKüsimuste korral vasta sellele kirjale (${customerReplyTo}).` : ''}`,
-      idempotencyKey: `order-${order.id}-customer-confirmation`,
-    })
-    const { error } = await admin.from('orders').update({ customer_confirmation_sent_at: new Date().toISOString() }).eq('id', order.id).is('customer_confirmation_sent_at', null)
     if (error) throw error
+    return data.user?.email?.trim().toLowerCase() ?? ''
   }
-
-  if (settings.sellerNotifications !== false && !order.seller_notification_sent_at) {
-    let sellerEmail = String(settings.orderNotificationEmail ?? '').trim().toLowerCase()
-    if (!isEmail(sellerEmail)) sellerEmail = contactEmail
-    if (!isEmail(sellerEmail)) sellerEmail = await getOwnerEmail()
-    if (isEmail(sellerEmail)) {
-      await sendEmail({
-        to: sellerEmail,
-        fromName: storeName,
-        replyTo: isEmail(order.customer_email) ? order.customer_email : undefined,
-        subject: `Uus tellimus ${order.order_number} · ${formatMoney(order.total)} · ${storeName}`,
-        html: emailShell({ title: 'Uus tasutud tellimus', intro: `${order.customer_name} esitas ja tasus uue tellimuse.`, order, store, settings, seller: true }),
-        text: `Uus tasutud tellimus\n\nKlient: ${order.customer_name}\nE-post: ${order.customer_email}\n\n${renderTextItems(order.items)}\n\nTarne: ${order.delivery}\n${order.seller_vat_registered ? `Käibemaks ${order.seller_vat_rate}%: ${formatMoney(order.seller_vat_amount)}\n` : 'Müüja ei ole käibemaksukohustuslane.\n'}Kokku: ${formatMoney(order.total)}\nTellimus: ${order.order_number}`,
-        idempotencyKey: `order-${order.id}-seller-notification`,
-      })
-      const { error } = await admin.from('orders').update({ seller_notification_sent_at: new Date().toISOString() }).eq('id', order.id).is('seller_notification_sent_at', null)
-      if (error) throw error
-    } else {
-      console.warn(`Tellimuse ${order.order_number} müüja e-posti aadress puudub.`)
-    }
+  let recipient: string
+  let replyTo: string | undefined
+  if (kind === 'customer') {
+    recipient = order.customer_email.trim()
+    // A missing optional reply address must not block the customer's receipt.
+    const candidate = isEmail(contactEmail) ? contactEmail : await getOwnerEmail().catch(() => '')
+    replyTo = isEmail(candidate) ? candidate : undefined
+  } else {
+    recipient = String(settings.orderNotificationEmail ?? '').trim().toLowerCase()
+    if (!isEmail(recipient)) recipient = contactEmail
+    if (!isEmail(recipient)) recipient = await getOwnerEmail()
+    replyTo = isEmail(order.customer_email) ? order.customer_email : undefined
+  }
+  if (!isEmail(recipient)) throw new OrderEmailInputError('Tellimuse kirja saaja e-posti aadress puudub või on vigane.')
+  const configuredFrom = Deno.env.get('RESEND_FROM_EMAIL')?.trim() || 'Poeruum <teavitused@send.poeruum.ee>'
+  const senderAddress = configuredFrom.match(/<([^<>]+)>/)?.[1]?.trim() || configuredFrom
+  const common = {
+    from: `${storeName} via Poeruum <${senderAddress}>`, to: [recipient],
+    ...(replyTo ? { reply_to: replyTo } : {}),
+    tags: [
+      { name: 'email_type', value: kind === 'customer' ? 'order_customer_confirmation' : 'order_seller_notification' },
+      { name: 'order_id', value: order.id }, { name: 'order_email_job_id', value: jobId },
+    ],
+  }
+  if (kind === 'customer') return {
+    ...common,
+    subject: `Tellimus ${order.order_number} on kinnitatud · ${storeName}`,
+    html: emailShell({ title: 'Aitäh tellimuse eest!', intro: `Tere, ${order.customer_name}! Saime sinu tellimuse kätte ja makse õnnestus.`, order, store, settings, canReply: Boolean(replyTo) }),
+    text: `Aitäh tellimuse eest!\n\n${order.customer_name}, sinu tellimus poest ${storeName} on kinnitatud.\n\n${renderTextItems(order.items)}\n\nTarne: ${order.delivery}\n${order.seller_vat_registered ? `Käibemaks ${order.seller_vat_rate}%: ${formatMoney(order.seller_vat_amount)}\n` : 'Müüja ei ole käibemaksukohustuslane.\n'}Kokku: ${formatMoney(order.total)}\nTellimus: ${order.order_number}${replyTo ? `\n\nKüsimuste korral vasta sellele kirjale (${replyTo}).` : ''}`,
+  }
+  return {
+    ...common,
+    subject: `Uus tellimus ${order.order_number} · ${formatMoney(order.total)} · ${storeName}`,
+    html: emailShell({ title: 'Uus tasutud tellimus', intro: `${order.customer_name} esitas ja tasus uue tellimuse.`, order, store, settings, seller: true }),
+    text: `Uus tasutud tellimus\n\nKlient: ${order.customer_name}\nE-post: ${order.customer_email}\n\n${renderTextItems(order.items)}\n\nTarne: ${order.delivery}\n${order.seller_vat_registered ? `Käibemaks ${order.seller_vat_rate}%: ${formatMoney(order.seller_vat_amount)}\n` : 'Müüja ei ole käibemaksukohustuslane.\n'}Kokku: ${formatMoney(order.total)}\nTellimus: ${order.order_number}`,
   }
 }

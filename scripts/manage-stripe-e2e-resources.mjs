@@ -126,6 +126,12 @@ const createResources = async () => {
       description: `Poeruum ephemeral E2E ${runId}`,
       'enabled_events[]': [
         'checkout.session.completed',
+        'checkout.session.async_payment_succeeded',
+        'checkout.session.async_payment_failed',
+        'checkout.session.expired',
+        'charge.updated',
+        'refund.updated',
+        'refund.failed',
         'customer.subscription.updated',
         'customer.subscription.deleted',
         'invoice.paid',

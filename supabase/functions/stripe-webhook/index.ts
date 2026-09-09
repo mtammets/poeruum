@@ -11,7 +11,9 @@ import {
   verifyStripeEvent,
 } from '../_shared/stripe-webhook.ts'
 import { assertStoredStripeMode } from '../_shared/stripe-mode.ts'
-import { sendPaidOrderEmails } from '../_shared/order-email.ts'
+import { completePaidStoreOrder } from '../_shared/store-payment.ts'
+import { processStoreSettlement } from '../_shared/order-settlement.ts'
+import { processPaidOrderEmails } from '../_shared/order-email-queue.ts'
 import { sendBillingEmail, type BillingEmailStore } from '../_shared/billing-email.ts'
 
 type StripeRecord = Record<string, unknown>
@@ -155,108 +157,49 @@ const markStoreDelinquent = async (input: {
 const completeStorePayment = async (event: Stripe.Event, object: StripeRecord, orderId: string, storeId: string | null) => {
   const secretKey = Deno.env.get('STRIPE_SECRET_KEY')
   if (!secretKey) throw new Error('Puudub STRIPE_SECRET_KEY.')
-  const stripe = new Stripe(secretKey)
   const paymentIntentId = stripeId(object.payment_intent)
-  if (!paymentIntentId) throw new Error('Makse PaymentIntent puudub.')
+  const sessionId = stripeId(object)
+  if (!paymentIntentId || !sessionId) throw new Error('Makse PaymentIntent või Checkout Session puudub.')
 
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
-    expand: ['latest_charge.balance_transaction'],
+  await completePaidStoreOrder({
+    admin: getAdminClient(),
+    stripe: new Stripe(secretKey, { timeout: 10_000, maxNetworkRetries: 1 }),
+    settleOrder: (id) => runSettlement(id, event.livemode),
+    notifyOrder: (id) => processPaidOrderEmails({ admin: getAdminClient(),
+      onError: (error, job) => captureEdgeError('order-emails', error,
+        { order_id: job.order_id, job_id: job.id, recipient_kind: job.kind }, 'critical'),
+    }, event.livemode ? 'live' : 'test', id),
+  }, {
+    orderId,
+    storeId,
+    sessionId,
+    paymentIntentId,
+    mode: event.livemode ? 'live' : 'test',
   })
-  let charge = paymentIntent.latest_charge && typeof paymentIntent.latest_charge === 'object'
-    ? paymentIntent.latest_charge
-    : paymentIntent.latest_charge ? await stripe.charges.retrieve(paymentIntent.latest_charge, { expand: ['balance_transaction'] }) : null
-  if (!charge || charge.status !== 'succeeded') throw new Error('Stripe’i kinnitatud maksekanne puudub.')
-  let balanceTransaction = charge.balance_transaction && typeof charge.balance_transaction === 'object'
-    ? charge.balance_transaction
-    : charge.balance_transaction ? await stripe.balanceTransactions.retrieve(charge.balance_transaction) : null
-  for (let attempt = 0; !balanceTransaction && attempt < 10; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    charge = await stripe.charges.retrieve(charge.id, { expand: ['balance_transaction'] })
-    balanceTransaction = charge.balance_transaction && typeof charge.balance_transaction === 'object'
-      ? charge.balance_transaction
-      : charge.balance_transaction ? await stripe.balanceTransactions.retrieve(charge.balance_transaction) : null
-  }
-  if (!balanceTransaction) throw new Error('Stripe’i maksetasu pole veel saadaval.')
+}
 
-  const admin = getAdminClient()
-  const { data: order, error: orderError } = await admin.from('orders')
-    .select('id,store_id,stripe_mode,stripe_transfer_id')
-    .eq('id', orderId)
-    .maybeSingle()
-  if (orderError) throw orderError
-  if (!order) throw new Error('Tellimust ei leitud.')
-  assertStoredStripeMode(order.stripe_mode, event.livemode ? 'live' : 'test', 'Tellimuse makse')
-
-  const resolvedStoreId = storeId ?? String(order.store_id)
-  const { data: store, error: storeError } = await admin.from('stores')
-    .select('id,name,stripe_account_id')
-    .eq('id', resolvedStoreId)
-    .maybeSingle()
-  if (storeError) throw storeError
-  if (!store?.stripe_account_id) throw new Error('Müüja Stripe’i konto puudub.')
-
-  const processingFeeCents = Math.max(0, Number(balanceTransaction.fee ?? 0))
-  const platformFeeCents = Math.max(0, Math.floor(Number(paymentIntent.metadata.platform_fee_cents ?? 0)))
-  const platformFeeNetCents = Math.max(0, Math.floor(Number(paymentIntent.metadata.platform_fee_net_cents ?? platformFeeCents)))
-  const platformFeeVatCents = Math.max(0, Math.floor(Number(paymentIntent.metadata.platform_fee_vat_cents ?? 0)))
-  if (platformFeeNetCents + platformFeeVatCents !== platformFeeCents) throw new Error('Poeruumi teenustasu käibemaksu jaotus ei klapi.')
-  const paidCents = Math.max(0, Number(paymentIntent.amount_received || charge.amount))
-  const sellerNetCents = Math.max(0, paidCents - processingFeeCents - platformFeeCents)
-  if (sellerNetCents <= 0) throw new Error('Makse summa ei kata Stripe’i ja Poeruumi teenustasusid.')
-
-  const transfer = order.stripe_transfer_id
-    ? await stripe.transfers.retrieve(String(order.stripe_transfer_id))
-    : await stripe.transfers.create({
-      amount: sellerNetCents,
-      currency: paymentIntent.currency,
-      destination: store.stripe_account_id,
-      source_transaction: charge.id,
-      transfer_group: `order_${orderId}`,
-      description: `Poeruum ${String(object.metadata && typeof object.metadata === 'object' && 'order_number' in object.metadata ? object.metadata.order_number : orderId)}`,
-      metadata: { store_id: resolvedStoreId, order_id: orderId, payment_intent_id: paymentIntentId },
-    }, { idempotencyKey: `poeruum-order-transfer-${orderId}` })
-
-  const { error: settlementError } = await admin.from('orders').update({
-    stripe_transfer_id: transfer.id,
-    stripe_processing_fee_cents: processingFeeCents,
-    stripe_platform_fee_cents: platformFeeCents,
-    stripe_platform_fee_net_cents: platformFeeNetCents,
-    stripe_platform_fee_vat_cents: platformFeeVatCents,
-    stripe_seller_net_cents: sellerNetCents,
-  }).eq('id', orderId)
-  if (settlementError) throw settlementError
-
-  const { error: completionError } = await admin.rpc('complete_stripe_order', {
-    target_order_id: orderId,
-    checkout_session_id: stripeId(object),
-    payment_intent_id: paymentIntentId,
-  })
-  if (completionError) throw completionError
-
-  if (platformFeeCents > 0) {
-    await recordRevenue({
-      event,
-      objectId: transfer.id,
-      store: { id: store.id, name: store.name },
-      kind: 'transaction_fee',
-      amountCents: platformFeeNetCents,
-      currency: paymentIntent.currency,
-      description: '4% müügitasu + käibemaks',
-      metadata: {
-        net_amount_cents: platformFeeNetCents,
-        vat_amount_cents: platformFeeVatCents,
-        gross_amount_cents: platformFeeCents,
-        vat_rate: 24,
-        payment_intent_id: paymentIntentId,
-        stripe_processing_fee_cents: processingFeeCents,
-        seller_net_cents: sellerNetCents,
-      },
-    })
-  }
+const runSettlement = async (orderId: string, livemode: boolean) => {
+  if (Deno.env.get('STRIPE_SETTLEMENT_WORKER_ENABLED') === 'false') return null
+  const key = Deno.env.get('STRIPE_SECRET_KEY')
+  if (!key) throw new Error('Puudub STRIPE_SECRET_KEY.')
+  return processStoreSettlement({
+    admin: getAdminClient(), stripe: new Stripe(key, { timeout: 10_000, maxNetworkRetries: 1 }),
+    onError: (error, id, status) => captureEdgeError('stripe-order-settlements', error, { order_id: id, settlement_status: status }, 'critical'),
+  }, livemode ? 'live' : 'test', orderId)
 }
 
 const handleEvent = async (event: Stripe.Event) => {
   const object = event.data.object as unknown as StripeRecord
+
+  if (['charge.updated', 'refund.updated', 'refund.failed'].includes(event.type)) {
+    const paymentIntentId = stripeId(object.payment_intent)
+    if (!paymentIntentId) return
+    const { data: order, error } = await getAdminClient().from('orders').select('id')
+      .eq('stripe_payment_intent_id', paymentIntentId).eq('stripe_mode', event.livemode ? 'live' : 'test').maybeSingle()
+    if (error) throw error
+    if (order) await runSettlement(order.id, event.livemode)
+    return
+  }
 
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const storeId = metadataStoreId(object) ?? (typeof object.client_reference_id === 'string' ? object.client_reference_id : null)
@@ -277,7 +220,6 @@ const handleEvent = async (event: Stripe.Event) => {
         : null
       if (orderId && (object.payment_status === 'paid' || event.type === 'checkout.session.async_payment_succeeded')) {
         await completeStorePayment(event, object, orderId, storeId)
-        await sendPaidOrderEmails(getAdminClient(), orderId)
       } else if (orderId && object.payment_status === 'unpaid') {
         // Some bank methods finish asynchronously after Checkout itself is complete.
         // Keep their goods reserved until Stripe sends the final succeeded/failed event.

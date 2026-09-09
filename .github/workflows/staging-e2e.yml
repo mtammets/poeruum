@@ -95,6 +95,8 @@ jobs:
         run: |
           RATE_LIMIT_SALT="$(openssl rand -hex 32)"
           ONBOARDING_CRON_SECRET="$(openssl rand -hex 32)"
+          echo "::add-mask::$ONBOARDING_CRON_SECRET"
+          echo "ONBOARDING_CRON_SECRET=$ONBOARDING_CRON_SECRET" >> "$GITHUB_ENV"
           RESEND_WEBHOOK_SECRET="whsec_$(openssl rand -base64 32 | tr -d '\n')"
           echo "::add-mask::$RESEND_WEBHOOK_SECRET"
           echo "RESEND_WEBHOOK_SECRET=$RESEND_WEBHOOK_SECRET" >> "$GITHUB_ENV"
@@ -123,7 +125,11 @@ jobs:
           npx supabase functions deploy stripe-billing-checkout --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy stripe-billing-cancel --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy stripe-store-checkout --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          npx supabase functions deploy order-receipt --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy stripe-reservation-reaper --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          npx supabase functions deploy stripe-order-settlements --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          npx supabase functions deploy order-emails --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          npx supabase functions deploy stripe-refund-order --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy delete-account --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy support-actions --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy resend-webhook --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt

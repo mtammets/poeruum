@@ -18,7 +18,7 @@ const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'applicatio
 const publicSupportEmail = process.env.SUPPORT_PUBLIC_EMAIL?.trim().toLowerCase() || 'info@poeruum.ee'
 const inboundDomain = process.env.SUPPORT_INBOUND_DOMAIN?.trim().toLowerCase().replace(/^@/, '') || 'poeruum.ee'
 const inboundAddress = process.env.SUPPORT_INBOUND_ADDRESS?.trim().toLowerCase() || `info@${inboundDomain}`
-const webhookEvents = ['email.sent', 'email.delivered', 'email.failed', 'email.bounced', 'email.complained', 'email.received']
+const webhookEvents = ['email.sent', 'email.delivered', 'email.delivery_delayed', 'email.failed', 'email.bounced', 'email.complained', 'email.suppressed', 'email.received']
 
 const request = async (pathName, options = {}) => {
   const response = await fetch(`https://api.resend.com${pathName}`, { ...options, headers: { ...headers, ...options.headers } })
@@ -36,7 +36,7 @@ if (existingWebhook) {
   if (!hasExpectedEvents || webhook.status !== 'enabled') {
     await request(`/webhooks/${webhook.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ endpoint, events: webhookEvents, status: 'enabled' }),
+      body: JSON.stringify({ endpoint, events: [...new Set([...webhook.events, ...webhookEvents])], status: 'enabled' }),
     })
     webhook = await request(`/webhooks/${webhook.id}`)
   }

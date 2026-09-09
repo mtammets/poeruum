@@ -706,9 +706,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     return () => { active = false; window.removeEventListener('focus', refreshCategories) }
   }, [storeId])
 
+  const hasPendingRefund = orders.some((order) => ['requested', 'pending'].includes(order.refundStatus ?? ''))
   useEffect(() => {
     if (!storeId || !merchantMode) return
-    listOrders(storeId).then((rows) => setOrders(rows.map((row) => ({
+    let active = true
+    const refreshOrders = () => listOrders(storeId).then((rows) => { if (active) setOrders(rows.map((row) => ({
       id: row.order_number, items: row.items as CartItem[], customerName: row.customer_name,
       customerEmail: row.customer_email, delivery: row.delivery, productSubtotal: Number(row.product_subtotal),
       total: Number(row.total), createdAt: row.created_at, status: row.status,
@@ -717,8 +719,13 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       stripePlatformFeeNet: Number(row.stripe_platform_fee_net_cents ?? row.stripe_platform_fee_cents) / 100,
       stripePlatformFeeVat: Number(row.stripe_platform_fee_vat_cents ?? 0) / 100,
       stripeSellerNet: Number(row.stripe_seller_net_cents) / 100,
-    })))).catch((error) => setAuthToast(error instanceof Error ? error.message : 'Tellimuste laadimine ebaõnnestus'))
-  }, [storeId, merchantMode])
+      refundStatus: row.stripe_refund_status,
+    }))) }).catch((error) => { if (active) setAuthToast(error instanceof Error ? error.message : 'Tellimuste laadimine ebaõnnestus') })
+    void refreshOrders()
+    const interval = hasPendingRefund ? window.setInterval(refreshOrders, 15_000) : undefined
+    window.addEventListener('focus', refreshOrders)
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener('focus', refreshOrders) }
+  }, [storeId, merchantMode, hasPendingRefund])
 
   useEffect(() => setActivePaymentProvider(paymentProvider), [paymentProvider])
   useEffect(() => setBillingPlan(pricingPlan), [pricingPlan])
@@ -1518,17 +1525,6 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [authToast])
 
   useEffect(() => {
-    const checkoutResult = new URLSearchParams(window.location.search).get('checkout')
-    if (!checkoutResult) return
-    setAuthToast(checkoutResult === 'success' ? 'Makse õnnestus. Tellimus on kinnitatud.' : 'Makse katkestati. Ostukorvi eest tasu ei võetud.')
-    if (checkoutResult === 'success') setCart([])
-    const cleanUrl = new URL(window.location.href)
-    cleanUrl.searchParams.delete('checkout')
-    cleanUrl.searchParams.delete('session_id')
-    window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
-  }, [])
-
-  useEffect(() => {
     let frame = 0
     const syncProductVisualActivity = () => {
       window.cancelAnimationFrame(frame)
@@ -2317,7 +2313,14 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
 
   const changeOrderStatus = async (orderNumber: string, status: StoreOrder['status']) => {
     try {
-      if (storeId && status === 'refunded' && activePaymentProvider === 'stripe') await refundStripeOrder(storeId, orderNumber)
+      if (storeId && status === 'refunded' && activePaymentProvider === 'stripe') {
+        const result = await refundStripeOrder(storeId, orderNumber)
+        if (!result.refunded) {
+          setOrders((current) => current.map((item) => item.id === orderNumber ? { ...item, refundStatus: 'pending' } : item))
+          setAuthToast('Tagastus on algatatud. Tellimuse olek uueneb pärast Stripe’i kinnitust.')
+          return
+        }
+      }
       else if (storeId) await updateOrderStatus(storeId, orderNumber, status)
       setOrders((current) => current.map((item) => item.id === orderNumber ? { ...item, status } : item))
     } catch (error) { setAuthToast(error instanceof Error ? error.message : 'Tellimuse uuendamine ebaõnnestus') }
@@ -2992,7 +2995,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </div>
           </div>
           {orders.length ? <div className={`order-list${orderLayout === 'list' ? ' is-list' : ''}`}>{visibleOrders.length ? visibleOrders.map((order) => <article className={order.status === 'new' ? 'is-new' : order.status === 'refunded' ? 'is-refunded' : ''} key={order.id}>
-            <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'new' ? 'Uus' : order.status === 'refunded' ? 'Tagastatud' : 'Täidetud'}</span></header>
+            <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'refunded' ? 'Tagastatud' : order.refundStatus === 'requested' || order.refundStatus === 'pending' ? 'Tagastamisel' : order.refundStatus === 'failed' ? 'Tagastus vajab abi' : order.status === 'new' ? 'Uus' : 'Täidetud'}</span></header>
             <div className="order-customer"><strong>{order.customerName}</strong><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a><small>{order.delivery}</small></div>
             <ul>{order.items.map((item) => <li key={item.cartKey}><OrderItemThumbnail item={item} currentProduct={displayProducts.find((product) => product.id === item.id)} /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
             {Boolean(order.stripeSellerNet) && <dl className="order-settlement">
@@ -3002,7 +3005,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <div><dt>Poeruumi tasu kokku</dt><dd>−{formatEuro(order.stripePlatformFee ?? 0)}</dd></div>
               <div><dt>Sulle laekub</dt><dd>{formatEuro(order.stripeSellerNet ?? 0)}</dd></div>
             </dl>}
-            <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'new' ? <button type="button" onClick={() => changeOrderStatus(order.id, 'fulfilled')}>Märgi täidetuks</button> : order.status === 'fulfilled' ? <button className="order-refund" type="button" onClick={() => changeOrderStatus(order.id, 'refunded')}>Märgi tagastatuks</button> : <small>Poeruumi tasu krediteeritud</small>}</footer>
+            <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'refunded' ? <small>Makse tagastatud</small> : order.refundStatus === 'requested' || order.refundStatus === 'pending' ? <small>Tagastus on pooleli</small> : order.refundStatus === 'failed' ? <small>Tagastuse kontrollimiseks võta ühendust Poeruumi toega.</small> : <>{order.status === 'new' && <button type="button" onClick={() => changeOrderStatus(order.id, 'fulfilled')}>Märgi täidetuks</button>}<button className="order-refund" type="button" onClick={() => changeOrderStatus(order.id, 'refunded')}>Tagasta makse</button></>}</footer>
           </article>) : <div className="orders-no-results"><span>⌕</span><h3>Tellimusi ei leitud</h3><p>Proovi tellimuse numbrit, kliendi nime või toodet.</p><button type="button" onClick={() => setOrderSearch('')}>Tühjenda otsing</button></div>}</div> : <div className="orders-empty"><span>□</span><h3>Tellimusi veel pole</h3><p>Uued ostud ilmuvad siia automaatselt.</p></div>}
         </section>
       </div>}

@@ -25,7 +25,16 @@ verify_jwt = true
 [functions.stripe-store-checkout]
 verify_jwt = false
 
+[functions.order-receipt]
+verify_jwt = false
+
 [functions.stripe-reservation-reaper]
+verify_jwt = false
+
+[functions.stripe-order-settlements]
+verify_jwt = false
+
+[functions.order-emails]
 verify_jwt = false
 
 [functions.data-retention-reaper]

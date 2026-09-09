@@ -89,6 +89,7 @@ export type OrderRecord = {
   product_subtotal: number
   total: number
   status: 'new' | 'fulfilled' | 'refunded'
+  stripe_refund_status?: 'requested' | 'pending' | 'succeeded' | 'failed' | null
   created_at: string
   stripe_processing_fee_cents: number
   stripe_platform_fee_cents: number
@@ -300,6 +301,9 @@ export async function refundStripeOrder(storeId: string, orderNumber: string) {
     throw new Error(details?.error || error.message)
   }
   if (data?.error) throw new Error(String(data.error))
+  if (data?.refunded === true) return { refunded: true, pending: false }
+  if (data?.pending === true) return { refunded: false, pending: true }
+  throw new Error('Tagastuse olekut ei õnnestunud kinnitada. Värskenda tellimuste vaadet.')
 }
 
 export async function cancelStripeBilling() {

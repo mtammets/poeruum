@@ -25,6 +25,7 @@ export type StoreOrder = {
   stripePlatformFeeNet?: number
   stripePlatformFeeVat?: number
   stripeSellerNet?: number
+  refundStatus?: 'requested' | 'pending' | 'succeeded' | 'failed' | null
 }
 
 export type DeliverySettings = {

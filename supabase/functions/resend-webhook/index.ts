@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { Resend } from 'npm:resend@^6.18.0'
 import { isLeadOptOutReply } from '../_shared/lead-email.ts'
 import { captureEdgeError } from '../_shared/security.ts'
+import { recordOrderEmailEvent } from '../_shared/order-email-queue.ts'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -296,6 +297,7 @@ Deno.serve(async (request) => {
   try {
     const apiKey = requiredEnv('RESEND_API_KEY')
     const admin = createAdminClient()
+    if (await recordOrderEmailEvent(admin, eventId, event)) return json({ ok: true })
     receiptAdmin = admin
     const { error: receiptError } = await admin.from('resend_webhook_events').insert({ id: eventId, event_type: event.type })
     if (receiptError?.code === '23505') return json({ ok: true, duplicate: true })

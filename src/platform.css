@@ -511,10 +511,10 @@ button, a, summary { touch-action: manipulation; }
   border-radius: .8rem;
   background: #1d1d1d;
 }
-.stripe-secure { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .5rem; }
+.stripe-secure { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .5rem; }
 .stripe-secure > span { display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: #635bff; color: #fff; }
 .stripe-secure strong { color: #fff; font-size: .75rem; }
-.stripe-secure small { color: #a8a4ff; font-weight: 800; }
+.stripe-secure small { grid-column: 2; color: #a8a4ff; font-weight: 800; }
 .stripe-payment__card label { color: rgba(255, 255, 255, .75); }
 .stripe-payment__card input { background: #121212; }
 .stripe-card-number { position: relative; }

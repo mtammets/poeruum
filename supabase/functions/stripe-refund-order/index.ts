@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
+import { processStoreSettlement } from '../_shared/order-settlement.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,50 +43,27 @@ Deno.serve(async (request) => {
     const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
     const stripeMode = assertStripeMode(stripeSecretKey)
     assertStoredStripeMode(order.stripe_mode, stripeMode, 'Tellimuse makse')
-    const stripe = new Stripe(stripeSecretKey)
-    const usesSeparateTransfer = typeof order.stripe_transfer_id === 'string' && order.stripe_transfer_id.length > 0
-    const refund = await stripe.refunds.create({
-      payment_intent: order.stripe_payment_intent_id,
-      ...(!usesSeparateTransfer ? { reverse_transfer: true, refund_application_fee: true } : {}),
-      metadata: { store_id: store.id, order_id: order.id, order_number: order.order_number },
-    }, { idempotencyKey: `poeruum-order-refund-${order.id}` })
-    if (!['succeeded', 'pending'].includes(refund.status ?? '')) throw new Error('Stripe ei kinnitanud tagastust.')
-    if (usesSeparateTransfer) {
-      const transfer = await stripe.transfers.retrieve(order.stripe_transfer_id)
-      if (!transfer.reversed) {
-        await stripe.transfers.createReversal(order.stripe_transfer_id, {}, {
-          idempotencyKey: `poeruum-order-transfer-reversal-${order.id}`,
-        })
-      }
+    const stripe = new Stripe(stripeSecretKey, { timeout: 10_000, maxNetworkRetries: 1 })
+    const { data: job, error: requestError } = await admin.rpc('request_stripe_order_refund', {
+      target_order_id: order.id, mode_value: stripeMode,
+    })
+    if (requestError) throw requestError
+    if (job?.status === 'needs_review') return json({ error: 'Tagastus vajab kontrollimist. Võta ühendust Poeruumi toega.' }, 409)
+    if (Deno.env.get('STRIPE_SETTLEMENT_WORKER_ENABLED') !== 'false') {
+      await processStoreSettlement({
+        admin, stripe,
+        onError: (error, orderId, status) => captureEdgeError('stripe-order-settlements', error, { order_id: orderId, settlement_status: status }, 'critical'),
+      }, stripeMode, order.id)
     }
-    const { error: updateError } = await admin.from('orders').update({ status: 'refunded', payment_status: 'refunded' }).eq('id', order.id)
-    if (updateError) throw updateError
-    const platformFeeCents = Math.max(0, Number(order.stripe_platform_fee_cents ?? 0))
-    const platformFeeNetCents = Math.max(0, Number(order.stripe_platform_fee_net_cents ?? platformFeeCents))
-    const platformFeeVatCents = Math.max(0, Number(order.stripe_platform_fee_vat_cents ?? 0))
-    if (usesSeparateTransfer && platformFeeCents > 0) {
-      const { error: revenueError } = await admin.from('revenue_events').upsert({
-        provider: 'stripe',
-        provider_event_id: refund.id,
-        provider_object_id: refund.id,
-        store_id: store.id,
-        kind: 'transaction_fee_refund',
-        amount_cents: -platformFeeNetCents,
-        currency: refund.currency.toLowerCase(),
-        description: 'Tagastatud müügitasu ja käibemaks',
-        occurred_at: new Date(refund.created * 1000).toISOString(),
-        metadata: {
-          refund_id: refund.id,
-          transfer_id: order.stripe_transfer_id,
-          net_amount_cents: -platformFeeNetCents,
-          vat_amount_cents: -platformFeeVatCents,
-          gross_amount_cents: -platformFeeCents,
-          vat_rate: 24,
-        },
-      }, { onConflict: 'provider,provider_event_id', ignoreDuplicates: true })
-      if (revenueError) throw revenueError
+    const { data: updated, error: readError } = await admin.from('orders')
+      .select('payment_status,stripe_refund_status').eq('id', order.id).single()
+    if (readError) throw readError
+    if (updated.stripe_refund_status === 'failed') {
+      return json({ error: 'Tagastus vajab kontrollimist. Võta ühendust Poeruumi toega.' }, 409)
     }
-    return json({ refunded: true, status: refund.status })
+    const refunded = updated.payment_status === 'refunded'
+    return json({ refunded, pending: !refunded, status: updated.stripe_refund_status })
+
   } catch (error) {
     await captureEdgeError('stripe-refund-order', error)
     console.error('Stripe’i tagastus ebaõnnestus.', error)

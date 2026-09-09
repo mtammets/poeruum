@@ -354,6 +354,23 @@ createServer(async (req, res) => {
       }
     }
 
+    // Receipt access is verified by the Edge endpoint. Serve only the shell
+    // here, before store lookup/SEO redirects can discard the return state.
+    // This also keeps receipts available after a shop is unpublished.
+    if (url.searchParams.has('checkout')) {
+      const html = (await templatePromise).replace(/<title>[\s\S]*?<\/title>/, '<title>Tellimuse ülevaade</title>')
+        .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
+        title: 'Tellimuse ülevaade', description: 'Sinu tellimuse makseolek ja andmed.',
+        canonical: `https://${host}${url.pathname}`, noIndex: true, type: 'website', schema: null,
+      }))
+      return send(res, 200, req.method === 'HEAD' ? null : html, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-store',
+        'Referrer-Policy': 'no-referrer',
+        'X-Robots-Tag': 'noindex, nofollow',
+      })
+    }
+
     if (host === storeDirectoryHost) {
       if (/^\/toode\//i.test(url.pathname)) {
         const legacyUrl = new URL(url.pathname, `https://${legacyKaubamajaStoreSlug}.${platformHost}`)

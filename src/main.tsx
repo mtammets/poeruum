@@ -4,6 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import type { LegalDocument } from './LegalPage'
 import { applySeoMetadata } from './lib/seo'
 import { registerGlobalErrorMonitoring } from './lib/errorMonitoring'
+import { readReceiptLocation } from './lib/orderReceipt'
 import { getStoreSlugFromHostname, isPlatformHostname, isStoreDirectoryHostname } from './lib/storefrontUrl'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import './styles.css'
@@ -19,6 +20,20 @@ const OutreachUnsubscribe = lazy(() => import('./OutreachUnsubscribe'))
 const PlatformApp = lazy(() => import('./PlatformApp'))
 const Kaubamaja = lazy(() => import('./Kaubamaja'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
+const OrderReceiptPage = lazy(() => import('./OrderReceiptPage'))
+
+const receiptLocation = readReceiptLocation(window.location.href)
+if (receiptLocation) {
+  const access = receiptLocation.access
+  // Preserve the private link across reloads without query-string credentials.
+  const fragment = access ? new URLSearchParams('token' in access ? { receipt: access.token } : { session_id: access.sessionId }).toString() : ''
+  window.history.replaceState({}, '', `${receiptLocation.storePath}?checkout=status${fragment ? `#${fragment}` : ''}`)
+  const referrer = document.createElement('meta')
+  referrer.name = 'referrer'
+  referrer.content = 'no-referrer'
+  document.head.appendChild(referrer)
+  applySeoMetadata({ title: 'Tellimuse ülevaade', description: 'Sinu tellimuse makseolek ja andmed.', canonicalUrl: `${window.location.origin}${receiptLocation.storePath}`, noIndex: true })
+}
 
 const LoadingScreen = () => document.documentElement.dataset.appSurface === 'storefront'
   ? <main className="storefront-loading" aria-label="Laadin poodi" aria-busy="true" />
@@ -152,6 +167,16 @@ function Homepage() {
 }
 
 function Root() {
+  const [activeReceiptLocation, setActiveReceiptLocation] = useState(receiptLocation)
+  useEffect(() => {
+    const syncReceipt = () => setActiveReceiptLocation(readReceiptLocation(window.location.href))
+    window.addEventListener('hashchange', syncReceipt)
+    window.addEventListener('popstate', syncReceipt)
+    return () => {
+      window.removeEventListener('hashchange', syncReceipt)
+      window.removeEventListener('popstate', syncReceipt)
+    }
+  }, [])
   useLayoutEffect(() => {
     let readinessFrame = 0
     let revealFrame = 0
@@ -192,6 +217,7 @@ function Root() {
     }
   }, [])
 
+  if (activeReceiptLocation) return <Suspense fallback={<LoadingScreen />}><OrderReceiptPage key={JSON.stringify(activeReceiptLocation.access)} location={activeReceiptLocation} /></Suspense>
   if (isStoreDirectorySurface) return <Suspense fallback={<LoadingScreen />}><Kaubamaja /></Suspense>
   if (isAdminPath) return <Suspense fallback={<LoadingScreen />}><AdminApp /></Suspense>
   if (isOutreachUnsubscribePath) return <Suspense fallback={<LoadingScreen />}><OutreachUnsubscribe /></Suspense>
