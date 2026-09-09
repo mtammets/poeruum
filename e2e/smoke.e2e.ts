@@ -151,7 +151,7 @@ test('landing page opens and login navigation works', async ({ page }) => {
   await page.getByRole('button', { name: 'Logi sisse' }).first().click()
   await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
   await expect(page.getByLabel('E-posti aadress')).toBeVisible()
-  await expect(page.getByLabel('Parool')).toBeVisible()
+  await expect(page.getByLabel('Parool', { exact: true })).toBeVisible()
   const submitButton = page.getByRole('button', { name: /Jätka oma poega/ })
   await expect(submitButton).toBeEnabled()
   expect(await page.evaluate(() => {
@@ -166,7 +166,7 @@ test('landing page opens and login navigation works', async ({ page }) => {
     }
   })).toEqual({ appearance: 'always', language: 'auto', retry: 'auto', retryInterval: 4000 })
   await page.getByLabel('E-posti aadress').fill('test@example.com')
-  await page.getByLabel('Parool').fill('test-password')
+  await page.getByLabel('Parool', { exact: true }).fill('test-password')
   await submitButton.click()
   await expect(page.getByRole('alert')).toHaveText('Kinnita enne jätkamist, et sa ei ole robot.')
   await page.evaluate(() => {

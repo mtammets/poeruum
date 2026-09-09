@@ -22,6 +22,7 @@ import {
 import BillingPlanDialog from './BillingPlanDialog'
 import ModalCloseButton from './ModalCloseButton'
 import ProductDescriptionGenerator from './ProductDescriptionGenerator'
+import PasswordInput from './PasswordInput'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
 import StorefrontCart from './StorefrontCart'
@@ -526,8 +527,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const saveProductButtonRef = useRef<HTMLButtonElement>(null)
   const exitAttentionTimerRef = useRef<number | null>(null)
   const editProductDescriptionRef = useRef<HTMLParagraphElement>(null)
-  const editProductPriceRef = useRef<HTMLElement>(null)
-  const editProductSalePriceRef = useRef<HTMLElement>(null)
+  const editProductPriceRef = useRef<HTMLInputElement>(null)
+  const editProductSalePriceRef = useRef<HTMLInputElement>(null)
+  const [editProductPrice, setEditProductPrice] = useState('')
+  const [editProductSalePrice, setEditProductSalePrice] = useState('')
   const editProductImageInputRef = useRef<HTMLInputElement>(null)
   const editProductImageModeRef = useRef<'add' | 'replace'>('add')
   const imageGesturePointersRef = useRef(new Map<number, { x: number; y: number }>())
@@ -1033,6 +1036,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     setEditProductOneOfAKind(Boolean(activeProduct.oneOfAKind))
     setEditProductCategoryId(activeProduct.categoryId ?? '')
     setEditProductName(activeProduct.name)
+    setEditProductPrice(activeProduct.price === undefined ? '' : String(activeProduct.price))
+    setEditProductSalePrice(activeProduct.salePrice === undefined ? '' : String(activeProduct.salePrice))
     setEditProductSeoTitle(activeProduct.seoTitle ?? '')
     setEditProductSlug(activeProduct.slug || automaticSlug)
     setIsEditProductSlugCustom(Boolean(activeProduct.slug && activeProduct.slug !== automaticSlug))
@@ -1322,6 +1327,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       setEditProductOneOfAKind(true)
       setEditProductCategoryId('')
       setEditProductName('')
+      setEditProductPrice('')
+      setEditProductSalePrice('')
       setEditProductSeoTitle('')
       setEditProductSlug('')
       setIsEditProductSlugCustom(false)
@@ -1874,19 +1881,26 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     }
     const name = editProductNameRef.current?.textContent?.trim() ?? ''
     const description = editProductDescriptionRef.current?.textContent?.trim() ?? ''
-    const parsePrice = (value: string | null | undefined) => {
-      const normalized = (value ?? '').replace(/\s/g, '').replace(',', '.').replace(/[^\d.-]/g, '')
+    const parsePrice = (value: string) => {
+      const normalized = value.replace(/\s/g, '').replace(',', '.')
       return normalized ? Number(normalized) : Number.NaN
     }
-    const price = parsePrice(editProductPriceRef.current?.textContent)
-    const salePriceText = editProductSalePriceRef.current?.textContent?.trim() ?? ''
+    const price = parsePrice(editProductPrice)
+    const salePriceText = editProductSalePrice.trim()
     const salePrice = salePriceText ? parsePrice(salePriceText) : undefined
-    if (!name || !Number.isFinite(price) || price < 0) {
-      setAuthToast('Kontrolli toote nime ja hinda')
+    if (!name) {
+      setAuthToast('Lisa toote nimi')
+      editProductNameRef.current?.focus()
+      return
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      setAuthToast('Lisa korrektne tavahind. Allahindluse eemaldamiseks jäta soodushind tühjaks.')
+      editProductPriceRef.current?.focus()
       return
     }
     if (salePrice !== undefined && (!Number.isFinite(salePrice) || salePrice < 0 || salePrice >= price)) {
-      setAuthToast('Soodushind peab olema tavahinnast väiksem')
+      setAuthToast('Soodushind peab olema vähemalt 0 ja tavahinnast väiksem. Allahindluse eemaldamiseks jäta see tühjaks.')
+      editProductSalePriceRef.current?.focus()
       return
     }
     if (!editProductImages.length) {
@@ -1960,6 +1974,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     setEditProductOptionType('none')
     setEditProductOptionValues('')
     setIsEditOpen(false)
+    setAuthToast(null)
   }
 
   useEffect(() => {
@@ -2798,16 +2813,22 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           >{activeProduct.description || (activeProduct.id === draftProductId ? '' : '—')}</p>
         </div>
         <div className="product-price">
-          <span>Hind</span>
-          <div className="price-value">
-            {activeProductHasSale ? <>
-              <del key={isEditOpen ? 'editing-price' : 'viewing-price'} ref={isEditOpen ? (node) => { editProductPriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote tavahind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onPaste={(event) => pastePlainText(event, true)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.price} €</del>
-              <strong key={isEditOpen ? 'editing-sale-price' : 'viewing-sale-price'} ref={isEditOpen ? (node) => { editProductSalePriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote soodushind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onPaste={(event) => pastePlainText(event, true)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.salePrice} €</strong>
-            </> : <>
-              <strong key={isEditOpen ? 'editing-price' : 'viewing-price'} ref={isEditOpen ? (node) => { editProductPriceRef.current = node } : undefined} contentEditable={isEditOpen} suppressContentEditableWarning role={isEditOpen ? 'textbox' : undefined} aria-label={isEditOpen ? 'Toote hind' : undefined} data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Lisa hind' : undefined} onFocus={(event) => selectEditableContents(event.currentTarget)} onPaste={(event) => pastePlainText(event, true)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}>{activeProduct.price !== undefined ? `${activeProduct.price} €` : activeProduct.id === draftProductId ? '' : '—'}</strong>
-              {isEditOpen && <strong className="editable-sale-price" ref={(node) => { editProductSalePriceRef.current = node }} contentEditable suppressContentEditableWarning role="textbox" aria-label="Toote soodushind" data-placeholder="Lisa soodushind" onFocus={(event) => selectEditableContents(event.currentTarget)} onPaste={(event) => pastePlainText(event, true)} onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()} />}
-            </>}
-          </div>
+          {isEditOpen ? <div className="product-price-editor">
+            <label>
+              <span>Tavahind</span>
+              <div className="product-price-editor__input"><input ref={editProductPriceRef} type="text" inputMode="decimal" aria-label="Toote tavahind" value={editProductPrice} onChange={(event) => { setEditProductPrice(event.target.value); setAuthToast(null) }} placeholder="Lisa hind" /><span aria-hidden="true">€</span></div>
+            </label>
+            <label>
+              <span>Soodushind <small>valikuline</small></span>
+              <div className="product-price-editor__input"><input ref={editProductSalePriceRef} type="text" inputMode="decimal" aria-label="Toote soodushind" value={editProductSalePrice} onChange={(event) => { setEditProductSalePrice(event.target.value); setAuthToast(null) }} placeholder="Puudub" /><span aria-hidden="true">€</span></div>
+            </label>
+            {editProductSalePrice !== '' && <button className="product-price-editor__remove" type="button" onClick={() => { setEditProductSalePrice(''); setAuthToast(null); editProductSalePriceRef.current?.focus() }}>Eemalda allahindlus</button>}
+          </div> : <>
+            <span>Hind</span>
+            <div className="price-value">
+              {activeProductHasSale ? <><del>{activeProduct.price} €</del><strong>{activeProduct.salePrice} €</strong></> : <strong>{activeProduct.price !== undefined ? `${activeProduct.price} €` : '—'}</strong>}
+            </div>
+          </>}
         </div>
         {isEditOpen && <ProductCategoryPicker categories={productCategories} value={editProductCategoryId} onChange={setEditProductCategoryId} onCreate={addProductCategory} />}
         {isEditOpen && <div className="product-inventory-editor product-inventory-editor--compact">
@@ -3376,7 +3397,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           <p className="password-change-sheet__intro">Praegune aadress on <strong>{accountEmail}</strong>. Uus aadress hakkab kehtima pärast kinnitamist.</p>
           <form onSubmit={changeEmail}>
             <label>Uus e-posti aadress<input type="email" value={newAccountEmail} onChange={(event) => { setNewAccountEmail(event.target.value); setEmailChangeError('') }} autoComplete="email" required disabled={isChangingEmail} autoFocus /></label>
-            <label>Praegune parool<input type="password" value={emailChangePassword} onChange={(event) => { setEmailChangePassword(event.target.value); setEmailChangeError('') }} autoComplete="current-password" required disabled={isChangingEmail} /></label>
+            <PasswordInput label="Praegune parool" value={emailChangePassword} onChange={(event) => { setEmailChangePassword(event.target.value); setEmailChangeError('') }} autoComplete="current-password" required disabled={isChangingEmail} />
             <Turnstile key={`email-change-${accountCaptchaResetKey}`} action="account_verify" onToken={setAccountCaptchaToken} />
             {emailChangeError && <p className="password-change-sheet__error" role="alert">{emailChangeError}</p>}
             <button type="submit" disabled={isChangingEmail || !newAccountEmail.trim() || !emailChangePassword}>{isChangingEmail ? 'Saadan…' : 'Saada kinnituskiri'}</button>
@@ -3390,9 +3411,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           <h2 id="password-change-title">Muuda parooli</h2>
           <p className="password-change-sheet__intro">Sisesta praegune parool ja vali uus tugev parool.</p>
           <form onSubmit={changePassword}>
-            <label>Praegune parool<input type="password" value={currentPassword} onChange={(event) => { setCurrentPassword(event.target.value); setPasswordChangeError('') }} autoComplete="current-password" required disabled={isChangingPassword} /></label>
-            <label>Uus parool<input type="password" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} required disabled={isChangingPassword} /><small className="settings-field-note">{PASSWORD_REQUIREMENTS_TEXT}</small></label>
-            <label>Korda uut parooli<input type="password" value={newPasswordConfirmation} onChange={(event) => { setNewPasswordConfirmation(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} required disabled={isChangingPassword} /></label>
+            <PasswordInput label="Praegune parool" value={currentPassword} onChange={(event) => { setCurrentPassword(event.target.value); setPasswordChangeError('') }} autoComplete="current-password" required disabled={isChangingPassword} />
+            <PasswordInput label="Uus parool" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} required disabled={isChangingPassword} hint={<span className="settings-field-note">{PASSWORD_REQUIREMENTS_TEXT}</span>} />
+            <PasswordInput label="Korda uut parooli" value={newPasswordConfirmation} onChange={(event) => { setNewPasswordConfirmation(event.target.value); setPasswordChangeError('') }} autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} required disabled={isChangingPassword} />
             <Turnstile key={`password-change-${accountCaptchaResetKey}`} action="account_verify" onToken={setAccountCaptchaToken} />
             {passwordChangeError && <p className="password-change-sheet__error" role="alert">{passwordChangeError}</p>}
             <button type="submit" disabled={isChangingPassword || !currentPassword || newPassword.length < PASSWORD_MIN_LENGTH || !newPasswordConfirmation}>{isChangingPassword ? 'Muudan…' : 'Muuda parool'}</button>
@@ -3500,7 +3521,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               }
             }}>
               <label>E-post<input name="email" type="email" value={loginEmail} onChange={(event) => { setLoginEmail(event.target.value); setLoginRecoveryMessage('') }} autoComplete="username" required /></label>
-              <label>Parool<input name="password" type="password" autoComplete="current-password" required /></label>
+              <PasswordInput label="Parool" name="password" autoComplete="current-password" required />
               <button className="login-forgot-password" type="button" onClick={requestLoginPasswordReset}>Unustasid parooli?</button>
               <Turnstile
                 key={`owner-login-${loginCaptchaResetKey}`}

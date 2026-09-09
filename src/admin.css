@@ -359,7 +359,7 @@
 .admin-auth__card h1 { margin: .65rem 0 .4rem; font-family: Manrope, sans-serif; font-size: 1.7rem; letter-spacing: -.05em; }
 .admin-auth__card > p { margin: 0 0 1.5rem; color: #7b857e; font-size: .9rem; line-height: 1.55; }
 .admin-auth__card form { display: grid; gap: .9rem; }
-.admin-auth__card label { display: grid; gap: .4rem; color: #4d5c53; font-size: .875rem; font-weight: 750; }
+.admin-auth__card label, .admin-auth__card .password-control { display: grid; gap: .4rem; color: #4d5c53; font-size: .875rem; font-weight: 750; }
 .admin-auth__card input { width: 100%; padding: .8rem .85rem; border: 1px solid #d8dcd4; border-radius: .65rem; outline: 0; background: #fbfcf9; color: #17231c; font: inherit; }
 .admin-auth__card input:focus { border-color: #4f795f; box-shadow: 0 0 0 3px #265f4314; }
 .admin-auth__card form > button { display: flex; align-items: center; justify-content: space-between; margin-top: .25rem; padding: .85rem .9rem; border: 0; border-radius: .68rem; background: #265f43; color: #fff; font: inherit; font-size: .9rem; font-weight: 800; cursor: pointer; }

@@ -4,6 +4,7 @@ import { createRandomId } from './lib/randomId'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Brand } from './Brand'
+import PasswordInput from './PasswordInput'
 import { hasAdminRole } from './lib/adminAccess'
 import { Storefront } from './App'
 import { getShowcaseStore, listProducts, type StoreRecord } from './lib/database'
@@ -430,7 +431,7 @@ function AdminLogin({
       <p>Logi sisse administraatori õigustega kontoga.</p>
       <form onSubmit={signIn}>
         <label>E-post<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label>
-        <label>Parool<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
+        <PasswordInput label="Parool" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
         <Turnstile key={`admin-login-${captchaResetKey}`} action="admin_login" onToken={setCaptchaToken} />
         {(error || accessError) && <p className="admin-auth__error" role="alert">{error || accessError}</p>}
         <button type="submit" disabled={isBusy}>{isBusy ? 'Login sisse…' : 'Logi sisse'}<span aria-hidden="true">→</span></button>

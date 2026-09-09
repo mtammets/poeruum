@@ -222,7 +222,7 @@ button, a, summary { touch-action: manipulation; }
 .auth-card h1 { margin: 0 0 .4rem; font-family: Manrope, sans-serif; font-size: 2rem; letter-spacing: -.04em; }
 .auth-card > p { margin: 0 0 1.8rem; color: #778078; }
 .auth-card form, .setup-form { display: grid; min-width: 0; gap: 1.15rem; }
-.auth-card label, .setup-form label { display: grid; gap: .45rem; color: #39463e; font-size: .78rem; font-weight: 700; }
+.auth-card label, .auth-card .password-control, .setup-form label { display: grid; gap: .45rem; color: #39463e; font-size: .78rem; font-weight: 700; }
 .auth-card input, .setup-form input, .setup-form textarea { width: 100%; padding: .9rem 1rem; border: 1px solid #d7dbd2; border-radius: .7rem; outline: none; background: #fbfcf9; color: var(--platform-ink); }
 .auth-card input:focus, .setup-form input:focus, .setup-form textarea:focus { border-color: var(--platform-green); box-shadow: 0 0 0 3px #265f4312; }
 .auth-consent { position: relative; display: grid !important; grid-template-columns: auto 1fr; align-items: start; gap: .65rem !important; cursor: pointer; font-weight: 500 !important; }

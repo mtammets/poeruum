@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import BillingPlanDialog from './BillingPlanDialog'
+import PasswordInput from './PasswordInput'
 import { Brand } from './Brand'
 import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
@@ -1625,7 +1626,7 @@ function PlatformFlow() {
           <h1>Logi sisse</h1><p>Tagasi oma poe haldusesse.</p>
           <form onSubmit={signIn}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false); setConfirmationResendCooldown(0); setIsConfirmationRateLimited(false) }} onBlur={restoreLoginScrollAfterKeyboard} placeholder="sina@ettevote.ee" autoComplete="username" enterKeyHint="next" autoFocus /></label>
-            <label>Parool<input required name="password" type="password" placeholder="Sinu parool" autoComplete="current-password" enterKeyHint="done" onBlur={restoreLoginScrollAfterKeyboard} /></label>
+            <PasswordInput key="login-password" label="Parool" required name="password" placeholder="Sinu parool" autoComplete="current-password" enterKeyHint="done" onBlur={restoreLoginScrollAfterKeyboard} />
             <button className="auth-password-link" type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setScreen('forgot-password') }}>Unustasid parooli?</button>
             <Turnstile key={`login-${captchaResetKey}`} action="login" onToken={handleCaptchaToken} />
             {needsEmailConfirmation && <div className="auth-confirmation-prompt" role="alert">
@@ -1670,8 +1671,8 @@ function PlatformFlow() {
       <section className="auth-card auth-card--login">
         <h1>Vali uus parool</h1><p>{email ? `Konto: ${email}` : 'Sisesta uus parool.'}</p>
         <form onSubmit={completePasswordReset}>
-          <label>Uus parool<input required name="password" type="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" autoFocus /><small>{PASSWORD_REQUIREMENTS_TEXT}</small></label>
-          <label>Korda uut parooli<input required name="passwordConfirmation" type="password" minLength={PASSWORD_MIN_LENGTH} placeholder="Korda parooli" autoComplete="new-password" /></label>
+          <PasswordInput key="reset-password" label="Uus parool" required name="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" autoFocus hint={PASSWORD_REQUIREMENTS_TEXT} />
+          <PasswordInput key="reset-password-confirmation" label="Korda uut parooli" required name="passwordConfirmation" minLength={PASSWORD_MIN_LENGTH} placeholder="Korda parooli" autoComplete="new-password" />
           {authError && <p className="add-product-error" role="alert">{authError}</p>}
           <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Muudan…' : 'Salvesta uus parool'} <span>→</span></button>
         </form>
@@ -1699,7 +1700,7 @@ function PlatformFlow() {
           <h1>Loo konto</h1>
           <form onSubmit={signUp}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sina@ettevote.ee" autoFocus /></label>
-            <label>Parool<input required name="password" type="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" /><small>{PASSWORD_REQUIREMENTS_TEXT}</small></label>
+            <PasswordInput key="signup-password" label="Parool" required name="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" hint={PASSWORD_REQUIREMENTS_TEXT} />
             <label className="auth-consent">
               <input required type="checkbox" />
               <span className="auth-checkbox" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 2.8 2.8 6.2-6.2" /></svg></span>

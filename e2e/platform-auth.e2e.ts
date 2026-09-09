@@ -220,7 +220,7 @@ for (const storefrontUrl of ['http://kruk-kruk.poeruum.localhost:4174/', '/p/kru
     await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
     await expect(page.getByRole('dialog', { name: 'Logi sisse' })).toHaveCount(0)
     await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
-    await page.getByLabel('Parool').fill('turvaline-testiparool')
+    await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
     await page.getByRole('button', { name: /Jätka oma poega/ }).click()
     await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
     await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
@@ -237,7 +237,7 @@ test('a public store keeps its own content when another merchant is already sign
   const backend = await installSupabaseBackend(page, store, connectedStripeStatus, { publicStore: otherStore })
   await page.goto('/?continue_setup=1')
   await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
-  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
   await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
   await page.goto('/p/kruk-kruk/')
@@ -267,7 +267,7 @@ test('existing merchant never sees new-store onboarding while their store loads'
   await page.goto('/')
   await page.getByRole('button', { name: 'Logi sisse' }).first().click()
   await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
-  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
 
   await expect(page.getByLabel('Laadin sinu poodi')).toBeVisible()
@@ -284,7 +284,7 @@ test('merchant logout returns to the Poeruum homepage', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Logi sisse' }).first().click()
   await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
-  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
 
   await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
@@ -368,7 +368,7 @@ test('a draft can continue setup while Stripe verifies submitted details', async
   await page.goto('/')
   await page.getByRole('button', { name: 'Logi sisse' }).first().click()
   await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
-  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
 
   await expect(page.getByRole('heading', { name: 'Poe maksed' })).toBeVisible()
@@ -389,7 +389,7 @@ test('Stripe requirements email link survives login and opens the owned store pa
   await expect(page).toHaveURL(/stripe_requirements=1/)
 
   await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
-  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
 
   const settings = page.getByRole('dialog', { name: 'Seaded' })
@@ -409,7 +409,7 @@ test('Stripe return on the shop hostname opens payment settings with the existin
   await page.goto('/')
   await page.getByRole('button', { name: 'Logi sisse' }).first().click()
   await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
-  await page.getByLabel('Parool').fill('turvaline-testiparool')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
   await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
 
