@@ -40,7 +40,7 @@ function StripePreviewFrame() {
   return <><SetupShell screen="payments" onBack={() => void close()} onExit={() => void close()}>
     <div className="setup-form">
       {publishableKey ? <StripeEmbeddedOnboarding key={mode} mode={mode}
-        businessAddress="Näidise 7, Tallinn, 10111" requirements={requirements}
+        requirements={requirements}
         connection={{ publishableKey, fetchClientSecret: async (nextMode) => {
           const result = await stripe('start', nextMode)
           if (!result.clientSecret) throw new Error('Stripe ei tagastanud testvormi sessiooni.')

@@ -137,7 +137,7 @@ jobs:
       - name: Start temporary frontend
         shell: bash
         run: |
-          npm run dev -- --host 127.0.0.1 > /tmp/poeruum-vite.log 2>&1 &
+          npm run dev:app -- --host 127.0.0.1 > /tmp/poeruum-vite.log 2>&1 &
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:5173/ > /dev/null; then
               exit 0

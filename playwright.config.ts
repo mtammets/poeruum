@@ -24,7 +24,7 @@ export default defineConfig({
     },
   }],
   webServer: [{
-    command: 'npm run dev -- --host 127.0.0.1 --port 4173',
+    command: 'npm run dev:app -- --host 127.0.0.1 --port 4173',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     env: {
@@ -35,7 +35,7 @@ export default defineConfig({
       VITE_TURNSTILE_SITE_KEY: 'playwright-test-site-key',
     },
   }, {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4174',
+    command: 'npm run dev:app -- --host 127.0.0.1 --port 4174',
     url: 'http://localhost:4174',
     reuseExistingServer: !process.env.CI,
     env: {

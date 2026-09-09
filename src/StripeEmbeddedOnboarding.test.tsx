@@ -107,7 +107,6 @@ describe('Stripe remediation form', () => {
     const { default: StripeEmbeddedOnboarding } = await import('./StripeEmbeddedOnboarding')
     const onManage = vi.fn()
     const props = {
-      businessAddress: 'Näidise 7–3, Tartu, 51004',
       requirements: {
         dueCount: 1, pastDue: true, currentDeadline: null,
         pendingVerification: false, disabledReason: 'requirements.past_due',
@@ -120,8 +119,6 @@ describe('Stripe remediation form', () => {
     }
     const html = renderToStaticMarkup(createElement(StripeEmbeddedOnboarding, { ...props, mode: 'remediation' }))
     expect(html).toContain('Dokumendil olev aadress ei ühti ettevõtte aadressiga')
-    expect(html).toContain('Registrijärgne aadress Poeruumis')
-    expect(html).toContain(props.businessAddress)
     expect(html).toContain('Muuda andmeid')
 
     stripeMocks.initialize.mockClear()

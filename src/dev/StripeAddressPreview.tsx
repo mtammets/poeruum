@@ -49,7 +49,6 @@ function StripeAddressPreview() {
           <span><strong>{titles[mode]}</strong><small>{mode === 'onboarding' ? 'Maksete vastuvõtt' : 'Ettevõtte andmed ja kontrollid'}</small></span>
         </div></header>
         <StripeAddressGuide
-          businessAddress="Näidise 7–3, Tartu linn, Tartu maakond, 51004"
           requirements={mode === 'onboarding' ? null : rejectedDocument}
           onManage={mode === 'remediation' ? () => setMode('management') : undefined}
         />

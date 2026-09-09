@@ -3,11 +3,17 @@
 Käivita projekti juurkaustas:
 
 ```sh
-npm run dev:payments
+npm run dev
 ```
 
-Ava http://127.0.0.1:4185/previews/payments.html. Brauseri automaatseks avamiseks
-kasuta `npm run dev:payments -- --open`.
+See käivitab nii põhirakenduse kui ka maksete eelvaate. `Ctrl+C` sulgeb mõlemad.
+Ava http://127.0.0.1:4185/previews/payments.html. Ainult eelvaate käivitamiseks
+kasuta `npm run dev:payments`; brauseri automaatseks avamiseks lisa `-- --open`.
+
+Eelvaate saad avada ka admini menüü lingist **Maksete eelvaade**. Link avab
+uuel vahelehel sinu arvuti kohaliku serveri pordil 4185, ka avaliku saidi
+administ. Enne lingi avamist peab samas arvutis töötama `npm run dev` või
+`npm run dev:payments`.
 
 ## Mida saab vaadata?
 

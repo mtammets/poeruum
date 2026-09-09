@@ -17,7 +17,6 @@ export type StripeEmbeddedMode = 'onboarding' | 'management' | 'remediation'
 
 export type StripeEmbeddedOnboardingProps = {
   mode?: StripeEmbeddedMode
-  businessAddress?: string
   requirements?: StripeRequirementSummary | null
   onManage?: () => void
   onExit: () => Promise<void>
@@ -30,7 +29,6 @@ export type StripeEmbeddedOnboardingProps = {
 
 export default function StripeEmbeddedOnboarding({
   mode = 'onboarding',
-  businessAddress,
   requirements,
   onManage,
   onExit,
@@ -50,6 +48,7 @@ export default function StripeEmbeddedOnboarding({
     ? { fields: 'currently_due' as const, futureRequirements: 'include' as const }
     : { fields: 'eventually_due' as const, futureRequirements: 'include' as const }
   const [loadPhase, setLoadPhase] = useState<'connecting' | 'loading' | 'ready' | 'error'>('connecting')
+  const [currentStep, setCurrentStep] = useState('')
   const [isClosing, setIsClosing] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const [renderAttempt, setRenderAttempt] = useState(0)
@@ -125,6 +124,7 @@ export default function StripeEmbeddedOnboarding({
 
   const retryStripeForm = () => {
     onError('')
+    setCurrentStep('')
     setLoadPhase('connecting')
     setRenderAttempt((attempt) => attempt + 1)
   }
@@ -156,7 +156,11 @@ export default function StripeEmbeddedOnboarding({
   if (!connectInstance) return null
   return <section className={`stripe-embedded is-${mode}`} aria-label={title}>
     <header><div>{isRemediation ? <BrandMark className="stripe-embedded__poeruum-mark" /> : <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i>}<span><strong>{title}</strong><small>{subtitle}{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
-    <StripeAddressGuide businessAddress={businessAddress} requirements={requirements} onManage={isRemediation ? onManage : undefined} />
+    <StripeAddressGuide requirements={requirements} onManage={isRemediation ? onManage : undefined} />
+    {!isManagement && !isCompleting && loadPhase === 'ready' && currentStep === 'representative_details' && <div className="stripe-embedded__personal-hints" role="note">
+      <p><strong>Täisnimi</strong> — sisesta oma ees- ja perekonnanimi nii, nagu need on isikut tõendaval dokumendil.</p>
+      <p><strong>Kodune aadress</strong> — sisesta aadress, kus sa praegu elad. Kui Stripe küsib aadressitõendit, peab sellel olema sinu nimi ja sama aadress.</p>
+    </div>}
     <div className={`stripe-embedded__component is-${loadPhase}${isCompleting ? ' is-completing' : ''}`}>
       {isCompleting && <div className="stripe-completing" role="status" aria-live="polite">
         <span aria-hidden="true" />
@@ -195,6 +199,7 @@ export default function StripeEmbeddedOnboarding({
           onLoaderStart={handleLoaderStart}
           onStepChange={({ step }) => {
             onError('')
+            setCurrentStep(step)
             setLoadPhase('ready')
             onStepChange?.(step)
           }}

@@ -1298,7 +1298,6 @@ function PlatformFlow() {
         <StripeEmbeddedOnboarding
           key={stripeEmbeddedMode}
           mode={stripeEmbeddedMode}
-          businessAddress={String(store?.settings?.businessAddress ?? '')}
           requirements={stripeRequirements}
           onManage={() => void startStripeConnect('management')}
           onExit={finishStripeEmbeddedOnboarding}
@@ -1748,7 +1747,6 @@ function PlatformFlow() {
       {isStripeOnboardingOpen ? <StripeEmbeddedOnboarding
         key={stripeEmbeddedMode}
         mode={stripeEmbeddedMode}
-        businessAddress={String(store?.settings?.businessAddress ?? '')}
         requirements={stripeRequirements}
         onManage={() => void startStripeConnect('management')}
         onExit={finishStripeEmbeddedOnboarding}

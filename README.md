@@ -60,8 +60,11 @@ Ilma Supabase'i võtmeteta saab avada avalehe, autentimisvaated,
 juriidilised lehed ja admini suletud oleku. Täieliku keskkonna seadistamine on
 kirjeldatud failis [SUPABASE.md](SUPABASE.md).
 
-Maksete seadistamist saab ilma kontot loomata vaadata käsuga
-`npm run dev:payments`, seejärel ava http://127.0.0.1:4185/previews/payments.html.
+`npm run dev` käivitab nii põhirakenduse kui ka maksete eelvaate. Eelvaate saab
+avada admini menüüst **Maksete eelvaade** või aadressilt
+http://127.0.0.1:4185/previews/payments.html; konto loomist pole vaja.
+`Ctrl+C` sulgeb mõlemad serverid. Ainult põhirakenduse käivitamiseks kasuta
+`npm run dev:app`, ainult eelvaate jaoks `npm run dev:payments`.
 Päris Stripe’i testvormi võtmed ja kasutusjuhend on failis
 [previews/README.md](previews/README.md).
 
