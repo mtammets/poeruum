@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['coverage/**', 'dist/**', 'node_modules/**', 'vite.config.d.ts', 'vite.config.js'],
+    ignores: ['coverage/**', 'dist/**', 'node_modules/**', 'output/**', 'vite.config.d.ts', 'vite.config.js'],
   },
   {
     ...js.configs.recommended,

@@ -84,7 +84,6 @@ function PaymentPreview() {
     <header className="payment-preview__header"><Brand /><span className="payment-preview__badge">Eelvaade</span>
       <span className={`payment-preview__connection${ready ? ' is-ready' : ''}`}>{ready === null ? 'Kontrollin ühendust…' : ready ? 'Stripe’i testvõtmed olemas' : 'Stripe’i testvõtmed lisamata'}</span>
     </header>
-    <div className="payment-preview__intro"><span>Vaata läbi. Proovi järele.</span><h1>Maksete teekond</h1><p>Poeruumi praegused ekraanid ja Stripe’i päris testvorm. Koodimuudatused jõuavad siia automaatselt.</p></div>
     <div className="payment-preview__workspace">
       <aside className="payment-preview__sidebar">
         <div className="payment-preview__tabs" aria-label="Eelvaate sisu">{([['app', 'Poeruumi vaated'], ['stripe', 'Stripe’i vorm']] as const).map(([kind, label]) => <button key={kind} type="button" aria-pressed={selection.kind === kind} onClick={() => setSelection((current) => current.kind === kind ? current : ({ ...current, kind }))}>{label}</button>)}</div>
@@ -108,7 +107,6 @@ function PaymentPreview() {
       </aside>
       <section className="payment-preview__stage" aria-label="Valitud vaate eelvaade">
         <div className="payment-preview__toolbar"><div aria-label="Ekraani suurus"><button type="button" aria-pressed={mobile} onClick={() => setMobile(true)}>Telefon</button><button type="button" aria-pressed={!mobile} onClick={() => setMobile(false)}>Arvuti</button></div><button type="button" disabled={busy || (selection.kind === 'stripe' && !ready)} onClick={() => setAttempt((value) => value + 1)}>Alusta uuesti ↺</button></div>
-        <div className="payment-preview__caption"><strong>{selection.kind === 'stripe' ? 'Stripe’i päris vorm · testkeskkond' : `${screens.find(([screen]) => screen === selection.screen)?.[1]} · näidisandmed`}</strong><span>{selection.kind === 'stripe' ? 'Sama Stripe’i komponent ja kujundus nagu Poeruumis.' : 'Saad nuppe vajutada ja teekonnas edasi liikuda.'}</span></div>
         {error && <div className="payment-preview__error" role="alert">{error}</div>}
         {selection.kind === 'stripe' && ready === false ? <div className="payment-preview__empty"><span aria-hidden="true">↗</span><h2>Ühenda Stripe’i testkeskkond</h2><p>Vormi nägemiseks lisa sama Stripe’i testkeskkonna võtmed projekti <code>.env.local</code> faili.</p><pre>STRIPE_TEST_PUBLISHABLE_KEY=pk_test_…{'\n'}STRIPE_TEST_SECRET_KEY=sk_test_…</pre><p>Seejärel käivita <code>npm run dev:payments</code> uuesti. Poeruumi vaateid saad juba praegu proovida.</p></div>
           : busy ? <div className="payment-preview__empty" role="status"><h2>Valmistan eelvaadet…</h2></div>

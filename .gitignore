@@ -3,6 +3,9 @@ dist/
 playwright-report/
 test-results/
 
+# Local screenshots, reports, and exploratory previews.
+/output/
+
 .DS_Store
 *.tsbuildinfo
 

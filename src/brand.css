@@ -5020,15 +5020,18 @@
   .desktop-arrows {
     position: absolute;
     z-index: 5;
+    top: 50%;
     right: 1.5rem;
-    bottom: 6.25rem;
+    left: 1.5rem;
     display: flex;
-    gap: 0.55rem;
+    justify-content: space-between;
+    transform: translateY(-50%);
+    pointer-events: none;
   }
 
   .sale-badge {
     right: 1.65rem;
-    bottom: 10.25rem;
+    bottom: calc(var(--buy-button-height, 3.2rem) + 2.25rem);
   }
 
   .gallery-thumbnails {
@@ -5053,6 +5056,7 @@
     color: #fff;
     font-size: 1.35rem;
     backdrop-filter: blur(12px);
+    pointer-events: auto;
   }
 
   .desktop-arrows button:disabled {
@@ -5259,6 +5263,12 @@
     margin-top: 0;
   }
 
+}
+
+@media (min-width: 1024px) and (max-height: 800px) {
+  .app-shell[data-editing='true'] .desktop-arrows {
+    right: 6rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
