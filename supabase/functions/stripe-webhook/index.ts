@@ -10,10 +10,7 @@ import {
   stripeId,
   verifyStripeEvent,
 } from '../_shared/stripe-webhook.ts'
-import { assertStoredStripeMode } from '../_shared/stripe-mode.ts'
-import { completePaidStoreOrder } from '../_shared/store-payment.ts'
-import { processStoreSettlement } from '../_shared/order-settlement.ts'
-import { processPaidOrderEmails } from '../_shared/order-email-queue.ts'
+import { handleStorePaymentEvent } from '../_shared/stripe-store-events.ts'
 import { sendBillingEmail, type BillingEmailStore } from '../_shared/billing-email.ts'
 
 type StripeRecord = Record<string, unknown>
@@ -154,52 +151,10 @@ const markStoreDelinquent = async (input: {
   }
 }
 
-const completeStorePayment = async (event: Stripe.Event, object: StripeRecord, orderId: string, storeId: string | null) => {
-  const secretKey = Deno.env.get('STRIPE_SECRET_KEY')
-  if (!secretKey) throw new Error('Puudub STRIPE_SECRET_KEY.')
-  const paymentIntentId = stripeId(object.payment_intent)
-  const sessionId = stripeId(object)
-  if (!paymentIntentId || !sessionId) throw new Error('Makse PaymentIntent või Checkout Session puudub.')
-
-  await completePaidStoreOrder({
-    admin: getAdminClient(),
-    stripe: new Stripe(secretKey, { timeout: 10_000, maxNetworkRetries: 1 }),
-    settleOrder: (id) => runSettlement(id, event.livemode),
-    notifyOrder: (id) => processPaidOrderEmails({ admin: getAdminClient(),
-      onError: (error, job) => captureEdgeError('order-emails', error,
-        { order_id: job.order_id, job_id: job.id, recipient_kind: job.kind }, 'critical'),
-    }, event.livemode ? 'live' : 'test', id),
-  }, {
-    orderId,
-    storeId,
-    sessionId,
-    paymentIntentId,
-    mode: event.livemode ? 'live' : 'test',
-  })
-}
-
-const runSettlement = async (orderId: string, livemode: boolean) => {
-  if (Deno.env.get('STRIPE_SETTLEMENT_WORKER_ENABLED') === 'false') return null
-  const key = Deno.env.get('STRIPE_SECRET_KEY')
-  if (!key) throw new Error('Puudub STRIPE_SECRET_KEY.')
-  return processStoreSettlement({
-    admin: getAdminClient(), stripe: new Stripe(key, { timeout: 10_000, maxNetworkRetries: 1 }),
-    onError: (error, id, status) => captureEdgeError('stripe-order-settlements', error, { order_id: id, settlement_status: status }, 'critical'),
-  }, livemode ? 'live' : 'test', orderId)
-}
-
 const handleEvent = async (event: Stripe.Event) => {
   const object = event.data.object as unknown as StripeRecord
 
-  if (['charge.updated', 'refund.updated', 'refund.failed'].includes(event.type)) {
-    const paymentIntentId = stripeId(object.payment_intent)
-    if (!paymentIntentId) return
-    const { data: order, error } = await getAdminClient().from('orders').select('id')
-      .eq('stripe_payment_intent_id', paymentIntentId).eq('stripe_mode', event.livemode ? 'live' : 'test').maybeSingle()
-    if (error) throw error
-    if (order) await runSettlement(order.id, event.livemode)
-    return
-  }
+  if (await handleStorePaymentEvent(event)) return
 
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const storeId = metadataStoreId(object) ?? (typeof object.client_reference_id === 'string' ? object.client_reference_id : null)
@@ -214,34 +169,6 @@ const handleEvent = async (event: Stripe.Event) => {
         stripe_subscription_id: subscription?.id ?? stripeId(object.subscription),
         stripe_subscription_status: subscription?.status ?? (object.payment_status === 'paid' ? 'active' : 'trialing'),
       }, { storeId })
-    } else if (object.mode === 'payment') {
-      const orderId = object.metadata && typeof object.metadata === 'object' && 'order_id' in object.metadata
-        ? String(object.metadata.order_id)
-        : null
-      if (orderId && (object.payment_status === 'paid' || event.type === 'checkout.session.async_payment_succeeded')) {
-        await completeStorePayment(event, object, orderId, storeId)
-      } else if (orderId && object.payment_status === 'unpaid') {
-        // Some bank methods finish asynchronously after Checkout itself is complete.
-        // Keep their goods reserved until Stripe sends the final succeeded/failed event.
-        const { error } = await getAdminClient().from('orders').update({
-          reservation_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        }).eq('id', orderId).eq('payment_status', 'pending')
-        if (error) throw error
-      }
-    }
-    return
-  }
-
-  if (event.type === 'checkout.session.async_payment_failed' || event.type === 'checkout.session.expired') {
-    const orderId = object.metadata && typeof object.metadata === 'object' && 'order_id' in object.metadata
-      ? String(object.metadata.order_id)
-      : null
-    if (orderId) {
-      const { data: orderMode, error: modeError } = await getAdminClient().from('orders').select('stripe_mode').eq('id', orderId).maybeSingle()
-      if (modeError) throw modeError
-      assertStoredStripeMode(orderMode?.stripe_mode, event.livemode ? 'live' : 'test', 'Tellimuse makse')
-      const { error } = await getAdminClient().rpc('release_stripe_order', { target_order_id: orderId })
-      if (error) throw error
     }
     return
   }
@@ -397,13 +324,17 @@ Deno.serve(async (request) => {
     return json({ error: 'Invalid Stripe signature' }, 400)
   }
 
+  let token: string | undefined
   try {
-    if (!await claimEvent(event, 'account')) return json({ received: true, duplicate: true })
+    const claim = await claimEvent(event, 'account')
+    if (claim.state === 'processed') return json({ received: true, duplicate: true })
+    if (claim.state === 'busy') return json({ error: 'Webhook processing in progress' }, 503)
+    token = claim.token!
     await handleEvent(event)
-    await completeEvent(event.id)
+    await completeEvent(event.id, token)
     return json({ received: true })
   } catch (error) {
-    await releaseEvent(event.id)
+    if (token) await releaseEvent(event.id, token, error)
     await captureEdgeError('stripe-webhook', error, { event_type: event.type }, 'critical')
     console.error(`Stripe webhook ${event.id} ebaõnnestus.`, error)
     return json({

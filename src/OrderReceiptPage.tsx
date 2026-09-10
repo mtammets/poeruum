@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { OrderReceipt, ReceiptStatus } from '../shared/order-receipt'
 import { fetchOrderReceipt, ReceiptLoadError, type ReceiptLocation } from './lib/orderReceipt'
+import { forgetCheckoutAttempt } from './lib/checkoutAttempt'
 import './orderReceipt.css'
 
 const euro = (amount: number) => new Intl.NumberFormat('et-EE', { style: 'currency', currency: 'EUR' }).format(amount)
@@ -38,6 +39,7 @@ export default function OrderReceiptPage({ location }: { location: ReceiptLocati
         const result = await fetchOrderReceipt(access, controller.signal)
         if (!active) return
         setReceipt(result)
+        if (['paid', 'refunded', 'expired'].includes(result.status) || (result.status === 'failed' && !result.resumeUrl)) forgetCheckoutAttempt()
         setError('')
         shouldPoll = ['pending', 'unpaid', 'failed'].includes(result.status)
       } catch (reason) {
@@ -74,7 +76,9 @@ export default function OrderReceiptPage({ location }: { location: ReceiptLocati
     }
   }, [location])
 
-  const current = receipt ? copy[receipt.status] : null
+  const current = receipt?.status === 'failed' && !receipt.resumeUrl
+    ? { title: 'Makse ebaõnnestus', message: 'Selle tellimuse eest pole kinnitatud makset. Uue tellimuse saad vormistada poes.' }
+    : receipt ? copy[receipt.status] : null
   return <main className="order-receipt">
     <div className="order-receipt__sheet">
       <header><span>{receipt?.storeName || 'Poeruum'}</span><span>Tellimuse ülevaade</span></header>

@@ -42,28 +42,29 @@ export const verifyStripeEvent = async (
 }
 
 export const claimEvent = async (event: Stripe.Event, source: WebhookSource) => {
-  const admin = getAdminClient()
-  const accountId = typeof event.account === 'string' ? event.account : null
-  const { error } = await admin.from('stripe_webhook_events').insert({
-    event_id: event.id,
-    source,
-    event_type: event.type,
-    livemode: event.livemode,
-    connected_account_id: accountId,
+  const { data, error } = await getAdminClient().rpc('claim_stripe_webhook', {
+    event_id_value: event.id, source_value: source, event_type_value: event.type,
+    livemode_value: event.livemode, connected_account_value: event.account ?? null, payload_value: event,
   })
-  if (!error) return true
-  if (error.code === '23505') return false
-  throw error
+  if (error) throw error
+  if (!data || !['claimed', 'processed', 'busy'].includes(data.state) || (data.state === 'claimed' && !data.token)) {
+    throw new Error('Webhooki tööõigus puudub.')
+  }
+  return data as { state: 'claimed' | 'processed' | 'busy'; token?: string }
 }
 
-export const completeEvent = async (eventId: string) => {
-  const { error } = await getAdminClient().from('stripe_webhook_events').update({ processed_at: new Date().toISOString() }).eq('event_id', eventId)
+export const finishEvent = async (eventId: string, token: string, outcome: 'completed' | 'retry' | 'needs_review', message: string | null = null) => {
+  const { error } = await getAdminClient().rpc('finish_stripe_webhook', {
+    event_id_value: eventId, token_value: token, outcome_value: outcome, error_value: message,
+  })
   if (error) throw error
 }
 
-export const releaseEvent = async (eventId: string) => {
-  const { error } = await getAdminClient().from('stripe_webhook_events').delete().eq('event_id', eventId)
-  if (error) console.error('Webhooki sündmuse vabastamine ebaõnnestus.', error)
+export const completeEvent = (eventId: string, token: string) => finishEvent(eventId, token, 'completed')
+
+export const releaseEvent = async (eventId: string, token: string, error: unknown) => {
+  try { await finishEvent(eventId, token, 'retry', error instanceof Error ? error.message : 'Webhooki töötlemine katkes.') }
+  catch (saveError) { console.error('Webhooki korduskatse salvestamine ebaõnnestus.', saveError) }
 }
 
 export const stripeId = (value: unknown) => {

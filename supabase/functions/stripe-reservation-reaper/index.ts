@@ -1,13 +1,9 @@
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError } from '../_shared/security.ts'
-import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
-
-type PendingOrder = {
-  id: string
-  stripe_checkout_session_id: string | null
-  stripe_mode: 'test' | 'live' | null
-}
+import { assertStripeMode } from '../_shared/stripe-mode.ts'
+import { finishEvent, getAdminClient, json } from '../_shared/stripe-webhook.ts'
+import { handleStorePaymentEvent, isStorePaymentEvent } from '../_shared/stripe-store-events.ts'
+import { PaymentReviewRequired, recoverOrderPayment, recoveryRpc, type RecoveryJob } from '../_shared/payment-recovery.ts'
 
 const requiredEnv = (name: string) => {
   const value = Deno.env.get(name)?.trim()
@@ -15,75 +11,67 @@ const requiredEnv = (name: string) => {
   return value
 }
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
-  status,
-  headers: { 'Content-Type': 'application/json' },
-})
-
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
-  if (request.headers.get('Authorization') !== `Bearer ${requiredEnv('ONBOARDING_CRON_SECRET')}`) {
-    return json({ error: 'Unauthorized' }, 401)
-  }
-
-  const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-  const stripeSecretKey = requiredEnv('STRIPE_SECRET_KEY')
-  const stripeMode = assertStripeMode(stripeSecretKey)
-  const stripe = new Stripe(stripeSecretKey)
-  let released = 0
-  let retained = 0
-  let failed = 0
-
-  const { data: unstartedCount, error: unstartedError } = await admin.rpc(
-    'release_expired_unstarted_stripe_orders',
-    { batch_size_value: 100 },
-  )
-  if (unstartedError) return json({ error: 'Unstarted reservation cleanup failed' }, 500)
-  released += Number(unstartedCount ?? 0)
-
-  const { data, error } = await admin.from('orders')
-    .select('id,stripe_checkout_session_id,stripe_mode')
-    .eq('payment_status', 'pending')
-    .lte('reservation_expires_at', new Date().toISOString())
-    .not('stripe_checkout_session_id', 'is', null)
-    .order('reservation_expires_at')
-    .limit(100)
-  if (error) return json({ error: 'Reservation query failed' }, 500)
-
-  for (const order of (data ?? []) as PendingOrder[]) {
-    try {
-      assertStoredStripeMode(order.stripe_mode, stripeMode, 'Tellimuse reserveering')
-      let session = await stripe.checkout.sessions.retrieve(String(order.stripe_checkout_session_id))
-      if (session.status === 'open' && session.expires_at <= Math.floor(Date.now() / 1000)) {
-        session = await stripe.checkout.sessions.expire(session.id)
+  const cronSecret = Deno.env.get('ONBOARDING_CRON_SECRET')?.trim()
+  if (!cronSecret || request.headers.get('Authorization') !== `Bearer ${cronSecret}`) return json({ error: 'Unauthorized' }, 401)
+  if (Deno.env.get('PAYMENT_RECOVERY_WORKER_ENABLED') !== 'true') return json({ skipped: true })
+  const outcomes: Record<string, number> = {}
+  const count = (key: string) => { outcomes[key] = (outcomes[key] ?? 0) + 1 }
+  try {
+    const key = requiredEnv('STRIPE_SECRET_KEY')
+    const mode = assertStripeMode(key)
+    const admin = getAdminClient()
+    const stripe = new Stripe(key, { httpClient: Stripe.createFetchHttpClient(), timeout: 10_000, maxNetworkRetries: 1 })
+    const deadline = Date.now() + 50_000
+    // Alternate queues so a burst of old events cannot starve order recovery.
+    for (let index = 0; index < 10 && Date.now() < deadline; index++) {
+      const [job] = await recoveryRpc(admin, 'claim_order_payment_recovery', { mode_value: mode }) as RecoveryJob[]
+      if (job) {
+        try { count(`order_${await recoverOrderPayment({ admin, stripe, mode }, job)}`) }
+        catch (error) {
+          count('order_save_failed')
+          await captureEdgeError('stripe-reservation-reaper', error, { order_id: job.order_id }, 'critical')
+          // Its lease will expire; another worker resumes without losing the job.
+        }
       }
-
-      if (session.status === 'expired') {
-        const { error: releaseError } = await admin.rpc('release_stripe_order', { target_order_id: order.id })
-        if (releaseError) throw releaseError
-        released += 1
-      } else if (session.status === 'complete' && session.payment_status === 'unpaid') {
-        // Asynchronous bank methods can finish after Checkout itself closes.
-        const asyncExpiry = new Date((session.created + 31 * 24 * 60 * 60) * 1000).toISOString()
-        const { error: extendError } = await admin.from('orders')
-          .update({ reservation_expires_at: asyncExpiry })
-          .eq('id', order.id)
-          .eq('payment_status', 'pending')
-        if (extendError) throw extendError
-        retained += 1
-      } else {
-        // A completed paid session must be settled by the signed webhook. Stripe
-        // retries failed webhooks, so never free its stock from this fallback job.
-        retained += 1
+      if (Date.now() >= deadline) break
+      const [stored] = await recoveryRpc(admin, 'claim_stored_stripe_webhook', { mode_value: mode })
+      if (stored) {
+        let outcome: 'completed' | 'retry' | 'needs_review' = 'retry'
+        let message: string | null = null
+        try {
+          let event: Stripe.Event
+          if (stored.payload) event = stored.payload
+          else {
+            try { event = await stripe.events.retrieve(stored.event_id) }
+            catch (error) {
+              if (error instanceof Stripe.errors.StripeInvalidRequestError && error.statusCode === 404) {
+                throw new PaymentReviewRequired('Vana sündmus pole Stripe’ist enam loetav; tellimust kontrollitakse eraldi.')
+              }
+              throw error
+            }
+          }
+          if (event.id !== stored.event_id || event.type !== stored.event_type || event.livemode !== (mode === 'live')
+            || (event.account ?? null) !== stored.connected_account_id) throw new PaymentReviewRequired('Salvestatud sündmuse andmed ei ühti.')
+          if (!isStorePaymentEvent(event)) throw new PaymentReviewRequired('See sündmus vajab eraldi arvelduse kontrolli.')
+          await handleStorePaymentEvent(event, false)
+          outcome = 'completed'
+        } catch (error) {
+          outcome = error instanceof PaymentReviewRequired ? 'needs_review' : 'retry'
+          message = error instanceof Error ? error.message : 'Sündmuse taastamine ebaõnnestus.'
+        }
+        try { await finishEvent(stored.event_id, stored.lease_token, outcome, message); count(`event_${outcome}`) }
+        catch (error) {
+          count('event_save_failed')
+          await captureEdgeError('stripe-reservation-reaper', error, { event_id: stored.event_id }, 'critical')
+        }
       }
-    } catch (cleanupError) {
-      failed += 1
-      await captureEdgeError('stripe-reservation-reaper', cleanupError, {}, 'critical')
-      console.error(`Reserveeringu ${order.id} kontroll ebaõnnestus.`, cleanupError)
+      if (!job && !stored) break
     }
+    return json({ outcomes })
+  } catch (error) {
+    await captureEdgeError('stripe-reservation-reaper', error, {}, 'critical')
+    return json({ error: 'Payment recovery failed', outcomes }, 500)
   }
-
-  return json({ released, retained, failed })
 })

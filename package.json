@@ -50,7 +50,8 @@
     "supabase:support:test-webhook": "node scripts/test-resend-webhook.mjs",
     "supabase:support:test-webhook:staging": "node scripts/test-resend-webhook-staging.mjs",
     "supabase:support:test-actions": "node scripts/test-support-actions.mjs",
-    "supabase:set-admin": "node scripts/set-admin.mjs"
+    "supabase:set-admin": "node scripts/set-admin.mjs",
+    "test:payment-recovery-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-payment-recovery-edge.ts"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

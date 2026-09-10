@@ -264,9 +264,9 @@ const invokeCheckoutFunction = async (name: string, body?: Record<string, unknow
   if (error) {
     const context = 'context' in error ? error.context : null
     const details = context instanceof Response
-      ? await context.clone().json().catch(() => null) as { error?: string } | null
+      ? await context.clone().json().catch(() => null) as { error?: string; restartCheckout?: boolean } | null
       : null
-    throw new Error(details?.error || error.message)
+    throw Object.assign(new Error(details?.error || error.message), { restartCheckout: details?.restartCheckout === true })
   }
   if (data?.error) throw new Error(String(data.error))
   if (!data?.url) throw new Error('Makselehe aadress puudub.')

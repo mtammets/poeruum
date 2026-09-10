@@ -71,13 +71,17 @@ Deno.serve(async (request) => {
   const expectsLiveEvents = stripeSecretKey.startsWith('sk_live_')
   if (event.livemode !== expectsLiveEvents) return json({ received: true, ignoredMode: true })
 
+  let token: string | undefined
   try {
-    if (!await claimEvent(event, 'connect')) return json({ received: true, duplicate: true })
+    const claim = await claimEvent(event, 'connect')
+    if (claim.state === 'processed') return json({ received: true, duplicate: true })
+    if (claim.state === 'busy') return json({ error: 'Webhook processing in progress' }, 503)
+    token = claim.token!
     await handleEvent(event)
-    await completeEvent(event.id)
+    await completeEvent(event.id, token)
     return json({ received: true })
   } catch (error) {
-    await releaseEvent(event.id)
+    if (token) await releaseEvent(event.id, token, error)
     await captureEdgeError('stripe-connect-webhook', error, { event_type: event.type }, 'critical')
     console.error(`Stripe Connect webhook ${event.id} ebaõnnestus.`, error)
     return json({ error: 'Webhook processing failed' }, 500)

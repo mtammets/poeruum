@@ -9,6 +9,7 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
   const values: Record<string, string> = {
     SUPABASE_URL: 'https://receipt-test.example.invalid', POERUUM_SUPABASE_SECRET_KEY: 'test-only',
     STRIPE_SECRET_KEY: 'sk_test_local', STRIPE_MODE: 'test', RATE_LIMIT_SALT: 'local-test-salt', APP_URL: 'https://poeruum.example.invalid',
+    STRIPE_CHECKOUT_ENABLED: 'true',
   }
   const previous = new Map(Object.keys(values).map((key) => [key, Deno.env.get(key)]))
   let handler: Handler | undefined
@@ -24,6 +25,10 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
   const session = { id: sessionId, mode: 'payment', status: 'complete', payment_status: 'paid', amount_total: 2732,
     currency: 'eur', livemode: false, client_reference_id: order.store_id, metadata: pi.metadata, payment_intent: pi }
   let sessionCreate: URLSearchParams | null = null
+  let storedAttempt: Record<string, unknown> | null = null
+  const checkoutPayloads: string[] = []
+  const checkoutKeys: string[] = []
+  let loseCreateResponse = false
   let failSessionSave = false
   let rateAllowed = true
   let confirmations = 0
@@ -38,6 +43,9 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
       const method = init?.method || (input instanceof Request ? input.method : 'GET')
       if (url.origin === 'https://api.stripe.com') {
         if (method === 'POST' && url.pathname === '/v1/checkout/sessions') {
+          checkoutPayloads.push(String(init?.body))
+          checkoutKeys.push(new Headers(init?.headers).get('idempotency-key') || '')
+          if (loseCreateResponse) throw new TypeError('Simulated lost Stripe response')
           sessionCreate = new URLSearchParams(String(init?.body))
           return Response.json({ id: sessionId, url: 'https://checkout.stripe.com/c/pay/test' })
         }
@@ -49,6 +57,15 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
         if (url.pathname.endsWith('/rpc/consume_rate_limit')) return Response.json([{ allowed: rateAllowed, retry_after_seconds: 60 }])
         if (url.pathname.endsWith('/rpc/record_application_error')) return Response.json(null)
         if (url.pathname.endsWith('/rpc/create_stripe_order_with_reservation')) return Response.json({ ...order })
+        if (url.pathname.endsWith('/rpc/prepare_stripe_checkout')) {
+          storedAttempt ??= { payload: body.payload_value, started_at: new Date().toISOString() }
+          return Response.json(storedAttempt)
+        }
+        if (url.pathname.endsWith('/rpc/bind_stripe_checkout')) {
+          if (failSessionSave) return Response.json({ message: 'Simulated save failure' }, { status: 500 })
+          order.stripe_checkout_session_id = body.session_id_value
+          return Response.json(null)
+        }
         if (url.pathname.endsWith('/rpc/get_or_create_order_receipt_token')) return Response.json(token)
         if (url.pathname.endsWith('/rpc/complete_stripe_order')) {
           assert(body.target_order_id === order.id && body.checkout_session_id === sessionId && body.payment_intent_id === pi.id, 'Wrong order confirmed')
@@ -78,11 +95,19 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
       storeId: order.store_id, checkoutRequestId: 'receipt-checkout-request-1', items: [{ id: 'product-1', quantity: 1 }],
       customer: { name: 'Test Customer', email: 'test@example.invalid' }, delivery: { type: 'pickup', label: 'Pickup' },
     }) })
+    Deno.env.set('STRIPE_CHECKOUT_ENABLED', 'false')
+    assert((await checkout(checkoutRequest())).status === 503 && checkoutPayloads.length === 0, 'Paused checkout still reached Stripe')
+    Deno.env.set('STRIPE_CHECKOUT_ENABLED', 'true')
+    loseCreateResponse = true
+    assert((await checkout(checkoutRequest())).status === 500, 'Lost Stripe response did not remain retryable')
+    assert(order.payment_status === 'pending', 'Lost response released the order')
+    loseCreateResponse = false
     failSessionSave = true
     assert((await checkout(checkoutRequest())).status === 500, 'Checkout URL exposed before the session binding was saved')
     failSessionSave = false
     assert((await checkout(checkoutRequest())).status === 200, 'Checkout retry did not succeed')
     assert(sessionCreate, 'Stripe checkout was not created')
+    assert(new Set(checkoutPayloads).size === 1 && new Set(checkoutKeys).size === 1 && checkoutKeys[0], 'Retry changed the Stripe payload or idempotency key')
     const params = sessionCreate as unknown as URLSearchParams
     const success = new URL(params.get('success_url')!)
     assert(success.href === params.get('cancel_url'), 'Cancel return still asserts an outcome')

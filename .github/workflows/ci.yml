@@ -45,6 +45,9 @@ jobs:
       - name: Order receipt Edge authorization and checkout test
         run: npm run test:order-receipt-edge
 
+      - name: Signed payment event crash recovery
+        run: npm run test:payment-recovery-edge
+
       - name: Production build
         run: npm run build:app
 
@@ -138,6 +141,12 @@ jobs:
 
       - name: Test private order receipt credentials and confirmation
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-order-receipts.sql
+
+      - name: Test payment recovery, immutable attempts and stale workers
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-payment-recovery.sql
+
+      - name: Test historical payment recovery and cron replacement
+        run: node scripts/test-payment-recovery-migration.mjs
 
       - name: Lint database schemas
         run: npx supabase db lint --local --schema public,extensions --level warning --fail-on warning

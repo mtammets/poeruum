@@ -596,3 +596,47 @@ test('checkout explains Link and opens a payment page only after the customer co
   await expect(page.getByRole('heading', { name: 'Makse on lõpetamata' })).toBeVisible()
   expect(checkoutRequests).toBe(1)
 })
+
+test('checkout retries keep their attempt after errors and reloads, and change it for a different purchase', async ({ page }) => {
+  const attempts: Array<{ checkoutRequestId: string }> = []
+  await receiptBackend(page, () => ({ body: { receipt: receiptFixture } }))
+  await page.route('**/__e2e_supabase/functions/v1/stripe-store-checkout', async (route) => {
+    attempts.push(route.request().postDataJSON())
+    await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Ajutine ühenduse tõrge.' }) })
+  })
+  const mount = async () => {
+    await page.evaluate(async () => {
+      const { mountCheckoutHarness } = await import('/e2e/checkout-harness.tsx')
+      mountCheckoutHarness()
+    })
+    await page.getByRole('textbox', { name: 'Nimi', exact: true }).fill('Test Ostja')
+    await page.getByRole('textbox', { name: 'E-post', exact: true }).fill('ostja@example.invalid')
+    await page.getByRole('textbox', { name: 'Telefon', exact: true }).fill('+37255555555')
+  }
+  const submit = async () => {
+    await page.getByRole('button', { name: 'Edasi maksma · 27,32 €' }).click()
+    await expect(page.getByRole('button', { name: 'Edasi maksma · 27,32 €' })).toBeEnabled()
+    await expect(page.getByText('Ajutine ühenduse tõrge.', { exact: true })).toBeVisible()
+  }
+  await page.goto('/?checkout=status')
+  await mount(); await submit(); await submit()
+  await page.reload(); await mount(); await submit()
+  expect(attempts).toHaveLength(3)
+  expect(new Set(attempts.map((attempt) => attempt.checkoutRequestId)).size).toBe(1)
+  const storage = await page.evaluate(() => sessionStorage.getItem('poeruum-checkout-attempt-v1'))
+  expect(storage).not.toContain('ostja@example.invalid')
+  await page.getByRole('textbox', { name: 'E-post', exact: true }).fill('teine@example.invalid')
+  await submit()
+  expect(attempts[3].checkoutRequestId).not.toBe(attempts[0].checkoutRequestId)
+})
+
+test('a terminal receipt clears the completed attempt and explains starting again', async ({ page }) => {
+  await receiptBackend(page, () => ({ body: { receipt: { ...receiptFixture, status: 'failed', resumeUrl: null } } }))
+  await page.goto('/?checkout=status')
+  await page.evaluate(() => sessionStorage.setItem('poeruum-checkout-attempt-v1', JSON.stringify({ fingerprint: 'test', requestId: 'old' })))
+  await page.goto(receiptPath)
+  await expect(page.getByRole('heading', { name: 'Makse ebaõnnestus' })).toBeVisible()
+  await expect(page.getByText('Selle tellimuse eest pole kinnitatud makset. Uue tellimuse saad vormistada poes.')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Jätka maksmist' })).toHaveCount(0)
+  expect(await page.evaluate(() => sessionStorage.getItem('poeruum-checkout-attempt-v1'))).toBeNull()
+})

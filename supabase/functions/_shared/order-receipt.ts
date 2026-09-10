@@ -4,7 +4,7 @@ import type { OrderReceipt, ReceiptAccess, ReceiptStatus } from '../../../shared
 import { confirmPaidStoreOrder } from './store-payment.ts'
 import type { StripeMode } from './stripe-mode.ts'
 
-const orderColumns = 'id,store_id,order_number,items,delivery,product_subtotal,total,created_at,payment_status,stripe_mode,stripe_checkout_session_id,stripe_payment_intent_id'
+const orderColumns = 'id,store_id,order_number,items,delivery,product_subtotal,total,created_at,payment_status,stripe_mode,stripe_checkout_session_id,stripe_payment_intent_id,stripe_failure_verified_at'
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
 
 export const parseReceiptAccess = (value: unknown): ReceiptAccess | null => {
@@ -43,6 +43,7 @@ export const loadOrderReceipt = async (
   let order = await readOrder()
   if (!order || order.stripe_mode !== mode) return null
   let status: ReceiptStatus = order.payment_status === 'paid' ? 'paid' : order.payment_status === 'refunded' ? 'refunded' : 'pending'
+  if (order.payment_status === 'failed' && !order.stripe_checkout_session_id && order.stripe_failure_verified_at) status = 'failed'
   let resumeUrl: string | null = null
   if (status === 'pending' && order.stripe_checkout_session_id) {
     const session = await stripe.checkout.sessions.retrieve(order.stripe_checkout_session_id, { expand: ['payment_intent'] })
@@ -65,10 +66,15 @@ export const loadOrderReceipt = async (
       order = await readOrder()
       if (!order) return null
       status = order.payment_status === 'refunded' ? 'refunded' : order.payment_status === 'paid' ? 'paid' : 'pending'
-    } else if (pi?.status === 'processing' || pi?.status === 'succeeded' || pi?.status === 'requires_capture' || session.status === 'complete') {
+    } else if (pi && (['processing', 'succeeded', 'requires_capture'].includes(pi.status)
+      || (session.status !== 'open' && ['requires_action', 'requires_confirmation'].includes(pi.status)))) {
       status = 'pending'
-    } else if (pi?.status === 'canceled' || session.status === 'expired') {
+    } else if ((session.status === 'complete' && pi?.status === 'canceled') || session.status === 'expired') {
       status = 'expired'
+    } else if (session.status === 'complete' && pi?.status === 'requires_payment_method' && pi.last_payment_error) {
+      status = 'failed'
+    } else if (session.status === 'complete') {
+      status = 'pending'
     } else if (session.status === 'open') {
       status = pi?.status === 'requires_payment_method' && pi.last_payment_error ? 'failed' : 'unpaid'
       resumeUrl = safeCheckoutUrl(session.url)

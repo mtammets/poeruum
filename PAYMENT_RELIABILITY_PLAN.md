@@ -6,7 +6,7 @@ ostjate raha ega saadeta neile kirju.
 
 ## 1. Tasutud tellimuse kinnitamine
 
-**Olek: kood teostatud ja kontrollitud. Tootmise juurutamine toimub alloleva järjekorra järgi.**
+**Olek: teostatud, kontrollitud ja tootmises alates 9. septembrist 2026.**
 
 Edukalt kontrollitud makse märgib tellimuse tasutuks ja kinnitab laoseisu enne
 teenustasu andmete laadimist või müüjale ülekannet. Kirjade saatmist ja
@@ -38,7 +38,7 @@ Selle etapi seos järgmiste osadega:
 
 ## 2. Teenustasud ja müüjale ülekanne
 
-**Olek: kood teostatud ja kontrollitud. Tootmise juurutamine toimub alloleva järjekorra järgi.**
+**Olek: teostatud, kontrollitud ja tootmises alates 9. septembrist 2026.**
 
 - Maksekinnitus salvestab samas andmebaasitehingus püsiva tasuarvestuse töö.
   Serveri katkestus ei kaota ülesannet.
@@ -114,7 +114,7 @@ Juurutamisel kuuluvad kokku:
 
 ## 3. Kliendi- ja müüjakirjad
 
-**Olek: kood teostatud ja kontrollitud. Tootmise juurutamine toimub alloleva järjekorra järgi.**
+**Olek: teostatud, kontrollitud ja tootmises alates 9. septembrist 2026.**
 
 - Tellimuse tasutuks märkimine salvestab samas andmebaasitehingus kaks eraldi
   saatmisülesannet. Ühe saaja tõrge ei peata teise kirja saatmist ega müüjale
@@ -175,8 +175,8 @@ Piirid ja juurutamine:
 
 ## 4. Maksmine ja ostukinnitus
 
-**Olek: kood teostatud ja kohalikult kontrollitud. Linki sisselogitud kasutaja
-kogu ostuvoo eraldi kontroll on veel tegemata.**
+**Olek: teostatud, kontrollitud ja tootmises alates 9. septembrist 2026.
+Linki sisselogitud kasutaja kogu ostuvoo eraldi kontroll on veel tegemata.**
 
 - Nupp „Edasi maksma · summa” avab Stripe'i makselehe; selgitus eristab seda
   makse kinnitamisest. Linki salvestatud andmed võivad võimaldada maksmist
@@ -237,19 +237,107 @@ Osade 1–4 ühine juurutamine:
 4. Kontrollida tootmises makstud tellimuse lugemist, vigase lingi tõrjumist,
    kinnituslehe HTTP-päiseid ja mõlema taustatöö tegelikku käivitumist.
 
+Osade 1–4 juurutamine lõpetati 9. septembril 2026 versiooniga `f46f9b5`.
+Tootmises kontrolliti migratsioone, funktsioone, taustatööde käivitumist,
+makstud tellimuse kinnitusvaadet ning Stripe'i ja Resendi sündmuste seadistusi.
+
 ## 5. Poolelijäänud tegevuste taastamine
 
-**Olek: tegemata.**
+**Olek: kood teostatud ja kohalikult kontrollitud. Tootmisesse juurutamata.**
 
-- Leida Stripe'is tasutud, kuid Poeruumis ootel tellimused.
-- Taastada poolelijäänud tasuarvestus ja kirjade saatmine.
-- Võimaldada katkestatud sündmuse uuesti töötlemist ka siis, kui selle
-  vastuvõtmine on juba salvestatud, kuid lõpetamise märge puudub.
-- Kontrollida samaaegseid korduskatseid, sündmuste erinevat järjekorda ja
-  juba tagastatud makseid. Tasutud tellimuse reserveeringut ei vabastata.
+- Iga uus Stripe'i tellimus saab samas andmebaasitehingus püsiva taastamistöö.
+  Iga minuti järel käiv kontroll leiab ka ilma sündmuseta tasutud tellimuse,
+  kontrollib Stripe'i praegust olekut ja kinnitab tellimuse. Brauser ei pea
+  olema avatud. Ootel makset kontrollitakse uuesti minuti pärast; teenuse
+  tõrke korral kasvab korduskatse vahe kuni 15 minutini.
+- Enne makselehe loomist salvestatakse muutumatu Stripe'i päring. Vastuse või
+  makselehe tunnuse salvestamise katkemine säilitab reserveeringu ning sama
+  päringu ja korduskatse võtme. Ostukorv säilitab sama ostu katse tunnuse ka
+  võrguvea ja lehe värskendamise järel. Brauserisse salvestatakse ainult räsi
+  ja juhuslik tunnus. Muudetud ost saab uue tunnuse; lõpetatud tellimuse
+  kinnitusvaade vabastab eelmise katse tunnuse.
+- Puuduva makselehe tunnuse korral otsitakse Stripe'i makselehti piiratud
+  ajavahemikust. Lehekülgede lugemise järjekoht säilib katkestuse järel.
+  Kõik tulemused kontrollitakse enne seostamist. Mitme vaste korral vajab
+  juhtum käsitsi kontrolli. Taastaja ei loo ise uut makselehte ega uut makset.
+- Ajapiiri ületamine üksi ei vabasta võimaliku makse reserveeringut. Ilma
+  seansita katse vabastatakse alles pärast muutumatu päringu aegumist ja
+  täielikku otsingut, mis kinnitab makselehe puudumist. Vana tõendamata
+  katse säilib olekus `needs_review`. Kindlalt alustamata katse saab aeguda.
+- Allkirjastatud sündmus, selle lõpetamine ja töötlemisõigus on eraldi.
+  Katkestuse järel ei peeta sündmust lõpetatuks ega kustutata seda. Pooleli
+  töötava sündmuse kordus saab vastuse 503; edukalt lõpetatud kordus saab 200.
+  Aegunud töötleja ei saa tulemust salvestada. Tellimuse tööõigus aegub viie
+  ja sündmuse oma kümne minutiga, pärast mida saab katkestatud tööd jätkata.
+- Taustatöö jätkab salvestatud poe maksesündmusi. Vana puuduva sisuga sündmus
+  laaditakse Stripe'ist; kättesaamatu sündmus jääb kontrolli, tellimuse olekut
+  kontrollitakse eraldi. Poe kuutasude ja Connecti sündmuste automaatne
+  taasesitus sellesse töötlejasse ei kuulu; allkirjastatud kordussaatmine
+  kasutab ka nende puhul uut katkestusest taastuvat töötlemisõigust.
+- Hilinenud ebaõnnestumise teade kontrollib samuti Stripe'i praegust olekut.
+  Tasutud tellimus jääb tasutuks ja tagastatud tellimust ei avata uuesti.
+  Pooleliolev makse säilitab laoreserveeringu. Ka uue tellimuse lao- ja
+  teenustasu piiri arvestus arvestab ebaselge, kuid alustatud katsega.
+- Maksekinnitus loob osade 2–3 tasuarvestuse ja kirjade tööd atomaarse
+  toiminguna. Nende senised töötlejad jätkavad poolelijäänud ülesandeid.
+  Puuduv ülesanne parandatakse juba tasutud tellimusel; lõpetatud tööd ja
+  vastu võetud kirjad säilivad. Vanade puuduvate kirjamärkide puhul ei
+  eeldata, et kiri jäi saatmata: need vajavad kontrolli.
+- Kinnitusvaade eristab kontrollitud ebaõnnestumist vanast tõendamata
+  „failed” märkest. Lõppenud asünkroonse makse tõrke korral ei pakuta enam
+  jätkamist suletud makselehel. Tõendamata tulemusega kliendile uut makset
+  ei soovitata.
 
-Vastuvõtutingimus: puuduva sündmuse või katkestatud töö järel taastub õige
-olek automaatselt ilma topeltlaoseisu muutuse, ülekande või kirjadeta.
+Kontrollitud 9. septembril 2026:
+
+- 350 üksustesti, sh 24 uut taastamistesti ja kaks kinnitusvaate olekutesti.
+  ESLint, Edge Functionite tüübikontroll, build ja sõltuvuste audit läbivad.
+- 84 brauseritesti: 83 läbis esimesel jooksul, üks olemasolev teise poe
+  omaniku sisselogimise test ei leidnud oodatud haldusnuppu ning läbis eraldi
+  kordusjooksu. Mõlemad uued maksekatse säilimise ja lõpetamise testid läbisid
+  esimesel jooksul; sisselogimise koodi selles etapis ei muudetud.
+- Tegeliku allkirjastatud Stripe'i sündmuse test simuleerib kinnituse
+  andmebaasitõrget ja taastab sündmuse ajastatud töötlejaga. Test kontrollib
+  ka vigast allkirja, samaaegset tööõigust, autentimist ja väljalülitamist.
+- Tegeliku Checkouti käitleja test simuleerib kadunud Stripe'i vastust ja
+  seansi salvestusviga. Kõik kordused kasutavad sama päringut ja võtit;
+  reserveering säilib ning link tagastatakse alles salvestuse järel.
+- Kõik migratsioonid rakendusid nullist eraldi kohalikus andmebaasis.
+  13 SQL-testifaili ja andmebaasi lint läbivad. Uus SQL-test katab õigused,
+  reserveeringu säilimise, aegunud töötleja tõrjumise, korduva maksekinnituse,
+  kirjade säilimise, tagastuse ja poolelijäänud sündmuse jätkamise.
+- Eraldi migratsioonitest kontrollib ajalooliste tellimuste ülevõtmist ja
+  vana reserveeringute ajakava asendamist minutipõhise taastamistööga.
+  Ajakava kontrollitakse tagasipööratud tehingus, seda päriselt käivitamata.
+- Kõik Stripe'i ja kirjade HTTP-päringud on taastamistestides asendatud.
+  Selles etapis päris makseid, ülekandeid ega kirju ei tehtud.
+
+Juurutamise järjekord:
+
+1. Seada `PAYMENT_RECOVERY_WORKER_ENABLED=false` ja
+   `STRIPE_CHECKOUT_ENABLED=false`. Juurutada uus `stripe-store-checkout`
+   esmalt peatatud kujul; see vastab enne andmebaasi või Stripe'i päringuid
+   selgitava 503 vastusega. Oodata vana Checkouti funktsiooniversiooni
+   pooleliolevate päringute lõppemist enne migratsiooni.
+2. Kontrollida Vaulti ajakava saladusi ning rakendada
+   `202609090005_payment_recovery.sql`. See asendab vana reserveeringute
+   ajakava tööga `poeruum-payment-recovery`, mis käib iga minuti järel.
+3. Juurutada `stripe-webhook`, `stripe-connect-webhook`,
+   `stripe-reservation-reaper` ja `order-receipt` ning uus kasutajaliides.
+   Enne taastaja lubamist oodata ka vana webhooki versiooni päringute lõppu:
+   vana käitleja oskas sündmuse kirje tõrke korral kustutada.
+4. Kontrollida funktsioonide versioone, tööjärjekordi, minutipõhist ajakava
+   ja autentimist. Seada `PAYMENT_RECOVERY_WORKER_ENABLED=true`, kontrollida
+   esimeste käivituste tulemusi ning seada `STRIPE_CHECKOUT_ENABLED=true`.
+   Senised tasuarvestuse ja kirjade töötlejad jäävad aktiivseks.
+5. Kontrollida tootmise tegelikku maksekinnitust, taastamistöid ja
+   kinnitusvaadet. `needs_review` juhtumid vaadata eraldi üle; neid ei tohi
+   nimetada automaatselt parandatuks. Tootmise kontrolli tulemus lisada siia.
+
+Stripe'i viited: [Checkouti seansside lehitsetav otsing](https://docs.stripe.com/api/checkout/sessions/list),
+[makselehe loomise aegumispiir](https://docs.stripe.com/api/checkout/sessions/create),
+[sündmuse lugemine](https://docs.stripe.com/api/events/retrieve) ja
+[sündmuste kordussaatmine ning järjekord](https://docs.stripe.com/webhooks).
 
 ## 6. Alarmid ja kontrollitud taastumine
 

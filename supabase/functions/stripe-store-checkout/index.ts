@@ -65,6 +65,9 @@ const returnBase = (
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  if (Deno.env.get('STRIPE_CHECKOUT_ENABLED') === 'false') {
+    return json({ error: 'Maksmine on uuenduse tõttu korraks peatatud. Palun proovi mõne minuti pärast uuesti.' }, 503)
+  }
 
   try {
     const rateLimit = await checkRateLimit(request, 'store-checkout', 12, 60)
@@ -218,15 +221,10 @@ Deno.serve(async (request) => {
       seller_vat_number: sellerVatRegistered ? sellerVatNumber : null,
       seller_vat_rate: sellerVatRegistered ? VAT_RATE * 100 : null,
       seller_vat_amount: sellerVatAmount,
-    }).eq('id', order.id)
+    }).eq('id', order.id).eq('payment_status', 'pending').is('stripe_checkout_started_at', null)
     if (vatSnapshotError) {
       await admin.rpc('release_stripe_order', { target_order_id: order.id })
       throw vatSnapshotError
-    }
-
-    if (order.stripe_checkout_session_id) {
-      const existingSession = await stripe.checkout.sessions.retrieve(order.stripe_checkout_session_id)
-      if (existingSession.status === 'open' && existingSession.url) return json({ url: existingSession.url })
     }
 
     const configuredAppUrl = requiredEnv('APP_URL').replace(/\/$/, '')
@@ -246,6 +244,13 @@ Deno.serve(async (request) => {
     // Success and back navigation both show the server's actual state. A URL
     // flag alone must never announce success or promise that no charge exists.
     const receiptUrl = `${appUrl}${storefrontPath}?checkout=status#receipt=${receiptToken}`
+    if (order.stripe_checkout_session_id) {
+      const existingSession = await stripe.checkout.sessions.retrieve(order.stripe_checkout_session_id)
+      if (order.payment_status === 'pending' && existingSession.status === 'open' && existingSession.url) return json({ url: existingSession.url })
+      return json({ url: receiptUrl })
+    }
+    if (order.payment_status !== 'pending') return json({ url: receiptUrl })
+
     const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
       on_behalf_of: store.stripe_account_id,
       transfer_group: `order_${order.id}`,
@@ -261,35 +266,50 @@ Deno.serve(async (request) => {
       },
     }
 
-    let session: Stripe.Checkout.Session
-    try {
-      session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        customer_email: email,
-        client_reference_id: storeId,
-        line_items: lineItems,
-        success_url: receiptUrl,
-        cancel_url: receiptUrl,
-        submit_type: 'pay',
-        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-        metadata: {
-          store_id: storeId,
-          order_id: order.id,
-          order_number: order.order_number,
-          customer_phone: customerPhone,
-          stripe_mode: stripeMode,
-          platform_fee_cents: String(applicationFeeCents),
-          platform_fee_net_cents: String(applicationFeeNetCents),
-          platform_fee_vat_cents: String(applicationFeeVatCents),
-          seller_account_id: store.stripe_account_id,
-        },
-        payment_intent_data: paymentIntentData,
-      }, { idempotencyKey: `poeruum-checkout-${storeId}-${checkoutRequestId}` })
-    } catch (error) {
-      await admin.rpc('release_stripe_order', { target_order_id: order.id })
-      throw error
+    const payload: Stripe.Checkout.SessionCreateParams = {
+      mode: 'payment',
+      customer_email: email,
+      client_reference_id: storeId,
+      line_items: lineItems,
+      success_url: receiptUrl,
+      cancel_url: receiptUrl,
+      submit_type: 'pay',
+      // Stripe requires at least 30 minutes from creation. Leave time for the
+      // durable DB write, network latency and an immediate identical retry.
+      expires_at: Math.floor(Date.now() / 1000) + 35 * 60,
+      metadata: {
+        store_id: storeId,
+        order_id: order.id,
+        order_number: order.order_number,
+        customer_phone: customerPhone,
+        stripe_mode: stripeMode,
+        platform_fee_cents: String(applicationFeeCents),
+        platform_fee_net_cents: String(applicationFeeNetCents),
+        platform_fee_vat_cents: String(applicationFeeVatCents),
+        seller_account_id: store.stripe_account_id,
+      },
+      payment_intent_data: paymentIntentData,
     }
-    const { error: sessionSaveError } = await admin.from('orders').update({ stripe_checkout_session_id: session.id }).eq('id', order.id)
+    // Store the exact request before its first POST. A lost response must keep
+    // the reservation and reuse the same parameters and Stripe idempotency key.
+    const { data: attempt, error: attemptError } = await admin.rpc('prepare_stripe_checkout', {
+      target_order_id: order.id, payload_value: payload,
+    })
+    if (attemptError) {
+      if (attemptError.message.includes('CHECKOUT_EXPIRED')) {
+        return json({ error: 'Maksekatse aegus. Alusta uuesti.', restartCheckout: true }, 409)
+      }
+      throw attemptError
+    }
+    if (!attempt?.payload || !attempt.started_at) throw new Error('Maksekatse salvestamine ebaõnnestus.')
+    if (Date.now() - Date.parse(attempt.started_at) >= 20 * 60 * 60 * 1000
+      || Number(attempt.payload.expires_at) * 1000 <= Date.now()) return json({ url: receiptUrl })
+    const session = await stripe.checkout.sessions.create(attempt.payload, {
+      idempotencyKey: `poeruum-checkout-${storeId}-${checkoutRequestId}`,
+    })
+    const { error: sessionSaveError } = await admin.rpc('bind_stripe_checkout', {
+      target_order_id: order.id, session_id_value: session.id, mode_value: stripeMode,
+    })
     if (sessionSaveError) throw sessionSaveError
     if (!session.url) throw new Error('Stripe ei tagastanud makselehe aadressi.')
     return json({ url: session.url })

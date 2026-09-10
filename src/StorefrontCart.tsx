@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { startStripeStoreCheckout } from './lib/database'
-import { createCheckoutRequestId, VAT_RATE } from './storefrontConfig'
+import { VAT_RATE } from './storefrontConfig'
+import { checkoutAttemptId, forgetCheckoutAttempt } from './lib/checkoutAttempt'
 import ModalCloseButton from './ModalCloseButton'
 import {
   getProductPrice,
@@ -42,7 +43,6 @@ const findParcelMachines = (machines: ParcelMachine[], query: string) => {
 
 export default function StorefrontCart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, vatRegistered, onRemove, onQuantityChange, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; vatRegistered: boolean; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onClose: () => void }) {
   const checkoutRef = useRef<HTMLElement>(null)
-  const checkoutRequestIdRef = useRef(createCheckoutRequestId())
   const [step, setStep] = useState<'cart' | 'checkout'>(initialStep)
   const enabledParcelProviders = SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled)
   const enabledParcelProviderKey = enabledParcelProviders.join(',')
@@ -173,17 +173,17 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
     setIsPaying(true)
     setPaymentError('')
     try {
-      const url = await startStripeStoreCheckout({
+      const input = {
         storeId,
-        checkoutRequestId: checkoutRequestIdRef.current,
         items: items.map((item) => ({ id: item.id, quantity: item.quantity, selectedOptions: item.selectedOptions })),
         customer: { name: String(data.get('customerName')), email: String(data.get('customerEmail')), phone: String(data.get('customerPhone')) },
         delivery: { type: delivery, provider: selectedParcelMachine?.provider, label: deliveryLabel },
-      })
+      }
+      const url = await startStripeStoreCheckout({ ...input, checkoutRequestId: await checkoutAttemptId(input) })
       window.location.assign(url)
     } catch (error) {
       setPaymentError(error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.')
-      checkoutRequestIdRef.current = createCheckoutRequestId()
+      if (error && typeof error === 'object' && 'restartCheckout' in error && error.restartCheckout === true) forgetCheckoutAttempt()
       setIsPaying(false)
     }
   }

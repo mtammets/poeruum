@@ -7,7 +7,7 @@ const token = 'a'.repeat(64)
 const sessionId = 'cs_test_' + 'b'.repeat(40)
 const fixture = () => {
   const order = { id: 'order-1', store_id: 'store-1', order_number: 'PR-RECEIPT-1', payment_status: 'pending',
-    stripe_mode: 'test', stripe_checkout_session_id: sessionId, stripe_payment_intent_id: null as string | null,
+    stripe_mode: 'test', stripe_checkout_session_id: sessionId as string | null, stripe_failure_verified_at: null as string | null, stripe_payment_intent_id: null as string | null,
     total: 27.32, product_subtotal: 24, delivery: 'Omniva · Tallinn', created_at: '2026-09-09T12:00:00Z',
     customer_name: 'Private name', customer_email: 'private@example.invalid',
     items: [{ name: 'Kruus', price: 15, salePrice: 12, quantity: 2, selectedOptions: { Värv: 'Sinine' }, image: 'private-url' }] }
@@ -35,6 +35,16 @@ const fixture = () => {
 }
 
 describe('private order receipts', () => {
+  it('does not infer absence of payment from an old failed order with no saved session', async () => {
+    const f = fixture(); f.order.payment_status = 'failed'; f.order.stripe_checkout_session_id = null
+    expect((await loadOrderReceipt(f.services, { token }))?.status).toBe('pending')
+    f.order.stripe_failure_verified_at = new Date().toISOString()
+    expect((await loadOrderReceipt(f.services, { token }))?.status).toBe('failed')
+  })
+  it('shows a definitive async failure with no link to an already closed checkout', async () => {
+    const f = fixture(); f.session.payment_status = 'unpaid'; f.pi.status = 'requires_payment_method'; f.pi.last_payment_error = { message: 'Failed' }
+    expect(await loadOrderReceipt(f.services, { token })).toMatchObject({ status: 'failed', resumeUrl: null })
+  })
   it('accepts only an opaque token or a legacy random session ID, never an order number or success flag', () => {
     expect(parseReceiptAccess({ token })).toEqual({ token })
     expect(parseReceiptAccess({ sessionId })).toEqual({ sessionId })
