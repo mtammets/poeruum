@@ -6,7 +6,15 @@ Horoskoobi jaoks rakenda migratsioon `202609070001_daily_horoscope.sql` ja deplo
 
 Ajastaja kasutab Vaulti olemasolevaid `onboarding_reminders_url` ja `onboarding_cron_secret` väärtusi. Töö käib iga tunni 15. minutil ja loob ainult puuduvad tänase ning homse väljaande tekstid. Andmebaasilukk väldib sama päeva paralleelset genereerimist. Valmis tekstid avalduvad Eesti kuupäeva järgi; brauser loeb ainult tänaseid tekste ega käivita OpenAI päringuid.
 
+Genereerimise lähteandmed arvutab `horoscope-sky.ts` Astronomy Engine'i teegiga kohapeal. Kasutatakse geotsentrilisi troopilise sodiaagi asukohti Eesti aja keskpäeval, Kuu faasi, päevast liikumist ja märgivahetusi. Aspektide ligikaudsed lähimad nurgahälbed leitakse kogu Eesti kalendripäeva tunniste proovide järgi; täpseid sündmuste kellaaegu ei väideta. Iga tähemärgi kontekstiks arvutatakse päikesemajad, kus vastav märk on esimene maja. Need on üldise meelelahutusliku horoskoobi lähteandmed, mitte isiklik sünnikaart.
+
+Üks OpenAI päring kirjutab nende andmete põhjal kõik 12 teksti. Prompt suunab kasutama päeva muutuvaid seoseid, erinevaid vaatenurki ja varieeruvat lauseehitust. Püsivat näidisteksti ega kohustuslikku lausearvu ei ole. Genereerimine ei vaja varasemate väljaannete lugemist, uut andmebaasitabelit ega eraldi astronoomia-API võtit. Teegi versioon on fikseeritud nii `package.json` failis kui ka funktsiooni `daily-horoscope/deno.json` impordikaardis.
+
+Generaatori või mudeli muutmisel tuleb lisaks ühiktestidele võrrelda sama märgi tekste mitme järjestikuse päeva lõikes: korduvad lausealgused, ülesehitus ja sisulised olukorrad võivad ilmneda alles väljaandeid kõrvuti lugedes. Ühiktestid kontrollivad andmete ja päringute korrektsust, mitte kirjanduslikku mitmekesisust. Juba loodud väljaandeid funktsiooni uuesti paigaldamine üle ei kirjuta; uus generaator rakendub järgmisele puuduvale väljaandele.
+
 Tootmise Supabase'is rakendatud 8. septembril 2026: migratsioon `202609070001`, funktsioon `daily-horoscope` ja aktiivne ajastaja `poeruum-daily-horoscope` (`15 * * * *`). Funktsioon kasutab juba olemasolevaid serveri- ja Vaulti saladusi.
+
+13. septembril 2026 paigaldati taevaseisudest lähtuv generaator funktsiooni versioonina 5. Kontrolliti 14 päeva jagu ehk 168 lõpliku generaatori teksti ning võrreldi sama esimese nädala 84 teksti vana generaatoriga. Tänase, 13. septembri ja homse, 14. septembri väljaanded asendati kontrollitud uute tekstidega. Paigalduse järel kontrolliti funktsiooni autentimise nõuet (`401`) ja kõigi 12 homse teksti vastavust andmebaasis. Tänaste tekstide vastavus kontrolliti avaliku API kaudu ja kõigi 12 tähemärgi kuvamine tootmislehel brauseris.
 
 Rakendamise kontrollis lõi ajastajaga sama päring 8. ja 9. septembri väljaanded, mõlemas 12 tähemärki. Korduspäring tagastas `generated: 0`. Avalik API lubas lugeda ainult tänast väljaannet, autentimata genereerimispäring sai vastuse `401` ning brauser kuvas andmebaasi teksti ilma staatilist varufaili kasutamata.
 

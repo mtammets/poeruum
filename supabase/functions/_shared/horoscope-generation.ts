@@ -1,4 +1,5 @@
 import { parseDailyHoroscope, zodiacSigns, type DailyHoroscope } from './horoscope.ts'
+import { getHoroscopeSky } from './horoscope-sky.ts'
 
 export async function generateDailyHoroscope(apiKey: string, date: string, model = 'gpt-5.4'): Promise<DailyHoroscope> {
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -11,17 +12,19 @@ export async function generateDailyHoroscope(apiKey: string, date: string, model
       reasoning: { effort: 'low' },
       max_output_tokens: 4500,
       instructions: [
-        'Kirjuta Poeruumi Kaubamajale eestikeelne meelelahutuslik päevahoroskoop.',
-        'Iga tähemärgi tekst on täpselt kaks loomulikku lauset, kokku 140–260 tähemärki.',
-        'Toon on soe, tähelepanelik ja kergelt humoorikas. Väldi tõlkekeelt ja klišeesid.',
-        'Vali igale märgile üks konkreetne argine olukord: näiteks vestlus sõbraga, pooleli jäänud mõte või meeldiv vaheldus.',
-        'Kirjuta lihtsas heas eesti keeles. Väldi abstraktseid sõnu nagu energia, tasakaal, loomingulisus ja enesekindlus.',
-        'Näide soovitud stiilist: Üks pooleli jäänud mõte võib täna lõpuks paika loksuda. Räägi sellest kellelegi, kes oskab õigel hetkel hea küsimuse küsida.',
-        'Anna igale tähemärgile oma mõte; ära korda lausealguseid. Ära lisa pealkirju ega tähemärgi nime teksti.',
+        'Kirjuta eestikeelne meelelahutuslik päevahoroskoop kõigile 12 tähemärgile, lähtudes sisendis arvutatud taevaseisudest.',
+        'Vali iga märgi jaoks konkreetne tänane aspekt ja tõlgenda seda tema päikesemajade kaudu. Pelk maja üldteema või tähemärgi stereotüüp ei ole piisav alus.',
+        'Päeva eripära otsi eeskätt Kuu liikumisest, märgivahetustest ja päeva jooksul muutuvatest aspektidest; aeglaste planeetide seisud on taust.',
+        'Iga lõik arendab üht äratuntavat elulist olukorda või tabavat tähelepanekut. Ära loetle eluvaldkondi. Planeetide, aspektide ja majade nimetused jäävad lähteandmetesse; avalik tekst on nende eluline tõlgendus.',
+        'Iga märgi kohta üks terviklik lõik, ligikaudu 140–300 tähemärki. Väljaandes peavad vahelduma nii lausearv kui ka rütm: üks pikk lause, mitu lühikest või nende loomulik kombinatsioon.',
+        'Kirjuta loomulikus heas eesti keeles. Meeleolu ja huumor lähtuvad käsitletavast olukorrast.',
+        'Anna tekstidele erinevad lausealgused, ülesehitus ja lõpetused. Ära kasuta läbivat ennustuse-ja-soovituse vormi, ühesuguseid vastandusi ega igas lõigus võrdlust või üleskutset.',
+        'Iga märk peab saama oma vaatenurga; sama mõtte ümberütlemine teiste sõnadega ei ole piisav erinevus. Väldi klišeesid ja üldsõnalisi elutarkusi.',
+        'Ära lisa pealkirju ega tähemärgi nime teksti.',
         'Ära kasuta emotikone, reklaami, ostusoovitusi, linke, tervise- ega finantsnõuandeid.',
-        'Ära väida tegelikke planeetide asendeid ega kindlaid tulevikusündmusi. Kirjuta mängulisi võimalusi.',
+        'Taevaseisude faktid võta ainult sisendist; ära mõtle juurde asendeid, aspekte ega sündmuste täpseid kellaaegu. Astroloogiline tõlgendus on mänguline, tulevikusündmused pole kindlad.',
       ].join(' '),
-      input: `Kuupäev Eestis: ${date}. Tähemärgid: ${zodiacSigns.map((sign) => `${sign.id} = ${sign.name}`).join(', ')}.`,
+      input: JSON.stringify(getHoroscopeSky(date)),
       text: { format: {
         type: 'json_schema', name: 'daily_horoscope', strict: true,
         schema: {

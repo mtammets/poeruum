@@ -13,6 +13,7 @@
     "npm:@types/react@^19.2.17": "19.2.17",
     "npm:@types/ws@^8.18.1": "8.18.1",
     "npm:@vitejs/plugin-react@^6.0.4": "6.0.4_vite@8.1.5",
+    "npm:astronomy-engine@2.1.19": "2.1.19",
     "npm:deno@2.9.4": "2.9.4",
     "npm:dotenv@^17.4.2": "17.4.2",
     "npm:eslint-plugin-react-hooks@7.1.1": "7.1.1_eslint@10.8.0",
@@ -785,6 +786,9 @@
     },
     "assertion-error@2.0.1": {
       "integrity": "sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA=="
+    },
+    "astronomy-engine@2.1.19": {
+      "integrity": "sha512-8yWKNf7UeNbH458h3sAJ6ZgAjE5jTXp/mNNRFoC20j2SHwZIjAQeEsBB2Q3uCFRaTCCJRv33K2XhkhZQMXoX6w=="
     },
     "balanced-match@4.0.4": {
       "integrity": "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="
@@ -1701,6 +1705,7 @@
         "npm:@types/react@^19.2.17",
         "npm:@types/ws@^8.18.1",
         "npm:@vitejs/plugin-react@^6.0.4",
+        "npm:astronomy-engine@2.1.19",
         "npm:deno@2.9.4",
         "npm:dotenv@^17.4.2",
         "npm:eslint-plugin-react-hooks@7.1.1",
