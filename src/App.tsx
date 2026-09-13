@@ -1884,7 +1884,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       return
     }
     const name = editProductNameRef.current?.textContent?.trim() ?? ''
-    const description = editProductDescriptionRef.current?.textContent?.trim() ?? ''
+    const description = editProductDescriptionRef.current?.innerText.trim() ?? ''
     const parsePrice = (value: string) => {
       const normalized = value.replace(/\s/g, '').replace(',', '.')
       return normalized ? Number(normalized) : Number.NaN
@@ -2804,18 +2804,20 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               storeId={storeId}
               imageUrl={editProductImageVariants[activeEditImage]?.variants.medium.url ?? activeEditImage}
               disabled={editImageUploads.length > 0}
-              getDetails={() => ({ name: editProductNameRef.current?.textContent ?? '', description: editProductDescriptionRef.current?.textContent ?? '' })}
+              getDetails={() => ({ name: editProductNameRef.current?.textContent ?? '', description: editProductDescriptionRef.current?.innerText ?? '' })}
               onGenerated={(description) => { if (editProductDescriptionRef.current) editProductDescriptionRef.current.textContent = description }}
               onNotice={setAuthToast}
               onBusyChange={setIsDescriptionGenerating}
             />}
           </div>
           <p
+            className="product-description"
             key={isEditOpen ? 'editing-description' : 'viewing-description'}
             ref={isEditOpen ? editProductDescriptionRef : undefined}
-            contentEditable={isEditOpen}
+            contentEditable={isEditOpen ? 'plaintext-only' : false}
             suppressContentEditableWarning
             role={isEditOpen ? 'textbox' : undefined}
+            aria-multiline={isEditOpen || undefined}
             aria-label={isEditOpen ? 'Toote kirjeldus' : undefined}
             data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Lisa toote kirjeldus' : undefined}
             spellCheck={isEditOpen}

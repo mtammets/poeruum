@@ -106,6 +106,7 @@ const installSupabaseBackend = async (
   const passwordResetRedirects: string[] = []
   const signOutScopes: string[] = []
   let currentStore = { ...storeFixture }
+  let currentProducts = structuredClone(options.products ?? [])
 
   await page.route('**/storage/v1/object/public/product-images/auth-preview.svg', (route) =>
     route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#226748"/></svg>' }))
@@ -192,8 +193,14 @@ const installSupabaseBackend = async (
     }
 
     if (url.pathname.endsWith('/rest/v1/products')) {
+      if (request.method() === 'POST') {
+        const product = request.postDataJSON() as Record<string, unknown>
+        currentProducts = [...currentProducts.filter((item) => item.id !== product.id), product]
+        await json(route, product)
+        return
+      }
       if (options.publicStore && url.searchParams.get('store_id') === `eq.${options.publicStore.id}`) {
-        await json(route, options.products ?? [{
+        await json(route, options.products ? currentProducts : [{
           id: '30000000-0000-4000-8000-000000000001', store_id: options.publicStore.id,
           name: 'Teise poe toode', slug: 'teise-poe-toode', price: 19, stock: 3, search_visible: true,
           image_url: 'http://localhost:4174/storage/v1/object/public/product-images/auth-preview.svg',
@@ -201,7 +208,7 @@ const installSupabaseBackend = async (
         return
       }
       await options.beforeProductsResponse?.()
-      await json(route, options.products ?? [])
+      await json(route, currentProducts)
       return
     }
 
@@ -234,6 +241,7 @@ const installSupabaseBackend = async (
 
   return {
     currentStore: () => currentStore,
+    currentProducts: () => currentProducts,
     passwordSignIns: () => passwordSignIns,
     sessionRefreshes: () => sessionRefreshes,
     passwordUpdates,
@@ -377,6 +385,55 @@ test('password recovery preserves the form when saving the password fails', asyn
   expect(backend.signOutScopes).toEqual([])
   await page.reload()
   await expect(page.getByRole('button', { name: /Salvesta uus parool/ })).toBeEnabled()
+})
+
+test('product description paragraphs survive editing, saving and customer reloads', async ({ page, browser }) => {
+  const original = 'Algne esimene lõik.\n\nAlgne teine lõik.\n\nAlgne kolmas lõik.'
+  const backend = await installSupabaseBackend(page, store, connectedStripeStatus, {
+    products: [{ id: 'paragraph-product', store_id: STORE_ID, name: 'Taldrik', slug: 'taldrik', description: original,
+      price: 29, stock: 1, image_url: 'http://localhost:4174/storage/v1/object/public/product-images/auth-preview.svg' }],
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  const description = page.locator('.product-description')
+  await expect(description).toHaveCSS('white-space', 'pre-wrap')
+  await expect(description).toHaveText(original, { useInnerText: true })
+  await page.getByRole('button', { name: 'Muuda toodet', exact: true }).click()
+  const editor = page.getByRole('textbox', { name: 'Toote kirjeldus', exact: true })
+  await editor.click()
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(original)
+  await editor.fill('Esimene lõik.')
+  await editor.press('Enter')
+  await editor.press('Enter')
+  await editor.pressSequentially('Teine lõik.')
+  await editor.press('Shift+Enter')
+  await editor.pressSequentially('Teise lõigu uus rida.')
+  await editor.press('Enter')
+  await editor.press('Enter')
+  await editor.pressSequentially('Kolmas lõik.')
+  const expected = 'Esimene lõik.\n\nTeine lõik.\nTeise lõigu uus rida.\n\nKolmas lõik.'
+  await page.getByRole('button', { name: 'Salvesta muudatused', exact: true }).click()
+  await expect(editor).toHaveCount(0)
+  expect(backend.currentProducts()[0].description).toBe(expected)
+  expect(await description.innerText()).toBe(expected)
+  await page.reload()
+  await expect(description).toHaveText(expected, { useInnerText: true })
+
+  const customer = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  try {
+    await installSupabaseBackend(customer, store, connectedStripeStatus, { publicStore: store, products: backend.currentProducts() })
+    await customer.goto(`http://${store.slug}.poeruum.localhost:4174/toode/taldrik/`)
+    const published = customer.locator('.product-description')
+    await expect(published).toHaveCSS('white-space', 'pre-wrap')
+    expect(await published.innerText()).toBe(expected)
+    await customer.reload()
+    await expect(published).toHaveText(expected, { useInnerText: true })
+  } finally {
+    await customer.close()
+  }
 })
 
 test('a merchant configures a dispatch range without an unconfirmed default promise', async ({ page, browser }) => {

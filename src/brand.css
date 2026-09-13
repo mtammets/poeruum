@@ -268,34 +268,34 @@
   letter-spacing: -.045em;
 }
 
-.product-details.is-inline-editing [contenteditable='true'] {
+.product-details.is-inline-editing [contenteditable]:not([contenteditable='false']) {
   cursor: text;
   outline: 0;
   border-radius: 0.2rem;
   white-space: pre-wrap;
 }
 
-.product-details.is-inline-editing p[contenteditable='true'] {
+.product-details.is-inline-editing p[contenteditable]:not([contenteditable='false']) {
   font-family: inherit;
   font-style: normal;
   letter-spacing: normal;
   text-transform: none;
 }
 
-.product-details.is-inline-editing p[contenteditable='true'] * {
+.product-details.is-inline-editing p[contenteditable]:not([contenteditable='false']) * {
   color: inherit !important;
   font: inherit !important;
   letter-spacing: inherit !important;
   text-transform: inherit !important;
 }
 
-.product-details.is-inline-editing [contenteditable='true']:empty::before {
+.product-details.is-inline-editing [contenteditable]:not([contenteditable='false']):empty::before {
   color: var(--store-ink-soft);
   content: attr(data-placeholder);
 }
 
-.product-details.is-inline-editing [contenteditable='true']:hover,
-.product-details.is-inline-editing [contenteditable='true']:focus {
+.product-details.is-inline-editing [contenteditable]:not([contenteditable='false']):hover,
+.product-details.is-inline-editing [contenteditable]:not([contenteditable='false']):focus {
   box-shadow: 0 0 0 2px rgba(138, 197, 255, 0.78);
 }
 
@@ -589,6 +589,11 @@
   color: var(--store-ink-muted);
   font-size: .96rem;
   line-height: 1.55;
+}
+
+.product-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .product-description-heading {
