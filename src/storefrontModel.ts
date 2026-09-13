@@ -1,5 +1,6 @@
 import type { Product } from './products'
 import type { CustomDomainRecord } from './lib/database'
+import type { DispatchTime } from './lib/dispatchTime'
 
 export type ShippingProvider = 'omniva' | 'dpd' | 'smartposti'
 export type PaymentProvider = 'stripe' | 'montonio'
@@ -29,7 +30,7 @@ export type StoreOrder = {
 }
 
 export type DeliverySettings = {
-  dispatchTimeText?: string
+  dispatchTime?: DispatchTime
   parcelProviders: Record<ShippingProvider, { enabled: boolean; price: number }>
   courierEnabled: boolean
   pickupEnabled: boolean

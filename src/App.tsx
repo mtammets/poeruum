@@ -8,8 +8,8 @@ import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT
 import { getPasswordResetRedirectUrl } from './lib/passwordRecovery'
 import { getMerchantLoginUrl, getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
+import { formatDispatchTime, getDispatchTimeError, type DispatchTime } from './lib/dispatchTime'
 import {
-  DEFAULT_DISPATCH_TIME_TEXT,
   DEFAULT_RETURNS_TEXT,
   FIXED_PLAN_MONTHLY_FEE,
   FIXED_PLAN_MONTHLY_TOTAL,
@@ -591,6 +591,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [draftProductId, setDraftProductId] = useState<string | null>(null)
   const [deletedProductIds, setDeletedProductIds] = useState<string[]>([])
   const [productEdits, setProductEdits] = useState<Record<string, Partial<Product>>>({})
+  const dispatchTime: DispatchTime = deliverySettings.dispatchTime ?? { enabled: false, min: null, max: null, unit: 'business_days' }
+  const dispatchTimeError = getDispatchTimeError(deliverySettings.dispatchTime)
   const settingsSnapshot = JSON.stringify({
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
@@ -753,6 +755,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       activePaymentProvider: PaymentProvider
       deliverySettings: DeliverySettings
     }
+    const dispatchError = getDispatchTimeError(settings.deliverySettings.dispatchTime)
+    if (dispatchError) throw new Error(dispatchError)
     const enabledShipping = [
       ...SHIPPING_PROVIDERS.filter((provider) => settings.deliverySettings.parcelProviders[provider].enabled),
       ...(settings.deliverySettings.courierEnabled ? ['courier'] : []),
@@ -795,7 +799,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }
 
   useEffect(() => {
-    if (!storeId || !merchantMode || !settingsHydrated) return
+    if (!storeId || !merchantMode || !settingsHydrated || dispatchTimeError) return
     if (!savedSettingsSnapshotRef.current || savedSettingsSnapshotRef.current === settingsSnapshot) return
     if (settingsCompositionRef.current) return
     setSettingsSaveStatus((current) => current === 'saving' ? current : 'idle')
@@ -819,7 +823,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       window.clearTimeout(timeout)
       if (settingsAutosaveTimerRef.current === timeout) settingsAutosaveTimerRef.current = null
     }
-  }, [settingsSnapshot, settingsHydrated, storeId, merchantMode, settingsCompositionRevision])
+  }, [settingsSnapshot, settingsHydrated, storeId, merchantMode, settingsCompositionRevision, dispatchTimeError])
 
   useEffect(() => {
     if (settingsSaveStatus !== 'saved') return
@@ -1703,7 +1707,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const isActiveProductSoldOut = activeProductStockLimit <= 0
   const isActiveProductAtCartLimit = activeProductCartQuantity >= activeProductStockLimit
   const hasActiveProductStock = Boolean(activeProduct?.oneOfAKind || activeProduct?.stock !== undefined)
-  const dispatchTimeText = (deliverySettings.dispatchTimeText ?? DEFAULT_DISPATCH_TIME_TEXT).trim()
+  const dispatchTimeText = formatDispatchTime(deliverySettings.dispatchTime)
 
   useEffect(() => {
     if (!activeProduct) reportInitialVisualReady()
@@ -3022,7 +3026,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           <div className="settings-titlebar">
             {!isSettingsHome && <button className="settings-titlebar__back" type="button" onClick={() => setIsSettingsHome(true)} aria-label="Kõik seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg><span>Seaded</span></button>}
             <h2>{isSettingsHome ? 'Seaded' : activeSettingsSection.label}</h2>
-            <button className={`settings-save-button is-${settingsSaveStatus}${hasUnsavedSettings ? ' has-changes' : ''}`} type="button" disabled={!hasUnsavedSettings || settingsSaveStatus === 'saving'} onClick={saveSettings}>
+            <button className={`settings-save-button is-${settingsSaveStatus}${hasUnsavedSettings ? ' has-changes' : ''}`} type="button" disabled={!hasUnsavedSettings || settingsSaveStatus === 'saving' || Boolean(dispatchTimeError)} onClick={saveSettings}>
               {settingsSaveStatus === 'saving' ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.35-5.65"/></svg> : settingsSaveStatus === 'saved' && !hasUnsavedSettings ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg> : null}
               <span>{settingsSaveStatus === 'saving' ? 'Salvestan…' : settingsSaveStatus === 'saved' && !hasUnsavedSettings ? 'Salvestatud' : 'Salvesta'}</span>
             </button>
@@ -3265,10 +3269,16 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </button>}
           </div>}
           {settingsSection === 'delivery' && <div className="settings-panel delivery-panel" role="tabpanel">
-            <header><span>TARNE</span><p>Määra tarneaeg, tarneviisid ja nende hinnad.</p></header>
-            <div className="settings-fields">
-              <label>Tarneaja tekst<input value={deliverySettings.dispatchTimeText ?? DEFAULT_DISPATCH_TIME_TEXT} maxLength={120} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTimeText: event.target.value }))} placeholder="Näiteks: Saadame 3–5 tööpäevaga" /><small className="settings-field-note">Kuvatakse toodete juures. Kirjuta, millal tellimuse teele paned. Tühjaks jättes tarneaega ei kuvata.</small></label>
-            </div>
+            <header><span>TARNE</span><p>Määra väljasaatmise aeg, tarneviisid ja nende hinnad.</p></header>
+            <label className="settings-toggle"><span><strong>Näita väljasaatmise aega</strong><small>Aeg tellimuse saamisest paki teelepanekuni</small></span><input type="checkbox" checked={dispatchTime.enabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, enabled: event.target.checked } }))} /><i /></label>
+            {dispatchTime.enabled && <div className="settings-fields">
+              <div className="settings-dispatch-time" role="group" aria-label="Väljasaatmise ajavahemik" aria-describedby="dispatch-time-note">
+                <label>Alates<input type="number" inputMode="numeric" min="1" step="1" value={dispatchTime.min ?? ''} aria-invalid={Boolean(dispatchTimeError)} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, min: event.target.value === '' ? null : event.target.valueAsNumber } }))} /></label>
+                <label>Kuni<input type="number" inputMode="numeric" min="1" step="1" value={dispatchTime.max ?? ''} aria-invalid={Boolean(dispatchTimeError)} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, max: event.target.value === '' ? null : event.target.valueAsNumber } }))} /></label>
+                <label>Ühik<select value={dispatchTime.unit} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, unit: event.target.value as DispatchTime['unit'] } }))}><option value="business_days">Tööpäeva</option><option value="weeks">Nädalat</option></select></label>
+              </div>
+              {dispatchTimeError ? <small id="dispatch-time-note" className="settings-dispatch-error" role="alert">{dispatchTimeError}</small> : <small id="dispatch-time-note" className="settings-field-note">Ostjale kuvatakse: {dispatchTimeText}</small>}
+            </div>}
             <div className="settings-delivery-list">
               {SHIPPING_PROVIDERS.map((provider) => {
                 const providerSettings = deliverySettings.parcelProviders[provider]

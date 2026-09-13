@@ -5647,6 +5647,12 @@
   gap: .7rem;
 }
 
+.delivery-panel .settings-fields > .settings-dispatch-time {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  align-items: end;
+}
+.settings-dispatch-error { color: #ff9d91; font-size: .7rem; }
+
 .delivery-panel .settings-delivery-provider {
   overflow: hidden;
   padding: 0 .9rem;
