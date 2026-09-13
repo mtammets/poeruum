@@ -233,6 +233,7 @@ const installSupabaseBackend = async (
   })
 
   return {
+    currentStore: () => currentStore,
     passwordSignIns: () => passwordSignIns,
     sessionRefreshes: () => sessionRefreshes,
     passwordUpdates,
@@ -376,6 +377,55 @@ test('password recovery preserves the form when saving the password fails', asyn
   expect(backend.signOutScopes).toEqual([])
   await page.reload()
   await expect(page.getByRole('button', { name: /Salvesta uus parool/ })).toBeEnabled()
+})
+
+test('a merchant saves the dispatch time and customers see it after reloading', async ({ page, browser }) => {
+  const deliverySettings = {
+    parcelProviders: { omniva: { enabled: true, price: 3 }, dpd: { enabled: false, price: 3 }, smartposti: { enabled: false, price: 3 } },
+    courierEnabled: false, courierPrice: 5, pickupEnabled: false, pickupAddress: '', freeShippingFrom: 50,
+  }
+  const backend = await installSupabaseBackend(page, { ...store, settings: { ...store.settings, deliverySettings } }, connectedStripeStatus, {
+    products: [{ id: 'dispatch-product', store_id: STORE_ID, name: 'Testtoode', slug: 'testtoode', price: 20,
+      stock: 2, image_url: 'http://localhost:4174/storage/v1/object/public/product-images/auth-preview.svg' }],
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.locator('.product-availability small')).toHaveText('Saadame 1–2 tööpäevaga')
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="delivery"]').click()
+  const dispatchTime = page.getByRole('textbox', { name: /^Tarneaja tekst/ })
+  await expect(dispatchTime).toHaveValue('Saadame 1–2 tööpäevaga')
+  await dispatchTime.fill('Valmistame ja saadame 2–3 nädalaga')
+  await page.getByRole('button', { name: 'Salvesta', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Salvestatud', exact: true })).toBeVisible()
+  const savedStore = backend.currentStore() as typeof store & { settings: { deliverySettings: typeof deliverySettings & { dispatchTimeText: string } } }
+  expect(savedStore.settings.deliverySettings).toEqual({ ...deliverySettings, dispatchTimeText: 'Valmistame ja saadame 2–3 nädalaga' })
+
+  await page.reload()
+  await expect(page.locator('.product-availability small')).toHaveText('Valmistame ja saadame 2–3 nädalaga')
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="delivery"]').click()
+  await expect(dispatchTime).toHaveValue('Valmistame ja saadame 2–3 nädalaga')
+
+  const customer = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  try {
+    await installSupabaseBackend(customer, store, connectedStripeStatus, { publicStore: savedStore })
+    await customer.goto(`http://${store.slug}.poeruum.localhost:4174/`)
+    await expect(customer.locator('.product-availability small')).toHaveText('Valmistame ja saadame 2–3 nädalaga')
+    expect(await customer.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  } finally {
+    await customer.close()
+  }
+
+  await dispatchTime.fill('')
+  await page.getByRole('button', { name: 'Salvesta', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Salvestatud', exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.locator('.product-availability strong')).toHaveText('Laos olemas')
+  await expect(page.locator('.product-availability small')).toHaveCount(0)
 })
 
 test('an unfulfilled order stays refunding until the server confirms the refund', async ({ page }) => {

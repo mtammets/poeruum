@@ -29,6 +29,7 @@ export type StoreOrder = {
 }
 
 export type DeliverySettings = {
+  dispatchTimeText?: string
   parcelProviders: Record<ShippingProvider, { enabled: boolean; price: number }>
   courierEnabled: boolean
   pickupEnabled: boolean

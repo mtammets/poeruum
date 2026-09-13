@@ -4,7 +4,7 @@ export const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; desc
   { id: 'store', label: 'Pood', description: 'Põhiandmed ja nähtavus' },
   { id: 'appearance', label: 'Kujundus', description: 'Logo, värvid ja stiil' },
   { id: 'payments', label: 'Maksed', description: 'Makseviisid ja ühendused' },
-  { id: 'delivery', label: 'Tarne', description: 'Pakiautomaadid ja hinnad' },
+  { id: 'delivery', label: 'Tarne', description: 'Tarneaeg, tarneviisid ja hinnad' },
   { id: 'business', label: 'Müüja', description: 'Ettevõtte andmed' },
   { id: 'links', label: 'Lingid', description: 'Kontakt ja sotsiaalmeedia' },
   { id: 'notifications', label: 'Teavitused', description: 'E-kirjad ja märguanded' },

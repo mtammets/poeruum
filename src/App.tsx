@@ -9,6 +9,7 @@ import { getPasswordResetRedirectUrl } from './lib/passwordRecovery'
 import { getMerchantLoginUrl, getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
 import {
+  DEFAULT_DISPATCH_TIME_TEXT,
   DEFAULT_RETURNS_TEXT,
   FIXED_PLAN_MONTHLY_FEE,
   FIXED_PLAN_MONTHLY_TOTAL,
@@ -1701,6 +1702,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const activeProductCartQuantity = activeProduct ? cart.filter((item) => item.id === activeProduct.id).reduce((sum, item) => sum + item.quantity, 0) : 0
   const isActiveProductSoldOut = activeProductStockLimit <= 0
   const isActiveProductAtCartLimit = activeProductCartQuantity >= activeProductStockLimit
+  const hasActiveProductStock = Boolean(activeProduct?.oneOfAKind || activeProduct?.stock !== undefined)
+  const dispatchTimeText = (deliverySettings.dispatchTimeText ?? DEFAULT_DISPATCH_TIME_TEXT).trim()
 
   useEffect(() => {
     if (!activeProduct) reportInitialVisualReady()
@@ -2867,9 +2870,12 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             key={value}
           >{value}</button>)}</div>
         </fieldset>)}
-        {!isEditOpen && (activeProduct.oneOfAKind || activeProduct.stock !== undefined) && <div className={`product-availability${isActiveProductSoldOut ? ' is-sold-out' : activeProduct.oneOfAKind || activeProduct.stock === 1 ? ' is-last' : ' is-available'}`}>
+        {!isEditOpen && (hasActiveProductStock || dispatchTimeText) && <div className={`product-availability${isActiveProductSoldOut ? ' is-sold-out' : activeProduct.oneOfAKind || activeProduct.stock === 1 ? ' is-last' : ' is-available'}`}>
           <i aria-hidden="true" />
-          <span><strong>{isActiveProductSoldOut ? 'Välja müüdud' : activeProduct.oneOfAKind ? 'Ainueksemplar' : activeProduct.stock === 1 ? 'Viimane eksemplar' : 'Laos olemas'}</strong><small>{isActiveProductSoldOut ? 'Hetkel pole tellitav' : 'Saadame 1–2 tööpäevaga'}</small></span>
+          <span>
+            {hasActiveProductStock && <strong>{isActiveProductSoldOut ? 'Välja müüdud' : activeProduct.oneOfAKind ? 'Ainueksemplar' : activeProduct.stock === 1 ? 'Viimane eksemplar' : 'Laos olemas'}</strong>}
+            {isActiveProductSoldOut ? <small>Hetkel pole tellitav</small> : dispatchTimeText && <small>{dispatchTimeText}</small>}
+          </span>
         </div>}
         <button
           disabled={isEditOpen ? editImageUploads.length > 0 || isDescriptionGenerating : isActiveProductSoldOut || Boolean(storeSlug && !sellerDetailsComplete)}
@@ -3259,7 +3265,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </button>}
           </div>}
           {settingsSection === 'delivery' && <div className="settings-panel delivery-panel" role="tabpanel">
-            <header><span>TARNE</span><p>Vali tarneviisid ja määra, kui palju ostja nende eest maksab.</p></header>
+            <header><span>TARNE</span><p>Määra tarneaeg, tarneviisid ja nende hinnad.</p></header>
+            <div className="settings-fields">
+              <label>Tarneaja tekst<input value={deliverySettings.dispatchTimeText ?? DEFAULT_DISPATCH_TIME_TEXT} maxLength={120} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTimeText: event.target.value }))} placeholder="Näiteks: Saadame 3–5 tööpäevaga" /><small className="settings-field-note">Kuvatakse toodete juures. Kirjuta, millal tellimuse teele paned. Tühjaks jättes tarneaega ei kuvata.</small></label>
+            </div>
             <div className="settings-delivery-list">
               {SHIPPING_PROVIDERS.map((provider) => {
                 const providerSettings = deliverySettings.parcelProviders[provider]
