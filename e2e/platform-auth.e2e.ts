@@ -101,6 +101,10 @@ const installSupabaseBackend = async (
 ) => {
   let passwordSignIns = 0
   let sessionRefreshes = 0
+  let currentPassword: string | null = null
+  const passwordUpdates: string[] = []
+  const passwordResetRedirects: string[] = []
+  const signOutScopes: string[] = []
   let currentStore = { ...storeFixture }
 
   await page.route('**/storage/v1/object/public/product-images/auth-preview.svg', (route) =>
@@ -131,7 +135,13 @@ const installSupabaseBackend = async (
 
     if (url.pathname.endsWith('/auth/v1/token')) {
       const grantType = url.searchParams.get('grant_type')
-      if (grantType === 'password') passwordSignIns += 1
+      if (grantType === 'password') {
+        passwordSignIns += 1
+        if (currentPassword && request.postDataJSON().password !== currentPassword) {
+          await json(route, { code: 'invalid_credentials', message: 'Invalid login credentials' }, 400)
+          return
+        }
+      }
       else if (grantType === 'refresh_token') sessionRefreshes += 1
       else {
         await json(route, { message: 'Unsupported test grant type' }, 400)
@@ -149,7 +159,23 @@ const installSupabaseBackend = async (
     }
 
     if (url.pathname.endsWith('/auth/v1/user')) {
+      if (request.method() === 'PUT') {
+        currentPassword = request.postDataJSON().password
+        passwordUpdates.push(currentPassword!)
+      }
       await json(route, user)
+      return
+    }
+
+    if (url.pathname.endsWith('/auth/v1/recover')) {
+      passwordResetRedirects.push(url.searchParams.get('redirect_to') ?? '')
+      await json(route, {})
+      return
+    }
+
+    if (url.pathname.endsWith('/auth/v1/logout')) {
+      signOutScopes.push(url.searchParams.get('scope') ?? '')
+      await json(route, {})
       return
     }
 
@@ -209,6 +235,9 @@ const installSupabaseBackend = async (
   return {
     passwordSignIns: () => passwordSignIns,
     sessionRefreshes: () => sessionRefreshes,
+    passwordUpdates,
+    passwordResetRedirects,
+    signOutScopes,
   }
 }
 
@@ -220,6 +249,134 @@ const otherStore = {
   slug: 'kruk-kruk',
   settings: { ...store.settings, editableStoreName: 'Krük-Krük', businessName: 'Teine kaupmees OÜ' },
 }
+
+const recoveryFragment = new URLSearchParams({
+  access_token: accessToken,
+  refresh_token: 'playwright-refresh-token',
+  expires_in: '3600',
+  token_type: 'bearer',
+  type: 'recovery',
+}).toString()
+
+test('password recovery survives Supabase consuming the link before the login view loads', async ({ page }) => {
+  await installSupabaseBackend(page)
+  let releaseView!: () => void
+  const viewReady = new Promise<void>((resolve) => { releaseView = resolve })
+  await page.route('**/src/PlatformApp.tsx', async (route) => {
+    await viewReady
+    await route.continue()
+  })
+  try {
+    await page.goto(`/#${recoveryFragment}`, { waitUntil: 'commit' })
+    // The real SDK processes the recovery session while the lazy view is pending.
+    await page.waitForFunction(() => window.location.hash === '')
+  } finally {
+    releaseView()
+  }
+  await expect(page.getByRole('heading', { name: 'Vali uus parool', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Seaded/ })).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Vali uus parool', exact: true })).toBeVisible()
+})
+
+test('password recovery sends a dedicated link, saves the new password and requires a fresh login', async ({ page }) => {
+  const backend = await installSupabaseBackend(page)
+  await page.goto('/?continue_setup=1')
+  await page.getByRole('button', { name: 'Unustasid parooli?' }).click()
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByRole('button', { name: /Saada taastamislink/ }).click()
+  await expect(page.getByRole('status')).toHaveText('Taastamislink on saadetud. Kontrolli oma e-posti.')
+  expect(backend.passwordResetRedirects).toEqual(['http://poeruum.localhost:4174/?reset_password=1'])
+
+  await page.goto(`${backend.passwordResetRedirects[0]}#${recoveryFragment}`)
+  await expect(page.getByText(`Konto: ${user.email}`, { exact: true })).toBeVisible()
+  expect(backend.passwordUpdates).toEqual([])
+  const newPassword = 'Uus-testiparool-123!'
+  await page.getByLabel('Uus parool', { exact: true }).fill(newPassword)
+  await page.getByLabel('Korda uut parooli', { exact: true }).fill('Erinev-parool-123!')
+  await page.getByRole('button', { name: /Salvesta uus parool/ }).click()
+  await expect(page.getByRole('alert')).toHaveText('Paroolid ei ühti.')
+  expect(backend.passwordUpdates).toEqual([])
+  await page.getByLabel('Korda uut parooli', { exact: true }).fill(newPassword)
+  await page.getByRole('button', { name: /Salvesta uus parool/ }).click()
+  await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText('Parool on muudetud. Logi nüüd uue parooliga sisse.')
+  expect(backend.passwordUpdates).toEqual([newPassword])
+  expect(backend.signOutScopes).toEqual(['global'])
+  await expect(page).toHaveURL('http://poeruum.localhost:4174/')
+
+  await page.getByLabel('Parool', { exact: true }).fill('Vana-testiparool-123!')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await page.getByLabel('Parool', { exact: true }).fill(newPassword)
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+  await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+})
+
+for (const callback of [
+  '/?reset_password=1',
+  '/?reset_password=1#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
+]) {
+  test(`password recovery rejects a missing or expired link: ${callback}`, async ({ page }) => {
+    const backend = await installSupabaseBackend(page)
+    await page.goto(callback)
+    await expect(page.getByRole('alert')).toHaveText('Taastamislink on aegunud või vigane. Palun telli uus taastamislink.')
+    await expect(page.getByRole('button', { name: /Salvesta uus parool/ })).toBeDisabled()
+    expect(backend.passwordUpdates).toEqual([])
+    await page.getByRole('button', { name: 'Telli uus taastamislink' }).click()
+    await expect(page.getByRole('heading', { name: 'Unustasid parooli?', exact: true })).toBeVisible()
+    await page.getByLabel('E-posti aadress').fill(user.email)
+    await page.getByRole('button', { name: /Saada taastamislink/ }).click()
+    await expect(page.getByRole('status')).toHaveText('Taastamislink on saadetud. Kontrolli oma e-posti.')
+    expect(backend.passwordResetRedirects).toEqual(['http://poeruum.localhost:4174/?reset_password=1'])
+  })
+}
+
+test('password recovery on an old shop link takes priority over the public storefront and can be cancelled', async ({ page }) => {
+  const backend = await installSupabaseBackend(page, store, connectedStripeStatus, { publicStore: otherStore })
+  await page.goto(`http://kruk-kruk.poeruum.localhost:4174/#${recoveryFragment}`)
+  await expect(page.getByRole('button', { name: /Salvesta uus parool/ })).toBeEnabled()
+  await expect(page.getByRole('heading', { name: 'Teise poe toode', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Tagasi eelmisele lehele' }).click()
+  await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
+  expect(backend.passwordUpdates).toEqual([])
+  expect(backend.signOutScopes).toEqual(['local'])
+  await page.goto('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+  await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
+  await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
+})
+
+test('password recovery does not accept an expired link just because the browser is already signed in', async ({ page }) => {
+  await installSupabaseBackend(page)
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+  await page.goto('/?reset_password=1#error=access_denied&error_code=otp_expired')
+  await expect(page.getByRole('alert')).toHaveText('Taastamislink on aegunud või vigane. Palun telli uus taastamislink.')
+  await expect(page.getByRole('button', { name: /Salvesta uus parool/ })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Telli uus taastamislink' })).toBeVisible()
+})
+
+test('password recovery preserves the form when saving the password fails', async ({ page }) => {
+  const backend = await installSupabaseBackend(page)
+  await page.route('**/__e2e_supabase/auth/v1/user', async (route) => {
+    if (route.request().method() === 'PUT') await json(route, { message: 'Parooli salvestamine ebaõnnestus.' }, 500)
+    else await route.fallback()
+  })
+  await page.goto(`/?reset_password=1#${recoveryFragment}`)
+  await page.getByLabel('Uus parool', { exact: true }).fill('Uus-testiparool-123!')
+  await page.getByLabel('Korda uut parooli', { exact: true }).fill('Uus-testiparool-123!')
+  await page.getByRole('button', { name: /Salvesta uus parool/ }).click()
+  await expect(page.getByRole('alert')).toHaveText('Parooli muutmine ebaõnnestus.')
+  await expect(page.getByRole('heading', { name: 'Vali uus parool', exact: true })).toBeVisible()
+  expect(backend.passwordUpdates).toEqual([])
+  expect(backend.signOutScopes).toEqual([])
+  await page.reload()
+  await expect(page.getByRole('button', { name: /Salvesta uus parool/ })).toBeEnabled()
+})
 
 test('an unfulfilled order stays refunding until the server confirms the refund', async ({ page }) => {
   const order = {

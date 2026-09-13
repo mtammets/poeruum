@@ -5,6 +5,7 @@ import { products, type Product, type ProductImageAsset, type ProductImageTransf
 import { cancelStripeBilling, createProductCategory, createProductCategorySlug, listOrders, listProductCategories, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, setStorePublication, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type ProductCategory, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
+import { getPasswordResetRedirectUrl } from './lib/passwordRecovery'
 import { getMerchantLoginUrl, getProductUrlSlug, getStorefrontCanonicalUrl, getStorefrontPath, isDedicatedStorefrontHostname, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
 import {
@@ -2040,7 +2041,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase ei ole seadistatud.')
       const { error } = await requireSupabase().auth.resetPasswordForEmail(loginEmail.trim(), {
-        redirectTo: window.location.origin,
+        redirectTo: getPasswordResetRedirectUrl(window.location),
         captchaToken: loginCaptchaToken || undefined,
       })
       if (error) throw error

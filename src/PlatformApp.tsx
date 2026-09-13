@@ -6,6 +6,7 @@ import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, ge
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPaymentSetupState, getStoreDestination, getStripeSetupMode, type OnboardingStep, type StripeSetupPurpose } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
+import { clearPasswordRecoveryIntent, getPasswordResetRedirectUrl, isPasswordRecoveryLocation, preservePasswordRecoveryIntent } from './lib/passwordRecovery'
 import { getMerchantLoginUrl, getMerchantStoreUrl, getRequestedProductSlug, getRequestedStoreSlug, isDedicatedStorefrontHostname, isMerchantManagementLocation, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { isHomepageAnalyticsLocation, startHomepageEngagementTracking, trackHomepageEvent } from './lib/homepageAnalytics'
 import { products as bundledProducts, type Product } from './products'
@@ -147,7 +148,7 @@ const getLocalizedAuthError = (error: unknown, fallback: string) => {
   if (authError.code === 'weak_password' || message.includes('password should') || message.includes('weak password')) {
     return PASSWORD_REQUIREMENTS_TEXT
   }
-  return authError.message || fallback
+  return message && message !== '{}' ? authError.message! : fallback
 }
 
 function FlowHeader({
@@ -198,14 +199,16 @@ export function SetupShell({
 }
 
 function PlatformFlow() {
+  const [startedPasswordRecovery] = useState(() => isPasswordRecoveryLocation(window.location))
   const requestedStoreSlug = getRequestedStoreSlug(window.location)
   const isMerchantLocation = isMerchantManagementLocation(window.location)
-  const shouldLoadPublicStore = isSupabaseConfigured && !isMerchantLocation && (
+  const shouldLoadPublicStore = isSupabaseConfigured && !startedPasswordRecovery && !isMerchantLocation && (
     requestedStoreSlug !== null || isDedicatedStorefrontHostname(window.location.hostname)
   )
   const redirectPublicOwnerLogin = shouldLoadPublicStore
     && new URLSearchParams(window.location.search).get('owner_login') === '1'
-  const [screen, setScreen] = useState<Screen>('landing')
+  const [screen, setScreen] = useState<Screen>(startedPasswordRecovery ? 'reset-password' : 'landing')
+  const [isPasswordRecoveryReady, setIsPasswordRecoveryReady] = useState(false)
   const [showAllFaq, setShowAllFaq] = useState(false)
   const [email, setEmail] = useState('')
   const [onlineUserId, setOnlineUserId] = useState<string | null>(null)
@@ -661,9 +664,22 @@ function PlatformFlow() {
   useEffect(() => {
     if (!isSupabaseConfigured) return
     let active = true
-    let recoveryMode = window.location.hash.includes('type=recovery')
-    if (recoveryMode) setScreen('reset-password')
+    let recoveryMode = startedPasswordRecovery
     const restore = async () => {
+      if (recoveryMode) {
+        const auth = requireSupabase().auth
+        const { error: initializationError } = await auth.initialize()
+        const { data, error } = await auth.getSession()
+        if (!active) return
+        if (initializationError || error || !data.session) {
+          setAuthError('Taastamislink on aegunud või vigane. Palun telli uus taastamislink.')
+          setIsPasswordRecoveryReady(false)
+        } else {
+          setEmail(data.session.user.email ?? '')
+          setIsPasswordRecoveryReady(true)
+        }
+        return
+      }
       // A public URL keeps the visited shop, even with another owner's session.
       // Merchant management has its own route on the authenticated owner's host.
       if (shouldLoadPublicStore) {
@@ -693,6 +709,7 @@ function PlatformFlow() {
         return
       }
       const { data: refreshedData } = await requireSupabase().auth.refreshSession()
+      if (!active || recoveryMode) return
       const currentSession = refreshedData.session ?? data.session
       const hostname = window.location.hostname.toLowerCase().replace(/\.$/, '')
       const isPlatformHostname = hostname === 'localhost' || hostname === '127.0.0.1'
@@ -709,7 +726,7 @@ function PlatformFlow() {
       setOnlineUserId(currentSession.user.app_metadata?.role === 'admin' ? null : currentSession.user.id)
       setEmail(currentSession.user.email ?? '')
       let existing = await getMyStore()
-      if (!active) return
+      if (!active || recoveryMode) return
       if (!existing) {
         if (isMerchantLocation) {
           window.location.replace(getMerchantLoginUrl(window.location))
@@ -780,18 +797,26 @@ function PlatformFlow() {
       }
     }
     const { data } = requireSupabase().auth.onAuthStateChange((event, session) => {
-      // `restore` owns the initial session. Ignoring INITIAL_SESSION here avoids
-      // a late empty callback clearing a user who just signed in through the UI.
-      if (event !== 'INITIAL_SESSION') {
-        setOnlineUserId(session?.user.app_metadata?.role === 'admin' ? null : session?.user.id ?? null)
-      }
-      if (event === 'PASSWORD_RECOVERY' && active) {
+      if (!active) return
+      if (event === 'PASSWORD_RECOVERY') {
         recoveryMode = true
+        preservePasswordRecoveryIntent()
         setEmail(session?.user.email ?? '')
         setAuthError('')
         setAuthNotice('')
+        setIsPasswordRecoveryReady(Boolean(session))
         setScreen('reset-password')
         return
+      }
+      // `restore` owns the initial session. Ignoring INITIAL_SESSION here avoids
+      // a late empty callback clearing a user who just signed in through the UI.
+      if (event !== 'INITIAL_SESSION' && !recoveryMode) {
+        setOnlineUserId(session?.user.app_metadata?.role === 'admin' ? null : session?.user.id ?? null)
+      }
+      if (event === 'SIGNED_OUT') {
+        recoveryMode = false
+        setOnlineUserId(null)
+        setIsPasswordRecoveryReady(false)
       }
       // Keep the loaded store in memory across auth changes. The logout callback
       // controls the destination, while account deletion clears it explicitly.
@@ -962,7 +987,7 @@ function PlatformFlow() {
     try {
       if (!isSupabaseConfigured) throw new Error('Lisa esmalt Supabase’i võtmed .env faili.')
       const { error } = await requireSupabase().auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin,
+        redirectTo: getPasswordResetRedirectUrl(window.location),
         captchaToken: captchaToken || undefined,
       })
       if (error) throw error
@@ -973,6 +998,7 @@ function PlatformFlow() {
 
   const completePasswordReset = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (isAuthBusy || !isPasswordRecoveryReady) return
     setIsAuthBusy(true); setAuthError(''); setAuthNotice('')
     try {
       const form = new FormData(event.currentTarget)
@@ -983,12 +1009,37 @@ function PlatformFlow() {
       if (password !== confirmation) throw new Error('Paroolid ei ühti.')
       const { error } = await requireSupabase().auth.updateUser({ password })
       if (error) throw error
-      await requireSupabase().auth.signOut({ scope: 'global' })
+      const { error: signOutError } = await requireSupabase().auth.signOut({ scope: 'global' })
+      if (signOutError) {
+        setAuthError('Parool on muudetud, kuid väljalogimine ebaõnnestus. Kasuta tagasinuppu, et uuesti välja logida.')
+        return
+      }
+      clearPasswordRecoveryIntent()
+      setOnlineUserId(null)
+      setIsPasswordRecoveryReady(false)
       setAuthNotice('Parool on muudetud. Logi nüüd uue parooliga sisse.')
       setScreen('login')
-      window.history.replaceState({}, '', window.location.pathname)
     } catch (error) { setAuthError(getLocalizedAuthError(error, 'Parooli muutmine ebaõnnestus.')) }
     finally { setIsAuthBusy(false) }
+  }
+
+  const leavePasswordRecovery = async (nextScreen: 'login' | 'forgot-password') => {
+    if (isAuthBusy) return
+    setIsAuthBusy(true)
+    try {
+      if (isSupabaseConfigured) {
+        const { error } = await requireSupabase().auth.signOut({ scope: 'local' })
+        if (error) throw error
+      }
+      clearPasswordRecoveryIntent()
+      setOnlineUserId(null)
+      setIsPasswordRecoveryReady(false)
+      setAuthError('')
+      setAuthNotice('')
+      setScreen(nextScreen)
+    } catch (error) {
+      setAuthError(getLocalizedAuthError(error, 'Väljalogimine ebaõnnestus. Proovi uuesti.'))
+    } finally { setIsAuthBusy(false) }
   }
 
   const persistStore = async (overrides: Partial<StoreContentInput> = {}, nextStep?: OnboardingStep) => {
@@ -1665,7 +1716,7 @@ function PlatformFlow() {
   </main>
 
   if (screen === 'reset-password') return <main className="auth-page auth-page--login">
-    <FlowHeader onBack={() => setScreen('login')} />
+    <FlowHeader onBack={() => void leavePasswordRecovery('login')} />
     <div className="auth-flow auth-flow--login"><div className="auth-content">
       <aside className="auth-intro auth-intro--login"><span className="platform-eyebrow">Uus parool</span><h1>Taasta ligipääs oma poele.</h1><p>Vali uus tugev parool, mida sa mujal ei kasuta.</p></aside>
       <section className="auth-card auth-card--login">
@@ -1674,8 +1725,9 @@ function PlatformFlow() {
           <PasswordInput key="reset-password" label="Uus parool" required name="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" autoFocus hint={PASSWORD_REQUIREMENTS_TEXT} />
           <PasswordInput key="reset-password-confirmation" label="Korda uut parooli" required name="passwordConfirmation" minLength={PASSWORD_MIN_LENGTH} placeholder="Korda parooli" autoComplete="new-password" />
           {authError && <p className="add-product-error" role="alert">{authError}</p>}
-          <button type="submit" disabled={isAuthBusy}>{isAuthBusy ? 'Muudan…' : 'Salvesta uus parool'} <span>→</span></button>
+          <button type="submit" disabled={isAuthBusy || !isPasswordRecoveryReady}>{isAuthBusy ? 'Muudan…' : 'Salvesta uus parool'} <span>→</span></button>
         </form>
+        {isAuthResolved && !isPasswordRecoveryReady && <div className="auth-switch"><button type="button" disabled={isAuthBusy} onClick={() => void leavePasswordRecovery('forgot-password')}>Telli uus taastamislink</button></div>}
       </section>
     </div></div>
   </main>
