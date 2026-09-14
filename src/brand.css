@@ -5350,6 +5350,21 @@
 
 }
 
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .desktop-arrows {
+    opacity: 0;
+    transition: opacity 160ms ease;
+  }
+
+  .desktop-arrows button { pointer-events: none; }
+
+  .story-stage:hover .desktop-arrows,
+  .desktop-arrows:has(:focus-visible) { opacity: 1; }
+
+  .story-stage:hover .desktop-arrows button,
+  .desktop-arrows:has(:focus-visible) button { pointer-events: auto; }
+}
+
 @media (min-width: 1024px) and (max-height: 800px) {
   .app-shell[data-editing='true'] .desktop-arrows {
     right: 6rem;
@@ -5359,6 +5374,7 @@
 @media (prefers-reduced-motion: reduce) {
   .add-source-overlay,
   .add-source-overlay .edit-sheet { animation: none; }
+  .desktop-arrows { transition: none; }
 }
 
 .checkout .pay:active {
