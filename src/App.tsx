@@ -529,6 +529,15 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const shareDragStartRef = useRef<number | null>(null)
   const editProductNameRef = useRef<HTMLHeadingElement>(null)
   const saveProductButtonRef = useRef<HTMLButtonElement>(null)
+  const measureBuyButton = useCallback((button: HTMLButtonElement | null) => {
+    if (!button) return
+    const stage = button.parentElement
+    const updateWidth = () => stage?.style.setProperty('--buy-button-width', `${button.offsetWidth}px`)
+    updateWidth()
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(button)
+    return () => observer.disconnect()
+  }, [])
   const exitAttentionTimerRef = useRef<number | null>(null)
   const editProductDescriptionRef = useRef<HTMLParagraphElement>(null)
   const editProductPriceRef = useRef<HTMLInputElement>(null)
@@ -2746,7 +2755,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           {saleBadgeStyle === 'elegant' && <span className="sale-badge__elegant" aria-hidden="true">Eripakkumine</span>}
           {saleBadgeStyle === 'minimal' && <span className="sale-badge__minimal" aria-hidden="true">Soodus · −{activeProductDiscount}%</span>}
         </div>}
-        {activeProduct && <button disabled={isActiveProductSoldOut} className={`buy-now${activeProductHasSale ? ' has-sale' : ''}${activeProductHasSale && saleBadgeStyle === 'price' ? ' has-inline-sale-price' : ''}${isActiveProductSoldOut ? ' is-sold-out' : ''}`} onClick={buyNow}>
+        {activeProduct && <button ref={measureBuyButton} disabled={isActiveProductSoldOut} className={`buy-now${activeProductHasSale ? ' has-sale' : ''}${activeProductHasSale && saleBadgeStyle === 'price' ? ' has-inline-sale-price' : ''}${isActiveProductSoldOut ? ' is-sold-out' : ''}`} onClick={buyNow}>
           <span>{isActiveProductSoldOut ? 'Välja müüdud' : activeProductHasSale ? 'Osta kohe' : 'Osta'}</span>
           <strong>{activeProductHasSale && saleBadgeStyle === 'price' ? <><s>{activeProduct.price} €</s><span>{activeProduct.salePrice} €</span></> : `${getProductPrice(activeProduct)} €`}</strong>
         </button>}

@@ -1844,13 +1844,19 @@
   left: 1rem;
   bottom: calc(1.25rem + env(safe-area-inset-bottom));
   display: flex;
-  max-width: calc(100% - 10rem);
+  max-width: calc(100% - 2rem);
   gap: 0.45rem;
   padding: 0;
   overflow-x: auto;
   border: 0;
   background: transparent;
   scrollbar-width: none;
+}
+
+.gallery-thumbnails::after {
+  content: '';
+  /* Together with the .45rem gap, leave .75rem before the overlaid buy button. */
+  flex: 0 0 calc(var(--buy-button-width, 8rem) + .3rem);
 }
 
 .product-image-editor { position: absolute; z-index: 7; inset: 0; pointer-events: auto; user-select: none; -webkit-user-select: none; }
@@ -4988,6 +4994,7 @@
   .gallery-thumbnails {
     left: 1.5rem;
     bottom: 1.5rem;
+    max-width: calc(100% - 3rem);
   }
 
   .buy-now {
