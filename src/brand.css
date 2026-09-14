@@ -5351,6 +5351,18 @@
 }
 
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .store-directory-return {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease, background 160ms ease;
+  }
+
+  .story-stage:hover .store-directory-return,
+  .store-directory-return:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
   .desktop-arrows {
     opacity: 0;
     transition: opacity 160ms ease;
