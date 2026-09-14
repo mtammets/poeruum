@@ -40,7 +40,7 @@ export function mountOrderImageHarness() {
   }), 'order-image-harness')
 }
 
-export function mountStorefrontImageHarness() {
+export function mountStorefrontImageHarness(storeName = 'Pildipood') {
   const firstImage = '/e2e-images/first.jpg'
   const secondImage = '/e2e-images/second.jpg'
   const products = [
@@ -50,10 +50,10 @@ export function mountStorefrontImageHarness() {
   mount(createElement(Storefront, {
     storeId: '10000000-0000-4000-8000-000000000098',
     seedProducts: products,
-    storeName: 'Pildipood',
+    storeName,
     storeSlug: 'pildipood',
     initialSettings: {
-      editableStoreName: 'Pildipood',
+      editableStoreName: storeName,
       storeDescription: 'Poe tutvustus',
       storeLogo: '/e2e-images/logo.jpg',
       storeAboutImage: '/e2e-images/about.jpg',

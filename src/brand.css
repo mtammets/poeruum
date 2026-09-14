@@ -13,6 +13,7 @@
 
 .secret-login-trigger {
   display: block;
+  flex-shrink: 0;
   width: 3rem;
   height: 3rem;
   padding: 0;
@@ -22,17 +23,18 @@
 }
 
 .story-brand strong {
-  display: -webkit-box;
+  display: block;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: #fff;
   font-size: 0.88rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   line-height: 1.2;
-  overflow-wrap: anywhere;
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.55);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .story-header > .story-brand img {
@@ -1255,6 +1257,7 @@
 
 .header-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 0.5rem;
 }

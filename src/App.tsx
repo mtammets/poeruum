@@ -25,6 +25,7 @@ import BillingPlanDialog from './BillingPlanDialog'
 import ModalCloseButton from './ModalCloseButton'
 import ProductDescriptionGenerator from './ProductDescriptionGenerator'
 import ProductImageTray from './ProductImageTray'
+import StoreName from './StoreName'
 import PasswordInput from './PasswordInput'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
@@ -2634,7 +2635,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <button className="secret-login-trigger" onClick={handleLogoTap} aria-label={editableStoreName}>
               {storeLogo ? <img src={storeLogo} alt="" /> : <span className="story-logo-fallback" aria-hidden="true">{storeInitial}</span>}
             </button>
-            <strong>{editableStoreName.toLocaleUpperCase('et')}</strong>
+            <StoreName name={editableStoreName} />
           </div>
           {!isEditOpen && <div className="header-actions">
             <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi ja sirvi kategooriaid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
