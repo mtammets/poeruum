@@ -24,6 +24,7 @@ import {
 import BillingPlanDialog from './BillingPlanDialog'
 import ModalCloseButton from './ModalCloseButton'
 import ProductDescriptionGenerator from './ProductDescriptionGenerator'
+import ProductImageTray from './ProductImageTray'
 import PasswordInput from './PasswordInput'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
@@ -1250,6 +1251,14 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       setSelectedImages((current) => ({ ...current, [activeProduct.id]: editProductImages.length }))
     }
     uploads.forEach((upload) => { startEditImageUpload(upload) })
+  }
+
+  const reorderEditProductImages = (images: string[], selectedImage?: string) => {
+    if (!activeProduct) return
+    const currentImage = editProductImages[selectedImages[activeProduct.id] ?? 0]
+    const nextSelection = selectedImage ?? (images[0] !== editProductImages[0] ? images[0] : currentImage)
+    setEditProductImages(images)
+    setSelectedImages((current) => ({ ...current, [activeProduct.id]: Math.max(0, images.indexOf(nextSelection)) }))
   }
 
   const removeEditProductImage = (index: number) => {
@@ -2693,19 +2702,25 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <div><strong>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Pildi üleslaadimine ebaõnnestus' : editImageUploads.some((upload) => upload.phase === 'preparing') ? 'Valmistan fotot ette…' : 'Laen pilti üles…'}</strong><small>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Proovi pisipildi juures uuesti.' : editImageUploads.some((upload) => upload.slow) ? 'Läheb tavapärasest veidi kauem…' : 'Võid oodata — aken jääb avatuks.'}</small></div>
           </div>}
           <div className="product-image-editor__gesture-area" aria-label="Tootepildi paigutamine" onPointerDown={handleImagePointerDown} onPointerMove={handleImagePointerMove} onPointerUp={endImagePointer} onPointerCancel={endImagePointer} onWheel={handleImageWheel} onDoubleClick={() => setActiveEditImageTransform(activeEditImageTransform.scale > 1.05 ? DEFAULT_IMAGE_TRANSFORM : { x: 0, y: 0, scale: 2 })} />
-          <div className="product-image-editor__tray">
-            {editProductImages.map((image, index) => {
+          <ProductImageTray images={editProductImages} selectedImage={editProductImages[selectedImages[activeProduct.id] ?? 0]}
+            disabled={editImageUploads.length > 0} onReorder={reorderEditProductImages}
+            itemClassName={(image, index) => {
               const upload = editImageUploads.find((item) => item.previewUrl === image)
-              return <div className={`${(selectedImages[activeProduct.id] ?? 0) === index ? 'is-active' : ''}${upload ? ` is-upload-${upload.phase}` : ''}`} key={`${image}-${index}`}>
-              <button type="button" onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))} aria-label={`Vali pilt ${index + 1}`}><img {...getResponsiveImageProps({ ...activeProduct, imageVariants: editProductImageVariants }, image, 'thumb')} sizes="5rem" alt="" /></button>
+              return `${(selectedImages[activeProduct.id] ?? 0) === index ? 'is-active' : ''}${upload ? ` is-upload-${upload.phase}` : ''}`
+            }}
+            renderImage={(image, index, interactionProps) => {
+              const upload = editImageUploads.find((item) => item.previewUrl === image)
+              return <>
+              <button type="button" {...interactionProps} onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))} aria-label={`Vali pilt ${index + 1}`}><img draggable={false} {...getResponsiveImageProps({ ...activeProduct, imageVariants: editProductImageVariants }, image, 'thumb')} sizes="5rem" alt="" /></button>
               {upload && <span className="product-image-editor__thumbnail-status">{upload.phase === 'error' ? '!' : <i />}</span>}
               {upload?.phase === 'error' ? <><button className="product-image-editor__retry" type="button" onClick={() => startEditImageUpload(upload)}>Proovi uuesti</button><button className="product-image-editor__remove" type="button" aria-label="Eemalda ebaõnnestunud pilt" onClick={() => dismissEditImageUpload(upload)}>×</button></> : !upload && <button className="product-image-editor__remove" type="button" title="Eemalda pilt" aria-label={`Eemalda pilt ${index + 1}`} onClick={() => removeEditProductImage(index)}>×</button>}
               {!upload && (selectedImages[activeProduct.id] ?? 0) === index && <button className="product-image-editor__replace" type="button" title="Vaheta valitud pilt" aria-label="Vaheta valitud pilt" onClick={() => { editProductImageModeRef.current = 'replace'; editProductImageInputRef.current?.click() }}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M18.2 16.4A7 7 0 1 1 19.5 9L20 12"/></svg>
               </button>}
-            </div>})}
+            </>
+            }}>
             {editProductImages.length < MAX_PRODUCT_IMAGES && <button className="product-image-editor__add" type="button" title="Lisa pilt" aria-label="Lisa pilt" disabled={editImageUploads.length > 0} onClick={() => { editProductImageModeRef.current = 'add'; editProductImageInputRef.current?.click() }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>}
-          </div>
+          </ProductImageTray>
           <input ref={editProductImageInputRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(event) => { chooseEditProductImages(event.target.files); event.target.value = '' }} />
         </div>}
 
