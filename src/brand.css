@@ -526,29 +526,28 @@
   left: .9rem;
   display: inline-flex;
   min-height: 2.45rem;
-  padding: .65rem .85rem;
+  padding: .55rem .7rem;
   align-items: center;
   gap: .5rem;
-  border: 1px solid rgba(255, 255, 255, .22);
-  border-radius: 999px;
-  background: rgba(10, 13, 11, .7);
+  border: 0;
+  border-radius: .5rem;
+  background: rgba(0, 0, 0, .3);
   color: #fff;
-  font-size: .68rem;
-  font-weight: 800;
+  font-size: .72rem;
+  font-weight: 600;
   line-height: 1;
   text-decoration: none;
-  backdrop-filter: blur(14px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  backdrop-filter: blur(12px);
+  transition: background 160ms ease;
 }
 
 .store-directory-return:hover,
 .store-directory-return:focus-visible {
-  border-color: rgba(255, 255, 255, .55);
-  background: rgba(10, 13, 11, .86);
+  background: rgba(0, 0, 0, .45);
 }
 
-.store-directory-return:active { transform: scale(.97); }
+.store-directory-return:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.store-directory-return:active { background: rgba(0, 0, 0, .55); }
 .store-directory-return svg { width: .95rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .store-directory-return span { color: inherit; font: inherit; letter-spacing: 0; }
 .app-shell[data-announcement='true'] .store-directory-return { top: calc(max(.85rem, env(safe-area-inset-top)) + 8rem); }
