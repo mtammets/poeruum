@@ -152,7 +152,7 @@ const getReadableTextColor = (hex: string) => {
 const ACCENT_PRESETS = ['#e5f25a', '#ff7a59', '#73e2a7', '#77d4ff', '#d3a6ff', '#ff8fbd']
 const EMPTY_PRODUCT_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1200'%3E%3Crect width='900' height='1200' fill='%2315171a'/%3E%3Cg fill='none' stroke='%236b7682' stroke-width='18' stroke-linecap='round' stroke-linejoin='round' opacity='.8'%3E%3Crect x='310' y='460' width='280' height='220' rx='32'/%3E%3Cpath d='m342 638 82-82 62 62 38-38 38 38'/%3E%3Ccircle cx='506' cy='526' r='24'/%3E%3C/g%3E%3C/svg%3E"
 
-const MAX_PRODUCT_IMAGES = 3
+const MAX_PRODUCT_IMAGES = 5
 const SETTINGS_AUTOSAVE_DELAY_MS = 1800
 const getProductImageUploadProgress = (imageCount: number, index: number, phase: ImageUploadPhase, completed = 0, total = 1) => {
   const phaseProgress = phase === 'preparing' ? .08 : .35 + .6 * completed / Math.max(1, total)
