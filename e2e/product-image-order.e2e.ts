@@ -161,3 +161,26 @@ test('distinguishes a tap with slight movement from dragging an unselected photo
   await chooser
   await expect.poll(() => order(page)).toEqual([gallery[0], gallery[2], gallery[1]])
 })
+
+test('keeps control of a touch drag that initially moves vertically before moving to the first photo', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openEditor(page)
+  const cdp = await context.newCDPSession(page)
+  const source = (await page.locator(thumbnail).nth(2).boundingBox())!
+  const target = (await page.locator(thumbnail).nth(0).boundingBox())!
+  const startX = source.x + source.width / 2
+  const startY = source.y + source.height / 2
+  const endX = target.x + target.width / 2
+  const scrollY = await page.evaluate(() => window.scrollY)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: startX, y: startY }] })
+  // Fingers rarely follow the perfectly horizontal path of the original test.
+  for (let step = 1; step <= 4; step++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: startX - step, y: startY - step * 6 }] })
+  }
+  for (let step = 1; step <= 10; step++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: startX + (endX - startX) * step / 10, y: startY - 24 }] })
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await expect.poll(() => order(page)).toEqual([gallery[2], gallery[0], gallery[1]])
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollY)
+})

@@ -1879,7 +1879,8 @@
 .product-image-editor__item.is-cover .product-image-editor__visual { margin-top: 0; }
 .product-image-editor__item.is-cover .product-image-editor__visual > button:first-child { width: 4.2rem; height: 4.2rem; opacity: 1; }
 .product-image-editor__item.is-dragging { z-index: 10; filter: drop-shadow(0 .3rem .4rem rgba(0, 0, 0, .65)); }
-.product-image-editor__preview.is-sortable { cursor: grab; touch-action: pan-y; -webkit-touch-callout: none; }
+/* Keep the whole gesture on the thumbnail, including vertical finger drift. */
+.product-image-editor__preview.is-sortable { cursor: grab; touch-action: none; -webkit-touch-callout: none; }
 .product-image-editor__preview:focus-visible { outline: 2px solid #8ac5ff; outline-offset: 2px; }
 .product-image-editor__tray.is-sorting, .product-image-editor__tray.is-sorting .product-image-editor__preview { cursor: grabbing; }
 .product-image-editor__tray.is-sorting .product-image-editor__visual { pointer-events: none; }
