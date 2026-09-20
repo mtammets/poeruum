@@ -16,6 +16,7 @@ import { useDirectoryImpression } from './useDirectoryImpression'
 
 const directoryUrl = 'https://kaubamaja.poeruum.ee/'
 const directoryName = 'Poeruumi Kaubamaja'
+const directorySeoTitle = `${directoryName} – avasta Eesti väikeettevõtjate e-poode`
 const directoryDescription = directoryHeroSlides[0].description
 const directoryHeroImage = `${directoryUrl}images/poeruumi-kaubamaja-hero.webp`
 const productPageSize = 24
@@ -180,7 +181,7 @@ function StoreDirectory() {
 
   useEffect(() => {
     applySeoMetadata({
-      title: directoryName,
+      title: directorySeoTitle,
       description: directoryDescription,
       canonicalUrl: directoryUrl,
       imageUrl: directoryHeroImage,

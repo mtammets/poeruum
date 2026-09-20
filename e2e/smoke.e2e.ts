@@ -40,7 +40,7 @@ test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await expect(page.getByText(/loodud Poeruumiga/i)).toHaveCount(0)
   await expect(page.locator('.store-directory__create svg')).toBeVisible()
   await expect(page.getByText('↗')).toHaveCount(0)
-  await expect(page).toHaveTitle('Poeruumi Kaubamaja')
+  await expect(page).toHaveTitle('Poeruumi Kaubamaja – avasta Eesti väikeettevõtjate e-poode')
   await expect(page.locator('.store-directory')).toHaveCSS('background-color', 'rgb(243, 240, 231)')
 
   await page.setViewportSize({ width: 390, height: 844 })

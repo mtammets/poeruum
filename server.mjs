@@ -271,14 +271,14 @@ function renderDirectoryStory(template, story) {
 
 function renderStoreDirectory(template, stores) {
   const canonical = `https://${storeDirectoryHost}/`
-  const title = 'Poeruumi Kaubamaja'
+  const title = 'Poeruumi Kaubamaja – avasta Eesti väikeettevõtjate e-poode'
   const heading = 'Avasta Poeruumis loodud Eesti e-poode'
   const description = 'Poeruumi Kaubamaja koondab ühte kohta Eesti ettevõtjate e-poed. Sirvi valikut ja leia uusi poode, tooteid ning tegijaid.'
   const heroImage = `${canonical}images/poeruumi-kaubamaja-hero.webp`
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: title,
+    name: 'Poeruumi Kaubamaja',
     description,
     url: canonical,
     inLanguage: 'et',
