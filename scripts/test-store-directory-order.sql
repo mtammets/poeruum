@@ -1,6 +1,18 @@
 \set ON_ERROR_STOP on
 
+-- Run as supabase_admin so the session can load PostgREST's mutation guard.
+-- SET ROLE alone does not load authenticator.session_preload_libraries.
+load 'safeupdate';
+
 begin;
+
+do $$
+begin
+  if current_setting('safeupdate.enabled') <> 'on' then
+    raise exception 'TEST_POSTGREST_SAFEUPDATE_GUARD_NOT_ENABLED';
+  end if;
+end;
+$$;
 
 insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values ('95000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'directory-order@example.invalid', '{}', '{}', now(), now());
@@ -76,6 +88,13 @@ begin
     raise exception 'TEST_SAVED_ORDER_OR_RESPONSE_MISMATCH';
   end if;
 
+  -- A subsequent save updates existing placements rather than only testing inserts.
+  perform public.admin_set_store_directory_order(original_ids, reordered_ids);
+  if pg_temp.directory_ids() is distinct from original_ids then
+    raise exception 'TEST_EXISTING_POSITIONS_NOT_UPDATED';
+  end if;
+  perform public.admin_set_store_directory_order(reordered_ids, original_ids);
+
   begin
     perform public.admin_set_store_directory_order(original_ids, original_ids);
     raise exception 'TEST_STALE_ADMIN_CAN_OVERWRITE';
@@ -117,7 +136,7 @@ begin
   exception when invalid_parameter_value then null;
   end;
   begin
-    delete from public.store_directory_order;
+    delete from public.store_directory_order where store_id = reordered_ids[1];
     raise exception 'TEST_ADMIN_CAN_BYPASS_RPC';
   exception when insufficient_privilege then null;
   end;
@@ -162,6 +181,18 @@ do $$
 begin
   if pg_temp.directory_ids() && array['96000000-0000-4000-8000-000000000001', '96000000-0000-4000-8000-000000000002']::uuid[] then
     raise exception 'TEST_UNPUBLISHED_OR_DELETED_STORE_STILL_PUBLIC';
+  end if;
+end;
+$$;
+
+reset role;
+set local role authenticated;
+select public.admin_set_store_directory_order(pg_temp.directory_ids(), pg_temp.directory_ids()) is not null as saved_after_unpublishing;
+reset role;
+do $$
+begin
+  if exists (select 1 from public.store_directory_order where store_id = '96000000-0000-4000-8000-000000000001') then
+    raise exception 'TEST_OBSOLETE_PLACEMENT_NOT_REMOVED';
   end if;
 end;
 $$;

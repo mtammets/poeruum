@@ -2,7 +2,7 @@
 
 ## Kaubamaja poodide järjekord
 
-Admini vaade `/admin/kaubamaja` vajab migratsiooni `202609200001_store_directory_order.sql`.
+Admini vaade `/admin/kaubamaja` vajab migratsioone `202609200001_store_directory_order.sql` ja `202609200002_store_directory_order_safeupdate.sql`.
 Admin saab avaldatud poode lohistades või noolenuppe kasutades järjestada ja järjekorra salvestada.
 Salvestamine kontrollib serveris administraatori rolli ning lükkab tagasi aegunud või puuduliku poodide loendi.
 Kaupmehed ei saa järjestust muuta. Uued poed lisanduvad salvestatud järjekorra lõppu;
@@ -10,6 +10,10 @@ enne esimest salvestamist säilib loomiskuupäeva järjekord. Näidiskaardid jä
 Avalik brauserivaade ja serveri HTML kasutavad sama järjestatud kataloogi. Serveri vahemälu uueneb kuni 60 sekundiga.
 
 Migratsioon `202609200001` rakendati tootmises 20. septembril 2026. Kontrolliti avaliku kataloogi laadimist ja seda, et sisselogimata külastaja ega kaupmees ei saa järjestust otse muuta.
+
+Parandus `202609200002` asendab tingimuseta kustutamise aegunud kirjete eemaldamise ja olemasolevate kohtade uuendamisega. See on vajalik PostgRESTi `safeupdate` kontrolli jaoks. Järjestuse SQL-testid laadivad sama kontrolli ning käivitatakse lokaalses/CI andmebaasis `supabase_admin` rolliga; ainult `SET ROLE authenticated` seda kontrolli ei aktiveeri.
+
+Parandus rakendati tootmises 20. septembril 2026. Ajutise admini autentitud REST-päring taasesitas enne parandust vea `400 / 21000: DELETE requires a WHERE clause`; pärast parandust andsid kaks järjestikust salvestust vastuse `200` ning kataloog kinnitas salvestuse. Kontroll säilitas poodide senise järjekorra. Ajutine kontrollkonto kustutati.
 
 ## Kaubamaja päevahoroskoop
 
