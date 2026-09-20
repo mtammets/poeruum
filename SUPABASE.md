@@ -1,5 +1,16 @@
 # Supabase'i käivitamine
 
+## Kaubamaja poodide järjekord
+
+Admini vaade `/admin/kaubamaja` vajab migratsiooni `202609200001_store_directory_order.sql`.
+Admin saab avaldatud poode lohistades või noolenuppe kasutades järjestada ja järjekorra salvestada.
+Salvestamine kontrollib serveris administraatori rolli ning lükkab tagasi aegunud või puuduliku poodide loendi.
+Kaupmehed ei saa järjestust muuta. Uued poed lisanduvad salvestatud järjekorra lõppu;
+enne esimest salvestamist säilib loomiskuupäeva järjekord. Näidiskaardid jäävad päris poodide järele.
+Avalik brauserivaade ja serveri HTML kasutavad sama järjestatud kataloogi. Serveri vahemälu uueneb kuni 60 sekundiga.
+
+Migratsioon `202609200001` rakendati tootmises 20. septembril 2026. Kontrolliti avaliku kataloogi laadimist ja seda, et sisselogimata külastaja ega kaupmees ei saa järjestust otse muuta.
+
 ## Kaubamaja päevahoroskoop
 
 Horoskoobi jaoks rakenda migratsioon `202609070001_daily_horoscope.sql` ja deploy funktsioon `daily-horoscope` (`verify_jwt = false`). Funktsioon kontrollib ise olemasolevat `ONBOARDING_CRON_SECRET` väärtust. Lisa funktsiooni saladustesse `OPENAI_API_KEY`; valikuline `OPENAI_HOROSCOPE_MODEL` on vaikimisi `gpt-5.4`. Kasutatakse ka olemasolevaid `SUPABASE_URL` ja `POERUUM_SUPABASE_SECRET_KEY` väärtusi.

@@ -19,6 +19,7 @@ import { getStorefrontCanonicalUrl } from './lib/storefrontUrl'
 import { getStripeRequirementIssueCopies } from '../supabase/functions/_shared/stripe-requirement-issues.mjs'
 
 const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
+const AdminStoreDirectory = lazy(() => import('./AdminStoreDirectory'))
 
 type AdminUserRow = {
   user_id: string
@@ -56,7 +57,7 @@ type SetupStep = {
 
 type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
-type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card'
+type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
@@ -67,6 +68,7 @@ const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
   support: { path: '/admin/support', title: 'Klienditugi' },
   users: { path: '/admin/users', title: 'Kasutajad' },
   'business-card': { path: '/admin/business-card', title: 'Visiitkaart' },
+  directory: { path: '/admin/kaubamaja', title: 'Kaubamaja' },
 }
 
 const getAdminView = (pathname = window.location.pathname): AdminView => {
@@ -76,6 +78,7 @@ const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/support\/?$/i.test(pathname)) return 'support'
   if (/^\/admin\/users\/?$/i.test(pathname)) return 'users'
   if (/^\/admin\/business-card\/?$/i.test(pathname)) return 'business-card'
+  if (/^\/admin\/kaubamaja\/?$/i.test(pathname)) return 'directory'
   return 'overview'
 }
 
@@ -996,19 +999,21 @@ export default function AdminApp() {
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
         <a className={activeView === 'support' ? 'is-active' : undefined} href="/admin/support" aria-current={activeView === 'support' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'support')}><span><AdminIcon name="message" /></span>Klienditugi</a>
         <a className={activeView === 'users' ? 'is-active' : undefined} href="/admin/users" aria-current={activeView === 'users' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'users')}><span><AdminIcon name="users" /></span>Kasutajad</a>
+        <a className={activeView === 'directory' ? 'is-active' : undefined} href="/admin/kaubamaja" aria-current={activeView === 'directory' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'directory')}><span><AdminIcon name="store" /></span>Kaubamaja</a>
         <a href="http://127.0.0.1:4185/previews/payments.html" target="_blank" rel="noopener noreferrer" aria-label="Maksete eelvaade (kohalik server, avaneb uuel vahelehel)" title="Kohalik eelvaade · käivita npm run dev"><span><AdminIcon name="arrow" /></span>Maksete eelvaade</a>
       </nav>
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
     </aside>
 
     <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
-      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>
+      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
       {error && activeView !== 'business-card' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
+        {activeView === 'directory' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin poode…</div>}><AdminStoreDirectory /></Suspense>}
         {activeView === 'seo' && <div className="admin-seo">
           <section className="admin-seo__summary">
             <div>
