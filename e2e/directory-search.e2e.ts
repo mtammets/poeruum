@@ -15,7 +15,7 @@ test('finds products inside stores and restores the directory when cleared', asy
   await expect(page.locator('.store-directory__card').nth(1)).not.toContainText('Eraldi SEO kirjeldus')
   await expect(page.locator('.store-directory__product')).toHaveCount(2)
   await input.fill('vaas')
-  await expect(page.getByRole('region', { name: 'Leide Eesti poodidest' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Leia oma uus lemmik', exact: true })).toHaveCount(0)
   const product = page.getByRole('region', { name: 'Leitud tooted' })
   await expect(product.getByRole('heading', { name: 'Sinine vaas' })).toBeVisible()
   await expect(product.getByText('Keraamika Stuudio', { exact: true })).toBeVisible()
@@ -31,7 +31,7 @@ test('finds products inside stores and restores the directory when cleared', asy
   await expect(input).toBeFocused()
   await expect(page.locator('.store-directory__card')).toHaveCount(7)
   await expect(page.locator('.store-directory__product')).toHaveCount(2)
-  await expect(page.getByRole('region', { name: 'Leide Eesti poodidest' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Leia oma uus lemmik', exact: true })).toBeVisible()
   expect(new URL(page.url()).searchParams.has('q')).toBe(false)
 })
 

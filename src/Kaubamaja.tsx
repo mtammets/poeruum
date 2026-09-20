@@ -225,8 +225,8 @@ function StoreDirectory() {
 
     {!isSearching && highlights.length > 0 && <section className="store-directory__highlights" aria-labelledby="directory-products-heading">
       <div className="store-directory__section-head"><div>
-        <h2 id="directory-products-heading">Leide Eesti poodidest</h2>
-        <p className="store-directory__highlights-intro">Vali oma lemmik ja vaata lähemalt e-poes.</p>
+        <h2 id="directory-products-heading">Leia oma uus lemmik</h2>
+        <p className="store-directory__highlights-intro">Valik tooteid Eesti e-poodidest.</p>
       </div></div>
       <div className="store-directory__product-grid">
         {highlights.map((result, index) => <ProductCard key={`${result.store.id}:${result.product.id}`} {...result} index={index} placement="directory" />)}

@@ -20,7 +20,7 @@ test('homepage offers eight real products across stores with prices and keyboard
       ],
     })))
   })
-  const highlights = page.getByRole('region', { name: 'Leide Eesti poodidest' })
+  const highlights = page.getByRole('region', { name: 'Leia oma uus lemmik', exact: true })
   const cards = highlights.locator('article')
   await expect(cards).toHaveCount(8)
   await expect(highlights.locator('.store-directory__product-store')).toHaveText(['Pood 1', 'Pood 2', 'Pood 3', 'Pood 4', 'Pood 1', 'Pood 1', 'Pood 1', 'Pood 1'])
@@ -50,5 +50,5 @@ test('homepage omits an empty product selection', async ({ page }) => {
     mountDirectoryCatalogHarness([])
   })
   await expect(page.getByRole('heading', { name: 'Leia oma uus lemmikpood' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Leide Eesti poodidest' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Leia oma uus lemmik', exact: true })).toHaveCount(0)
 })
