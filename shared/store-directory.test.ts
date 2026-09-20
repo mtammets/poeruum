@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatStoreDirectoryPrice,
   getStoreDirectoryFeaturedUrl,
+  getStoreDirectoryHighlights,
   getStoreDirectoryVisitUrl,
   normalizeStoreDirectoryCatalog,
 } from './store-directory.mjs'
@@ -142,5 +143,31 @@ describe('store directory catalog', () => {
     expect(store.products[2].imageUrl).toBeNull()
     expect(getStoreDirectoryVisitUrl(store, store.products[1])).toBe('https://pood.example.ee/toode/teine%20toode/?from=kaubamaja')
     expect(getStoreDirectoryVisitUrl(store, store.products[2])).toBe('https://pood.example.ee/toode/no-slug/?from=kaubamaja')
+  })
+
+  it('shares eight homepage places across stores before filling from a larger catalog', () => {
+    const stores = normalizeStoreDirectoryCatalog([16, 1, 1, 1].map((count, index) => ({
+      store_id: `store-${index}`, store_name: `Pood ${index}`, store_slug: `pood-${index}`,
+      products: Array.from({ length: count }, (_, productIndex) => ({
+        id: `${index}-${productIndex}`, name: `Toode ${productIndex}`, image_url: '/product.webp', price: 25, stock: 1,
+      })),
+    })))
+    const highlights = getStoreDirectoryHighlights(stores)
+    expect(highlights.map(({ product }) => product.id)).toEqual(['0-0', '1-0', '2-0', '3-0', '0-1', '0-2', '0-3', '0-4'])
+    expect(getStoreDirectoryHighlights([...stores].reverse())[0].store.id).toBe('store-3')
+    expect(getStoreDirectoryHighlights(normalizeStoreDirectoryCatalog(JSON.parse(JSON.stringify(stores))))).toEqual(highlights)
+  })
+
+  it('only highlights visible products with pictures and prices that are not sold out', () => {
+    const stores = normalizeStoreDirectoryCatalog([{
+      store_id: 'store-1', store_name: 'Pood', store_slug: 'pood',
+      products: [
+        { id: 'sold-out', stock: 0 }, { id: 'hidden', search_visible: false },
+        { id: 'no-image', image_url: '' }, { id: 'no-price', price: null },
+        { id: 'free', price: 0 }, { id: 'unlimited', stock: null }, { id: 'unlimited', stock: null },
+      ].map((product) => ({ name: 'Toode', image_url: '/product.webp', price: 25, stock: 1, ...product })),
+    }, { store_id: 'empty', store_name: 'Tühi pood', store_slug: 'tuhi-pood', products: [] }])
+    expect(getStoreDirectoryHighlights(stores).map(({ product }) => product.id)).toEqual(['free', 'unlimited'])
+    expect(getStoreDirectoryHighlights([])).toEqual([])
   })
 })

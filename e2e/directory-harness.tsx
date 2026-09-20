@@ -6,10 +6,7 @@ import type { Product } from '../src/products'
 
 export function mountDirectoryHarness(manyProducts = false) {
   const imageUrl = `${window.location.origin}/images/poeruumi-kaubamaja-hero.webp`
-  const data = document.createElement('script')
-  data.id = 'poeruum-store-directory-data'
-  data.type = 'application/json'
-  data.textContent = JSON.stringify([{
+  mountDirectoryCatalogHarness([{
     store_id: 'store-1',
     store_name: 'Keraamika Stuudio',
     store_slug: 'keraamika-stuudio',
@@ -29,6 +26,13 @@ export function mountDirectoryHarness(manyProducts = false) {
     store_description: 'Eraldi SEO kirjeldus otsingumootorile.',
     products: [{ id: 'product-2', name: 'Lõikelaud', slug: 'loikelaud', description: 'Tammepuidust köögitarvik.', image_url: imageUrl, price: 45, stock: 0 }],
   }])
+}
+
+export function mountDirectoryCatalogHarness(catalog: unknown) {
+  const data = document.createElement('script')
+  data.id = 'poeruum-store-directory-data'
+  data.type = 'application/json'
+  data.textContent = JSON.stringify(catalog)
   const root = document.createElement('div')
   root.id = 'directory-harness'
   document.body.replaceChildren(data, root)

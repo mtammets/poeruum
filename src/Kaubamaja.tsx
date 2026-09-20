@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
-import { formatStoreDirectoryPrice, getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog, storeDirectoryExamples } from '../shared/store-directory.mjs'
+import { formatStoreDirectoryPrice, getStoreDirectoryHighlights, getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog, storeDirectoryExamples } from '../shared/store-directory.mjs'
 import { getDirectoryStory } from '../shared/directory-stories.mjs'
 import DailyHoroscope from './DailyHoroscope'
 import DirectoryHero, { directoryHeroSlides } from './DirectoryHero'
@@ -88,9 +88,9 @@ const StoreCard = ({ store, index, visitUrl, isExample = false, placement = 'dir
   </article>
 }
 
-const ProductCard = ({ store, product, index }: DirectoryProductResult & { index: number }) => {
-  const open = () => trackDirectoryEvent({ event_name: 'product_click', store_id: store.id, product_id: product.id, placement: 'search', position: index + 1 })
-  return <article className="store-directory__product">
+const ProductCard = ({ store, product, index, placement = 'search' }: DirectoryProductResult & { index: number; placement?: 'directory' | 'search' }) => {
+  const open = () => trackDirectoryEvent({ event_name: 'product_click', store_id: store.id, product_id: product.id, placement, position: index + 1 })
+  return <article className={`store-directory__product${placement === 'directory' ? ' store-directory__product--highlight' : ''}`}>
   <a href={getStoreDirectoryVisitUrl(store, product)} onClick={open} onAuxClick={(event) => { if (event.button === 1) open() }} aria-label={`${product.name} – ${store.name}`}>
     <div className="store-directory__product-media">
       {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" decoding="async"
@@ -104,7 +104,7 @@ const ProductCard = ({ store, product, index }: DirectoryProductResult & { index
         <strong>{formatStoreDirectoryPrice(product.salePrice ?? product.price)}</strong>
         {product.salePrice !== null ? <del>{formatStoreDirectoryPrice(product.price)}</del> : null}
       </p> : null}
-      <ArrowUpRight />
+      {placement === 'directory' ? <span className="store-directory__product-action" aria-hidden="true">Vaata toodet <ArrowUpRight /></span> : <ArrowUpRight />}
     </div>
   </a>
 </article>
@@ -126,6 +126,7 @@ function StoreDirectory() {
     isSupabaseConfigured ? 'loading' : 'ready',
   )
   const search = useMemo(() => createStoreDirectorySearch(stores), [stores])
+  const highlights = useMemo(() => getStoreDirectoryHighlights(stores), [stores])
   const results = useMemo(() => search(query), [search, query])
   const isSearching = query.trim().length > 0
   const hasResults = results.stores.length > 0 || results.products.length > 0
@@ -221,6 +222,16 @@ function StoreDirectory() {
         </div>)}
       </div>
     </div>
+
+    {!isSearching && highlights.length > 0 && <section className="store-directory__highlights" aria-labelledby="directory-products-heading">
+      <div className="store-directory__section-head"><div>
+        <h2 id="directory-products-heading">Leide Eesti poodidest</h2>
+        <p className="store-directory__highlights-intro">Vali oma lemmik ja vaata lähemalt e-poes.</p>
+      </div></div>
+      <div className="store-directory__product-grid">
+        {highlights.map((result, index) => <ProductCard key={`${result.store.id}:${result.product.id}`} {...result} index={index} placement="directory" />)}
+      </div>
+    </section>}
 
     <section className="store-directory__stores" aria-labelledby="store-directory-heading">
       <div className="store-directory__section-head">

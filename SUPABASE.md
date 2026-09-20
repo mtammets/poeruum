@@ -1,5 +1,11 @@
 # Supabase'i käivitamine
 
+## Kaubamaja avalehe tootevalik
+
+Avaleht kuvab enne poeloendit kuni kaheksa päris toodet olemasolevast `storefront_seo_catalog()` kataloogist. Valik võtab admini määratud poodide järjekorras igast poest ühe toote korraga ning jätkab järgmise ringiga, kuni kaheksa kohta on täis või sobivad tooted otsas. Kuvatakse ainult avalikud, pildi ja hinnaga tooted, mille laoseis ei ole 0. Puuduv laopiirang ja nullhind on lubatud. Kaupmehe tootemuudatused kajastuvad automaatselt; eraldi sisestamist ega andmebaasimuudatust pole vaja.
+
+Serveri HTML ja brauser kasutavad sama valikut. Kaardid sisaldavad poe nime, toote pilti, kehtivat hinda (sh soodushinda) ja otselinki tootele koos `from=kaubamaja` tagasiteega. Otsingu ajal valikut ei kuvata. Avalehe tootelingi avamine salvestatakse olemasoleva `product_click` sündmusena asukohaga `directory` ning kajastub admini üld- ja poestatistikas; poekaartide näitamiste arvu see ei muuda.
+
 ## Kaubamaja poekirjeldused
 
 Migratsioon `202609200004_store_directory_description.sql` parandab kaupmehe tutvustuse valiku. `storefront_seo_catalog().directory_description` sisaldab esimest mittetühja teksti järjekorras `directoryDescription` → `storeDescription` → tühi tekst; ainult tühikutest ja reavahetustest koosnevad väärtused jäetakse vahele. Kaubamaja piirab tutvustuse 140 märgini ja kasutab mõlema tutvustuse puudumisel teksti „Avasta poe valikut.”. Kaupmees haldab neid välju jaotises **Seaded → Pood**.

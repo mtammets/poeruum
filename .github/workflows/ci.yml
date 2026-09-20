@@ -54,6 +54,9 @@ jobs:
       - name: Production receipt routing
         run: npm run test:order-receipt-server
 
+      - name: Production directory highlights
+        run: npm run test:directory-highlights-server
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 

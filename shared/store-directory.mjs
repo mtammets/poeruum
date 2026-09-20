@@ -112,6 +112,23 @@ export function formatStoreDirectoryPrice(value) {
   })} €`
 }
 
+// Use the same stable selection in the server HTML and the browser. Give each
+// store a turn before taking another product from a larger catalog.
+export function getStoreDirectoryHighlights(stores) {
+  const candidates = stores.map((store) => ({
+    store,
+    products: store.products.filter((product) => product.imageUrl && product.price !== null && product.stock !== 0),
+  })).filter(({ products }) => products.length > 0)
+  const selected = []
+  for (let index = 0; selected.length < 8 && candidates.some(({ products }) => products[index]); index++) {
+    for (const { store, products } of candidates) {
+      if (products[index]) selected.push({ store, product: products[index] })
+      if (selected.length === 8) break
+    }
+  }
+  return selected
+}
+
 export function getStoreDirectoryFeaturedUrl(store) {
   const record = asRecord(store)
   const storeUrl = cleanText(record?.url, 2_048)

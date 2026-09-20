@@ -5,7 +5,7 @@ import type { DirectoryReport } from '../src/lib/directoryAnalyticsAdmin'
 test.use({ baseURL: 'http://poeruum.localhost:4174' })
 const storeId = '10000000-0000-4000-8000-000000000001'
 const catalog = [{ store_id: storeId, store_name: 'Keraamika Stuudio', store_slug: 'keraamika-stuudio', products: [
-  { id: 'blue-vase', name: 'Sinine vaas', slug: 'sinine-vaas', price: 25, image_url: '', search_visible: true },
+  { id: 'blue-vase', name: 'Sinine vaas', slug: 'sinine-vaas', price: 25, image_url: '/images/poeruumi-kaubamaja-hero.webp', search_visible: true },
 ] }, ...Array.from({ length: 5 }, (_, index) => ({ store_id: `10000000-0000-4000-8000-00000000000${index + 2}`, store_name: `Pood ${index + 2}`, store_slug: `pood-${index + 2}`, products: [] }))]
 const metrics = { visits: 120, impressions: 80, store_clicks: 16, product_clicks: 12, outbound_visits: 20, searches: 30, empty_searches: 5, average_position: 2.4, ctr: 20 }
 function report(days = 30, id: string | null = null): DirectoryReport {
@@ -106,6 +106,11 @@ test('public directory measures visible cards, retries idempotently, and keeps s
   await expect.poll(() => api.events.filter((event) => event.event_name === 'page_view').length).toBe(2)
   expect(api.events[0].id).toBe(api.events[1].id)
   expect(api.events.filter((event) => event.event_name === 'store_impression')).toHaveLength(0)
+  const highlight = page.getByRole('region', { name: 'Leide Eesti poodidest' }).getByRole('link')
+  await highlight.dispatchEvent('auxclick', { button: 1 })
+  await expect.poll(() => api.events.find((event) => event.event_name === 'product_click' && event.placement === 'directory')).toMatchObject({
+    store_id: storeId, product_id: 'blue-vase', position: 1,
+  })
   const first = page.locator('.store-directory__card').first()
   await first.scrollIntoViewIfNeeded()
   await expect.poll(() => api.events.filter((event) => event.event_name === 'store_impression').length).toBeGreaterThan(0)
@@ -121,7 +126,7 @@ test('public directory measures visible cards, retries idempotently, and keeps s
   await input.fill('vaas')
   await expect(page.locator('.store-directory__product')).toHaveCount(1)
   await page.locator('.store-directory__product a').dispatchEvent('auxclick', { button: 1 })
-  await expect.poll(() => api.events.some((event) => event.event_name === 'product_click' && event.product_id === 'blue-vase')).toBe(true)
+  await expect.poll(() => api.events.some((event) => event.event_name === 'product_click' && event.product_id === 'blue-vase' && event.placement === 'search')).toBe(true)
   await page.reload()
   await expect(page.locator('.store-directory__product')).toHaveCount(1)
   await input.fill('')

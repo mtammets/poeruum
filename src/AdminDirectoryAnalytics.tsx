@@ -122,7 +122,7 @@ export default function AdminDirectoryAnalytics() {
             <th scope="row">{row.placement === 'directory' ? 'Poodide loend' : 'Otsingutulemused'}</th><td>{number(row.impressions)}</td><td>{number(row.clicks)}</td><td>{number(row.average_position)}</td>
           </tr>)}</tbody></table></div> : <p>Poekaardi näitamisi veel pole.</p>}
         </section>
-        <section className="directory-analytics__box"><h3>Enim avatud tooted</h3><p>Kaubamaja otsingust avatud tooted, kuni 20 esimest.</p>
+        <section className="directory-analytics__box"><h3>Enim avatud tooted</h3><p>Kaubamaja avalehe valikust ja otsingust avatud tooted, kuni 20 esimest.</p>
           {report.products.length ? <div className="directory-analytics__table-scroll"><table><thead><tr><th>Toode</th><th>Avamised</th><th>Eelmine periood</th></tr></thead><tbody>{report.products.map((product) => <tr key={product.id}>
             <th scope="row">{product.name}</th><td>{number(product.clicks)}</td><td>{report.comparison_available ? number(product.previous_clicks) : '—'}</td>
           </tr>)}</tbody></table></div> : <p>Tootelinke pole valitud perioodil avatud.</p>}
