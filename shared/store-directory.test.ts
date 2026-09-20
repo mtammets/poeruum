@@ -69,6 +69,17 @@ describe('store directory catalog', () => {
     })])
   })
 
+  it('uses the resolved directory description, including an explicit empty value, independently of SEO text', () => {
+    for (const description of ['Kaupmehe kirjutatud tutvustus.', '', ' \n\t ']) {
+      const catalog = normalizeStoreDirectoryCatalog([{
+        store_id: 'store-1', store_name: 'Hea Pood', store_slug: 'hea-pood',
+        directory_description: description, store_description: 'Otsingumootori meta kirjeldus.',
+      }])
+      expect(catalog[0].description).toBe(description.trim())
+      expect(normalizeStoreDirectoryCatalog(JSON.parse(JSON.stringify(catalog)))).toEqual(catalog)
+    }
+  })
+
   it('keeps normalized SSR entries stable and formats Estonian prices', () => {
     const [store] = normalizeStoreDirectoryCatalog([{
       id: 'store-1',

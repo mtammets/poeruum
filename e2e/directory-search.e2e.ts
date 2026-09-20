@@ -11,6 +11,8 @@ test.beforeEach(async ({ page }) => {
 test('finds products inside stores and restores the directory when cleared', async ({ page }) => {
   const input = page.getByRole('searchbox', { name: 'Otsi poode ja tooteid' })
   await expect(page.locator('.store-directory__card')).toHaveCount(7)
+  await expect(page.locator('.store-directory__card').nth(1)).toContainText('Ajatud puidust esemed sinu koju.')
+  await expect(page.locator('.store-directory__card').nth(1)).not.toContainText('Eraldi SEO kirjeldus')
   await expect(page.locator('.store-directory__product')).toHaveCount(0)
   await input.fill('vaas')
   const product = page.getByRole('region', { name: 'Leitud tooted' })

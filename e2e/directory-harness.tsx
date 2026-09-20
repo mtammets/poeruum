@@ -25,7 +25,8 @@ export function mountDirectoryHarness(manyProducts = false) {
     store_name: 'Põhjala Puit',
     store_slug: 'pohjala-puit',
     primary_hostname: 'puit.example.ee',
-    store_description: 'Ajatud puidust esemed sinu koju.',
+    directory_description: 'Ajatud puidust esemed sinu koju.',
+    store_description: 'Eraldi SEO kirjeldus otsingumootorile.',
     products: [{ id: 'product-2', name: 'Lõikelaud', slug: 'loikelaud', description: 'Tammepuidust köögitarvik.', image_url: imageUrl, price: 45, stock: 0 }],
   }])
   const root = document.createElement('div')

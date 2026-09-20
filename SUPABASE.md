@@ -1,5 +1,13 @@
 # Supabase'i käivitamine
 
+## Kaubamaja poekirjeldused
+
+Migratsioon `202609200004_store_directory_description.sql` parandab kaupmehe tutvustuse valiku. `storefront_seo_catalog().directory_description` sisaldab esimest mittetühja teksti järjekorras `directoryDescription` → `storeDescription` → tühi tekst; ainult tühikutest ja reavahetustest koosnevad väärtused jäetakse vahele. Kaubamaja piirab tutvustuse 140 märgini ja kasutab mõlema tutvustuse puudumisel teksti „Avasta poe valikut.”. Kaupmees haldab neid välju jaotises **Seaded → Pood**.
+
+SEO jaoks kasutatav `store_description` jääb eraldi väljaks. Tühi SEO kirjeldus ei saa enam Kaubamajas poe tutvustust varjata ja SEO tekst ei asenda kaupmehe tutvustust. Paigalda esmalt migratsioon, seejärel rakendus. SQL-test `scripts/test-store-directory-description.sql` katab kirjelduse eelistuse, puuduva/tühja SEO kirjelduse, tühikud, puuduva tutvustuse ja SEO väljundi säilimise. Ühiktest kontrollib ka serveri HTML-i algandmete uuesti lugemist brauseris.
+
+Migratsioon rakendati tootmises 20. septembril 2026. Kõigil neljal avalikul poel oli kaupmehe sisestatud tutvustus juba olemas; kolme poe oma jäi varasema valikuloogika tõttu kuvamata. Avaliku API kaudu kontrolliti kõigi nelja poe Kaubamaja kirjelduse vastavust kaupmehe salvestatud tekstile. Kaupmeeste sisu ei muudetud.
+
 ## Kaubamaja statistika
 
 Admini `/admin/kaubamaja` vaikimisi sakk on **Statistika**; senine järjestamine asub sakis **Poodide järjekord** (`?view=order`). Sakkide vahetamine säilitab salvestamata järjekorra.

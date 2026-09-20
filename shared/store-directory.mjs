@@ -183,8 +183,11 @@ export function normalizeStoreDirectoryCatalog(value) {
       logoUrl,
       featuredProduct,
       products,
-      description: cleanText(record.directory_description, 140)
-        || cleanText(record.store_description ?? record.description, 140),
+      // The catalog resolves directory copy separately from SEO metadata. An
+      // explicit empty value means there is no merchant introduction to show.
+      description: typeof record.directory_description === 'string'
+        ? cleanText(record.directory_description, 140)
+        : cleanText(record.store_description ?? record.description, 140),
     }]
   })
 }
