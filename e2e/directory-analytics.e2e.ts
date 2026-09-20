@@ -106,7 +106,7 @@ test('public directory measures visible cards, retries idempotently, and keeps s
   await expect.poll(() => api.events.filter((event) => event.event_name === 'page_view').length).toBe(2)
   expect(api.events[0].id).toBe(api.events[1].id)
   expect(api.events.filter((event) => event.event_name === 'store_impression')).toHaveLength(0)
-  const highlight = page.getByRole('region', { name: 'Midagi, mis jääb silma', exact: true }).getByRole('link')
+  const highlight = page.getByRole('region', { name: 'Parimad kingiideed', exact: true }).getByRole('link')
   await highlight.dispatchEvent('auxclick', { button: 1 })
   await expect.poll(() => api.events.find((event) => event.event_name === 'product_click' && event.placement === 'directory')).toMatchObject({
     store_id: storeId, product_id: 'blue-vase', position: 1,

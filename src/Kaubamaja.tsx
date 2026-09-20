@@ -225,7 +225,7 @@ function StoreDirectory() {
 
     {!isSearching && highlights.length > 0 && <section className="store-directory__highlights" aria-labelledby="directory-products-heading">
       <div className="store-directory__section-head"><div>
-        <h2 id="directory-products-heading">Midagi, mis jääb silma</h2>
+        <h2 id="directory-products-heading">Parimad kingiideed</h2>
         <p className="store-directory__highlights-intro">Valik tooteid Eesti e-poodidest.</p>
       </div></div>
       <div className="store-directory__product-grid">
