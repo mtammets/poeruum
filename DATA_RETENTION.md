@@ -12,6 +12,7 @@ Rakenduse avalik privaatsuspoliitika ja tehniline kustutamisloogika kasutavad j�
 | Stripe’i webhook’i duplikaadikaitse | 90 päeva | `apply_data_retention()` |
 | Resendi webhook’i duplikaadikaitse | 30 päeva | `apply_data_retention()` |
 | Avalehe anonüümne koondstatistika | 90 päeva | `apply_data_retention()` |
+| Kaubamaja külastuste ja suunamiste statistika | 180 päeva ja pooleliolev Eesti kalendripäev | `poeruum-directory-analytics-retention`, iga päev 03:20 UTC |
 | Rakenduse veasündmus | 30 päeva | `cleanup_security_observability()` |
 | Rate limit'i soolatud räsi ja loendur | Piiranguaken + kuni 5 minutit | `cleanup_security_observability()` |
 | Kasutaja online-oleku signaal | 24 tundi | `apply_data_retention()` |

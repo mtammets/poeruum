@@ -63,7 +63,7 @@ const names = (page: Page) => page.locator('.admin-directory__identity strong')
 
 test('admin drags and saves the order, which survives reload and reaches the public directory', async ({ page }) => {
   const backend = await installBackend(page)
-  await page.goto('/admin/kaubamaja')
+  await page.goto('/admin/kaubamaja?view=order')
   await expect(page.getByRole('navigation', { name: 'Administraatori menüü' }).getByRole('link', { name: 'Kaubamaja', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(names(page)).toHaveText(stores.map((store) => store.store_name))
   await expect(page.getByRole('button', { name: 'Salvesta järjekord' })).toBeDisabled()
@@ -88,7 +88,7 @@ test('admin drags and saves the order, which survives reload and reaches the pub
 test('mobile keyboard controls, reset, and failed-save retry preserve the draft', async ({ page }) => {
   const backend = await installBackend(page)
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/admin/kaubamaja')
+  await page.goto('/admin/kaubamaja?view=order')
   await expect(names(page)).toHaveCount(3)
   await expect(page.getByRole('button', { name: 'Liiguta Keraamika Stuudio üles' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Liiguta Ehtepood alla' })).toBeDisabled()
@@ -113,7 +113,7 @@ test('mobile keyboard controls, reset, and failed-save retry preserve the draft'
 
 test('conflicting changes require loading the current order before another save', async ({ page }) => {
   const backend = await installBackend(page)
-  await page.goto('/admin/kaubamaja')
+  await page.goto('/admin/kaubamaja?view=order')
   await page.getByRole('button', { name: 'Liiguta Ehtepood üles' }).click()
   backend.failSave('40001')
   backend.setCatalog([stores[1], stores[2], stores[0]])
@@ -132,7 +132,7 @@ test('conflicting changes require loading the current order before another save'
 test('load failures can be retried and an empty directory cannot be saved', async ({ page }) => {
   const backend = await installBackend(page)
   backend.failLoad(true)
-  await page.goto('/admin/kaubamaja')
+  await page.goto('/admin/kaubamaja?view=order')
   await expect(page.getByRole('alert')).toContainText('Poode ei õnnestunud laadida')
   await expect(page.getByRole('button', { name: 'Salvesta järjekord' })).toBeDisabled()
   backend.failLoad(false)
@@ -144,7 +144,7 @@ test('load failures can be retried and an empty directory cannot be saved', asyn
 
 test('a merchant cannot open the directory administration', async ({ page }) => {
   await installBackend(page, false)
-  await page.goto('/admin/kaubamaja')
+  await page.goto('/admin/kaubamaja?view=order')
   await expect(page.getByText('Sellel kontol puudub administraatori ligipääs.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Salvesta järjekord' })).toHaveCount(0)
 })

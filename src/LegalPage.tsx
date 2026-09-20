@@ -152,6 +152,7 @@ function Privacy() {
         <li><strong>Toeandmed:</strong> tugivestlused, manused, vastused ning tõrke lahendamiseks vajalik lehe aadress ja brauseri tehniline teave.</li>
         <li><strong>Ettevõtetele suunatud kliendiotsingu andmed:</strong> ettevõtte avalik nimi, veebileht, üldpostkast, kontakti avalik allikas, sobivuse põhjendus, kirjamustand ning kirja saatmise, kättetoimetamise, vastamise ja loobumise olek. Inimese isiklikke aadresse ei kasutata selleks töövooks teadlikult.</li>
         <li><strong>Avalehe koondstatistika:</strong> juhuslik lehesessiooni tunnus, nimetatud tegevus, lehe nähtaval ja fookuses olnud aktiivne aeg, viitava veebilehe domeen, kampaaniamärgendid ja üldine seadmeklass. Aktiivne aeg on piiratud kuni 30 minutiga sessiooni kohta. Tunnus tekib lehe avamisel, püsib ainult avatud lehe mälus ning seda ei seota konto, e-posti ega muu kasutajaprofiiliga. Täielikku viitaja URL-i ega IP-aadressi analüütikasündmuse juures ei salvestata.</li>
+        <li><strong>Kaubamaja statistika:</strong> juhuslik lehekülastuse tunnus, poekaardi näitamine ja asukoht, poe- ja tootelingi avamine, otsingu tulemuste arv, viitaja domeen, kampaania allikas ning üldine seadmeklass. Otsinguteksti, täielikku viitaja URL-i ega IP-aadressi sündmuse juures ei salvestata. Tunnus püsib ainult lehe mälus ning seda ei seota konto ega kasutajaprofiiliga.</li>
         <li><strong>Tehnilised andmed:</strong> IP-aadress, seadme ja brauseri andmed, ajatemplid, turva- ja vealogid ning DNS-i ja TLS-i kontrolli tulemused.</li>
       </ul>
     </section>
@@ -199,6 +200,7 @@ function Privacy() {
         <li><strong>Ettevõtete kliendiotsing:</strong> saatmata kandidaadid ja veebiuuringu tehnilised kirjed kuni 90 päeva; ettevõtted, kellele kiri saadeti, kuni 12 kuud viimasest tegevusest. Loobunud, rämpspostikaebuse esitanud või püsivalt mittetoimiva aadressi minimaalne blokeerimiskirje võib säilida kauem üksnes selleks, et uut kirja mitte saata.</li>
         <li><strong>Webhook’i duplikaadikaitse:</strong> Stripe’i tehnilised sündmusetunnused kuni 90 päeva ja Resendi sündmusetunnused kuni 30 päeva.</li>
         <li><strong>Avalehe koondstatistika:</strong> sündmused kuni 90 päeva. Juhuslik lehesessiooni tunnus ei püsi brauseris pärast lehe uuesti laadimist ja seda ei seota kontoga.</li>
+        <li><strong>Kaubamaja statistika:</strong> sündmused 180 päeva ja poolelioleva Eesti kalendripäeva jooksul, et võrrelda kahte 90-päevast perioodi. Juhuslik külastuse tunnus kaob lehe uuesti laadimisel.</li>
         <li><strong>Turva- ja vealogid:</strong> rakenduse veasündmused kuni 30 päeva. Päringumahu piiramiseks kasutatav IP-aadress salvestatakse ainult pöördumatu soolatud räsi ning lühiajalise loendurina, mis kustub hiljemalt viie minuti jooksul pärast piiranguakna lõppu.</li>
         <li><strong>Aktiivsuse olek:</strong> kuni 24 tundi pärast viimast signaali.</li>
       </ul>
@@ -207,7 +209,7 @@ function Privacy() {
 
     <section>
       <h2>7. Küpsised ja kohalik salvestus</h2>
-      <p>Poeruum kasutab sisselogimise, turvalisuse, ostukorvi ja kasutaja valikute säilitamiseks hädavajalikku brauseri salvestusruumi ning teenusepakkujate tehnilisi küpsiseid. Hädavajalik salvestus ei vaja nõusolekut. Avalehe koondstatistika ei kasuta küpsiseid ega kohalikku salvestusruumi: juhuslik tunnus elab ainult avatud lehe mälus. Kui lisame analüütika- või turundusküpsised, küsime enne nende kasutamist eraldi nõusoleku.</p>
+      <p>Poeruum kasutab sisselogimise, turvalisuse, ostukorvi ja kasutaja valikute säilitamiseks hädavajalikku brauseri salvestusruumi ning teenusepakkujate tehnilisi küpsiseid. Hädavajalik salvestus ei vaja nõusolekut. Avalehe ja Kaubamaja statistika ei kasuta küpsiseid ega kohalikku salvestusruumi: juhuslik tunnus elab ainult avatud lehe mälus. Kui lisame analüütika- või turundusküpsised, küsime enne nende kasutamist eraldi nõusoleku.</p>
     </section>
 
     <section>

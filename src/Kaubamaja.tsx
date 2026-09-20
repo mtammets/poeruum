@@ -11,6 +11,8 @@ import { listPublicStoreDirectory } from './lib/database'
 import { createStoreDirectorySearch, type DirectoryProductResult } from './lib/directorySearch'
 import { applySeoMetadata } from './lib/seo'
 import { isSupabaseConfigured } from './lib/supabase'
+import { startDirectoryAnalytics, trackDirectoryEvent } from './lib/directoryAnalytics'
+import { useDirectoryImpression } from './useDirectoryImpression'
 
 const directoryUrl = 'https://kaubamaja.poeruum.ee/'
 const directoryName = 'Poeruumi Kaubamaja'
@@ -39,16 +41,21 @@ const loadStores = () => {
   return directoryRequest
 }
 
-const StoreCard = ({ store, index, visitUrl, isExample = false }: {
-  store: Pick<StoreDirectoryEntry, 'name' | 'description' | 'imageUrl' | 'logoUrl'>
+const StoreCard = ({ store, index, visitUrl, isExample = false, placement = 'directory' }: {
+  store: Pick<StoreDirectoryEntry, 'id' | 'name' | 'description' | 'imageUrl' | 'logoUrl'>
   index: number
   visitUrl: string
   isExample?: boolean
+  placement?: 'directory' | 'search'
 }) => {
   const description = store.description || 'Avasta poe valikut.'
+  const ref = useDirectoryImpression(isExample ? null : store.id, placement, index + 1)
+  const open = () => {
+    if (!isExample) trackDirectoryEvent({ event_name: 'store_click', store_id: store.id, placement, position: index + 1 })
+  }
 
-  return <article className="store-directory__card">
-    <a className="store-directory__card-link" href={visitUrl} aria-label={isExample ? `${store.name} – loo oma pood Poeruumis` : `Ava pood ${store.name}`}>
+  return <article className="store-directory__card" ref={ref}>
+    <a className="store-directory__card-link" href={visitUrl} onClick={open} onAuxClick={(event) => { if (event.button === 1) open() }} aria-label={isExample ? `${store.name} – loo oma pood Poeruumis` : `Ava pood ${store.name}`}>
       <div className="store-directory__media">
         {store.imageUrl ? <img
           className="store-directory__cover"
@@ -81,8 +88,10 @@ const StoreCard = ({ store, index, visitUrl, isExample = false }: {
   </article>
 }
 
-const ProductCard = ({ store, product }: DirectoryProductResult) => <article className="store-directory__product">
-  <a href={getStoreDirectoryVisitUrl(store, product)} aria-label={`${product.name} – ${store.name}`}>
+const ProductCard = ({ store, product, index }: DirectoryProductResult & { index: number }) => {
+  const open = () => trackDirectoryEvent({ event_name: 'product_click', store_id: store.id, product_id: product.id, placement: 'search', position: index + 1 })
+  return <article className="store-directory__product">
+  <a href={getStoreDirectoryVisitUrl(store, product)} onClick={open} onAuxClick={(event) => { if (event.button === 1) open() }} aria-label={`${product.name} – ${store.name}`}>
     <div className="store-directory__product-media">
       {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" decoding="async"
         onError={(event) => { event.currentTarget.style.visibility = 'hidden' }} /> : null}
@@ -99,6 +108,7 @@ const ProductCard = ({ store, product }: DirectoryProductResult) => <article cla
     </div>
   </a>
 </article>
+}
 
 export default function Kaubamaja() {
   if (/^\/lood(?:\/|$)/.test(window.location.pathname)) {
@@ -119,6 +129,19 @@ function StoreDirectory() {
   const results = useMemo(() => search(query), [search, query])
   const isSearching = query.trim().length > 0
   const hasResults = results.stores.length > 0 || results.products.length > 0
+  const lastSearch = useRef('')
+
+  useEffect(() => startDirectoryAnalytics(), [])
+  useEffect(() => {
+    const normalized = query.trim().toLocaleLowerCase('et')
+    if (!normalized) { lastSearch.current = ''; return }
+    if (normalized.length < 2 || status !== 'ready' || normalized === lastSearch.current) return
+    const timer = setTimeout(() => {
+      lastSearch.current = normalized
+      trackDirectoryEvent({ event_name: 'search', result_count: Math.min(100000, results.stores.length + results.products.length) })
+    }, 700)
+    return () => clearTimeout(timer)
+  }, [query, status, results])
 
   const changeQuery = (value: string) => {
     setQuery(value)
@@ -231,8 +254,8 @@ function StoreDirectory() {
           {results.products.length > 0 ? <section className="store-directory__result-group" aria-label="Leitud tooted">
             <p className="store-directory__results-heading">Tooted <span>{results.products.length}</span></p>
             <div className="store-directory__product-grid">
-              {results.products.slice(0, productLimit).map((result) => <ProductCard
-                key={`${result.store.id}:${result.product.id}`} {...result} />)}
+              {results.products.slice(0, productLimit).map((result, index) => <ProductCard
+                key={`${result.store.id}:${result.product.id}`} {...result} index={index} />)}
             </div>
             {results.products.length > productLimit ? <button
               className="store-directory__show-more"
@@ -243,7 +266,7 @@ function StoreDirectory() {
           {results.stores.length > 0 ? <section className="store-directory__result-group" aria-label="Leitud poed">
             <p className="store-directory__results-heading">Poed <span>{results.stores.length}</span></p>
             <div className="store-directory__grid">
-              {results.stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} visitUrl={getStoreDirectoryVisitUrl(store)} />)}
+              {results.stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} visitUrl={getStoreDirectoryVisitUrl(store)} placement="search" />)}
             </div>
           </section> : null}
           {!hasResults && (stores.length > 0 || status === 'ready') ? <div className="store-directory__empty"><p>Vasteid ei leitud. Proovi teist märksõna.</p></div> : null}

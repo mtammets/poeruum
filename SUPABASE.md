@@ -1,5 +1,21 @@
 # Supabase'i käivitamine
 
+## Kaubamaja statistika
+
+Admini `/admin/kaubamaja` vaikimisi sakk on **Statistika**; senine järjestamine asub sakis **Poodide järjekord** (`?view=order`). Sakkide vahetamine säilitab salvestamata järjekorra.
+
+Vajalikud on migratsioon `202609200003_directory_analytics.sql` ja Edge Function `directory-analytics` (`verify_jwt = false`). Paigalda esmalt migratsioon ja funktsioon, seejärel brauserirakendus. Funktsioon kasutab olemasolevaid `SUPABASE_URL`, `POERUUM_SUPABASE_SECRET_KEY` ja `RATE_LIMIT_SALT` saladusi. Avalik sisend lubatakse ainult Kaubamaja päritolult, valideeritakse (kuni 20 sündmust / 16 KiB) ja piiratakse IP-räsi järgi 120 päringuni minutis. Avalik päritolukontroll ei tõenda päris inimese külastust; numbrid on brauseripõhine kasutusstatistika, mitte auditeeritud müügiaruanne.
+
+Brauser saadab juhusliku lehekülastuse tunnuse, nähtavale jõudnud poekaardi (vähemalt 50% ühe sekundi jooksul), poe- ja tootelingi avamise ning otsingu tulemuste arvu. Salvestatakse sündmuseaegne kaardi koht ja asukoht (loend/otsing), viitaja domeen, UTM-allikas ja seadmeklass. Otsinguteksti, täielikku viitaja URL-i, konto tunnust ega IP-aadressi sündmustesse ei salvestata. Poe ja toote avalikud nimed võetakse serveris kataloogist. Admini külastused, näidispoed, kohalik arendus ning lugude alamlehed on mõõtmisest väljas.
+
+Külastuse tunnus elab ainult lehe mälus; küpsiseid ega brauseri püsisalvestust ei kasutata. Uus lehe avamine/uuesti laadimine, 30 minutit tegevusetust või Eesti kuupäeva vahetumine alustab uut külastust. Ühte poekaarti, poe avamist ja konkreetse toote avamist loetakse külastuse jooksul üks kord; loendi ja otsingu koondis eemaldatakse kattuvad külastused. Asukohtade detailtabeli read võivad seetõttu kattuda. Taaspäringud kasutavad sama sündmuse ID-d; andmebaas eemaldab ka semantilised duplikaadid. Tahtlik kaardi avamine loetakse ka näitamiseks, et klaviatuuriga avamised ei tõstaks klikimäära üle 100%.
+
+`admin_directory_analytics(7|30|90, store_id|null)` kontrollib JWT `app_metadata.role = admin`; kaupmehed ega anonüümsed kasutajad ei saa lugeda sündmusi või koondeid. Näidatakse külastusi, näitamisi, poe/toote avamisi, klikimäära, allikaid, seadmeid, päevatrendi, poe keskmist kohta ning poe enim avatud tooteid. Perioodid on Eesti kalendripäevades ja sisaldavad pooleliolevat tänast päeva. Eelmise võrdse perioodi võrdlus kuvatakse alles pärast mõlema perioodi andmete kogunemist. Ajalugu enne mõõtmise algust ei taastata. Müüki ja tellimusi selles etapis ei omistata.
+
+`poeruum-directory-analytics-retention` eemaldab iga päev kell 03:20 UTC sündmused, mis jäävad varasemaks kui 180 päeva tagasi alanud Eesti päev. See katab kaks 90-päevast võrdlusperioodi. Kustutatud poe/toote ajaloolised avalikud nimed säilivad sündmustega selle tähtajani. SQL-test `scripts/test-directory-analytics.sql` kontrollib õigusi, duplikaate, avaldamata poode, poe/toote seost, kalendripäevi, võrdlusperioodi ja kustutamisjärgset ajalugu; käivita lokaalselt/CI-s `supabase_admin` rolliga koos `safeupdate` kontrolliga.
+
+Migratsioon ja funktsioon paigaldati tootmises 20. septembril 2026. Tegelik avalik API võttis sündmused vastu (`202`), korduspäring ei lisanud duplikaate, vale päritolu sai `403` ja vigane sündmus `400`. Anonüümne aruandepäring lükati tagasi; ajutise adminikontoga kontrolliti nii üldaruannet kui 90-päevast poe detailaruannet. Kontrollsündmused ja ajutine konto kustutati.
+
 ## Kaubamaja poodide järjekord
 
 Admini vaade `/admin/kaubamaja` vajab migratsioone `202609200001_store_directory_order.sql` ja `202609200002_store_directory_order_safeupdate.sql`.

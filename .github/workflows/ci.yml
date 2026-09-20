@@ -101,6 +101,9 @@ jobs:
       - name: Test admin directory ordering and access boundaries
         run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-store-directory-order.sql
 
+      - name: Test directory analytics aggregation and access boundaries
+        run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-directory-analytics.sql
+
       - name: Test private business card drafts and concurrent saves
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-business-card-drafts.sql
 

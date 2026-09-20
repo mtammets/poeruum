@@ -19,7 +19,7 @@ import { getStorefrontCanonicalUrl } from './lib/storefrontUrl'
 import { getStripeRequirementIssueCopies } from '../supabase/functions/_shared/stripe-requirement-issues.mjs'
 
 const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
-const AdminStoreDirectory = lazy(() => import('./AdminStoreDirectory'))
+const AdminKaubamaja = lazy(() => import('./AdminKaubamaja'))
 
 type AdminUserRow = {
   user_id: string
@@ -1013,7 +1013,7 @@ export default function AdminApp() {
       {error && activeView !== 'business-card' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
-        {activeView === 'directory' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin poode…</div>}><AdminStoreDirectory /></Suspense>}
+        {activeView === 'directory' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin Kaubamaja…</div>}><AdminKaubamaja /></Suspense>}
         {activeView === 'seo' && <div className="admin-seo">
           <section className="admin-seo__summary">
             <div>

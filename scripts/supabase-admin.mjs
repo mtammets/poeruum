@@ -95,6 +95,7 @@ if (action === 'functions') {
   run(['functions', 'deploy', 'data-retention-reaper', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'report-client-error', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'homepage-analytics', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'directory-analytics', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'health-check', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'monitor-health', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'support-actions', '--project-ref', process.env.SUPABASE_PROJECT_REF])
