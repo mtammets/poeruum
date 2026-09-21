@@ -265,9 +265,12 @@
 }
 
 .product-details h1 {
+  flex: 1;
   min-width: 0;
   margin: 0 0 1.75rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
   color: var(--store-ink);
   font-size: clamp(2rem, 9vw, 2.55rem);
   line-height: 1.02;
@@ -5084,7 +5087,6 @@
   }
 
   .product-details h1 {
-    max-width: 12ch;
     margin-bottom: 2rem;
     font-size: clamp(2.8rem, 4vw, 5.2rem);
     letter-spacing: -0.045em;

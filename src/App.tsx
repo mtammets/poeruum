@@ -26,6 +26,7 @@ import ModalCloseButton from './ModalCloseButton'
 import ProductDescriptionGenerator from './ProductDescriptionGenerator'
 import ProductImageTray from './ProductImageTray'
 import StoreName from './StoreName'
+import useProductTitleFit from './useProductTitleFit'
 import PasswordInput from './PasswordInput'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
@@ -1715,6 +1716,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [onInitialVisualReady])
 
   const activeProduct = displayProducts[activeIndex]
+  useProductTitleFit(editProductNameRef, activeProduct?.name, isEditOpen)
   const activeProductHasSale = activeProduct !== undefined && activeProduct.salePrice !== undefined && activeProduct.price !== undefined && activeProduct.salePrice < activeProduct.price
   const activeProductDiscount = activeProductHasSale ? Math.round((1 - activeProduct.salePrice! / activeProduct.price!) * 100) : 0
   const activeProductSelections = activeProduct ? getSelectionsForProduct(activeProduct) : {}
@@ -2793,7 +2795,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         <div className="product-details__heading">
           <h1
             key={isEditOpen ? 'editing-name' : 'viewing-name'}
-            ref={isEditOpen ? editProductNameRef : undefined}
+            ref={editProductNameRef}
             contentEditable={isEditOpen}
             suppressContentEditableWarning
             role={isEditOpen ? 'textbox' : undefined}
