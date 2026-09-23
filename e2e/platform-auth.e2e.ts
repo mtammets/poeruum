@@ -3,6 +3,71 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 const USER_ID = '20000000-0000-4000-8000-000000000001'
 const STORE_ID = '10000000-0000-4000-8000-000000000001'
 
+test('homepage loads responsive showcase images in parallel and waits for the next slide', async ({ page }) => {
+  await installSupabaseBackend(page)
+  await page.clock.install()
+  const showcaseId = '00000000-0000-4000-8000-000000000001'
+  const imageRoot = 'http://localhost:4174/storage/v1/object/public/product-images/showcase-test'
+  const products = ['lamp', 'vase', 'tray'].map((name, index) => {
+    const image = `${imageRoot}/${name}/master.svg`
+    const variant = (role: string, width: number, height: number) => ({ url: `${imageRoot}/${name}/${role}.svg`, width, height, bytes: width })
+    return {
+      id: name, store_id: showcaseId, name, image_url: image, gallery: [image], price: 39,
+      search_visible: true, sort_order: index,
+      image_variants: { [image]: { mimeType: 'image/svg+xml', variants: {
+        thumb: variant('thumb', 320, 480), medium: variant('medium', 640, 960),
+        large: variant('master', 1024, 1536), master: variant('master', 1024, 1536),
+      } } },
+    }
+  })
+  let releaseStore!: () => void
+  let releaseNextImage!: () => void
+  const storeReady = new Promise<void>((resolve) => { releaseStore = resolve })
+  const nextImageReady = new Promise<void>((resolve) => { releaseNextImage = resolve })
+  let storeRequests = 0
+  let productRequests = 0
+  const requestedImages: string[] = []
+  await page.route('**/rest/v1/public_storefronts?*', async (route) => {
+    storeRequests += 1
+    await storeReady
+    await json(route, { ...store, id: showcaseId, slug: 'naidispood' })
+  })
+  await page.route('**/rest/v1/products?*', async (route) => {
+    productRequests += 1
+    await json(route, products)
+  })
+  await page.route(`${imageRoot}/**`, async (route) => {
+    requestedImages.push(route.request().url())
+    if (route.request().url().includes('/vase/')) await nextImageReady
+    await route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="480"><rect width="320" height="480" fill="#265f43"/></svg>' })
+  })
+
+  try {
+    await page.goto('/')
+    // Products must be requested even while the store response is still held.
+    await expect.poll(() => productRequests).toBe(1)
+    releaseStore()
+    const slides = page.locator('.platform-phone__slides')
+    const firstImage = slides.locator('img').nth(1)
+    await expect(firstImage).toHaveAttribute('fetchpriority', 'high')
+    await expect.poll(() => firstImage.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true)
+    expect(await firstImage.evaluate((image: HTMLImageElement) => image.currentSrc)).toContain('/lamp/thumb.svg')
+    expect(requestedImages.some((url) => url.endsWith('/master.svg'))).toBe(false)
+    expect(storeRequests).toBe(1)
+    expect(productRequests).toBe(1)
+
+    await page.clock.runFor(3500)
+    await expect(slides).toHaveAttribute('style', 'transform: translateX(-100%);')
+    releaseNextImage()
+    await expect.poll(() => slides.locator('img').nth(2).evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true)
+    await page.clock.runFor(3300)
+    await expect(slides).toHaveAttribute('style', 'transform: translateX(-200%);')
+  } finally {
+    releaseStore()
+    releaseNextImage()
+  }
+})
+
 const encodeJwtPart = (value: Record<string, unknown>) => Buffer
   .from(JSON.stringify(value))
   .toString('base64url')

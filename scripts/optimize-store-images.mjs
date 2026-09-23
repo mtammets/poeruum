@@ -16,7 +16,8 @@ const required = (name) => {
 
 const storeSlug = process.argv.slice(2).find((argument) => !argument.startsWith('--'))
 const apply = process.argv.includes('--apply')
-if (!storeSlug) throw new Error('Kasuta käsku kujul: node scripts/optimize-store-images.mjs poe-aadress [--apply]')
+const productsOnly = process.argv.includes('--products-only')
+if (!storeSlug) throw new Error('Kasuta käsku kujul: node scripts/optimize-store-images.mjs poe-aadress [--products-only] [--apply]')
 
 const supabase = createClient(required('VITE_SUPABASE_URL'), required('SUPABASE_SECRET_KEY'), {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -131,7 +132,7 @@ for (const product of products ?? []) {
 
 const settings = store.settings && typeof store.settings === 'object' ? store.settings : {}
 const settingPlans = []
-for (const input of [
+for (const input of productsOnly ? [] : [
   { key: 'storeLogo', maximumSide: 512, quality: .86 },
   { key: 'storeAboutImage', maximumSide: 1600, quality: .82 },
 ]) {
@@ -147,6 +148,12 @@ const megabytes = (bytes) => `${(bytes / 1_000_000).toFixed(2)} MB`
 console.log(`${store.slug}: ${productPlans.length} toodet ja ${settingPlans.length} poepilti`)
 console.log(`Praegused lähtefailid: ${megabytes(originalBytes)}`)
 console.log(`Uued WebP variandid kokku: ${megabytes(optimizedBytes)}`)
+for (const { product, images } of productPlans) {
+  for (const image of images) {
+    const medium = image.encoded.images.find((variant) => variant.sizeKey === image.encoded.roleToSize.medium)
+    console.log(`${product.name}: ${Math.round(image.encoded.originalBytes / 1000)} kB → eelvaade ${Math.round(medium.bytes / 1000)} kB (${medium.width} × ${medium.height})`)
+  }
+}
 
 if (apply) {
   for (const plan of productPlans) {

@@ -1,8 +1,10 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import BillingPlanDialog from './BillingPlanDialog'
 import PasswordInput from './PasswordInput'
 import { Brand } from './Brand'
-import { createStore, getPublicShowcaseStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
+import { createStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
+import { loadPublicShowcase, PHONE_IMAGE_SIZES } from './lib/showcase'
+import { getResponsiveImageProps } from './storefrontModel'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPaymentSetupState, getStoreDestination, getStripeSetupMode, type OnboardingStep, type StripeSetupPurpose } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
@@ -251,6 +253,7 @@ function PlatformFlow() {
   const [phoneSlideIndex, setPhoneSlideIndex] = useState(1)
   const [isPhoneSwipeAnimated, setIsPhoneSwipeAnimated] = useState(true)
   const [isPhoneDetailsOpen, setIsPhoneDetailsOpen] = useState(false)
+  const [loadedPhoneImages, setLoadedPhoneImages] = useState<Set<string>>(() => new Set())
   const [store, setStore] = useState<StoreRecord | null>(null)
   const [storedProducts, setStoredProducts] = useState<Product[]>([])
   const [authError, setAuthError] = useState('')
@@ -268,20 +271,20 @@ function PlatformFlow() {
   const requestedProductSlug = getRequestedProductSlug(window.location)
   const [sampleStore, setSampleStore] = useState<PublicStoreRecord | null>(null)
   const [sampleProducts, setSampleProducts] = useState<Product[]>([])
-  const phonePreviewProducts = (sampleStore ? sampleProducts : bundledProducts)
+  const phonePreviewProducts = useMemo(() => (sampleStore ? sampleProducts : bundledProducts)
     .filter((product) => product.searchVisible !== false)
     .map((product) => ({
-      id: product.id,
-      name: product.name,
+      ...product,
       description: product.description ?? '',
       price: product.salePrice !== undefined && product.price !== undefined && product.salePrice < product.price
         ? product.salePrice
         : product.price ?? 0,
       images: Array.from(new Set([product.image, ...(product.gallery ?? [])])).filter(Boolean),
-    }))
+    })), [sampleStore, sampleProducts])
   const phoneProductIndex = phonePreviewProducts.length
     ? (phoneSlideIndex - 1 + phonePreviewProducts.length) % phonePreviewProducts.length
     : 0
+  const isPhonePreviewReady = phonePreviewProducts.length > 0 && loadedPhoneImages.has(phonePreviewProducts[0].images[0])
 
   useEffect(() => {
     if (screen !== 'business' || !email) return
@@ -504,16 +507,15 @@ function PlatformFlow() {
   useEffect(() => {
     if (!['landing', 'sample'].includes(screen) || !isSupabaseConfigured) return
     let active = true
-    const refreshSampleStore = () => getPublicShowcaseStore().then(async (found) => {
-      if (!found || !active) return
-      const nextProducts = await listProducts(found.id)
+    const loadSampleStore = (refresh = false) => loadPublicShowcase(refresh).then(({ store: found, products: nextProducts }) => {
       if (!active) return
       setSampleStore(found)
       setSampleProducts(nextProducts)
     }).catch(() => {
-      // Keep the bundled sample as a safe fallback before the platform-store migration is deployed.
+      // Keep the last successful preview when refreshing fails.
     })
-    void refreshSampleStore()
+    void loadSampleStore()
+    const refreshSampleStore = () => { void loadSampleStore(true) }
     window.addEventListener('focus', refreshSampleStore)
     return () => {
       active = false
@@ -1191,7 +1193,7 @@ function PlatformFlow() {
   }, [isMobileNavOpen])
 
   useEffect(() => {
-    if (screen !== 'landing' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (screen !== 'landing' || !isPhonePreviewReady || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       setIsPhoneDetailsOpen(false)
       return
     }
@@ -1207,13 +1209,18 @@ function PlatformFlow() {
       window.clearTimeout(firstDetailsTimeout)
       if (closeDetailsTimeout !== undefined) window.clearTimeout(closeDetailsTimeout)
     }
-  }, [screen])
+  }, [screen, isPhonePreviewReady])
 
   useEffect(() => {
-    if (screen !== 'landing' || isPhoneDetailsOpen || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const swipeInterval = window.setInterval(() => setPhoneSlideIndex((index) => index + 1), 3200)
+    if (screen !== 'landing' || isPhoneDetailsOpen || phonePreviewProducts.length < 2
+      || !loadedPhoneImages.has(phonePreviewProducts[phoneProductIndex].images[0])
+      || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const swipeInterval = window.setInterval(() => {
+      const nextProduct = phonePreviewProducts[(phoneProductIndex + 1) % phonePreviewProducts.length]
+      if (loadedPhoneImages.has(nextProduct.images[0])) setPhoneSlideIndex((index) => index + 1)
+    }, 3200)
     return () => window.clearInterval(swipeInterval)
-  }, [screen, isPhoneDetailsOpen])
+  }, [screen, isPhoneDetailsOpen, phoneProductIndex, phonePreviewProducts, loadedPhoneImages])
 
   useEffect(() => {
     if (!phonePreviewProducts.length || phoneSlideIndex !== phonePreviewProducts.length + 1) return
@@ -1561,7 +1568,15 @@ function PlatformFlow() {
               {phoneProduct
                 ? <>
                   <div className={`platform-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
-                    {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img src={product.images[0]} alt={product.name} key={`${product.id}-${index}`} />)}
+                    {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img
+                      {...getResponsiveImageProps(product, product.images[0], 'medium')}
+                      sizes={PHONE_IMAGE_SIZES}
+                      fetchPriority={index === 1 ? 'high' : 'low'}
+                      decoding="async"
+                      onLoad={() => setLoadedPhoneImages((current) => current.has(product.images[0]) ? current : new Set(current).add(product.images[0]))}
+                      alt={product.name}
+                      key={`${product.id}-${index}`}
+                    />)}
                   </div>
                   <div className="platform-phone__shade" />
                   <div className="platform-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
@@ -1569,7 +1584,7 @@ function PlatformFlow() {
                     <div><img src="/images/poeruum-email-logo.svg" alt="" /><strong>POERUUM</strong></div>
                     <aside><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg></i><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6" /><circle cx="9" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg><b>0</b></i></aside>
                   </header>
-                  {phoneProduct.images.length > 1 && <div className="platform-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img src={image} alt="" /></span>)}</div>}
+                  {phoneProduct.images.length > 1 && <div className="platform-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img {...getResponsiveImageProps(phoneProduct, image, 'thumb')} sizes="1.9rem" decoding="async" fetchPriority="low" alt="" /></span>)}</div>}
                   <div className="platform-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
                 </>
                 : <div className="platform-phone__empty" aria-hidden="true" />}

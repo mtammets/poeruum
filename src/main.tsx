@@ -5,8 +5,9 @@ import type { LegalDocument } from './LegalPage'
 import { applySeoMetadata } from './lib/seo'
 import { registerGlobalErrorMonitoring } from './lib/errorMonitoring'
 import { readReceiptLocation } from './lib/orderReceipt'
-import { getStoreSlugFromHostname, isPlatformHostname, isStoreDirectoryHostname } from './lib/storefrontUrl'
+import { getRequestedStoreSlug, getStoreSlugFromHostname, isPlatformHostname, isStoreDirectoryHostname } from './lib/storefrontUrl'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { loadPublicShowcase } from './lib/showcase'
 import './styles.css'
 import './brand.css'
 import './storeDirectory.css'
@@ -62,6 +63,11 @@ const isStoreDirectorySurface = isStoreDirectoryHostname(window.location.hostnam
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
 const isPlatformSurface = isStoreDirectorySurface
   || (isPlatformHostname(window.location.hostname) && !isStorefrontSubdomain)
+// Start alongside the lazy platform chunk, before the landing page mounts.
+if (isSupabaseConfigured && isPlatformSurface && !isStoreDirectorySurface
+  && window.location.pathname === '/' && !hasAppReturnState && !getRequestedStoreSlug(window.location)) {
+  void loadPublicShowcase().catch(() => { /* The landing page can retry a failed preload. */ })
+}
 const appSurface = isPlatformSurface ? 'platform' : 'storefront'
 document.documentElement.dataset.appSurface = appSurface
 document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
