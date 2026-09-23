@@ -251,13 +251,26 @@ button, a, summary { touch-action: manipulation; }
 .auth-card > small { display: block; margin-top: 1.2rem; color: #9ba29c; text-align: center; }
 .auth-switch { display: flex; align-items: center; justify-content: center; gap: .35rem; margin-top: 1.25rem; padding-top: 1.15rem; border-top: 1px solid #e1e4dd; color: #778078; font-size: .75rem; }
 .auth-switch button { padding: .2rem; border: 0; background: transparent; color: var(--platform-green); font-weight: 850; }
-.auth-flow--login { margin-top: 5rem; }
-.auth-intro--login h1 { max-width: 12ch; }
+.auth-page--login::before { display: none; }
+.auth-page--login .flow-header { width: min(calc(100% - 4rem), 62rem); padding-inline: 0; }
+.auth-flow--login { width: min(calc(100% - 4rem), 62rem); margin-top: clamp(2rem, 6vh, 4rem); }
+.auth-flow--login .auth-content { grid-template-columns: minmax(0, 1fr) minmax(24rem, 27rem); align-items: start; gap: clamp(3rem, 6vw, 6rem); }
+.auth-intro--login { position: relative; isolation: isolate; margin-top: 4.5rem; padding: 0; }
+.auth-intro--login::before { position: absolute; z-index: -1; top: -2.5rem; left: -3.5rem; width: 19rem; height: 19rem; border-radius: 50%; background: #dce5ca; opacity: .6; content: ''; pointer-events: none; }
+.auth-intro--login h1 { max-width: 12ch; margin: 1rem 0 0; font-size: clamp(2.6rem, 3.6vw, 3.6rem); line-height: 1.06; letter-spacing: -.05em; }
+.auth-intro--login > p { margin-top: 1.25rem; }
+.auth-card--login { padding: 2rem; box-shadow: 0 16px 40px #33403610; }
+.auth-card--login > p { margin-bottom: 1.4rem; }
+.auth-card--login form { gap: 1rem; }
+.auth-card--login .auth-switch { margin-top: 1rem; padding-top: .9rem; }
+.auth-card--login > small { margin-top: .85rem; font-size: .7rem; line-height: 1.5; }
 
 @media (max-width: 900px) {
   .auth-flow { width: min(92%, 30rem); }
-  .auth-content { grid-template-columns: 1fr; }
+  .auth-content, .auth-flow--login .auth-content { grid-template-columns: 1fr; }
   .auth-intro { display: none; }
+  .auth-page--login .flow-header { width: min(92%, 30rem); }
+  .auth-flow--login { margin-top: 1.5rem; }
 }
 
 .setup-page {

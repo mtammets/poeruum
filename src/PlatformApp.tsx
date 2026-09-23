@@ -1691,7 +1691,7 @@ function PlatformFlow() {
       <div className="auth-content">
         <aside className="auth-intro auth-intro--login">
           <span className="platform-eyebrow">Tere tulemast tagasi</span>
-          <h1>Jätka sealt, kus pooleli jäi.</h1>
+          <h1>Jätka sealt,<br />kus pooleli jäi.</h1>
         </aside>
         <section className="auth-card auth-card--login">
           <h1>Logi sisse</h1><p>Tagasi oma poe haldusesse.</p>
@@ -1699,7 +1699,7 @@ function PlatformFlow() {
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice(''); setNeedsEmailConfirmation(false); setConfirmationResendCooldown(0); setIsConfirmationRateLimited(false) }} onBlur={restoreLoginScrollAfterKeyboard} placeholder="sina@ettevote.ee" autoComplete="username" enterKeyHint="next" autoFocus /></label>
             <PasswordInput key="login-password" label="Parool" required name="password" placeholder="Sinu parool" autoComplete="current-password" enterKeyHint="done" onBlur={restoreLoginScrollAfterKeyboard} />
             <button className="auth-password-link" type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setScreen('forgot-password') }}>Unustasid parooli?</button>
-            <Turnstile key={`login-${captchaResetKey}`} action="login" onToken={handleCaptchaToken} />
+            <Turnstile key={`login-${captchaResetKey}`} action="login" onToken={handleCaptchaToken} size="responsive" />
             {needsEmailConfirmation && <div className="auth-confirmation-prompt" role="alert">
               <span><strong>{authError || 'Kinnita e-posti aadress'}</strong><small>{isConfirmationRateLimited ? 'Kasuta kõige uuemat saabunud kirja või proovi umbes tunni pärast uuesti.' : 'Kasuta kõige uuemat kirja, mille Poeruum sulle saatis.'}</small></span>
               <button type="button" disabled={isAuthBusy || !isCaptchaReady || isConfirmationRateLimited || confirmationResendCooldown > 0} onClick={resendConfirmation}>
@@ -1725,7 +1725,7 @@ function PlatformFlow() {
         <h1>Unustasid parooli?</h1><p>Sisesta oma konto e-posti aadress.</p>
         <form onSubmit={requestPasswordReset}>
           <label>E-posti aadress<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setAuthError(''); setAuthNotice('') }} placeholder="sina@ettevote.ee" autoComplete="email" autoFocus /></label>
-          <Turnstile key={`password-reset-${captchaResetKey}`} action="password_reset" onToken={handleCaptchaToken} />
+          <Turnstile key={`password-reset-${captchaResetKey}`} action="password_reset" onToken={handleCaptchaToken} size="responsive" />
           {authError && <p className="add-product-error" role="alert">{authError}</p>}
           {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
           <button type="submit" disabled={isAuthBusy || !email.trim() || !isCaptchaReady}>{isAuthBusy ? 'Saadan…' : 'Saada taastamislink'} <span>→</span></button>
