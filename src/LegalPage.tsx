@@ -16,8 +16,8 @@ import './legal.css'
 
 export type LegalDocument = 'terms' | 'privacy'
 
-const TERMS_EFFECTIVE_DATE = '28. juuli 2026'
-const PRIVACY_EFFECTIVE_DATE = '31. juuli 2026'
+const TERMS_EFFECTIVE_DATE = '24. september 2026'
+const PRIVACY_EFFECTIVE_DATE = '24. september 2026'
 const PROVIDER = {
   name: 'Animaator OÜ',
   registryCode: '17135632',
@@ -64,6 +64,7 @@ function Terms() {
     <section>
       <h2>3. Poe pidamine ja ostjad</h2>
       <p>Kaupmees määrab oma müügi- ja tagastustingimused ning avaldab poes nõutud müüjaandmed. Kaupmees vastutab tellimuste täitmise, klienditoe, toodete nõuetele vastavuse ja tarbija õiguste järgimise eest.</p>
+      <p>Kaupmees volitab Poeruumi koostama, säilitama ja edastama tema nimel tellimuste arveid ja kreeditarveid. Arved on kaupmehele kättesaadavad tellimuste vaates. Kaupmees vastutab esitatud müüjaandmete ja valitud käibemaksukäsitluse õigsuse eest.</p>
       <p>Poeruum pakub tehnilist taristut tellimuste vastuvõtmiseks. Makseid töötleb Stripe ning tarneandmeid võivad töödelda kaupmehe valitud tarnepakkujad. Nende teenuste kasutamisele võivad lisanduda vastava pakkuja tingimused ja tasud.</p>
     </section>
 
@@ -148,7 +149,7 @@ function Privacy() {
         <li><strong>Kontoandmed:</strong> e-post, autentimis- ja sessiooniandmed ning konto olek. Parooli haldab Supabase Auth; Poeruum ei näe parooli avatekstina.</li>
         <li><strong>Kaupmehe andmed:</strong> nimi, ärinimi, registrikood, aadress, kontaktid, poe seaded, domeenid, tooted, pildid, hinnad, laoseis ja tarnevalikud.</li>
         <li><strong>Arveldus- ja makseandmed:</strong> valitud pakett, arvelduse olek, summad ning Stripe’i kliendi-, konto-, tellimuse ja tehingu tunnused. Täielikke kaardiandmeid töötleb Stripe.</li>
-        <li><strong>Tellimuse andmed:</strong> ostja nimi ja kontaktandmed, tarne- või pakiautomaadi valik, aadress, ostukorv, summad ning tellimuse ja makse olek.</li>
+        <li><strong>Tellimuse andmed:</strong> ostja nimi ja kontaktandmed, tarne- või pakiautomaadi valik, aadress, ostukorv, summad ning tellimuse ja makse olek. Arvetel lisaks ostja arveaadress, ettevõtte andmed, arvenumber ja maksuarvestus.</li>
         <li><strong>Toeandmed:</strong> tugivestlused, manused, vastused ning tõrke lahendamiseks vajalik lehe aadress ja brauseri tehniline teave.</li>
         <li><strong>Ettevõtetele suunatud kliendiotsingu andmed:</strong> ettevõtte avalik nimi, veebileht, üldpostkast, kontakti avalik allikas, sobivuse põhjendus, kirjamustand ning kirja saatmise, kättetoimetamise, vastamise ja loobumise olek. Inimese isiklikke aadresse ei kasutata selleks töövooks teadlikult.</li>
         <li><strong>Avalehe koondstatistika:</strong> juhuslik lehesessiooni tunnus, nimetatud tegevus, lehe nähtaval ja fookuses olnud aktiivne aeg, viitava veebilehe domeen, kampaaniamärgendid ja üldine seadmeklass. Aktiivne aeg on piiratud kuni 30 minutiga sessiooni kohta. Tunnus tekib lehe avamisel, püsib ainult avatud lehe mälus ning seda ei seota konto, e-posti ega muu kasutajaprofiiliga. Täielikku viitaja URL-i ega IP-aadressi analüütikasündmuse juures ei salvestata.</li>
@@ -193,7 +194,7 @@ function Privacy() {
       <h2>6. Säilitamine</h2>
       <ul>
         <li><strong>Konto ja poe sisu:</strong> säilivad konto kasutamise ajal ning kustutatakse konto kustutamisel. Vähemalt 180 päeva kasutamata mitte kunagi avaldatud tühi poomustand, millel puuduvad tooted, makseühendus, tasuline pakett, kohandatud domeen, tellimused ja finantskirjed, võidakse eemaldada pärast vähemalt seitsmepäevast e-posti teavitust. Sisselogimine või seadistamise jätkamine tühistab eemaldamise ning autentimiskonto jääb alles. Tootepildid, kohandatud domeenid, autentimiskonto ja avatud tugisisu eemaldatakse konto kustutamistoimingu käigus.</li>
-        <li><strong>Tellimused:</strong> säilivad kaheksa aastat tellimuse kuupäevast. See katab raamatupidamisdokumentide nõutud seitsmeaastase säilitamise ka juhul, kui kaupmehe majandusaasta ei ühti kalendriaastaga. Konto kustutamisel eemaldatakse tellimustest kohe ostja nimi, e-post ja tarneinfo; summad, kaubaread, makseolek ja tehingutunnused säilivad tähtaja lõpuni raamatupidamise ja nõuete kaitsmise eesmärgil.</li>
+        <li><strong>Tellimused:</strong> säilivad kaheksa aastat tellimuse kuupäevast. See katab raamatupidamisdokumentide nõutud seitsmeaastase säilitamise ka juhul, kui kaupmehe majandusaasta ei ühti kalendriaastaga. Konto kustutamisel eemaldatakse tellimuse töövaatest ostja nimi, e-post ja tarneinfo. Väljastatud arved ja kreeditarved koos nende aluseks olevate müüja- ja ostjaandmetega säilivad muutumatult vähemalt kaheksa aastat dokumendi väljastamisest; sama tähtajani säilivad seotud tellimuse summad, kaubaread, makseolek ja tehingutunnused raamatupidamise ja nõuete kaitsmise eesmärgil.</li>
         <li><strong>Poeruumi finantskirjed:</strong> säilivad kaheksa aastat tehingu kuupäevast, et katta vähemalt seitse aastat vastava majandusaasta lõpust.</li>
         <li><strong>Tugipöördumised ja manused:</strong> kustutatakse konto kustutamisel või 24 kuud pärast pöördumise lahendamist, olenevalt sellest, kumb saabub varem.</li>
         <li><strong>Tehinguliste e-kirjade kättetoimetamislogid:</strong> kuni 90 päeva; konto omaniku aadressiga seotud logid kustutatakse konto kustutamisel.</li>

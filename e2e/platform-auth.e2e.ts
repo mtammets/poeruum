@@ -951,6 +951,7 @@ test('checkout explains Link and opens a payment page only after the customer co
   await page.getByRole('textbox', { name: 'Nimi', exact: true }).fill('Test Ostja')
   await page.getByRole('textbox', { name: 'E-post', exact: true }).fill('ostja@example.invalid')
   await page.getByRole('textbox', { name: 'Telefon', exact: true }).fill('+37255555555')
+    await page.getByRole('textbox', { name: 'Arve aadress', exact: true }).fill('Testi 1, Tallinn, 10111')
   expect(checkoutRequests).toBe(0)
   await page.getByRole('button', { name: 'Edasi maksma · 27,32 €' }).click()
   await expect(page.getByRole('heading', { name: 'Makse on lõpetamata' })).toBeVisible()
@@ -972,6 +973,7 @@ test('checkout retries keep their attempt after errors and reloads, and change i
     await page.getByRole('textbox', { name: 'Nimi', exact: true }).fill('Test Ostja')
     await page.getByRole('textbox', { name: 'E-post', exact: true }).fill('ostja@example.invalid')
     await page.getByRole('textbox', { name: 'Telefon', exact: true }).fill('+37255555555')
+    await page.getByRole('textbox', { name: 'Arve aadress', exact: true }).fill('Testi 1, Tallinn, 10111')
   }
   const submit = async () => {
     await page.getByRole('button', { name: 'Edasi maksma · 27,32 €' }).click()
@@ -999,4 +1001,55 @@ test('a terminal receipt clears the completed attempt and explains starting agai
   await expect(page.getByText('Selle tellimuse eest pole kinnitatud makset. Uue tellimuse saad vormistada poes.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Jätka maksmist' })).toHaveCount(0)
   expect(await page.evaluate(() => sessionStorage.getItem('poeruum-checkout-attempt-v1'))).toBeNull()
+})
+
+
+test('company checkout sends billing details and changes the attempt when the invoice recipient changes', async ({ page }) => {
+  const requests: Array<{ checkoutRequestId: string; billing: { company: boolean; name: string; registryCode: string; address: string } }> = []
+  await receiptBackend(page, () => ({ body: { receipt: receiptFixture } }))
+  await page.route('**/__e2e_supabase/functions/v1/stripe-store-checkout', async (route) => {
+    requests.push(route.request().postDataJSON())
+    await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Ajutine tõrge.' }) })
+  })
+  await page.goto('/?checkout=status')
+  await page.evaluate(async () => {
+    const { mountCheckoutHarness } = await import('/e2e/checkout-harness.tsx')
+    mountCheckoutHarness()
+  })
+  await page.getByRole('textbox', { name: 'Nimi', exact: true }).fill('Õie Ostja')
+  await page.getByRole('textbox', { name: 'E-post', exact: true }).fill('ostja@example.invalid')
+  await page.getByRole('textbox', { name: 'Telefon', exact: true }).fill('+37255555555')
+  await page.getByRole('checkbox', { name: 'Ostan ettevõttele' }).check()
+  await page.getByRole('textbox', { name: 'Ettevõtte nimi', exact: true }).fill('Ostja OÜ')
+  await page.getByRole('textbox', { name: 'Registrikood', exact: true }).fill('12345678')
+  await page.getByRole('textbox', { name: 'Arve aadress', exact: true }).fill('Testi 1, Tallinn, 10111')
+  await page.getByRole('button', { name: 'Edasi maksma · 27,32 €' }).click()
+  await expect(page.getByText('Ajutine tõrge.')).toBeVisible()
+  expect(requests[0].billing).toEqual({ company: true, name: 'Ostja OÜ', registryCode: '12345678', vatNumber: '', address: 'Testi 1, Tallinn, 10111' })
+  await page.getByRole('textbox', { name: 'Ettevõtte nimi', exact: true }).fill('Teine OÜ')
+  await page.getByRole('button', { name: 'Edasi maksma · 27,32 €' }).click()
+  await expect.poll(() => requests.length).toBe(2)
+  expect(requests[1].checkoutRequestId).not.toBe(requests[0].checkoutRequestId)
+})
+
+test('private receipt downloads its invoice and credit without exposing a public file URL', async ({ page }) => {
+  const invoice = { id: '79000000-0000-4000-8000-000000000003', number: 'TEST-PR1-2026-000001', kind: 'invoice', ready: true }
+  const credit = { ...invoice, id: '79000000-0000-4000-8000-000000000004', number: 'TEST-PR1-2026-000002', kind: 'credit' }
+  const bodies: Array<{ token: string; documentId?: string }> = []
+  await receiptBackend(page, () => ({ body: { receipt: { ...receiptFixture, status: 'refunded', hasInvoice: true } } }))
+  await page.route('**/__e2e_supabase/functions/v1/order-documents', async (route) => {
+    const body = route.request().postDataJSON()
+    bodies.push(body)
+    if (body.documentId) await route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.7\n%%EOF' })
+    else await json(route, { documents: [invoice, credit] })
+  })
+  await page.goto(receiptPath)
+  await expect(page.getByRole('button', { name: 'Arve TEST-PR1-2026-000001 · PDF', exact: true })).toBeVisible()
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Arve TEST-PR1-2026-000001 · PDF', exact: true }).click()
+  expect((await download).suggestedFilename()).toBe('Arve-TEST-PR1-2026-000001.pdf')
+  await expect(page.getByRole('button', { name: 'Kreeditarve TEST-PR1-2026-000002 · PDF', exact: true })).toBeVisible()
+  expect(bodies[0].token).toHaveLength(64)
+  expect(bodies[1]).toEqual({ token: bodies[0].token, documentId: invoice.id })
+  await expect(page.locator('a[href*="order-documents"]')).toHaveCount(0)
 })

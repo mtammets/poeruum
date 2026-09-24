@@ -1,0 +1,10 @@
+.order-documents { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.order-documents > button { border: 1px solid currentColor; border-radius: 8px; padding: 9px 12px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.order-documents button:disabled { opacity: .55; cursor: default; }
+.order-documents > small, .order-documents > p { flex-basis: 100%; margin: 0; font-size: 12px; line-height: 1.6; }
+.order-documents small button, .order-documents p button { color: inherit; background: none; border: 0; text-decoration: underline; font: inherit; cursor: pointer; }
+.invoice-buyer-toggle { display: flex !important; flex-direction: row !important; align-items: center; gap: 10px; }
+.invoice-buyer-toggle input[type=checkbox] { width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; }
+.invoice-buyer-fields { border: 0; padding: 0; margin: 20px 0; display: grid; gap: 12px; }
+.invoice-buyer-fields legend { margin-bottom: 12px; font-weight: 600; }
+.invoice-buyer-fields small { font-size: 12px; line-height: 1.5; opacity: .75; }

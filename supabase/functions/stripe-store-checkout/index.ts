@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
+import { buildInvoiceSnapshot, parseInvoiceBuyer, InvoiceInputError } from '../../../shared/order-invoice.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
@@ -27,12 +28,12 @@ type CheckoutBody = {
   returnUrl?: string
   items?: CheckoutItem[]
   customer?: { name?: string; email?: string; phone?: string }
+  billing?: unknown
   delivery?: DeliveryInput
 }
 
 const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
 const moneyToCents = (value: unknown) => Math.max(0, Math.round(Number(value ?? 0) * 100))
-const VAT_RATE = 0.24
 const storefrontRootDomain = (configured: string) => (Deno.env.get('STOREFRONT_ROOT_DOMAIN')?.trim()
   || new URL(configured).hostname.replace(/^www\./, '')).toLowerCase().replace(/^\.+|\.+$/g, '')
 
@@ -83,6 +84,7 @@ Deno.serve(async (request) => {
       return json({ error: 'Tellimuse andmed on puudulikud.' }, 400)
     }
 
+    const buyer = parseInvoiceBuyer(body.billing, { name: customerName, email })
     const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
@@ -113,6 +115,7 @@ Deno.serve(async (request) => {
     if (productsError) throw productsError
     const productsById = new Map((products ?? []).map((product) => [String(product.id), product]))
     const orderItems: Record<string, unknown>[] = []
+    const invoiceItems: Array<{ name: string; options: string; quantity: number; unitGrossCents: number; image?: string }> = []
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = []
     let productSubtotalCents = 0
 
@@ -138,6 +141,7 @@ Deno.serve(async (request) => {
         selectedOptions[optionName] = selectedValue
       }
       const optionText = Object.entries(selectedOptions).map(([name, value]) => `${name}: ${String(value)}`).join(', ')
+      invoiceItems.push({ name: String(product.name), options: optionText, quantity, unitGrossCents: unitAmount, image: String(product.image_url ?? '') })
       productSubtotalCents += unitAmount * quantity
       lineItems.push({
         quantity,
@@ -151,7 +155,7 @@ Deno.serve(async (request) => {
         id: String(product.id), name: String(product.name), image: String(product.image_url), gallery: product.gallery,
         imageVariants: product.image_variants,
         alt: String(product.alt ?? product.name), description: String(product.description ?? ''), price: regularPrice,
-        salePrice: salePrice ?? undefined, quantity, selectedOptions, cartKey: `${product.id}:${optionText}`,
+        salePrice: salePrice != null && salePrice < regularPrice ? salePrice : undefined, quantity, selectedOptions, cartKey: `${product.id}:${optionText}`,
       })
     }
 
@@ -188,16 +192,18 @@ Deno.serve(async (request) => {
     const orderNumber = `PR-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`
     const totalCents = productSubtotalCents + deliveryCents
     const reservationExpiresAt = new Date(Date.now() + 35 * 60 * 1000).toISOString()
-    const { data: order, error: orderError } = await admin.rpc('create_stripe_order_with_reservation', {
+    const deliveryLabel = body.delivery.type === 'pickup'
+      ? ['Tulen ise järele', String(deliverySettings.pickupAddress ?? '').trim()].filter(Boolean).join(' · ') : body.delivery.label
+    const invoiceSnapshot = buildInvoiceSnapshot({ settings, storeName: store.name, storeSlug: store.slug, buyer, delivery: deliveryLabel, items: invoiceItems, deliveryCents })
+    const { data: order, error: orderError } = await admin.rpc('create_invoiced_stripe_order', {
       target_store_id: storeId,
       request_id: checkoutRequestId,
       order_number_value: orderNumber,
       order_items: orderItems,
       customer_name_value: customerName,
       customer_email_value: email,
-      delivery_value: body.delivery.type === 'pickup'
-        ? ['Tulen ise järele', String(deliverySettings.pickupAddress ?? '').trim()].filter(Boolean).join(' · ')
-        : body.delivery.label,
+      delivery_value: deliveryLabel,
+      invoice_value: invoiceSnapshot,
       product_subtotal_value: productSubtotalCents / 100,
       total_value: totalCents / 100,
       stripe_mode_value: stripeMode,
@@ -215,18 +221,6 @@ Deno.serve(async (request) => {
     const applicationFeeNetCents = Math.max(0, Number(order.stripe_platform_fee_net_cents ?? 0))
     const applicationFeeVatCents = Math.max(0, Number(order.stripe_platform_fee_vat_cents ?? 0))
     const applicationFeeCents = applicationFeeNetCents + applicationFeeVatCents
-    const sellerVatAmount = sellerVatRegistered ? Math.round(totalCents * VAT_RATE / (1 + VAT_RATE)) / 100 : 0
-    const { error: vatSnapshotError } = await admin.from('orders').update({
-      seller_vat_registered: sellerVatRegistered,
-      seller_vat_number: sellerVatRegistered ? sellerVatNumber : null,
-      seller_vat_rate: sellerVatRegistered ? VAT_RATE * 100 : null,
-      seller_vat_amount: sellerVatAmount,
-    }).eq('id', order.id).eq('payment_status', 'pending').is('stripe_checkout_started_at', null)
-    if (vatSnapshotError) {
-      await admin.rpc('release_stripe_order', { target_order_id: order.id })
-      throw vatSnapshotError
-    }
-
     const configuredAppUrl = requiredEnv('APP_URL').replace(/\/$/, '')
     const appUrl = returnBase(
       configuredAppUrl,
@@ -314,6 +308,7 @@ Deno.serve(async (request) => {
     if (!session.url) throw new Error('Stripe ei tagastanud makselehe aadressi.')
     return json({ url: session.url })
   } catch (error) {
+    if (error instanceof InvoiceInputError) return json({ error: error.publicMessage }, 400)
     await captureEdgeError('stripe-store-checkout', error)
     console.error('Stripe poe makse algatamine ebaõnnestus.', error)
     return json({ error: 'Makse algatamine ebaõnnestus. Palun proovi uuesti.' }, 500)

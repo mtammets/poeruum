@@ -25,6 +25,9 @@ verify_jwt = true
 [functions.stripe-store-checkout]
 verify_jwt = false
 
+[functions.order-documents]
+verify_jwt = false
+
 [functions.order-receipt]
 verify_jwt = false
 

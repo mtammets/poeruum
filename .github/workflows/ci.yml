@@ -48,6 +48,9 @@ jobs:
       - name: Signed payment event crash recovery
         run: npm run test:payment-recovery-edge
 
+      - name: Private invoices, PDF rendering and delivery recovery
+        run: npm run test:order-invoice-edge
+
       - name: Production build
         run: npm run build:app
 
@@ -147,6 +150,12 @@ jobs:
 
       - name: Test independent order email jobs and delivery events
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-order-emails.sql
+
+      - name: Test immutable invoices, numbering, credit notes and retention
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-order-invoices.sql
+
+      - name: Test concurrent invoice numbering
+        run: node scripts/test-order-invoice-concurrency.mjs
 
       - name: Test historical email migration and scheduling
         run: node scripts/test-order-email-migration.mjs

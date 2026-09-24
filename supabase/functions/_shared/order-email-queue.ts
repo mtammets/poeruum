@@ -63,7 +63,7 @@ export const processOrderEmail = async (services: Services, mode: StripeMode, or
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST', signal: AbortSignal.timeout(10_000),
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json',
-        'Idempotency-Key': `order-${job.order_id}-${job.kind === 'customer' ? 'customer-confirmation' : 'seller-notification'}` },
+        'Idempotency-Key': `order-${job.order_id}-${job.kind === 'customer' ? 'customer-confirmation' : job.kind === 'seller' ? 'seller-notification' : job.kind}` },
       body: JSON.stringify(job.payload),
     })
     const result = await response.json().catch(() => null) as { id?: unknown; name?: string } | null
@@ -103,7 +103,8 @@ export const recordOrderEmailEvent = async (admin: SupabaseClient, eventId: stri
     ? Object.fromEntries(rawTags.map((tag) => [String(tag?.name ?? ''), String(tag?.value ?? '')]))
     : rawTags && typeof rawTags === 'object' ? rawTags as Record<string, unknown> : {}
   const kind = tags.email_type === 'order_customer_confirmation' ? 'customer'
-    : tags.email_type === 'order_seller_notification' ? 'seller' : null
+    : tags.email_type === 'order_seller_notification' ? 'seller'
+      : tags.email_type === 'order_customer_credit' ? 'customer_credit' : tags.email_type === 'order_seller_credit' ? 'seller_credit' : null
   const status = event.type.startsWith('email.') ? event.type.slice(6) : ''
   if (!kind || !['sent','delivery_delayed','delivered','failed','bounced','complained','suppressed'].includes(status)) return false
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

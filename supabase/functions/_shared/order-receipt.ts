@@ -4,7 +4,7 @@ import type { OrderReceipt, ReceiptAccess, ReceiptStatus } from '../../../shared
 import { confirmPaidStoreOrder } from './store-payment.ts'
 import type { StripeMode } from './stripe-mode.ts'
 
-const orderColumns = 'id,store_id,order_number,items,delivery,product_subtotal,total,created_at,payment_status,stripe_mode,stripe_checkout_session_id,stripe_payment_intent_id,stripe_failure_verified_at'
+const orderColumns = 'invoice_snapshot,id,store_id,order_number,items,delivery,product_subtotal,total,created_at,payment_status,stripe_mode,stripe_checkout_session_id,stripe_payment_intent_id,stripe_failure_verified_at'
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
 
 export const parseReceiptAccess = (value: unknown): ReceiptAccess | null => {
@@ -91,7 +91,7 @@ export const loadOrderReceipt = async (
   const { data: store, error: storeError } = await admin.from('stores').select('name').eq('id', order.store_id).maybeSingle()
   if (storeError) throw storeError
   return {
-    status, orderNumber: order.order_number, storeName: store?.name || 'E-pood', createdAt: order.created_at,
+    hasInvoice: Boolean(order.invoice_snapshot), status, orderNumber: order.order_number, storeName: store?.name || 'E-pood', createdAt: order.created_at,
     currency: 'eur', total: Number(order.total), deliveryTotal: Math.max(0, Math.round((Number(order.total) - Number(order.product_subtotal)) * 100) / 100),
     delivery: String(order.delivery ?? ''),
     items: (Array.isArray(order.items) ? order.items : []).map((value: unknown) => {

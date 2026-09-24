@@ -1,3 +1,4 @@
+import OrderDocumentLinks from './OrderDocumentLinks'
 import { useEffect, useRef, useState } from 'react'
 import type { OrderReceipt, ReceiptStatus } from '../shared/order-receipt'
 import { fetchOrderReceipt, ReceiptLoadError, type ReceiptLocation } from './lib/orderReceipt'
@@ -99,6 +100,7 @@ export default function OrderReceiptPage({ location }: { location: ReceiptLocati
           <div className="order-receipt__amount order-receipt__total"><strong>Kokku</strong><strong>{euro(receipt.total)}</strong></div>
         </section>
         <section className="order-receipt__delivery"><h2>Tarne</h2><p>{receipt.delivery || 'Tarne üksikasjad lepitakse kokku müüjaga.'}</p></section>
+        {receipt.hasInvoice && location.access && ['paid','refunded'].includes(receipt.status) && <OrderDocumentLinks access={location.access} refunded={receipt.status === 'refunded'} />}
         <p className="order-receipt__note">Selle isikliku lingi kaudu saad tellimuse ülevaate hiljem uuesti avada. Lingiga pääseb ligi sinu tellimuse andmetele.</p>
       </>}
       <div className="order-receipt__actions">

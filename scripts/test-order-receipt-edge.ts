@@ -15,13 +15,13 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
   let handler: Handler | undefined
   const token = 'a'.repeat(64)
   const sessionId = 'cs_test_' + 'b'.repeat(40)
-  const order = { id: '78000000-0000-4000-8000-000000000003', store_id: '78000000-0000-4000-8000-000000000002',
+  const order = { invoice_snapshot: null as unknown, id: '78000000-0000-4000-8000-000000000003', store_id: '78000000-0000-4000-8000-000000000002',
     order_number: 'PR-EDGE-RECEIPT', payment_status: 'pending', stripe_mode: 'test', stripe_checkout_session_id: null as string | null,
     stripe_payment_intent_id: null as string | null, items: [{ name: 'Test product', price: 27.32, quantity: 1 }],
     product_subtotal: 27.32, total: 27.32, delivery: 'Pickup', created_at: '2026-09-09T12:00:00Z' }
   const pi = { id: 'pi_test_receipt', status: 'succeeded', livemode: false, currency: 'eur', amount_received: 2732,
     metadata: { order_id: order.id, store_id: order.store_id },
-    latest_charge: { id: 'ch_test_receipt', status: 'succeeded', paid: true, captured: true, refunded: false, amount_refunded: 0 } }
+    latest_charge: { created: Math.floor(Date.now() / 1000), id: 'ch_test_receipt', status: 'succeeded', paid: true, captured: true, refunded: false, amount_refunded: 0 } }
   const session = { id: sessionId, mode: 'payment', status: 'complete', payment_status: 'paid', amount_total: 2732,
     currency: 'eur', livemode: false, client_reference_id: order.store_id, metadata: pi.metadata, payment_intent: pi }
   let sessionCreate: URLSearchParams | null = null
@@ -56,7 +56,11 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
         const body = JSON.parse(String(init?.body || '{}'))
         if (url.pathname.endsWith('/rpc/consume_rate_limit')) return Response.json([{ allowed: rateAllowed, retry_after_seconds: 60 }])
         if (url.pathname.endsWith('/rpc/record_application_error')) return Response.json(null)
-        if (url.pathname.endsWith('/rpc/create_stripe_order_with_reservation')) return Response.json({ ...order })
+        if (url.pathname.endsWith('/rpc/create_invoiced_stripe_order')) {
+          assert(body.invoice_value.buyer.address === 'Kase 2, Tartu', 'Billing address not snapshotted')
+          order.invoice_snapshot ??= body.invoice_value
+          return Response.json({ ...order })
+        }
         if (url.pathname.endsWith('/rpc/prepare_stripe_checkout')) {
           storedAttempt ??= { payload: body.payload_value, started_at: new Date().toISOString() }
           return Response.json(storedAttempt)
@@ -67,7 +71,7 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
           return Response.json(null)
         }
         if (url.pathname.endsWith('/rpc/get_or_create_order_receipt_token')) return Response.json(token)
-        if (url.pathname.endsWith('/rpc/complete_stripe_order')) {
+        if (url.pathname.endsWith('/rpc/complete_invoiced_stripe_order')) {
           assert(body.target_order_id === order.id && body.checkout_session_id === sessionId && body.payment_intent_id === pi.id, 'Wrong order confirmed')
           confirmations++; order.payment_status = 'paid'; return Response.json(null)
         }
@@ -76,7 +80,7 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
         if (url.pathname.endsWith('/products')) return Response.json([{ id: 'product-1', name: 'Test product', price: 27.32, stock: 5 }])
         if (url.pathname.endsWith('/stores')) return Response.json({ id: order.store_id, name: 'Receipt store', slug: 'receipt-store',
           payment_provider: 'stripe', payment_status: 'connected', stripe_account_id: 'acct_test', stripe_account_mode: 'test',
-          settings: { deliverySettings: { pickupEnabled: true, pickupAddress: 'Testi 1' } } })
+          settings: { businessName: 'Receipt OÜ', registryCode: '12345678', businessAddress: 'Testi 1, Tallinn', contactEmail: 'seller@example.invalid', deliverySettings: { pickupEnabled: true, pickupAddress: 'Testi 1' } } })
         if (url.pathname.endsWith('/orders')) {
           if (method === 'PATCH') {
             if (body.stripe_checkout_session_id && failSessionSave) return Response.json({ message: 'Simulated save failure' }, { status: 500 })
@@ -93,7 +97,7 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
     const checkout = handler!
     const checkoutRequest = () => new Request(values.SUPABASE_URL, { method: 'POST', body: JSON.stringify({
       storeId: order.store_id, checkoutRequestId: 'receipt-checkout-request-1', items: [{ id: 'product-1', quantity: 1 }],
-      customer: { name: 'Test Customer', email: 'test@example.invalid' }, delivery: { type: 'pickup', label: 'Pickup' },
+      customer: { name: 'Test Customer', email: 'test@example.invalid' }, billing: { company: false, address: 'Kase 2, Tartu' }, delivery: { type: 'pickup', label: 'Pickup' },
     }) })
     Deno.env.set('STRIPE_CHECKOUT_ENABLED', 'false')
     assert((await checkout(checkoutRequest())).status === 503 && checkoutPayloads.length === 0, 'Paused checkout still reached Stripe')
