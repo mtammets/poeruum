@@ -3,6 +3,7 @@ import { Resend } from 'npm:resend@^6.18.0'
 import { isLeadOptOutReply } from '../_shared/lead-email.ts'
 import { captureEdgeError } from '../_shared/security.ts'
 import { recordOrderEmailEvent } from '../_shared/order-email-queue.ts'
+import { isPoeruumSender, normalizeSenderEmail } from '../_shared/email-source.mjs'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -292,6 +293,16 @@ Deno.serve(async (request) => {
     return json({ error: 'Invalid webhook' }, 400)
   }
 
+  const senderEmail = normalizeSenderEmail(event.data?.from)
+  // The Resend account serves multiple applications. Check the actual mailbox
+  // before order processing, webhook receipts, or any other database operation.
+  // Incoming support messages are intentionally allowed from external senders.
+  if (event.type.startsWith('email.') && event.type !== 'email.received' && !isPoeruumSender(senderEmail, [
+    Deno.env.get('RESEND_FROM_EMAIL') ?? '',
+    Deno.env.get('OUTREACH_FROM_EMAIL') ?? '',
+    Deno.env.get('SUPPORT_AGENT_FROM_EMAIL') ?? '',
+  ])) return json({ ok: true, ignored: 'Foreign or invalid sender' })
+
   let receiptAdmin: AdminClient | null = null
   let receiptStored = false
   try {
@@ -315,6 +326,8 @@ Deno.serve(async (request) => {
       if (recipients[0]) {
         const { error: deliveryError } = await admin.from('email_deliveries').upsert({
           resend_email_id: emailId,
+          sender_email: senderEmail,
+          source_application: 'poeruum',
           recipient_email: recipients[0].toLowerCase(),
           subject: String(event.data.subject ?? ''),
           email_type: tags.email_type ? String(tags.email_type) : null,

@@ -151,6 +151,9 @@ jobs:
       - name: Test historical email migration and scheduling
         run: node scripts/test-order-email-migration.mjs
 
+      - name: Test email application isolation and historical attribution
+        run: node scripts/test-email-source-isolation-migration.mjs
+
       - name: Test private order receipt credentials and confirmation
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-order-receipts.sql
 

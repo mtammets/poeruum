@@ -23,6 +23,8 @@ const supabase = createClient(supabaseUrl, adminKey, {
 const suffix = `${Date.now()}-${crypto.randomUUID()}`
 const eventId = `msg_${suffix}`
 const emailId = `resend-staging-${suffix}`
+const foreignEventId = `${eventId}-foreign`
+const foreignEmailId = `${emailId}-foreign`
 const timestamp = Math.floor(Date.now() / 1000)
 const event = {
   type: 'email.delivered',
@@ -65,15 +67,39 @@ try {
   if (receipt?.event_type !== 'email.delivered') throw new Error('Webhooki sündmust ei salvestatud.')
 
   const { data: delivery, error: deliveryError } = await supabase.from('email_deliveries')
-    .select('status,email_type')
+    .select('status,email_type,sender_email,source_application')
     .eq('resend_email_id', emailId)
     .maybeSingle()
   if (deliveryError) throw deliveryError
-  if (delivery?.status !== 'delivered' || delivery.email_type !== 'support_webhook_staging_test') {
+  if (delivery?.status !== 'delivered' || delivery.email_type !== 'support_webhook_staging_test'
+    || delivery.sender_email !== 'teavitused@send.poeruum.ee' || delivery.source_application !== 'poeruum') {
     throw new Error(`Kirja kohaletoimetamise olek on vale: ${JSON.stringify(delivery)}`)
   }
-  console.log('Resendi allkirjakontroll, webhooki sündmus ja kirjajalugu töötavad staging’us.')
+  const foreignPayload = JSON.stringify({ ...event, data: { ...event.data, email_id: foreignEmailId, from: 'Other app <notice@example.invalid>' } })
+  const foreignSignature = crypto.createHmac('sha256', secretBytes)
+    .update(`${foreignEventId}.${timestamp}.${foreignPayload}`).digest('base64')
+  const foreignResponse = await fetch(`${supabaseUrl}/functions/v1/resend-webhook`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json', 'svix-id': foreignEventId,
+      'svix-timestamp': String(timestamp), 'svix-signature': `v1,${foreignSignature}`,
+    },
+    body: foreignPayload,
+  })
+  const foreignResult = await foreignResponse.json()
+  if (!foreignResponse.ok || foreignResult.ok !== true || !foreignResult.ignored) {
+    throw new Error('Teise rakenduse saatmisteadet ei ignoreeritud.')
+  }
+  for (const [table, column, id] of [
+    ['email_deliveries', 'resend_email_id', foreignEmailId],
+    ['resend_webhook_events', 'id', foreignEventId],
+  ]) {
+    const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true }).eq(column, id)
+    if (error) throw error
+    if (count !== 0) throw new Error(`Võõras kiri salvestati tabelisse ${table}.`)
+  }
+  console.log('Resendi allkirjakontroll, Poeruumi kirjajalugu ja võõraste saatmisteadete eraldamine töötavad.')
 } finally {
-  await supabase.from('email_deliveries').delete().eq('resend_email_id', emailId)
-  await supabase.from('resend_webhook_events').delete().eq('id', eventId)
+  await supabase.from('email_deliveries').delete().in('resend_email_id', [emailId, foreignEmailId])
+  await supabase.from('resend_webhook_events').delete().in('id', [eventId, foreignEventId])
 }
