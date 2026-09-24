@@ -8,7 +8,6 @@
 .directory-analytics h2 { font-size: 24px; line-height: 1.3; }
 .directory-analytics h3 { font-size: 17px; line-height: 1.4; }
 .directory-analytics p, .directory-analytics small { color: #65736a; line-height: 1.6; }
-.directory-analytics a { color: #265f43; font-weight: 700; }
 .directory-analytics button, .directory-analytics select { font: inherit; color: inherit; }
 .directory-analytics button { cursor: pointer; }
 .directory-analytics button:disabled { cursor: default; opacity: .6; }
@@ -19,7 +18,6 @@
 .directory-analytics__toolbar [role="group"] { display: flex; gap: 6px; }
 .directory-analytics__toolbar [aria-pressed="true"] { background: #265f43; border-color: #265f43; color: white; }
 .directory-analytics__back { justify-self: start; min-height: 44px; border: 0; background: transparent; padding: 4px 0; font-weight: 700 !important; color: #265f43 !important; }
-.directory-analytics__period { font-size: 14px; }
 .directory-analytics__notice { padding: 16px 20px; background: #eaf0e3; border-radius: 12px; }
 .directory-analytics__error { padding: 20px; background: #fff0ed; border: 1px solid #e8aaa0; border-radius: 12px; }
 .directory-analytics__error p { margin-bottom: 12px; color: #a64434; }

@@ -79,7 +79,7 @@ export default function AdminDirectoryAnalytics() {
   const selectStore = (id: string | null) => {
     setState({ report: null, loading: true, error: '' })
     setStoreId(id)
-    document.getElementById('directory-statistics-title')?.focus()
+    document.getElementById('directory-statistics-period')?.focus()
   }
   const report = state.report
   const metrics: { key: keyof DirectoryMetrics; label: string; note?: string; percent?: boolean }[] = [
@@ -93,12 +93,12 @@ export default function AdminDirectoryAnalytics() {
   ]
   return <div className="directory-analytics">
     {storeId && <button className="directory-analytics__back" type="button" onClick={() => selectStore(null)}>← Kõik poed</button>}
-    <div className="directory-analytics__header"><div>
-      <h2 id="directory-statistics-title" tabIndex={-1}>{report?.store?.name || (storeId ? 'Poe statistika' : 'Kaubamaja statistika')}</h2>
-      <p>{storeId ? 'Kaubamajast sellele poele jõudnud tähelepanu ja avamised.' : 'Kuidas külastajad poode avastavad ja neisse edasi liiguvad.'}</p>
-    </div><a href="https://kaubamaja.poeruum.ee" target="_blank" rel="noreferrer">Ava Kaubamaja ↗</a></div>
+    {storeId && <div className="directory-analytics__header"><div>
+      <h2>{report?.store?.name || 'Poe statistika'}</h2>
+      <p>Kaubamajast sellele poele jõudnud tähelepanu ja avamised.</p>
+    </div></div>}
     <div className="directory-analytics__toolbar">
-      <div role="group" aria-label="Statistika periood">{[7, 30, 90].map((value) => <button type="button" key={value} aria-pressed={days === value} onClick={() => {
+      <div id="directory-statistics-period" role="group" aria-label="Statistika periood" tabIndex={-1}>{[7, 30, 90].map((value) => <button type="button" key={value} aria-pressed={days === value} onClick={() => {
         if (value === days) return
         setState({ report: null, loading: true, error: '' }); setDays(value)
       }}>{value} päeva</button>)}</div>
@@ -107,8 +107,6 @@ export default function AdminDirectoryAnalytics() {
     {state.loading && <p role="status" className="directory-analytics__notice">Laadin statistikat…</p>}
     {state.error && <div role="alert" className="directory-analytics__error"><p>{state.error}</p><button type="button" onClick={reload}>Proovi uuesti</button></div>}
     {report && <>
-      <p className="directory-analytics__period">{date(report.from_date)} – {date(report.to_date)} · Eesti aeg{report.comparison_available && <> · võrdlus {date(report.previous_from_date)} – {date(report.previous_to_date)}</>}</p>
-      {!report.comparison_available && <p className="directory-analytics__notice">Andmeid kogutakse alates {date(report.tracking_started_at)}. Varasemate külastuste ajalugu puudub. Perioodivõrdlus ilmub, kui mõlema perioodi andmed on kogunenud.</p>}
       {report.current.visits === 0 && <p role="status" className="directory-analytics__notice">Valitud perioodil pole veel külastusi registreeritud.</p>}
       <div className="directory-analytics__metrics">{metrics.map((metric) => <section key={metric.key} className="directory-analytics__metric">
         <h3>{metric.label}</h3><strong>{number(report.current[metric.key])}{metric.percent && report.current[metric.key] !== null ? '%' : ''}</strong>
