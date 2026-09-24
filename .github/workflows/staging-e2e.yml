@@ -125,6 +125,7 @@ jobs:
           npx supabase functions deploy stripe-billing-checkout --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy stripe-billing-cancel --project-ref "$SUPABASE_PROJECT_REF"
           npx supabase functions deploy stripe-store-checkout --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          npx supabase functions deploy order-documents --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy order-receipt --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy stripe-reservation-reaper --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy stripe-order-settlements --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt

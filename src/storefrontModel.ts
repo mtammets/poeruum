@@ -12,6 +12,7 @@ export type CartItem = Product & {
 }
 
 export type StoreOrder = {
+  hasInvoice?: boolean
   id: string
   items: CartItem[]
   customerName: string

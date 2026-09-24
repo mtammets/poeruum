@@ -14,6 +14,7 @@ type PaymentOrder = {
   id: string
   store_id: string
   order_number: string
+  invoice_snapshot?: unknown
   total: number | string
   payment_status: string
   stripe_mode: StripeMode | null
@@ -31,7 +32,7 @@ type PaymentServices = {
 export const confirmPaidStoreOrder = async (services: Pick<PaymentServices, 'admin' | 'stripe'>, checkout: PaidCheckout) => {
   const { admin, stripe } = services
   const { data, error: orderError } = await admin.from('orders')
-    .select('id,store_id,order_number,total,payment_status,stripe_mode,stripe_checkout_session_id,stripe_payment_intent_id')
+    .select('id,store_id,order_number,total,invoice_snapshot,payment_status,stripe_mode,stripe_checkout_session_id,stripe_payment_intent_id')
     .eq('id', checkout.orderId).maybeSingle()
   if (orderError) throw orderError
   if (!data) throw new Error('Tellimust ei leitud.')
@@ -66,10 +67,11 @@ export const confirmPaidStoreOrder = async (services: Pick<PaymentServices, 'adm
 
   // Confirm payment and consume the reservation before any fee lookup, seller
   // transfer or email request. The RPC locks the order and changes stock once.
-  const { error: completionError } = await admin.rpc('complete_stripe_order', {
+  const { error: completionError } = await admin.rpc(order.invoice_snapshot ? 'complete_invoiced_stripe_order' : 'complete_stripe_order', {
     target_order_id: order.id,
     checkout_session_id: checkout.sessionId,
     payment_intent_id: paymentIntent.id,
+    ...(order.invoice_snapshot ? { paid_at_value: new Date(charge.created * 1000).toISOString() } : {}),
   })
   if (completionError) throw completionError
   return true

@@ -1,3 +1,4 @@
+import './orderDocuments.css'
 import { useEffect, useRef, useState } from 'react'
 import { startStripeStoreCheckout } from './lib/database'
 import { VAT_RATE } from './storefrontConfig'
@@ -60,6 +61,8 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
   const [courierAddressResults, setCourierAddressResults] = useState<AksAddress[]>([])
   const [isCourierAddressOpen, setIsCourierAddressOpen] = useState(false)
   const [selectedCourierAddressId, setSelectedCourierAddressId] = useState('')
+  const [businessBuyer, setBusinessBuyer] = useState(false)
+  const [billingAddress, setBillingAddress] = useState('')
   const [isPaying, setIsPaying] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const itemTotal = items.reduce((sum, item) => sum + getProductPrice(item) * item.quantity, 0)
@@ -177,6 +180,9 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
         storeId,
         items: items.map((item) => ({ id: item.id, quantity: item.quantity, selectedOptions: item.selectedOptions })),
         customer: { name: String(data.get('customerName')), email: String(data.get('customerEmail')), phone: String(data.get('customerPhone')) },
+        billing: { company: businessBuyer, name: businessBuyer ? String(data.get('billingName') ?? '') : '',
+          registryCode: businessBuyer ? String(data.get('billingRegistryCode') ?? '') : '',
+          vatNumber: businessBuyer ? String(data.get('billingVatNumber') ?? '') : '', address: String(data.get('billingAddress') ?? '') },
         delivery: { type: delivery, provider: selectedParcelMachine?.provider, label: deliveryLabel },
       }
       const url = await startStripeStoreCheckout({ ...input, checkoutRequestId: await checkoutAttemptId(input) })
@@ -221,6 +227,18 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
             <label>Nimi<input required name="customerName" autoComplete="name" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
             <label>E-post<input required name="customerEmail" type="email" autoComplete="email" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
             <label>Telefon<input required name="customerPhone" type="tel" autoComplete="tel" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
+            <fieldset className="invoice-buyer-fields">
+              <legend>Arve andmed</legend>
+              <label className="invoice-buyer-toggle"><input type="checkbox" checked={businessBuyer} onChange={(event) => setBusinessBuyer(event.target.checked)} />Ostan ettevõttele</label>
+              {businessBuyer && <>
+                <label>Ettevõtte nimi<input required name="billingName" autoComplete="billing organization" maxLength={200} /></label>
+                <label>Registrikood<input required name="billingRegistryCode" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} /></label>
+                <label>KMKR number <small>valikuline</small><input name="billingVatNumber" placeholder="EE123456789" pattern="EE[0-9]{9}" maxLength={11} /></label>
+              </>}
+              <label>Arve aadress<input required name="billingAddress" autoComplete="billing street-address" maxLength={400} placeholder="Tänav, maja, linn ja sihtnumber" value={billingAddress} onChange={(event) => setBillingAddress(event.target.value)} onFocus={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
+              {delivery === 'courier' && courierAddress && <button type="button" onClick={() => setBillingAddress([courierAddress, courierCity, courierPostalCode].filter(Boolean).join(', '))}>Kasuta tarneaadressi</button>}
+              <small>Pärast maksmist saad tasutud PDF-arve e-postile.</small>
+            </fieldset>
             <fieldset className="payment delivery">
               <legend>Tarneviis</legend>
               <div className="payment-tabs">

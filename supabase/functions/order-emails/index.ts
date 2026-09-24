@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { processOrderDocument, cleanupOrderDocuments } from '../_shared/order-documents.ts'
 import { processOrderEmail } from '../_shared/order-email-queue.ts'
 import { assertStripeMode } from '../_shared/stripe-mode.ts'
 import { captureEdgeError } from '../_shared/security.ts'
@@ -13,13 +14,20 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   try {
     if (request.headers.get('Authorization') !== `Bearer ${requiredEnv('ONBOARDING_CRON_SECRET')}`) return json({ error: 'Unauthorized' }, 401)
-    if (Deno.env.get('ORDER_EMAIL_WORKER_ENABLED') === 'false') return json({ enabled: false })
     const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const mode = assertStripeMode(requiredEnv('STRIPE_SECRET_KEY'))
-    const outcomes: Record<string, number> = {}
     const startedAt = Date.now()
+    const outcomes: Record<string, number> = {}
+    for (let index = 0; index < 10 && Date.now() - startedAt < 20_000; index++) {
+      const document = await processOrderDocument(admin, mode)
+      if (!document) break
+      outcomes[`document_${document.status}`] = (outcomes[`document_${document.status}`] ?? 0) + 1
+      if (document.status === 'retry') await captureEdgeError('order-emails', new Error('Arve PDF-i koostamine vajab korduskatset.'), { document_id: document.id }, 'critical')
+    }
+    await cleanupOrderDocuments(admin)
+    if (Deno.env.get('ORDER_EMAIL_WORKER_ENABLED') === 'false') return json({ enabled: false, outcomes })
     // One bad recipient cannot prevent later jobs from being attempted.
     for (let index = 0; index < 20 && Date.now() - startedAt < 40_000; index += 1) {
       const job = await processOrderEmail({ admin, onError: (error, job) => captureEdgeError('order-emails', error,

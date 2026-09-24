@@ -30,6 +30,7 @@ Deno.test('order delivery webhook verifies signatures and retries failed atomic 
         return failDelivery ? Response.json({ message: 'Simulated DB failure' }, { status: 500 }) : Response.json(true)
       }
       if (url.pathname.endsWith('/rpc/record_application_error')) return Response.json(null)
+      if (url.pathname.endsWith('/rpc/claim_order_document') || url.pathname.endsWith('/order_document_cleanup')) return Response.json([])
       if (url.pathname.endsWith('/rpc/claim_order_email_job')) return Response.json([])
       throw new Error(`Unexpected DB call: ${url.pathname}`)
     }
@@ -39,7 +40,7 @@ Deno.test('order delivery webhook verifies signatures and retries failed atomic 
     const eventId = 'msg_local_order_email'
     const timestamp = String(Math.floor(Date.now() / 1000))
     const body = JSON.stringify({ type: 'email.delivered', created_at: new Date().toISOString(), data: {
-      email_id: 'local-resend-id', to: ['customer@example.invalid'], tags: {
+      from: 'Pood <teavitused@send.poeruum.ee>', email_id: 'local-resend-id', to: ['customer@example.invalid'], tags: {
         email_type: 'order_customer_confirmation', order_id: '77000000-0000-4000-8000-000000000003',
         order_email_job_id: '77000000-0000-4000-8000-000000000004',
       },
@@ -70,10 +71,14 @@ Deno.test('order delivery webhook verifies signatures and retries failed atomic 
     assert(calls.length === 0, 'Unauthorized worker touched jobs')
     const authorized = () => new Request('https://edge-test.example.invalid', { method: 'POST', headers: { Authorization: 'Bearer local-worker-secret' } })
     Deno.env.set('ORDER_EMAIL_WORKER_ENABLED', 'false')
-    assert((await worker(authorized())).status === 200 && calls.length === 0, 'Disabled worker touched jobs')
+    assert((await worker(authorized())).status === 200, 'Document worker did not run')
+    assert(!calls.some((call) => call.path.endsWith('/rpc/claim_order_email_job')), 'Disabled mail worker touched email jobs')
+    assert(calls.some((call) => call.path.endsWith('/rpc/claim_order_document')), 'Disabled mail worker blocked invoice generation')
+    calls.length = 0
     Deno.env.set('ORDER_EMAIL_WORKER_ENABLED', 'true')
     assert((await worker(authorized())).status === 200, 'Authorized worker did not run')
-    assert(calls.length === 1 && calls[0].body.mode_value === 'test', 'Worker did not use the configured Stripe mode')
+    assert(calls.filter((call) => call.path.endsWith('/rpc/claim_order_email_job')).length === 1
+      && calls.filter((call) => call.path.includes('/rpc/claim_')).every((call) => call.body.mode_value === 'test'), 'Worker did not use the configured Stripe mode')
   } finally {
     Deno.serve = originalServe
     globalThis.fetch = originalFetch

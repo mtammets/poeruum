@@ -81,6 +81,7 @@ if (action === 'functions') {
   run(['functions', 'deploy', 'stripe-requirement-notifications', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'stripe-connect', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   run(['functions', 'deploy', 'stripe-store-checkout', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'order-documents', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'order-receipt', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'stripe-reservation-reaper', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'stripe-order-settlements', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])

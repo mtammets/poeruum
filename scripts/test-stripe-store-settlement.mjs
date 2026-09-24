@@ -76,6 +76,7 @@ try {
       stripe_account_charges_enabled: true,
       stripe_account_payouts_enabled: true,
       settings: {
+        businessName: 'Stripe Test OÜ', registryCode: '12345678', businessAddress: 'Testi 1, Tallinn', contactEmail: 'seller@example.invalid',
         customerConfirmations: false,
         sellerNotifications: false,
         vatRegistered: true,
@@ -138,7 +139,8 @@ try {
       checkoutRequestId,
       returnUrl: `https://${store.slug}.poeruum.ee`,
       items: [{ id: productId, quantity: 1, selectedOptions: {} }],
-      customer: { name: 'Stripe Settlement Test', email: 'stripe-settlement-test@example.com', phone: '+37255555555' },
+      customer: { name: 'Stripe Settlement Test', email: 'stripe-settlement-test@example.invalid', phone: '+37255555555' },
+      billing: { company: false, address: 'Testi 1, Tallinn, 10111' },
       delivery: { type: 'pickup', label: 'Testi järeletulemine' },
     }),
   })

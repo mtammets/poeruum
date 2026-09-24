@@ -1,3 +1,4 @@
+import OrderDocumentLinks from './OrderDocumentLinks'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
@@ -727,7 +728,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     if (!storeId || !merchantMode) return
     let active = true
     const refreshOrders = () => listOrders(storeId).then((rows) => { if (active) setOrders(rows.map((row) => ({
-      id: row.order_number, items: row.items as CartItem[], customerName: row.customer_name,
+      id: row.order_number, hasInvoice: Boolean(row.invoice_snapshot), items: row.items as CartItem[], customerName: row.customer_name,
       customerEmail: row.customer_email, delivery: row.delivery, productSubtotal: Number(row.product_subtotal),
       total: Number(row.total), createdAt: row.created_at, status: row.status,
       stripeProcessingFee: Number(row.stripe_processing_fee_cents) / 100,
@@ -2491,7 +2492,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       const count = [instagramUrl, facebookUrl, tiktokUrl].filter((url) => url.trim()).length
       return count ? `${count} ${count === 1 ? 'link' : 'linki'}` : 'Lisa lingid'
     }
-    if (section === 'notifications') return `${Number(sellerNotifications) + Number(customerConfirmations)} aktiivset`
+    if (section === 'notifications') return `${Number(sellerNotifications) + 1} aktiivset`
     if (section === 'billing') return isBillingDelinquent
       ? isBillingGraceActive ? 'Makse ootel' : 'Paindlik'
       : billingPlan === 'fixed' ? 'Kindel' : 'Paindlik'
@@ -3045,6 +3046,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <div><dt>Poeruumi tasu kokku</dt><dd>−{formatEuro(order.stripePlatformFee ?? 0)}</dd></div>
               <div><dt>Sulle laekub</dt><dd>{formatEuro(order.stripeSellerNet ?? 0)}</dd></div>
             </dl>}
+            {storeId && order.hasInvoice && <OrderDocumentLinks lazy access={{ storeId, orderNumber: order.id }} refunded={order.status === 'refunded'} />}
             <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'refunded' ? <small>Makse tagastatud</small> : order.refundStatus === 'requested' || order.refundStatus === 'pending' ? <small>Tagastus on pooleli</small> : order.refundStatus === 'failed' ? <small>Tagastuse kontrollimiseks võta ühendust Poeruumi toega.</small> : <>{order.status === 'new' && <button type="button" onClick={() => changeOrderStatus(order.id, 'fulfilled')}>Märgi täidetuks</button>}<button className="order-refund" type="button" onClick={() => changeOrderStatus(order.id, 'refunded')}>Tagasta makse</button></>}</footer>
           </article>) : <div className="orders-no-results"><span>⌕</span><h3>Tellimusi ei leitud</h3><p>Proovi tellimuse numbrit, kliendi nime või toodet.</p><button type="button" onClick={() => setOrderSearch('')}>Tühjenda otsing</button></div>}</div> : <div className="orders-empty"><span>□</span><h3>Tellimusi veel pole</h3><p>Uued ostud ilmuvad siia automaatselt.</p></div>}
         </section>
@@ -3367,7 +3369,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <header><span>TEAVITUSED</span><p>Vali, kellele tellimuste kohta teated saadetakse.</p></header>
             <div className="settings-fields"><label>Tellimuste e-post<input type="email" value={orderNotificationEmail} onChange={(event) => setOrderNotificationEmail(event.target.value)} placeholder={contactEmail || 'tellimused@minupood.ee'} /></label></div>
             <label className="settings-toggle"><span><strong>Uue tellimuse teavitus</strong><small>Saadame müüjale kohe e-kirja</small></span><input type="checkbox" checked={sellerNotifications} onChange={(event) => setSellerNotifications(event.target.checked)} /><i /></label>
-            <label className="settings-toggle"><span><strong>Kinnitus kliendile</strong><small>Klient saab tellimuse kokkuvõtte e-postile</small></span><input type="checkbox" checked={customerConfirmations} onChange={(event) => setCustomerConfirmations(event.target.checked)} /><i /></label>
+            <div className="settings-info-note"><span>i</span><p>Ostja saab pärast edukat makset alati tellimuse kinnituse ja PDF-arve. Tagastatud makse kohta saadetakse kreeditarve.</p></div>
           </div>}
           {settingsSection === 'billing' && <div className="settings-panel billing-panel" role="tabpanel">
             <header><span>ARVELDUS</span><p>Vali müügimahule sobiv pakett. Vahetada saad igal ajal.</p></header>

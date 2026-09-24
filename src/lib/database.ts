@@ -79,6 +79,7 @@ export type CustomDomainRecord = {
 }
 
 export type OrderRecord = {
+  invoice_snapshot?: unknown
   id: string
   store_id: string
   order_number: string
@@ -277,6 +278,7 @@ export async function startStripeStoreCheckout(input: {
   storeId: string
   items: Array<{ id: string; quantity: number; selectedOptions: Record<string, string> }>
   customer: { name: string; email: string; phone: string }
+  billing: { company: boolean; name: string; registryCode: string; vatNumber: string; address: string }
   delivery: { type: 'parcel' | 'courier' | 'pickup'; provider?: 'omniva' | 'dpd' | 'smartposti'; label: string }
   checkoutRequestId: string
 }) {

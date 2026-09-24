@@ -1,6 +1,7 @@
 export type ReceiptStatus = 'pending' | 'unpaid' | 'paid' | 'failed' | 'expired' | 'refunded'
 export type ReceiptAccess = { token: string } | { sessionId: string }
 export type OrderReceipt = {
+  hasInvoice?: boolean
   status: ReceiptStatus
   orderNumber: string
   storeName: string
