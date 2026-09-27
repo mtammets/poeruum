@@ -2485,23 +2485,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     : SETTINGS_SECTIONS
   const activeSettingsSection = availableSettingsSections.find((section) => section.id === settingsSection) ?? availableSettingsSections[0]
   const settingsSectionStatus = (section: SettingsSection) => {
-    if (section === 'store') return isStoreVisible ? 'Avalik' : 'Peidetud'
-    if (section === 'appearance') return storeTheme === 'midnight' ? 'Tume' : storeTheme === 'paper' ? 'Hele' : 'Värviline'
-    if (section === 'payments') return stripeActionRequired ? 'Vajab tegevust' : paymentsReady ? 'Ühendatud' : 'Seadista'
-    if (section === 'delivery') {
-      const count = SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled).length
-        + Number(deliverySettings.courierEnabled) + Number(deliverySettings.pickupEnabled)
-      return `${count} ${count === 1 ? 'viis' : 'viisi'}`
-    }
-    if (section === 'business') return sellerDetailsComplete ? 'Lisatud' : 'Pooleli'
-    if (section === 'links') {
-      const count = [instagramUrl, facebookUrl, tiktokUrl].filter((url) => url.trim()).length
-      return count ? `${count} ${count === 1 ? 'link' : 'linki'}` : 'Lisa lingid'
-    }
-    if (section === 'notifications') return `${Number(sellerNotifications) + 1} aktiivset`
-    if (section === 'billing') return isBillingDelinquent
-      ? isBillingGraceActive ? 'Makse ootel' : 'Paindlik'
-      : billingPlan === 'fixed' ? 'Kindel' : 'Paindlik'
+    if (section === 'store' && !isStoreVisible) return 'Peidetud'
+    if (section === 'payments') return stripeActionRequired ? 'Vajab tegevust' : paymentsReady ? null : 'Seadista'
+    if (section === 'delivery' && setupChecklist.some((item) => item.id === 'delivery' && !item.done)) return 'Seadista'
+    if (section === 'business' && !sellerDetailsComplete) return 'Lisa andmed'
+    if (section === 'billing' && isBillingDelinquent && isBillingGraceActive) return 'Makse ootel'
     return null
   }
 
@@ -3069,24 +3057,23 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </button>
           </div>
           {isSettingsHome ? <div className="settings-home">
-            <p>Vali, mida soovid muuta.</p>
             <div>{availableSettingsSections.map((section) => {
               const status = settingsSectionStatus(section.id)
               return <button type="button" data-section={section.id} onClick={() => { setSettingsSection(section.id); setIsSettingsHome(false) }} key={section.id}>
                 <span className="settings-home__icon"><SettingsSectionIcon section={section.id} /></span>
-                <span className="settings-home__copy"><strong>{section.label}</strong><small>{section.description}</small></span>
+                <strong>{section.label}</strong>
                 {status && <em>{status}</em>}
                 <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>
             })}
               {storeId && storeSlug && isLoggedIn && !adminShowcaseMode && <button type="button" data-section="qr" aria-haspopup="dialog" onClick={() => setIsStoreQrOpen(true)}>
                 <span className="settings-home__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM21 15v6h-6M3 12h6M12 3v6M12 15v6M15 12h6" /></svg></span>
-                <span className="settings-home__copy"><strong>QR-kood</strong><small>Logo ja allalaadimine</small></span>
+                <strong>QR-kood</strong>
                 <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>}
               {support && isLoggedIn && !adminShowcaseMode && <button type="button" data-section="support" aria-haspopup="dialog" onClick={() => { setIsSettingsOpen(false); support.openSupport() }}>
                 <span className="settings-home__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3v-13Z" /><path d="M9 9h6M9 12h4" /></svg></span>
-                <span className="settings-home__copy"><strong>Abi ja tugi</strong><small>Küsimused ja vestlused Poeruumiga</small></span>
+                <strong>Abi ja tugi</strong>
                 {support.unread > 0 && <em>{support.unread} lugemata</em>}
                 <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>}

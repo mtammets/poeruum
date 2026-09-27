@@ -108,12 +108,17 @@ describe('storefront URL parsing', () => {
     expect(isDedicatedStorefrontHostname('poeruum.ee')).toBe(false)
   })
 
-  it('recognizes platform routes opened from a private development network', () => {
-    expect(isPlatformHostname('172.16.1.177')).toBe(true)
-    expect(isPlatformHostname('192.168.1.50')).toBe(true)
-    expect(isPlatformHostname('10.0.0.8')).toBe(true)
-    expect(isPlatformHostname('127.0.0.1')).toBe(true)
-    expect(isPlatformHostname('::1')).toBe(true)
+  it.each(['localhost', '172.16.1.184', '192.168.1.50', '10.0.0.8', '127.0.0.1', '::1', '[::1]', '[fd00::1]'])(
+    'treats %s as the platform rather than a dedicated shop', (hostname) => {
+      expect(isPlatformHostname(hostname)).toBe(true)
+      expect(isDedicatedStorefrontHostname(hostname)).toBe(false)
+    },
+  )
+
+  it('keeps explicit store paths and configured local shop subdomains working', () => {
+    expect(getRequestedStoreSlug({ hostname: '172.16.1.184', pathname: '/p/urgits/', search: '' })).toBe('urgits')
+    expect(isDedicatedStorefrontHostname('urgits.poeruum.localhost', 'poeruum.localhost')).toBe(true)
+    expect(isDedicatedStorefrontHostname('poeruum.localhost', 'poeruum.localhost')).toBe(false)
   })
 
   it('does not mistake public store hosts for a private platform preview', () => {

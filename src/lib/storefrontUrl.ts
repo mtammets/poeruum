@@ -139,9 +139,7 @@ export const getProductUrlSlug = (product: { id: string; slug?: string }) => pro
 export function isDedicatedStorefrontHostname(hostname: string, rootDomain = STOREFRONT_ROOT_DOMAIN) {
   const normalized = hostname.toLowerCase().replace(/\.$/, '')
   return getStoreSlugFromHostname(normalized, rootDomain) !== null
-    || (normalized !== rootDomain
-      && normalized !== `www.${rootDomain}`
-      && !['localhost', '127.0.0.1'].includes(normalized))
+    || !isPlatformHostname(normalized, rootDomain)
 }
 
 export function getStorefrontCanonicalUrl(

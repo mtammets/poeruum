@@ -5575,84 +5575,70 @@
   padding: 0 1.5rem 2rem;
 }
 
-.settings-home > p {
-  margin: 0 0 1.15rem;
-  color: rgba(255, 255, 255, .64);
-  font-size: .92rem;
-}
-
 .settings-home > div {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: .7rem;
+  gap: 0 2rem;
 }
 
 .settings-home button {
-  --section-accent: #e5f25a;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: .75rem;
-  min-height: 5.8rem;
-  padding: .9rem;
-  border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: 1.15rem;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--section-accent) 7%, #191a17), #191a17 68%);
+  gap: .7rem;
+  min-width: 0;
+  min-height: 4rem;
+  padding: .8rem 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 0;
+  background: transparent;
   color: #fff;
   text-align: left;
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  transition: color 160ms ease, background 160ms ease;
 }
 
-.settings-home button[data-section='appearance'] { --section-accent: #c6a7ff; }
-.settings-home button[data-section='payments'] { --section-accent: #71b7ff; }
-.settings-home button[data-section='delivery'] { --section-accent: #ffab66; }
-.settings-home button[data-section='business'] { --section-accent: #75d6a1; }
-.settings-home button[data-section='links'] { --section-accent: #ff8fbd; }
-.settings-home button[data-section='notifications'] { --section-accent: #b59cff; }
-.settings-home button[data-section='billing'] { --section-accent: #ffd166; }
-.settings-home button[data-section='account'] { --section-accent: #9eabb9; }
-.settings-home button[data-section='qr'] { --section-accent: #75d7d0; }
+.settings-home button[data-section='support'] { grid-column: 1 / -1; border-bottom: 0; }
 
 .settings-home button:hover,
-.settings-home button:active {
-  border-color: color-mix(in srgb, var(--section-accent) 42%, transparent);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--section-accent) 13%, #191a17), #1b1c18 72%);
-  box-shadow: 0 .7rem 1.7rem rgba(0, 0, 0, .16);
+.settings-home button:focus-visible {
+  background: rgba(255, 255, 255, .025);
+  color: #e5f25a;
 }
 
-.settings-home button:active {
-  transform: scale(.985);
+.settings-home button:focus-visible {
+  outline: 2px solid #e5f25a;
+  outline-offset: 3px;
+  border-radius: .25rem;
 }
+
+.settings-home button:active { background: rgba(229, 242, 90, .06); }
 
 .settings-home__icon {
   display: grid;
-  width: 2.7rem;
-  height: 2.7rem;
+  width: 1.5rem;
+  height: 1.5rem;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--section-accent) 22%, transparent);
-  border-radius: .85rem;
-  background: color-mix(in srgb, var(--section-accent) 13%, transparent);
-  color: var(--section-accent);
+  color: rgba(255, 255, 255, .58);
 }
 
-.settings-home__copy { display: grid; gap: .24rem; min-width: 0; }
-.settings-home button strong { font-size: 1rem; line-height: 1.2; }
-.settings-home button small { overflow: hidden; color: rgba(255, 255, 255, .6); font-size: .7rem; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.settings-home button strong { min-width: 0; font-size: 1.05rem; font-weight: 750; line-height: 1.25; letter-spacing: -.025em; }
 .settings-home button em {
-  padding: .32rem .48rem;
+  padding: .3rem .45rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--section-accent) 12%, transparent);
-  color: color-mix(in srgb, var(--section-accent) 86%, white);
-  font-size: .55rem;
+  background: rgba(229, 242, 90, .1);
+  color: #e5f25a;
+  font-size: .62rem;
   font-style: normal;
-  font-weight: 850;
-  line-height: 1;
+  font-weight: 750;
+  line-height: 1.2;
   white-space: nowrap;
 }
 .settings-home button svg,
 .settings-back-to-home svg { width: 1.15rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .settings-home__icon svg { width: 1.25rem; color: currentColor; }
-.settings-home button .settings-home__arrow { width: .9rem; color: color-mix(in srgb, var(--section-accent) 68%, rgba(255, 255, 255, .34)); }
+.settings-home button .settings-home__arrow { grid-column: 4; width: .9rem; color: rgba(255, 255, 255, .3); }
+.settings-home button:is(:hover, :focus-visible) :is(.settings-home__icon, .settings-home__arrow) { color: #e5f25a; }
 
 .settings-back-to-home {
   grid-column: 1;
@@ -5672,29 +5658,34 @@
 }
 
 @media (min-width: 600px) {
-  .settings-sheet.is-home {
+  .settings-overlay .settings-sheet.is-home {
+    display: grid;
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
+    width: min(46rem, calc(100vw - 4rem));
+    height: auto;
+    padding: 0;
   }
 
-  .settings-sheet.is-home .settings-titlebar { grid-column: 1; }
+  .settings-overlay .settings-sheet.is-home .settings-titlebar { grid-column: 1; padding: 2rem 5rem 1.25rem 2rem; }
+  .settings-sheet.is-home .settings-titlebar h2 { font-size: 2.5rem; line-height: 1; letter-spacing: -.055em; }
   .settings-sheet.is-home .settings-home {
-    width: min(100%, 46rem);
-    margin: 0 auto;
+    min-height: 0;
     overflow-y: auto;
-    padding: .5rem 2rem 2.5rem;
+    padding: .25rem 2rem 1.5rem;
   }
 
   .settings-sheet.is-home .settings-home > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+@media (min-width: 600px) and (max-width: 759px) {
+  .settings-sheet.is-home .settings-home > div { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 599px) {
-  .settings-home { padding: .25rem 1.5rem calc(2rem + env(safe-area-inset-bottom)); }
-  .settings-home > div { grid-template-columns: minmax(0, 1fr); gap: .58rem; }
-  .settings-home button { min-height: 4.8rem; padding: .68rem .78rem; border-radius: 1rem; }
-  .settings-home button strong { font-size: .96rem; }
-  .settings-home button small { font-size: .68rem; }
-  .settings-home__icon { width: 2.65rem; height: 2.65rem; }
+  .settings-home { padding: 0 1.5rem calc(1rem + env(safe-area-inset-bottom)); }
+  .settings-home > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .settings-home button { min-height: 3.5rem; }
 
   .settings-back-to-home {
     margin: -.25rem 1.5rem .35rem;

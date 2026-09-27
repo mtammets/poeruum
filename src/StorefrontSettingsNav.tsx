@@ -1,15 +1,15 @@
 import type { SettingsSection } from './storefrontModel'
 
-export const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string }> = [
-  { id: 'store', label: 'Pood', description: 'Põhiandmed ja nähtavus' },
-  { id: 'appearance', label: 'Kujundus', description: 'Logo, värvid ja stiil' },
-  { id: 'payments', label: 'Maksed', description: 'Makseviisid ja ühendused' },
-  { id: 'delivery', label: 'Tarne', description: 'Väljasaatmise aeg, tarneviisid ja hinnad' },
-  { id: 'business', label: 'Müüja', description: 'Ettevõtte andmed' },
-  { id: 'links', label: 'Lingid', description: 'Kontakt ja sotsiaalmeedia' },
-  { id: 'notifications', label: 'Teavitused', description: 'E-kirjad ja märguanded' },
-  { id: 'billing', label: 'Plaan ja tasud', description: 'Pakett ja tasude arvestus' },
-  { id: 'account', label: 'Konto', description: 'Väljalogimine ja kustutamine' },
+export const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string }> = [
+  { id: 'store', label: 'Pood' },
+  { id: 'appearance', label: 'Kujundus' },
+  { id: 'payments', label: 'Maksed' },
+  { id: 'delivery', label: 'Tarne' },
+  { id: 'business', label: 'Müüja' },
+  { id: 'links', label: 'Kontakt ja lingid' },
+  { id: 'notifications', label: 'Teavitused' },
+  { id: 'billing', label: 'Plaan ja tasud' },
+  { id: 'account', label: 'Konto' },
 ]
 
 export function SettingsSectionIcon({ section }: { section: SettingsSection }) {
