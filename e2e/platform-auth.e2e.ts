@@ -149,6 +149,77 @@ test('homepage omits unavailable stores and keeps signup and Kaubamaja accessibl
   await expect(page.locator('nav').getByRole('link', { name: 'Kaubamaja' })).toHaveAttribute('href', 'https://kaubamaja.poeruum.ee/')
 })
 
+async function installSingleProductHomepage(page: Page, brokenGallery = false) {
+  await installSupabaseBackend(page)
+  const imageRoot = 'http://localhost:4174/storage/v1/object/public/product-images/gallery-test'
+  const mainImage = `${imageRoot}/main.svg`
+  const secondImage = `${imageRoot}/second.svg`
+  await page.route('**/rest/v1/public_storefronts?*', (route) => json(route, { ...store, name: 'Krük-Krük', slug: 'kruk-kruk' }))
+  await page.route('**/rest/v1/rpc/storefront_seo_catalog', (route) => json(route, [{
+    store_id: STORE_ID, store_slug: 'kruk-kruk', store_name: 'Krük-Krük',
+    products: [{ id: 'cap', name: 'Nokkmüts', image_url: mainImage, price: 42, stock: 2 }],
+  }]))
+  await page.route('**/rest/v1/products?*', (route) => json(route, [{
+    id: 'cap', store_id: STORE_ID, name: 'Nokkmüts', image_url: mainImage,
+    gallery: [mainImage, secondImage], price: 42, stock: 2, search_visible: true,
+  }]))
+  await page.route(`${imageRoot}/**`, (route) => brokenGallery && route.request().url() === secondImage
+    ? route.fulfill({ status: 404, body: 'Missing image' })
+    : route.fulfill({ contentType: 'image/svg+xml', body: `<svg xmlns="http://www.w3.org/2000/svg" width="390" height="800"><rect width="390" height="800" fill="${route.request().url() === mainImage ? '#265f43' : '#cc6633'}"/></svg>` }))
+}
+
+test('homepage shows a second gallery image, resets a single product, and preserves the iframe on focus', async ({ page }) => {
+  await installSingleProductHomepage(page)
+  await page.clock.install()
+  await page.goto('/')
+  const phone = page.frameLocator('.platform-phone__frame')
+  const thumbnail = phone.locator('.gallery-thumbnails .is-active')
+  const image = phone.locator('.story-slide > img').nth(1)
+  await expect(image).toHaveJSProperty('complete', true)
+  await expect(page.locator('.platform-phone__frame')).toHaveAttribute('data-preview-visible', 'true')
+  await expect(thumbnail).toHaveAttribute('aria-label', 'Pilt 1')
+  await page.clock.runFor(4500)
+  await expect(thumbnail).toHaveAttribute('aria-label', 'Pilt 2')
+  await expect(image).toHaveAttribute('src', /second.svg$/)
+  expect(await image.evaluate(() => scrollY)).toBe(0)
+  await image.evaluate(() => { document.documentElement.dataset.focusProbe = 'preserved' })
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(phone.locator('html')).toHaveAttribute('data-focus-probe', 'preserved')
+  await page.clock.runFor(3000)
+  await expect(thumbnail).toHaveAttribute('aria-label', 'Pilt 1')
+  await expect(image).toHaveAttribute('src', /main.svg$/)
+})
+
+test('homepage animation pauses offscreen and respects reduced motion', async ({ page }) => {
+  await installSingleProductHomepage(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install()
+  await page.goto('/')
+  const phone = page.frameLocator('.platform-phone__frame')
+  const thumbnail = phone.locator('.gallery-thumbnails .is-active')
+  await expect(thumbnail).toHaveAttribute('aria-label', 'Pilt 1')
+  await page.clock.runFor(9000)
+  await expect(thumbnail).toHaveAttribute('aria-label', 'Pilt 1')
+  await page.locator('#hind').scrollIntoViewIfNeeded()
+  await expect(page.locator('.platform-phone__frame')).toHaveAttribute('data-preview-visible', 'false')
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.clock.runFor(9000)
+  await expect(thumbnail).toHaveAttribute('aria-label', 'Pilt 1')
+  await page.locator('.platform-phone').scrollIntoViewIfNeeded()
+  await expect(page.locator('.platform-phone__frame')).toHaveAttribute('data-preview-visible', 'true')
+  await page.clock.runFor(4500)
+  await expect(thumbnail).toHaveAttribute('aria-label', 'Pilt 2')
+})
+
+test('homepage skips a broken gallery image and continues its description tour', async ({ page }) => {
+  await installSingleProductHomepage(page, true)
+  await page.goto('/')
+  const phone = page.frameLocator('.platform-phone__frame')
+  await expect(phone.locator('.gallery-thumbnails .is-active')).toHaveAttribute('aria-label', 'Pilt 1')
+  await expect.poll(() => phone.locator('body').evaluate(() => scrollY), { timeout: 10000 }).toBeGreaterThan(0)
+  await expect(phone.locator('.story-slide > img').nth(1)).toHaveAttribute('src', /main.svg$/)
+})
+
 test('merchant downloads readable branded QR artwork for the active shop domain', async ({ page }, testInfo) => {
   await installSupabaseBackend(page, { ...store, settings: { ...store.settings, storeLogo: '/images/poeruum-email-logo.svg' } })
   await page.route('**/functions/v1/custom-domain', (route) => json(route, {
@@ -621,7 +692,7 @@ const installSupabaseBackend = async (
     }
 
     if (url.pathname.endsWith('/rest/v1/platform_settings')) {
-      await json(route, null)
+      await json(route, { homepage_store_ids: [STORE_ID] })
       return
     }
 

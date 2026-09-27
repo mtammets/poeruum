@@ -305,6 +305,7 @@ export type StorefrontProps = {
   merchantMode?: boolean
   adminShowcaseMode?: boolean
   embeddedPreview?: boolean
+  previewImageSelection?: { productId: string; index: number } | null
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
   stripeSubscriptionStatus?: string | null
@@ -327,7 +328,7 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const support = useContext(SupportContext)
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
@@ -1802,12 +1803,14 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const editOptionPresets = editProductOptionType === 'Suurus' ? ['XS', 'S', 'M', 'L', 'XL'] : ['Must', 'Valge', 'Sinine', 'Roheline', 'Punane']
   const editCustomOptionValues = editOptionValues.filter((value) => !editOptionPresets.includes(value))
   const editColorSwatches: Record<string, string> = { Must: '#242424', Valge: '#f5f2e9', Sinine: '#6caef0', Roheline: '#70bd8d', Punane: '#ed766f' }
+  const getSelectedImageIndex = (product: Product) => embeddedPreview && previewImageSelection?.productId === product.id
+    ? previewImageSelection.index : selectedImages[product.id] ?? 0
   const getDisplayedProductImage = (product: Product) => {
     if (isEditOpen && activeProduct?.id === product.id) {
       return editProductImages[Math.min(selectedImages[product.id] ?? 0, Math.max(0, editProductImages.length - 1))] ?? EMPTY_PRODUCT_IMAGE
     }
     const images = product.gallery?.length ? product.gallery : [product.image]
-    return images[Math.min(selectedImages[product.id] ?? 0, images.length - 1)]
+    return images[Math.min(getSelectedImageIndex(product), images.length - 1)]
   }
 
   const getDisplayedProductImageProps = (product: Product, preferred: 'thumb' | 'medium' | 'large' = 'large') => {
@@ -2736,7 +2739,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             {(activeProduct.gallery ?? [activeProduct.image]).map((image, index) => (
               <button
                 key={image}
-                className={(selectedImages[activeProduct.id] ?? 0) === index ? 'is-active' : ''}
+                className={getSelectedImageIndex(activeProduct) === index ? 'is-active' : ''}
                 onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))}
                 aria-label={`Pilt ${index + 1}`}
               >

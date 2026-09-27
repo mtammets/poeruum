@@ -29,6 +29,14 @@
 .admin-directory__identity a { color: #657169; font-size: .8125rem; overflow-wrap: anywhere; }
 .admin-directory__move { display: flex; gap: .4rem; }
 .admin-directory__move button { min-width: 44px; padding: .5rem; font-size: 1.2rem; }
+.admin-homepage-stores { display: grid; gap: .6rem; }
+.admin-homepage-stores__store { display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid #dfe2dc; border-radius: .9rem; background: #fff; cursor: pointer; }
+.admin-homepage-stores__store:has(input:checked) { border-color: #265f43; background: #f0f6ec; }
+.admin-homepage-stores__store input { flex: none; width: 1.25rem; height: 1.25rem; accent-color: #265f43; }
+.admin-homepage-stores__store input:focus-visible { outline: 3px solid #265f43; outline-offset: 3px; }
+.admin-homepage-stores__store > span { display: grid; gap: .3rem; overflow-wrap: anywhere; }
+.admin-homepage-stores__store small { color: #657169; }
+.admin-homepage-stores__store .is-unavailable { color: #9a4b40; }
 @media (max-width: 600px) {
   .admin-directory__header { flex-direction: column; }
   .admin-directory__list > li { grid-template-columns: 1.25rem 1.5rem minmax(0, 1fr) auto; gap: .4rem; padding: .75rem .5rem; }

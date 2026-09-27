@@ -13,6 +13,11 @@ async function installBackend(page: Page, admin = true) {
   let catalog = [...stores]
   let saveError = ''
   let loadError = false
+  let showcase = {
+    selectedStoreIds: [stores[0].store_id, stores[1].store_id],
+    stores: stores.map((store, index) => ({ id: store.store_id, name: store.store_name, slug: store.store_slug, isPublished: index !== 2, eligibleProductCount: index === 1 ? 0 : 2 })),
+  }
+  const showcaseSaves: unknown[] = []
   const saves: { ordered_store_ids: string[]; expected_store_ids: string[] }[] = []
   const user = {
     id: '20000000-0000-4000-8000-000000000001', email: 'admin@example.invalid',
@@ -39,6 +44,15 @@ async function installBackend(page: Page, admin = true) {
     if (path.endsWith('/auth/v1/token')) return json(route, session)
     if (path.endsWith('/auth/v1/user')) return json(route, user)
     if (path.endsWith('/auth/v1/logout')) return json(route, {})
+    if (path.endsWith('/rpc/admin_homepage_showcase')) return loadError
+      ? json(route, { message: 'Offline' }, 500) : json(route, showcase)
+    if (path.endsWith('/rpc/admin_set_homepage_showcase')) {
+      const body = request.postDataJSON()
+      showcaseSaves.push(body)
+      if (saveError) return json(route, { code: saveError, message: 'Save failed' }, 409)
+      showcase = { ...showcase, selectedStoreIds: body.selected_store_ids }
+      return json(route, showcase)
+    }
     if (path.endsWith('/rpc/storefront_seo_catalog')) return loadError
       ? json(route, { message: 'Offline' }, 500) : json(route, catalog)
     if (path.endsWith('/rpc/admin_set_store_directory_order')) {
@@ -53,6 +67,7 @@ async function installBackend(page: Page, admin = true) {
   })
   return {
     saves,
+    showcaseSaves,
     failSave: (code: string) => { saveError = code },
     failLoad: (fail: boolean) => { loadError = fail },
     setCatalog: (next: typeof stores) => { catalog = next },
@@ -60,6 +75,49 @@ async function installBackend(page: Page, admin = true) {
 }
 
 const names = (page: Page) => page.locator('.admin-directory__identity strong')
+
+test('admin selects homepage shops, sees unavailable reasons, and persists the choice', async ({ page }) => {
+  const backend = await installBackend(page)
+  await page.goto('/admin/kaubamaja?view=homepage')
+  const first = page.getByRole('checkbox', { name: stores[0].store_name })
+  const second = page.getByRole('checkbox', { name: stores[1].store_name })
+  const third = page.getByRole('checkbox', { name: stores[2].store_name })
+  await expect(first).toBeChecked()
+  await expect(second).toBeChecked()
+  await expect(third).not.toBeChecked()
+  await expect(page.getByText('Pood on avaldamata — eelvaates ei näidata.')).toBeVisible()
+  await expect(page.getByText('Puudub avalik laos olev toode, millel on pilt ja hind.')).toBeVisible()
+  await second.uncheck()
+  await page.getByRole('button', { name: 'Salvesta valik' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Valik on salvestatud' })).toBeVisible()
+  expect(backend.showcaseSaves).toEqual([{ selected_store_ids: [stores[0].store_id], expected_store_ids: [stores[0].store_id, stores[1].store_id] }])
+  await page.reload()
+  await expect(first).toBeChecked()
+  await expect(second).not.toBeChecked()
+  await page.screenshot({ path: 'output/admin-homepage-desktop.png', fullPage: true })
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: 'output/admin-homepage-mobile.png', fullPage: true })
+  await first.uncheck()
+  await expect(page.getByRole('button', { name: 'Salvesta valik' })).toBeDisabled()
+  await expect(page.getByText('Vali vähemalt üks pood.')).toBeVisible()
+})
+
+test('homepage selection survives failed saves and supports tab keyboard navigation', async ({ page }) => {
+  const backend = await installBackend(page)
+  await page.goto('/admin/kaubamaja?view=order')
+  await page.getByRole('tab', { name: 'Poodide järjekord' }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('tab', { name: 'Avalehe eelvaade' })).toBeFocused()
+  await expect(page).toHaveURL(/view=homepage/)
+  await page.getByRole('checkbox', { name: stores[1].store_name }).uncheck()
+  backend.failSave('40001')
+  await page.getByRole('button', { name: 'Salvesta valik' }).click()
+  await expect(page.getByRole('alert')).toContainText('Valik on vahepeal muutunud')
+  await expect(page.getByRole('checkbox', { name: stores[1].store_name })).not.toBeChecked()
+  await page.getByRole('button', { name: 'Laadi salvestatud valik' }).click()
+  await expect(page.getByRole('checkbox', { name: stores[1].store_name })).toBeChecked()
+})
 
 test('admin drags and saves the order, which survives reload and reaches the public directory', async ({ page }) => {
   const backend = await installBackend(page)

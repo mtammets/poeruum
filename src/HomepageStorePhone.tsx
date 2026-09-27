@@ -22,6 +22,7 @@ function previewDocument(data: StorefrontPreviewData) {
 export default function HomepageStorePhone({ store, products, url }: StorefrontPreviewData & { url: string }) {
   const screen = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ scale: 1, height: 800 })
+  const [inView, setInView] = useState(false)
   const srcDoc = useMemo(() => previewDocument({ store, products }), [store, products])
 
   useEffect(() => {
@@ -32,15 +33,18 @@ export default function HomepageStorePhone({ store, products, url }: StorefrontP
       if (scale > 0) setSize({ scale, height: Math.round(node.clientHeight / scale) })
     }
     const observer = new ResizeObserver(resize)
+    const visibility = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting))
     observer.observe(node)
+    visibility.observe(node)
     resize()
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); visibility.disconnect() }
   }, [])
 
   return <div className="platform-phone-stage">
     <a className="platform-phone" href={url} aria-label={`Ava pood ${store.name}`}>
       <div className="platform-phone__screen" ref={screen} inert aria-hidden="true">
         <iframe className="platform-phone__frame" title={`${store.name} mobiilivaade`}
+          data-preview-visible={inView}
           srcDoc={srcDoc} tabIndex={-1} sandbox="allow-scripts allow-same-origin"
           style={{ height: size.height, transform: `scale(${size.scale})` }} />
       </div>
