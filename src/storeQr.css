@@ -10,12 +10,28 @@
 .store-qr button:disabled { cursor: default; opacity: .45; }
 .store-qr button:focus-visible, .store-qr input:focus-visible { outline: 2px solid #e5f25a; outline-offset: 3px; }
 .store-qr__shapes { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: 1rem; }
-.store-qr__shapes button { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: 2.75rem; padding: .6rem .35rem; border: 1px solid #ffffff24; border-radius: .7rem; background: transparent; color: #bdc2ba; font-size: .72rem; font-weight: 600; }
-.store-qr__shapes button[aria-pressed='true'] { border-color: #e5f25a; background: #e5f25a0c; color: #e5f25a; }
+.store-qr__shapes button, .store-qr__choices button { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: 2.75rem; padding: .6rem .35rem; border: 1px solid #ffffff24; border-radius: .7rem; background: transparent; color: #bdc2ba; font-size: .72rem; font-weight: 600; }
+.store-qr__shapes button[aria-pressed='true'], .store-qr__choices button[aria-pressed='true'] { border-color: #e5f25a; background: #e5f25a0c; color: #e5f25a; }
 .store-qr__shapes svg { width: 1rem; height: 1rem; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.store-qr__preview { display: grid; place-items: center; aspect-ratio: 1; padding: 1.5rem; border-radius: 1rem; background: #e8e8e2; }
-.store-qr__preview img { display: block; width: 100%; height: auto; filter: drop-shadow(0 3px 5px #00000012); }
+.store-qr__preview { position: relative; display: grid; place-items: center; height: clamp(12rem, 30dvh, 18rem); padding: 1rem; border-radius: 1rem; background: #e8e8e2; }
+.store-qr__preview img { display: block; width: auto; height: 100%; max-width: 100%; max-height: 100%; min-height: 0; object-fit: contain; filter: drop-shadow(0 3px 5px #00000012); }
+.store-qr__preview[aria-busy='true'] img { opacity: .4; }
+.store-qr__updating { position: absolute; padding: .3rem .6rem; border-radius: 1rem; background: #e8e8e2; }
 .store-qr__preview > span { color: #5d665a; font-size: .85rem; }
+.store-qr__customize { position: relative; min-width: 0; padding: 0; margin: 1.15rem 0; border: 0; }
+.store-qr__customize legend { padding: 0; margin-bottom: .8rem; font-size: .9rem; font-weight: 650; }
+.store-qr__presets { position: absolute; right: 0; top: -1.8rem; display: flex; gap: .8rem; }
+.store-qr__presets button { padding: 0; border: 0; background: none; color: #c5ceb9; font-size: .72rem; text-decoration: underline; text-underline-offset: .2em; }
+.store-qr__colors { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .75rem; }
+.store-qr__colors label { display: flex; align-items: center; gap: .55rem; min-width: 0; cursor: pointer; font-size: .75rem; color: #d5d9d1; }
+.store-qr__colors input { width: 2.4rem; height: 2.4rem; flex: 0 0 auto; padding: .2rem; border: 1px solid #ffffff30; border-radius: .5rem; background: none; cursor: pointer; }
+.store-qr__colors input::-webkit-color-swatch-wrapper { padding: 0; }
+.store-qr__colors input::-webkit-color-swatch { border: 0; border-radius: .25rem; }
+.store-qr__colors input::-moz-color-swatch { border: 0; border-radius: .25rem; }
+.store-qr__colors small { display: block; margin-top: .15rem; color: #949d8e; font-size: .62rem; }
+.store-qr__choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
+.store-qr__choices svg { width: .95rem; height: .95rem; flex-shrink: 0; fill: currentColor; }
+.store-qr__customize .store-qr__logo { margin: .8rem 0 .6rem; }
 .store-qr__logo { display: flex; align-items: center; gap: .55rem; margin: 1rem 0; color: #d5d9d1; font-size: .8rem; cursor: pointer; }
 .store-qr__logo input { width: 1rem; height: 1rem; margin: 0; accent-color: #e5f25a; }
 .store-qr__note { margin: 1rem 0; color: #a9b0a5; font-size: .75rem; }
@@ -24,6 +40,7 @@
 .store-qr__downloads strong { font-size: .8rem; font-weight: 750; }
 .store-qr__downloads small { font-size: .65rem; opacity: .7; }
 .store-qr__error { margin: .75rem 0; color: #ffb6a8; font-size: .8rem; }
+.store-qr__validation { margin: .75rem 0; color: #eadb9b; font-size: .78rem; line-height: 1.5; }
 .store-qr__error p { margin: 0 0 .5rem; }
 .store-qr__error button { padding: .35rem 0; border: 0; background: none; color: inherit; text-decoration: underline; }
 @media (max-width: 420px) {

@@ -3500,7 +3500,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </div>
         </section>
       </div>}
-      {isStoreQrOpen && isSettingsOpen && isLoggedIn && <Suspense fallback={null}><StoreQrDialog url={`https://${storePublicUrl}`} storeName={editableStoreName} logo={storeLogo} onClose={() => setIsStoreQrOpen(false)} /></Suspense>}
+      {isStoreQrOpen && isSettingsOpen && isLoggedIn && <Suspense fallback={null}><StoreQrDialog url={`https://${storePublicUrl}`} storeName={editableStoreName} logo={storeLogo} accent={storeAccent} onClose={() => setIsStoreQrOpen(false)} /></Suspense>}
       {activeProduct && isShareOpen && <div className="overlay share-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsShareOpen(false)}>
         <section className={`share-sheet${isShareDragging ? ' is-dragging' : ''}`} style={shareDragY ? { transform: `translateY(${shareDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Jaga toodet">
           <div

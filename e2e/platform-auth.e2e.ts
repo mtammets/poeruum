@@ -220,6 +220,146 @@ test('merchant downloads readable branded QR artwork for the active shop domain'
   await page.getByRole('dialog', { name: 'Seaded', exact: true }).screenshot({ path: testInfo.outputPath('settings-qr-card.png') })
 })
 
+test('merchant QR supports light patterns on dark backgrounds in both export shapes', async ({ page }, testInfo) => {
+  test.setTimeout(60000)
+  await installSupabaseBackend(page, { ...store, slug: 'urgits', settings: { ...store.settings, storeLogo: '/images/poeruum-email-logo.svg' } })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="qr"]').click()
+  const qr = page.getByRole('dialog', { name: 'Poe QR-kood', exact: true })
+  const pngButton = qr.getByRole('button', { name: /Laadi PNG alla/ })
+  await expect(pngButton).toBeEnabled()
+  await qr.getByLabel('Koodi värv', { exact: true }).fill('#ffffff')
+  await qr.getByLabel('Tausta värv', { exact: true }).fill('#000000')
+  for (const shape of ['Ring', 'Ruut']) {
+    await qr.getByRole('button', { name: shape, exact: true }).click()
+    for (const pattern of ['Ruudud', 'Ümarad', 'Täpid']) {
+      await qr.getByRole('button', { name: pattern, exact: true }).click()
+      await expect(pngButton).toBeEnabled()
+      await expect(qr.getByRole('alert')).toHaveCount(0)
+      const pngDownload = page.waitForEvent('download')
+      await pngButton.click()
+      const path = testInfo.outputPath(`inverted-${shape}-${pattern}.png`)
+      await (await pngDownload).saveAs(path)
+      const artwork = PNG.sync.read(await readFile(path))
+      // Flatten transparent round corners onto the white printed page.
+      for (let i = 0; i < artwork.data.length; i += 4) {
+        const alpha = artwork.data[i + 3] / 255
+        for (let channel = 0; channel < 3; channel++) artwork.data[i + channel] = artwork.data[i + channel] * alpha + 255 * (1 - alpha)
+      }
+      expect(jsQR(new Uint8ClampedArray(artwork.data), artwork.width, artwork.height)?.data).toBe('https://urgits.poeruum.ee')
+      const pdfDownload = page.waitForEvent('download')
+      await qr.getByRole('button', { name: /Laadi PDF alla/ }).click()
+      await (await pdfDownload).saveAs(testInfo.outputPath(`inverted-${shape}-${pattern}.pdf`))
+      if (shape === 'Ring' && pattern === 'Täpid') await qr.screenshot({ path: testInfo.outputPath('inverted-round-dots.png') })
+    }
+  }
+  await qr.getByLabel('Koodi värv', { exact: true }).fill('#f4edda')
+  await qr.getByLabel('Tausta värv', { exact: true }).fill('#173d2b')
+  await expect(pngButton).toBeEnabled()
+  await expect(qr.getByRole('alert')).toHaveCount(0)
+})
+
+test('merchant customizes QR colors, patterns and logo size with readable matching exports', async ({ page }, testInfo) => {
+  test.setTimeout(90000)
+  await installSupabaseBackend(page, { ...store, settings: { ...store.settings, storeLogo: '/images/poeruum-email-logo.svg', storeAccent: '#265f43' } })
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="qr"]').click()
+  const qr = page.getByRole('dialog', { name: 'Poe QR-kood', exact: true })
+  const pngButton = qr.getByRole('button', { name: /Laadi PNG alla/ })
+  await expect(pngButton).toBeEnabled()
+  await qr.getByRole('button', { name: 'Poe värvid', exact: true }).click()
+  await expect(qr.getByLabel('Koodi värv', { exact: true })).toHaveValue('#265f43')
+  await expect(qr.getByLabel('Tausta värv', { exact: true })).toHaveValue('#ffffff')
+  await expect(pngButton).toBeEnabled()
+
+  const logoPixelCounts: number[] = []
+  for (const shape of ['Ring', 'Ruut']) {
+    await qr.getByRole('button', { name: shape, exact: true }).click()
+    for (const [pattern, size] of [['Ruudud', 'Väike'], ['Ümarad', 'Keskmine'], ['Täpid', 'Suur']]) {
+      await qr.getByRole('button', { name: pattern, exact: true }).click()
+      await qr.getByRole('button', { name: size, exact: true }).click()
+      await qr.getByLabel('Koodi värv', { exact: true }).fill('#173d2b')
+      await qr.getByLabel('Tausta värv', { exact: true }).fill('#f4edda')
+      await expect(pngButton).toBeEnabled()
+      await expect(qr.getByRole('alert')).toHaveCount(0)
+      const filename = `${shape}-${pattern}-${size}`
+      const pngDownload = page.waitForEvent('download')
+      await pngButton.click()
+      const path = testInfo.outputPath(`${filename}.png`)
+      await (await pngDownload).saveAs(path)
+      const artwork = PNG.sync.read(await readFile(path))
+      const countColor = (r: number, g: number, b: number) => {
+        let count = 0
+        for (let i = 0; i < artwork.data.length; i += 4) {
+          if (artwork.data[i] === r && artwork.data[i + 1] === g && artwork.data[i + 2] === b && artwork.data[i + 3] === 255) count++
+        }
+        return count
+      }
+      expect(countColor(23, 61, 43)).toBeGreaterThan(100000)
+      expect(countColor(244, 237, 218)).toBeGreaterThan(100000)
+      // The store logo's lime pixels must grow with the chosen size.
+      logoPixelCounts.push(countColor(229, 242, 90))
+      for (let i = 0; i < artwork.data.length; i += 4) {
+        const alpha = artwork.data[i + 3] / 255
+        for (let channel = 0; channel < 3; channel++) artwork.data[i + channel] = artwork.data[i + channel] * alpha + 255 * (1 - alpha)
+      }
+      expect(jsQR(new Uint8ClampedArray(artwork.data), artwork.width, artwork.height)?.data).toBe('https://sisselogimise-testipood.poeruum.ee')
+      const pdfDownload = page.waitForEvent('download')
+      await qr.getByRole('button', { name: /Laadi PDF alla/ }).click()
+      await (await pdfDownload).saveAs(testInfo.outputPath(`${filename}.pdf`))
+    }
+  }
+  expect(logoPixelCounts[0]).toBeGreaterThan(0)
+  expect(logoPixelCounts[1]).toBeGreaterThan(logoPixelCounts[0])
+  expect(logoPixelCounts[2]).toBeGreaterThan(logoPixelCounts[1])
+  expect(logoPixelCounts[4]).toBeGreaterThan(logoPixelCounts[3])
+  expect(logoPixelCounts[5]).toBeGreaterThan(logoPixelCounts[4])
+  await qr.screenshot({ path: testInfo.outputPath('custom-desktop.png') })
+
+  for (const [foreground, background] of [['#2321a6', '#b18686'], ['#eeeeee', '#ffffff'], ['#ffffff', '#eeeeee']]) {
+    await qr.getByLabel('Koodi värv', { exact: true }).fill(foreground)
+    await qr.getByLabel('Tausta värv', { exact: true }).fill(background)
+    await expect(qr.getByRole('alert')).toContainText('Liiga väike kontrast')
+    await expect(pngButton).toBeDisabled()
+    await expect(qr.getByRole('button', { name: /Laadi PDF alla/ })).toBeDisabled()
+    await expect(qr.locator('.store-qr__preview')).toHaveAttribute('aria-busy', 'false')
+    const preview = qr.locator('.store-qr__preview img')
+    await expect(preview).toBeVisible()
+    const pixels = PNG.sync.read(Buffer.from((await preview.getAttribute('src'))!.split(',')[1], 'base64')).data
+    // Even rejected colors must be rendered, rather than showing a stale image.
+    for (const color of [foreground, background]) {
+      const [r, g, b] = [1, 3, 5].map((start) => parseInt(color.slice(start, start + 2), 16))
+      expect(pixels.some((value, index) => index % 4 === 0 && value === r && pixels[index + 1] === g && pixels[index + 2] === b && pixels[index + 3] === 255)).toBe(true)
+    }
+    const warning = await qr.getByRole('alert').boundingBox()
+    const colorInput = await qr.getByLabel('Koodi värv', { exact: true }).boundingBox()
+    expect(warning!.y + warning!.height).toBeLessThan(colorInput!.y)
+    if (foreground === '#2321a6') await qr.screenshot({ path: testInfo.outputPath('low-contrast-preview.png') })
+  }
+  await qr.getByRole('button', { name: 'Lähtesta', exact: true }).click()
+  await expect(pngButton).toBeEnabled()
+  await expect(qr.getByRole('button', { name: 'Ruudud', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(qr.getByRole('button', { name: 'Keskmine', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(qr.getByLabel('Koodi värv', { exact: true })).toHaveValue('#000000')
+  await qr.getByLabel('Poe logoga').uncheck()
+  await expect(qr.getByRole('button', { name: 'Suur', exact: true })).toBeDisabled()
+  await expect(pngButton).toBeEnabled()
+  await page.setViewportSize({ width: 320, height: 740 })
+  expect(await qr.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await pngButton.scrollIntoViewIfNeeded()
+  await expect(pngButton).toBeVisible()
+  await qr.screenshot({ path: testInfo.outputPath('custom-mobile.png') })
+})
+
 for (const missingLogo of [false, true]) {
   test(`merchant QR works ${missingLogo ? 'without a store logo' : 'after a logo fails to load'}`, async ({ page }) => {
     await installSupabaseBackend(page, { ...store, settings: { ...store.settings, storeLogo: missingLogo ? null : '/missing-qr-logo.svg' } })
@@ -233,12 +373,20 @@ for (const missingLogo of [false, true]) {
     const qr = page.getByRole('dialog', { name: 'Poe QR-kood', exact: true })
     await expect(qr.locator('header p')).toHaveText('sisselogimise-testipood.poeruum.ee')
     if (!missingLogo) {
-      await expect(qr.getByRole('alert')).toContainText('Logoga QR-koodi ei õnnestunud luua')
+      await expect(qr.getByRole('alert')).toContainText('Logo laadimine ebaõnnestus')
       await expect(qr.getByRole('button', { name: /Laadi PNG alla/ })).toBeDisabled()
       await qr.getByLabel('Poe logoga').uncheck()
     }
     await expect(qr.getByRole('button', { name: /Laadi PNG alla/ })).toBeEnabled()
     await expect(qr.getByRole('alert')).toHaveCount(0)
+    if (missingLogo) {
+      await qr.getByRole('button', { name: 'Poe värvid', exact: true }).click()
+      await expect(qr.getByLabel('Koodi värv', { exact: true })).toHaveValue('#000000')
+      await expect(qr.getByLabel('Tausta värv', { exact: true })).toHaveValue('#e5f25a')
+      await qr.getByRole('button', { name: 'Täpid', exact: true }).click()
+      await expect(qr.getByRole('button', { name: /Laadi PNG alla/ })).toBeEnabled()
+      await expect(qr.getByRole('alert')).toHaveCount(0)
+    }
     await qr.getByRole('button', { name: 'Sulge', exact: true }).click()
     await expect(qr).toHaveCount(0)
   })
