@@ -42,8 +42,7 @@ const LoadingScreen = () => document.documentElement.dataset.appSurface === 'sto
   ? <main className="storefront-loading" aria-label="Laadin poodi" aria-busy="true" />
   : <main className="platform-loading" aria-label="Laadin Poeruumi"><span /></main>
 const PlatformWithSupport = () => <Suspense fallback={<LoadingScreen />}>
-  <PlatformApp />
-  <Suspense fallback={null}><SupportCenter /></Suspense>
+  <SupportCenter><PlatformApp /></SupportCenter>
 </Suspense>
 
 const hasAppReturnState = ['billing', 'checkout', 'stripe_requirements']

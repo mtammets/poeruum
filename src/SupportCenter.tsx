@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { BrandMark } from './Brand'
 import { createRandomId } from './lib/randomId'
+import { SupportContext } from './SupportContext'
 
 type SupportConversation = {
   id: string
@@ -55,7 +56,7 @@ function SupportIcon({ name }: { name: SupportIconName }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
 }
 
-export default function SupportCenter() {
+export default function SupportCenter({ children }: { children?: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
@@ -98,11 +99,11 @@ export default function SupportCenter() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [isOpen])
 
-  const openSupport = () => {
+  const openSupport = useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current)
     setIsClosing(false)
     setIsOpen(true)
-  }
+  }, [])
 
   const closeSupport = () => {
     if (isClosing) return
@@ -222,10 +223,12 @@ export default function SupportCenter() {
     setError('')
   }
 
-  if (!user) return null
   const unread = conversations.filter((item) => item.user_read_at === null).length
+  const support = useMemo(() => user ? { openSupport, unread } : null, [user, openSupport, unread])
 
-  return <>
+  return <SupportContext.Provider value={support}>
+    {children}
+    {user && <>
     <button className="support-launcher" type="button" onClick={openSupport} aria-label="Ava Poeruumi klienditugi" aria-expanded={isOpen}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3v-13Z"/><path d="M9 9h6M9 12h4"/></svg>
       <span>Abi</span>{unread > 0 && <b>{unread}</b>}
@@ -279,5 +282,6 @@ export default function SupportCenter() {
         </div>}
       </section>
     </div>}
-  </>
+    </>}
+  </SupportContext.Provider>
 }

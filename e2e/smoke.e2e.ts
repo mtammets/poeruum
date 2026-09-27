@@ -253,7 +253,7 @@ test('storefront modal close button owns mobile taps', async ({ browser, baseURL
   await context.close()
 })
 
-test('support launcher is limited to the owner editing view', async ({ page }) => {
+test('support launcher stays hidden throughout the storefront', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(async () => {
     const { mountStorefrontPreviewHarness } = await import('/e2e/storefront-preview-harness.tsx')
@@ -270,7 +270,7 @@ test('support launcher is limited to the owner editing view', async ({ page }) =
 
   await expect(supportProbe).toBeHidden()
   await page.locator('.app-shell').evaluate((storefront) => { storefront.dataset.editing = 'true' })
-  await expect(supportProbe).toBeVisible()
+  await expect(supportProbe).toBeHidden()
 })
 
 test('admin support keeps the reply composer visible while messages scroll', async ({ page }) => {

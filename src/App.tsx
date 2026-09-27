@@ -1,5 +1,5 @@
 import OrderDocumentLinks from './OrderDocumentLinks'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
@@ -31,6 +31,7 @@ import useProductTitleFit from './useProductTitleFit'
 import PasswordInput from './PasswordInput'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
+import { SupportContext } from './SupportContext'
 import StorefrontCart from './StorefrontCart'
 import {
   formatStripeRequirementDeadline,
@@ -327,6 +328,7 @@ export type StorefrontProps = {
 }
 
 export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+  const support = useContext(SupportContext)
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
@@ -3082,13 +3084,19 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 <span className="settings-home__copy"><strong>QR-kood</strong><small>Logo ja allalaadimine</small></span>
                 <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>}
+              {support && isLoggedIn && !adminShowcaseMode && <button type="button" data-section="support" aria-haspopup="dialog" onClick={() => { setIsSettingsOpen(false); support.openSupport() }}>
+                <span className="settings-home__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3v-13Z" /><path d="M9 9h6M9 12h4" /></svg></span>
+                <span className="settings-home__copy"><strong>Abi ja tugi</strong><small>Küsimused ja vestlused Poeruumiga</small></span>
+                {support.unread > 0 && <em>{support.unread} lugemata</em>}
+                <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+              </button>}
             </div>
           </div> : null}
           {settingsSection === 'store' && <div className="settings-panel" role="tabpanel">
             <header><span>POE SEADED</span><p>Halda poe nähtavust ja põhiandmeid.</p></header>
-            {merchantMode && <div className={`settings-onboarding${isSetupChecklistOpen ? ' is-open' : ''}`}>
+            {merchantMode && setupProgress < 100 && <div className={`settings-onboarding${isSetupChecklistOpen ? ' is-open' : ''}`}>
               <button className="settings-onboarding__summary" type="button" aria-expanded={isSetupChecklistOpen} onClick={() => setIsSetupChecklistOpen((open) => !open)}>
-                <span><strong>{setupProgress === 100 ? 'Pood on valmis' : 'Poe seadistus'}</strong><small>{completedSetupSteps}/{setupChecklist.length} tehtud</small></span>
+                <span><strong>Poe seadistus</strong><small>{completedSetupSteps}/{setupChecklist.length} tehtud</small></span>
                 <b>{setupProgress}%</b>
                 <i><span style={{ width: `${setupProgress}%` }} /></i>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4" /></svg>
