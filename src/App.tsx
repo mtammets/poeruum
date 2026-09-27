@@ -306,6 +306,7 @@ export type StorefrontProps = {
   adminShowcaseMode?: boolean
   embeddedPreview?: boolean
   previewImageSelection?: { productId: string; index: number } | null
+  previewSearch?: { query: string; selectedProductId?: string } | null
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
   stripeSubscriptionStatus?: string | null
@@ -328,7 +329,7 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const support = useContext(SupportContext)
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
@@ -603,6 +604,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const desktopGalleryInputRef = useRef<HTMLInputElement>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const isSearchVisible = isSearchOpen || (embeddedPreview && previewSearch !== null)
+  const displayedSearchQuery = embeddedPreview && previewSearch ? previewSearch.query : searchQuery
   const [searchCategoryId, setSearchCategoryId] = useState('')
   const [addedProducts, setAddedProducts] = useState<Product[]>([])
   const [persistedProducts, setPersistedProducts] = useState<Product[]>(seedProducts)
@@ -1491,7 +1494,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [displayProducts.length])
 
   useEffect(() => {
-    if (!isLoginOpen && !isEditOpen && !isAddOpen && !imageUpload && !isSearchOpen && !isDeleteOpen && !isPasswordChangeOpen && !isEmailChangeOpen && !isAccountDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isAboutOpen && !legalView && !isBillingCardOpen) return
+    if (!isLoginOpen && !isEditOpen && !isAddOpen && !imageUpload && !isSearchVisible && !isDeleteOpen && !isPasswordChangeOpen && !isEmailChangeOpen && !isAccountDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isAboutOpen && !legalView && !isBillingCardOpen) return
     // On phones the product details editor is a regular document page. Let the
     // browser own vertical scrolling instead of combining a fixed body with a
     // nested fixed scroller (an unreliable combination in iOS Safari).
@@ -1514,7 +1517,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       document.body.style.overflow = previous.overflow
       window.scrollTo(0, scrollY)
     }
-  }, [isLoginOpen, isEditOpen, isAddOpen, Boolean(imageUpload), addProductStep, isSearchOpen, isDeleteOpen, isPasswordChangeOpen, isEmailChangeOpen, isAccountDeleteOpen, isShareOpen, isSettingsOpen, isOrdersOpen, isAboutOpen, legalView, isBillingCardOpen])
+  }, [isLoginOpen, isEditOpen, isAddOpen, Boolean(imageUpload), addProductStep, isSearchVisible, isDeleteOpen, isPasswordChangeOpen, isEmailChangeOpen, isAccountDeleteOpen, isShareOpen, isSettingsOpen, isOrdersOpen, isAboutOpen, legalView, isBillingCardOpen])
 
   useEffect(() => {
     const isProductEditorOpen = isAddOpen && addProductStep === 'details'
@@ -2371,7 +2374,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       productCount: displayProducts.filter((product) => product.categoryId === category.id).length,
     }))
     .filter((category) => category.productCount > 0)
-  const normalizedSearchQuery = normalizeSearch(searchQuery.trim())
+  const normalizedSearchQuery = normalizeSearch(displayedSearchQuery.trim())
   const searchResults = displayProducts.filter((product) =>
     (!searchCategoryId || product.categoryId === searchCategoryId)
     && normalizeSearch(`${product.name} ${product.description ?? ''}`).includes(normalizedSearchQuery),
@@ -3678,10 +3681,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </section>
         </div>
       )}
-      {isSearchOpen && (
+      {isSearchVisible && (
         <div className="search-overlay" role="dialog" aria-modal="true" aria-label="Tooteotsing ja kategooriad">
           <div className="search-topbar">
-            <div className="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Mida sa otsid?" /></div>
+            <div className="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input autoFocus={!embeddedPreview} readOnly={embeddedPreview} value={displayedSearchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Mida sa otsid?" /></div>
             <button onClick={() => { setIsSearchOpen(false); setSearchQuery(''); setSearchCategoryId('') }} aria-label="Sulge otsing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
           </div>
           {searchableCategories.length > 0 && <section className="search-categories" aria-labelledby="search-categories-title">
@@ -3697,7 +3700,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           <div className="search-results">
             {searchResults.map((product) => {
               const index = displayProducts.findIndex((item) => item.id === product.id)
-              return <button key={product.id} onClick={() => { setIsSearchOpen(false); setSearchQuery(''); setSearchCategoryId(''); requestAnimationFrame(() => goToProduct(index)) }}>
+              return <button key={product.id} className={embeddedPreview && previewSearch?.selectedProductId === product.id ? 'is-preview-selected' : undefined} onClick={() => { setIsSearchOpen(false); setSearchQuery(''); setSearchCategoryId(''); requestAnimationFrame(() => goToProduct(index)) }}>
                 <img {...getResponsiveImageProps(product, product.image, 'thumb')} sizes="4rem" alt="" />
                 <span><strong>{product.name}</strong><small>{getProductPrice(product)} €</small></span>
               </button>

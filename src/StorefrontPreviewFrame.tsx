@@ -10,6 +10,7 @@ const data = JSON.parse(document.getElementById('storefront-preview-data')?.text
 export default function StorefrontPreviewFrame() {
   const [ready, setReady] = useState(false)
   const [imageSelection, setImageSelection] = useState<{ productId: string; index: number } | null>(null)
+  const [search, setSearch] = useState<{ query: string; selectedProductId?: string } | null>(null)
   const onReady = useCallback(() => setReady(true), [])
 
   useEffect(() => {
@@ -72,20 +73,34 @@ export default function StorefrontPreviewFrame() {
 
     const play = async () => {
       let index = 0
-      let singleProductRound = 0
+      let round = 0
       while (!cancelled) {
         const nextIndex = (index + 1) % products.length
         const product = products[index]
         const nextProduct = products[nextIndex]
         const imageReady = preload(nextProduct, nextProduct.gallery?.[0] || nextProduct.image)
         const extraIndex = product.gallery?.findIndex((image, imageIndex, gallery) => imageIndex > 0 && image !== gallery[0]) ?? -1
-        const showGallery = extraIndex > 0 && (products.length === 1 ? singleProductRound % 2 === 0 : Math.random() < .5)
+        const showSearch = products.length > 10 && round % 4 === 0 && nextProduct.name.trim().length > 0
+        const showGallery = !showSearch && extraIndex > 0 && (products.length === 1 ? round % 2 === 0 : Math.random() < .5)
         const galleryReady = showGallery ? preload(product, product.gallery![extraIndex]) : Promise.resolve(false)
 
         if (!await pause(3800)) return
         const extraLoaded = await galleryReady
         if (cancelled || !await pause(0)) return
-        if (showGallery && extraLoaded) {
+        if (showSearch) {
+          // Demonstrate the real search UI without focusing the iframe or opening a keyboard.
+          setSearch({ query: '' })
+          if (!await pause(650)) return
+          const letters = Array.from(nextProduct.name.trim())
+          for (let length = 1; length <= letters.length; length += 1) {
+            setSearch({ query: letters.slice(0, length).join('') })
+            if (!await pause(Math.min(110, 1800 / letters.length))) return
+          }
+          if (!await pause(1100)) return
+          setSearch({ query: letters.join(''), selectedProductId: nextProduct.id })
+          if (!await pause(450)) return
+          setSearch(null)
+        } else if (showGallery && extraLoaded) {
           setImageSelection({ productId: product.id, index: extraIndex })
           if (!await pause(2600)) return
         } else {
@@ -110,7 +125,7 @@ export default function StorefrontPreviewFrame() {
         }
         setImageSelection(null)
         index = nextIndex
-        singleProductRound += 1
+        round += 1
       }
     }
     void play()
@@ -128,5 +143,5 @@ export default function StorefrontPreviewFrame() {
     initialShipping={data.store.shipping} paymentProvider={data.store.payment_provider}
     paymentsReady={data.store.payment_status === 'connected'}
     initialProductSlug={data.products[0].slug || data.products[0].id}
-    embeddedPreview previewImageSelection={imageSelection} onInitialVisualReady={onReady} />
+    embeddedPreview previewImageSelection={imageSelection} previewSearch={search} onInitialVisualReady={onReady} />
 }

@@ -149,7 +149,7 @@ test('homepage omits unavailable stores and keeps signup and Kaubamaja accessibl
   await expect(page.locator('nav').getByRole('link', { name: 'Kaubamaja' })).toHaveAttribute('href', 'https://kaubamaja.poeruum.ee/')
 })
 
-async function installSingleProductHomepage(page: Page, brokenGallery = false) {
+async function installProductHomepage(page: Page, brokenGallery = false, productCount = 1) {
   await installSupabaseBackend(page)
   const imageRoot = 'http://localhost:4174/storage/v1/object/public/product-images/gallery-test'
   const mainImage = `${imageRoot}/main.svg`
@@ -159,17 +159,17 @@ async function installSingleProductHomepage(page: Page, brokenGallery = false) {
     store_id: STORE_ID, store_slug: 'kruk-kruk', store_name: 'Krük-Krük',
     products: [{ id: 'cap', name: 'Nokkmüts', image_url: mainImage, price: 42, stock: 2 }],
   }]))
-  await page.route('**/rest/v1/products?*', (route) => json(route, [{
-    id: 'cap', store_id: STORE_ID, name: 'Nokkmüts', image_url: mainImage,
+  await page.route('**/rest/v1/products?*', (route) => json(route, Array.from({ length: productCount }, (_, index) => ({
+    id: index ? `cap-${index}` : 'cap', store_id: STORE_ID, name: productCount > 1 ? `Nokkmüts ${index + 1}` : 'Nokkmüts', image_url: mainImage,
     gallery: [mainImage, secondImage], price: 42, stock: 2, search_visible: true,
-  }]))
+  }))))
   await page.route(`${imageRoot}/**`, (route) => brokenGallery && route.request().url() === secondImage
     ? route.fulfill({ status: 404, body: 'Missing image' })
     : route.fulfill({ contentType: 'image/svg+xml', body: `<svg xmlns="http://www.w3.org/2000/svg" width="390" height="800"><rect width="390" height="800" fill="${route.request().url() === mainImage ? '#265f43' : '#cc6633'}"/></svg>` }))
 }
 
 test('homepage shows a second gallery image, resets a single product, and preserves the iframe on focus', async ({ page }) => {
-  await installSingleProductHomepage(page)
+  await installProductHomepage(page)
   await page.clock.install()
   await page.goto('/')
   const phone = page.frameLocator('.platform-phone__frame')
@@ -191,7 +191,7 @@ test('homepage shows a second gallery image, resets a single product, and preser
 })
 
 test('homepage animation pauses offscreen and respects reduced motion', async ({ page }) => {
-  await installSingleProductHomepage(page)
+  await installProductHomepage(page)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.clock.install()
   await page.goto('/')
@@ -212,12 +212,56 @@ test('homepage animation pauses offscreen and respects reduced motion', async ({
 })
 
 test('homepage skips a broken gallery image and continues its description tour', async ({ page }) => {
-  await installSingleProductHomepage(page, true)
+  await installProductHomepage(page, true)
   await page.goto('/')
   const phone = page.frameLocator('.platform-phone__frame')
   await expect(phone.locator('.gallery-thumbnails .is-active')).toHaveAttribute('aria-label', 'Pilt 1')
   await expect.poll(() => phone.locator('body').evaluate(() => scrollY), { timeout: 10000 }).toBeGreaterThan(0)
   await expect(phone.locator('.story-slide > img').nth(1)).toHaveAttribute('src', /main.svg$/)
+})
+
+test('homepage demonstrates typing and opening a real search result for more than ten products', async ({ page }) => {
+  await installProductHomepage(page, false, 11)
+  await page.clock.install()
+  await page.goto('/')
+  const phone = page.frameLocator('.platform-phone__frame')
+  await expect(phone.locator('.story-slide > img').nth(1)).toHaveJSProperty('complete', true)
+  const products = await phone.locator('#storefront-preview-data').textContent()
+  const target = JSON.parse(products!).products[1].name
+  await page.locator('.platform-hero__copy > button').focus()
+  await page.clock.runFor(4200)
+  const query = phone.getByPlaceholder('Mida sa otsid?')
+  await expect(query).toBeVisible()
+  await page.clock.runFor(700)
+  const partialQuery = await query.inputValue()
+  expect(partialQuery.length).toBeGreaterThan(0)
+  expect(partialQuery.length).toBeLessThan(target.length)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.runFor(5000)
+  await expect(query).toHaveValue(partialQuery)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.clock.runFor(1500)
+  await expect(query).toHaveValue(target)
+  await expect(phone.locator('.search-results')).toContainText(target)
+  await page.screenshot({ path: 'output/homepage-search-demo.png' })
+  await page.clock.runFor(2200)
+  await expect(query).toHaveCount(0)
+  await expect(phone.locator('.product-details h1')).toHaveText(target)
+  await expect(page.locator('.platform-hero__copy > button')).toBeFocused()
+  expect(await page.evaluate(() => scrollY)).toBe(0)
+  // Search is occasional: the next product keeps its ordinary gallery/details tour.
+  await page.clock.runFor(4200)
+  await expect(query).toHaveCount(0)
+})
+
+test('homepage keeps the normal product tour at the ten-product boundary', async ({ page }) => {
+  await installProductHomepage(page, false, 10)
+  await page.clock.install()
+  await page.goto('/')
+  const phone = page.frameLocator('.platform-phone__frame')
+  await expect(phone.locator('.story-slide > img').nth(1)).toHaveJSProperty('complete', true)
+  await page.clock.runFor(6500)
+  await expect(phone.getByPlaceholder('Mida sa otsid?')).toHaveCount(0)
 })
 
 test('merchant downloads readable branded QR artwork for the active shop domain', async ({ page }, testInfo) => {

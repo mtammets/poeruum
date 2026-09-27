@@ -52,6 +52,7 @@ export default function AdminHomepageShowcase() {
         <h2 id="homepage-showcase-heading">Avalehe eelvaade</h2>
         <p>Avalehe telefonis näidatakse juhuslikult üht valitud poodidest. Igal sobival poel on võrdne võimalus.</p>
         <p>Pood püsib sama külastuse jooksul. Mitme pildiga tootel näidatakse vahel ka lisapilti.</p>
+        <p>Üle 10 sobiva tootega poes näidatakse aeg-ajalt ka otsingu kasutamist.</p>
       </div>
       <a href="https://poeruum.ee/" target="_blank" rel="noopener noreferrer">Ava avaleht ↗</a>
     </header>

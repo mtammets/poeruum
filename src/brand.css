@@ -4919,6 +4919,11 @@
   object-fit: cover;
 }
 
+.search-results > button.is-preview-selected {
+  outline: 2px solid var(--store-accent, #e5f25a);
+  outline-offset: -2px;
+}
+
 .search-results button > span {
   display: grid;
   gap: 0.25rem;
