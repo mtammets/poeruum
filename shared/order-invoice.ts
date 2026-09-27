@@ -60,6 +60,15 @@ export type InvoiceDocument = {
   pdf_sha256: string | null
 }
 
+// Keep the captured line net unchanged. A two-decimal unit price cannot always
+// reproduce it after multiplication and invoice-level VAT allocation, so show
+// the exact difference alongside the price instead of silently changing money.
+export function invoiceLineDisplayAmounts(line: InvoiceLine, vatRate: number | null) {
+  const unitNetCents = vatRate === null ? line.unitGrossCents : Math.round(line.unitGrossCents * 100 / (100 + vatRate))
+  const roundingCents = line.netCents - unitNetCents * line.quantity
+  return { unitNetCents, roundingCents }
+}
+
 export class InvoiceInputError extends Error {
   constructor(public readonly publicMessage: string) { super(publicMessage) }
 }

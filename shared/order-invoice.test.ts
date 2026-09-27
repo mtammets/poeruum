@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildInvoiceSnapshot, parseInvoiceBuyer } from './order-invoice'
+import { buildInvoiceSnapshot, invoiceLineDisplayAmounts, parseInvoiceBuyer } from './order-invoice'
 
 const customer = { name: 'Õie Šašlik', email: 'OSTJA@example.invalid' }
 const settings = { businessName: 'Näidispood OÜ', registryCode: '12345678', businessAddress: 'Pärna 1, Tallinn', contactEmail: 'pood@example.invalid', vatRegistered: true, vatNumber: 'EE123456789' }
@@ -50,5 +50,56 @@ describe('invoice data and inclusive VAT', () => {
     expect(invoice.lines[1].name).toBe('Tarne')
     settings.businessName = 'Muudetud nimi'
     expect(invoice.seller.name).toBe('Näidispood OÜ')
+  })
+  it('explains allocated VAT cents without changing equal unit prices or the paid total', () => {
+    const invoice = build([999, 999])
+    expect(invoice.lines.map((line) => invoiceLineDisplayAmounts(line, invoice.vatRate))).toEqual([
+      { unitNetCents: 806, roundingCents: -1 },
+      { unitNetCents: 806, roundingCents: 0 },
+    ])
+    expect(invoice.netCents).toBe(1611)
+    expect(invoice.vatCents).toBe(387)
+    expect(invoice.totalCents).toBe(1998)
+  })
+  it('reconciles two-decimal units and row totals for quantities up to 99, including delivery', () => {
+    for (const registered of [true, false]) {
+      for (let quantity = 1; quantity <= 99; quantity++) {
+        const invoice = buildInvoiceSnapshot({ settings: { ...settings, vatRegistered: registered },
+          storeName: 'Pood', storeSlug: 'pood', buyer: parseInvoiceBuyer({ address: 'Kase 2' }, customer),
+          delivery: 'Pakiautomaat', deliveryCents: 350,
+          items: [999, 1, 1240].map((unitGrossCents) => ({ name: 'Toode', options: '', quantity, unitGrossCents })),
+        })
+        const before = JSON.stringify(invoice)
+        let displayedNetCents = 0
+        for (const line of invoice.lines) {
+          const { unitNetCents, roundingCents } = invoiceLineDisplayAmounts(line, invoice.vatRate)
+          expect(Number.isSafeInteger(unitNetCents)).toBe(true)
+          expect(Number.isSafeInteger(roundingCents)).toBe(true)
+          expect(unitNetCents * line.quantity + roundingCents).toBe(line.netCents)
+          if (!registered) expect(roundingCents).toBe(0)
+          displayedNetCents += unitNetCents * line.quantity + roundingCents
+        }
+        expect(displayedNetCents + invoice.vatCents).toBe(invoice.totalCents)
+        expect(JSON.stringify(invoice)).toBe(before)
+      }
+    }
+  })
+  it('shows both positive and negative adjustments when rounding a net unit to cents', () => {
+    expect(invoiceLineDisplayAmounts(build([1]).lines[0], 24)).toEqual({ unitNetCents: 1, roundingCents: 0 })
+    const invoice = buildInvoiceSnapshot({ settings, storeName: 'Pood', storeSlug: 'pood',
+      buyer: parseInvoiceBuyer({ address: 'Kase 2' }, customer), delivery: 'Järeletulemine', deliveryCents: 0,
+      items: [{ name: 'Toode', options: '', quantity: 3, unitGrossCents: 100 }],
+    })
+    expect(invoiceLineDisplayAmounts(invoice.lines[0], 24)).toEqual({ unitNetCents: 81, roundingCents: -1 })
+    const cheaper = buildInvoiceSnapshot({ settings, storeName: 'Pood', storeSlug: 'pood',
+      buyer: invoice.buyer, delivery: 'Järeletulemine', deliveryCents: 0,
+      items: [{ name: 'Toode', options: '', quantity: 3, unitGrossCents: 99 }],
+    })
+    expect(invoiceLineDisplayAmounts(cheaper.lines[0], 24)).toEqual({ unitNetCents: 80, roundingCents: 0 })
+    const positive = buildInvoiceSnapshot({ settings, storeName: 'Pood', storeSlug: 'pood',
+      buyer: invoice.buyer, delivery: 'Järeletulemine', deliveryCents: 0,
+      items: [{ name: 'Toode', options: '', quantity: 3, unitGrossCents: 101 }],
+    })
+    expect(invoiceLineDisplayAmounts(positive.lines[0], 24)).toEqual({ unitNetCents: 81, roundingCents: 1 })
   })
 })

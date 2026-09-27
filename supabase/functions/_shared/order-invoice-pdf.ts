@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, type PDFFont } from 'npm:pdf-lib@^1.17.1'
 import fontkit from 'npm:@pdf-lib/fontkit@^1.1.1'
-import type { InvoiceDocument } from '../../../shared/order-invoice.ts'
+import { invoiceLineDisplayAmounts, type InvoiceDocument } from '../../../shared/order-invoice.ts'
 import { notoSansBase64 } from './invoice-font/noto-sans.ts'
 import { embedInvoiceLogo } from './order-invoice-logo.ts'
 
@@ -76,34 +76,43 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
   sellerLines.forEach((line, index) => draw(line, 42, y - index * 15))
   buyerLines.forEach((line, index) => draw(line, 309, y - index * 15))
   y -= Math.max(sellerLines.length, buyerLines.length) * 15 + 24
+  const displayLines = snapshot.lines.map((line) => ({ line, ...invoiceLineDisplayAmounts(line, snapshot.vatRate) }))
+  const showRounding = displayLines.some(({ roundingCents }) => roundingCents !== 0)
+  const columns = showRounding
+    ? { nameWidth: 163, quantity: 252, unit: 340, vat: 384 }
+    : { nameWidth: 223, quantity: 304, unit: 393, vat: 439 }
   const tableHeader = () => {
     draw('Toode / teenus', 42, y, 9, muted)
-    right('Kogus', 304, y, 9); right('Hind KM-ta', 393, y, 9)
-    right('KM', 439, y, 9); right('Rida KM-ta', 553, y, 9)
+    right('Kogus', columns.quantity, y, 9); right('Hind KM-ta', columns.unit, y, 9)
+    right('KM', columns.vat, y, 9)
+    if (showRounding) right('Ümardus', 463, y, 9)
+    right('Rida KM-ta', 553, y, 9)
     y -= 12
     page.drawLine({ start: { x: 42, y }, end: { x: 553, y }, thickness: .6, color: rgb(.8, .81, .82) })
     y -= 19
   }
   reserve(55); tableHeader()
-  for (const line of snapshot.lines) {
-    const names = wrap([line.name, line.options].filter(Boolean).join(' · '), font, 9, 223)
+  for (const { line, unitNetCents, roundingCents } of displayLines) {
+    const names = wrap([line.name, line.options].filter(Boolean).join(' · '), font, 9, columns.nameWidth)
     // Inputs are bounded; exceptionally long option descriptions can span pages.
     let first = true
     for (const name of names) {
       if (y < 90) { newPage(); tableHeader() }
       draw(name, 42, y, 9)
       if (first) {
-        right(String(line.quantity), 304, y, 9)
-        const unitNet = line.unitGrossCents / (snapshot.vatRate === null ? 1 : 1 + snapshot.vatRate / 100)
-        right((sign * unitNet / 100).toFixed(4).replace('.', ','), 393, y, 9)
-        right(snapshot.vatRate === null ? '—' : `${snapshot.vatRate}%`, 439, y, 9)
+        right(String(line.quantity), columns.quantity, y, 9)
+        right(money(sign * unitNetCents), columns.unit, y, 9)
+        right(snapshot.vatRate === null ? '—' : `${snapshot.vatRate}%`, columns.vat, y, 9)
+        if (showRounding) right(money(sign * roundingCents), 463, y, 9)
         right(money(sign * line.netCents), 553, y, 9)
       }
       first = false; y -= 14
     }
     y -= 9
   }
-  reserve(165); y -= 12
+  reserve(showRounding ? 185 : 165)
+  if (showRounding) paragraph('Reasumma = kogus × hind KM-ta + ümardus. Kõik summad on eurodes.', 8)
+  y -= 12
   draw('Kokku käibemaksuta', 309, y); right(`${money(sign * snapshot.netCents)} €`, 553, y); y -= 21
   if (snapshot.vatRate !== null) {
     draw(`Käibemaks ${snapshot.vatRate}%`, 309, y); right(`${money(sign * snapshot.vatCents)} €`, 553, y); y -= 21

@@ -2,6 +2,10 @@
 
 Poeruum koostab uue ostuvoo tellimustele müüja nimel tasutud PDF-arve. Kassas küsitakse ostja arveaadressi; ettevõttele ostmisel ka ettevõtte nime, registrikoodi ja soovi korral Eesti KMKR numbrit. Maksuarvestus järgib poe olemasolevat Eesti 24% standardmäära või käibemaksukohustuseta müüja käsitlust. See muudatus ei lisa teisi maksumäärasid, ühendusesisest müüki ega osalisi tagastusi.
 
+PDF-i ühikuhinnad ja summad kuvatakse kahe komakohaga. Kui ümardatud netoühikuhind korda kogus erineb salvestatud netoreasummast, lisatakse tabelisse „Ümardus” veerg: reasumma = kogus × hind KM-ta + ümardus. Nii jäävad arve algsed netosumma, käibemaks ja tasutud summa muutumatuks ning sendivahe on nähtav. Kreeditarvel pööratakse ka ümarduse märk ümber. Juba salvestatud PDF-e ei kirjutata üle.
+
+Ostukorv ja Stripe'i makse algatamine kasutavad ühist sendipõhist summade ja tasuta tarne piiri arvutust (`shared/order-pricing.ts`). Eurodeks teisendatakse summad alles kuvamisel.
+
 ## Andmed ja väljastamine
 
 - `create_invoiced_stripe_order` reserveerib kauba ning salvestab `orders.invoice_snapshot` samas tehingus. Müüja, ostja, hinnad, käibemaks ja tarne on pärast seda muutumatud. Korduspäring ei muuda vana müüjaandmestikku; ostja arveandmete muutmine nõuab uut ostukatset.

@@ -1,7 +1,7 @@
 import './orderDocuments.css'
 import { useEffect, useRef, useState } from 'react'
 import { startStripeStoreCheckout } from './lib/database'
-import { VAT_RATE } from './storefrontConfig'
+import { calculateOrderTotals, moneyToCents } from '../shared/order-pricing'
 import { checkoutAttemptId, forgetCheckoutAttempt } from './lib/checkoutAttempt'
 import ModalCloseButton from './ModalCloseButton'
 import {
@@ -65,7 +65,6 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
   const [billingAddress, setBillingAddress] = useState('')
   const [isPaying, setIsPaying] = useState(false)
   const [paymentError, setPaymentError] = useState('')
-  const itemTotal = items.reduce((sum, item) => sum + getProductPrice(item) * item.quantity, 0)
   const selectedParcelMachine = parcelMachines.find((machine) => machine.id === selectedParcelId)
   const defaultParcelPrice = enabledParcelProviders.length
     ? Math.min(...enabledParcelProviders.map((provider) => deliverySettings.parcelProviders[provider].price))
@@ -73,9 +72,16 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
   const baseDeliveryPrice = delivery === 'parcel'
     ? selectedParcelMachine ? deliverySettings.parcelProviders[selectedParcelMachine.provider].price : defaultParcelPrice
     : delivery === 'courier' ? deliverySettings.courierPrice : 0
-  const deliveryPrice = deliverySettings.freeShippingFrom > 0 && itemTotal >= deliverySettings.freeShippingFrom ? 0 : baseDeliveryPrice
-  const orderTotal = itemTotal + deliveryPrice
-  const vatAmount = vatRegistered ? orderTotal * VAT_RATE / (1 + VAT_RATE) : 0
+  const totals = calculateOrderTotals({
+    items: items.map((item) => ({ unitGrossCents: moneyToCents(getProductPrice(item)), quantity: item.quantity })),
+    deliveryCents: moneyToCents(baseDeliveryPrice),
+    freeShippingFromCents: moneyToCents(deliverySettings.freeShippingFrom),
+    vatRegistered,
+  })
+  const itemTotal = totals.productSubtotalCents / 100
+  const deliveryPrice = totals.deliveryCents / 100
+  const orderTotal = totals.totalCents / 100
+  const vatAmount = totals.vatCents / 100
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -208,7 +214,7 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
                   <div className="cart-item__copy">
                     <strong>{item.name}</strong>
                     {Object.keys(item.selectedOptions).length > 0 && <small>{Object.entries(item.selectedOptions).map(([name, value]) => `${name}: ${value}`).join(' · ')}</small>}
-                    <span>{formatEuro(getProductPrice(item) * item.quantity)}</span>
+                    <span>{formatEuro(moneyToCents(getProductPrice(item)) * item.quantity / 100)}</span>
                     <div className="cart-item__quantity" role="group" aria-label={`${item.name} kogus`}>
                       <button type="button" onClick={() => onQuantityChange(item.cartKey, item.quantity - 1)} aria-label="Vähenda kogust">−</button>
                       <output aria-live="polite">{item.quantity}</output>
@@ -221,7 +227,7 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
                 </div>
               ))}
             </div>
-            <div className="cart-total"><span>Kokku</span><strong>{itemTotal} €</strong></div>
+            <div className="cart-total"><span>Kokku</span><strong>{formatEuro(itemTotal)}</strong></div>
             <button className="pay" type="button" onClick={() => setStep('checkout')}>Vormista tellimus</button>
           </> : <form onSubmit={completeCheckout}>
             <label>Nimi<input required name="customerName" autoComplete="name" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
@@ -326,7 +332,7 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
               {items.map((item) => (
                 <div className="summary-item" key={item.cartKey}>
                   <span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? ` · ${Object.values(item.selectedOptions).join(', ')}` : ''}</span>
-                  <span>{formatEuro(getProductPrice(item) * item.quantity)}</span>
+                  <span>{formatEuro(moneyToCents(getProductPrice(item)) * item.quantity / 100)}</span>
                 </div>
               ))}
               <div><span>Tarne</span><span>{deliveryPrice.toFixed(2).replace('.', ',')} €</span></div>

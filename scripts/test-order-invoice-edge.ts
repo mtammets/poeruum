@@ -1,5 +1,5 @@
 // Offline tests: real PDF renderer and HTTP handlers, no live payments/emails.
-import { PDFDict, PDFDocument, PDFName, PDFNumber, PDFRawStream } from 'npm:pdf-lib@^1.17.1'
+import { PDFDict, PDFDocument, PDFName, PDFNumber, PDFPage, PDFRawStream } from 'npm:pdf-lib@^1.17.1'
 import { buildInvoiceSnapshot, parseInvoiceBuyer, type InvoiceDocument } from '../shared/order-invoice.ts'
 import { renderOrderInvoice } from '../supabase/functions/_shared/order-invoice-pdf.ts'
 import { processOrderDocument, readDocumentPdf } from '../supabase/functions/_shared/order-documents.ts'
@@ -35,6 +35,44 @@ Deno.test('PDF invoices embed Estonian text and paginate long orders; credits re
   assert(longPdf.getPageCount() > 2, 'Long rows must paginate')
   const credit = { ...invoice, kind: 'credit' as const, number: 'TEST-2026-000002', original_number: invoice.number }
   assert((await PDFDocument.load(await renderOrderInvoice(credit))).getTitle() === 'Kreeditarve TEST-2026-000002', 'Credit title incorrect')
+})
+
+Deno.test('PDF prices use two decimals and show signed row rounding on invoices and credits', async () => {
+  const document = fixture()
+  document.snapshot = buildInvoiceSnapshot({
+    settings: { businessName: 'Pood OÜ', registryCode: '12345678', businessAddress: 'Tallinn',
+      contactEmail: 'pood@example.invalid', vatRegistered: true, vatNumber: 'EE123456789' },
+    buyer: document.snapshot.buyer, storeName: 'Pood', storeSlug: 'pood', delivery: 'Järeletulemine', deliveryCents: 0,
+    items: ['Toode A', 'Toode B'].map((name) => ({ name, options: '', quantity: 1, unitGrossCents: 999 })),
+  })
+  const originalDrawText = PDFPage.prototype.drawText
+  const text: string[] = []
+  PDFPage.prototype.drawText = function (value, options) {
+    text.push(value)
+    return originalDrawText.call(this, value, options)
+  }
+  const before = JSON.stringify(document.snapshot)
+  try {
+    for (const credit of [false, true]) {
+      text.length = 0
+      const pdf = await PDFDocument.load(await renderOrderInvoice({ ...document,
+        kind: credit ? 'credit' : 'invoice', original_number: credit ? document.number : null }))
+      assert(pdf.getPageCount() === 1, 'Rounding columns pushed a short invoice onto another page')
+      assert(text.includes('Ümardus'), 'Missing rounding column')
+      assert(text.filter((value) => value === (credit ? '-8,06' : '8,06')).length === 3, 'Unit prices are not rounded to cents')
+      assert(text.includes(credit ? '0,01' : '-0,01'), 'Row rounding has the wrong sign')
+      for (const amount of ['16,11', '3,87', '19,98']) {
+        assert(text.includes(`${credit ? '-' : ''}${amount} €`), `Captured total ${amount} changed`)
+      }
+      assert(!text.some((value) => /\d,\d{3,}/.test(value)), 'PDF still contains more than two decimal places')
+      assert(text.some((value) => value.startsWith('Reasumma =')), 'Rounding formula is missing')
+    }
+    text.length = 0
+    await renderOrderInvoice(fixture())
+    assert(!text.includes('Ümardus'), 'Unnecessary rounding column on exact net prices')
+    assert(text.includes('10,00') && text.includes('3,00'), 'Exact prices do not use two decimals')
+    assert(JSON.stringify(document.snapshot) === before, 'Rendering mutated the fiscal snapshot')
+  } finally { PDFPage.prototype.drawText = originalDrawText }
 })
 
 const logoOrigin = 'https://invoice-logo.example.invalid'

@@ -958,6 +958,31 @@ test('checkout explains Link and opens a payment page only after the customer co
   expect(checkoutRequests).toBe(1)
 })
 
+test('checkout and cart totals use cents at the free delivery boundary', async ({ page }) => {
+  await receiptBackend(page, () => ({ body: { receipt: receiptFixture } }))
+  for (const threshold of [50, 50.01]) {
+    await page.goto('/?checkout=status')
+    await page.evaluate(async (freeShippingFrom) => {
+      const { mountCheckoutHarness } = await import('/e2e/checkout-harness.tsx')
+      mountCheckoutHarness({ initialStep: 'cart', vatRegistered: true,
+        items: [
+          { id: 'sale', name: 'Soodustoode', price: 4, salePrice: 3.26, quantity: 10, image: '/images/kaubamaja-example-art.webp', alt: '', cartKey: 'sale', selectedOptions: {} },
+          { id: 'other', name: 'Teine toode', price: 17.40, quantity: 1, image: '/images/kaubamaja-example-art.webp', alt: '', cartKey: 'other', selectedOptions: {} },
+        ],
+        deliverySettings: { parcelProviders: { omniva: { enabled: false, price: 3.5 }, dpd: { enabled: false, price: 3.5 }, smartposti: { enabled: false, price: 3.5 } },
+          courierEnabled: true, courierPrice: 3.5, pickupEnabled: true, pickupAddress: 'Testi 1', freeShippingFrom },
+      })
+    }, threshold)
+    await expect(page.locator('.cart-total strong')).toHaveText('50,00 €')
+    await expect(page.getByText('32,60 €', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Vormista tellimus' }).click()
+    const freeDelivery = threshold === 50
+    await expect(page.getByRole('button', { name: `Edasi maksma · ${freeDelivery ? '50,00' : '53,50'} €` })).toBeVisible()
+    await expect(page.locator('.vat-row')).toContainText(freeDelivery ? '9,68 €' : '10,35 €')
+    await expect(page.locator('.checkout-summary').getByText(freeDelivery ? '0,00 €' : '3,50 €', { exact: true })).toBeVisible()
+  }
+})
+
 test('checkout retries keep their attempt after errors and reloads, and change it for a different purchase', async ({ page }) => {
   const attempts: Array<{ checkoutRequestId: string }> = []
   await receiptBackend(page, () => ({ body: { receipt: receiptFixture } }))

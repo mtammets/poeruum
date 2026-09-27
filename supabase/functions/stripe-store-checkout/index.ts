@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { buildInvoiceSnapshot, parseInvoiceBuyer, InvoiceInputError } from '../../../shared/order-invoice.ts'
+import { calculateOrderTotals, moneyToCents } from '../../../shared/order-pricing.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
 
 const corsHeaders = {
@@ -33,7 +34,6 @@ type CheckoutBody = {
 }
 
 const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
-const moneyToCents = (value: unknown) => Math.max(0, Math.round(Number(value ?? 0) * 100))
 const storefrontRootDomain = (configured: string) => (Deno.env.get('STOREFRONT_ROOT_DOMAIN')?.trim()
   || new URL(configured).hostname.replace(/^www\./, '')).toLowerCase().replace(/^\.+|\.+$/g, '')
 
@@ -117,7 +117,6 @@ Deno.serve(async (request) => {
     const orderItems: Record<string, unknown>[] = []
     const invoiceItems: Array<{ name: string; options: string; quantity: number; unitGrossCents: number; image?: string }> = []
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = []
-    let productSubtotalCents = 0
 
     for (const requested of requestedItems) {
       const product = productsById.get(String(requested.id))
@@ -142,7 +141,6 @@ Deno.serve(async (request) => {
       }
       const optionText = Object.entries(selectedOptions).map(([name, value]) => `${name}: ${String(value)}`).join(', ')
       invoiceItems.push({ name: String(product.name), options: optionText, quantity, unitGrossCents: unitAmount, image: String(product.image_url ?? '') })
-      productSubtotalCents += unitAmount * quantity
       lineItems.push({
         quantity,
         price_data: {
@@ -170,27 +168,28 @@ Deno.serve(async (request) => {
       return json({ error: 'Valitud tarneviis pole korrektne.' }, 400)
     }
     const parcelProviders = asRecord(deliverySettings.parcelProviders)
-    let deliveryCents = 0
+    let baseDeliveryCents = 0
     if (body.delivery.type === 'parcel') {
       const provider = String(body.delivery.provider ?? '')
       const providerSettings = asRecord(parcelProviders[provider])
       if (!provider || providerSettings.enabled !== true) return json({ error: 'Valitud pakiautomaadi tarne pole enam saadaval.' }, 409)
-      deliveryCents = moneyToCents(providerSettings.price)
+      baseDeliveryCents = moneyToCents(providerSettings.price)
     } else if (body.delivery.type === 'courier') {
       if (deliverySettings.courierEnabled !== true) return json({ error: 'Kullerteenus pole enam saadaval.' }, 409)
-      deliveryCents = moneyToCents(deliverySettings.courierPrice)
+      baseDeliveryCents = moneyToCents(deliverySettings.courierPrice)
     } else if (body.delivery.type === 'pickup') {
       if (deliverySettings.pickupEnabled !== true) return json({ error: 'Järeletulemine pole enam saadaval.' }, 409)
     }
-    const freeShippingFromCents = moneyToCents(deliverySettings.freeShippingFrom)
-    if (freeShippingFromCents > 0 && productSubtotalCents >= freeShippingFromCents) deliveryCents = 0
+    const { productSubtotalCents, deliveryCents, totalCents } = calculateOrderTotals({
+      items: invoiceItems, deliveryCents: baseDeliveryCents,
+      freeShippingFromCents: moneyToCents(deliverySettings.freeShippingFrom), vatRegistered: sellerVatRegistered,
+    })
     if (deliveryCents > 0) lineItems.push({
       quantity: 1,
       price_data: { currency: 'eur', unit_amount: deliveryCents, product_data: { name: 'Tarne', description: body.delivery.label } },
     })
 
     const orderNumber = `PR-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`
-    const totalCents = productSubtotalCents + deliveryCents
     const reservationExpiresAt = new Date(Date.now() + 35 * 60 * 1000).toISOString()
     const deliveryLabel = body.delivery.type === 'pickup'
       ? ['Tulen ise järele', String(deliverySettings.pickupAddress ?? '').trim()].filter(Boolean).join(' · ') : body.delivery.label
