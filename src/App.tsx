@@ -1,5 +1,5 @@
 import OrderDocumentLinks from './OrderDocumentLinks'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
@@ -61,6 +61,7 @@ import {
   type StoreTheme,
 } from './storefrontModel'
 
+const StoreQrDialog = lazy(() => import('./StoreQrDialog'))
 const formatEuro = (value: number) => `${value.toFixed(2).replace('.', ',')} €`
 const DEMO_SELLER = {
   businessName: 'Poeruumi Näidispood',
@@ -302,6 +303,7 @@ export type StorefrontProps = {
   initialPublished?: boolean
   merchantMode?: boolean
   adminShowcaseMode?: boolean
+  embeddedPreview?: boolean
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
   stripeSubscriptionStatus?: string | null
@@ -324,7 +326,7 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
   const hasPreviewBar = Boolean(onExit && (!merchantMode || adminShowcaseMode))
@@ -363,6 +365,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [showStoreDirectoryReturn, setShowStoreDirectoryReturn] = useState(() =>
     Boolean(isSeoStorefront && storeSlug && hasStoreDirectoryVisitContext(storeSlug)))
   const [isSettingsOpen, setIsSettingsOpen] = useState(shouldOpenInitialSettings)
+  const [isStoreQrOpen, setIsStoreQrOpen] = useState(false)
   const [isSettingsHome, setIsSettingsHome] = useState(!shouldOpenInitialSettings)
   const [settingsSaveStatus, setSettingsSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [isPublicationBusy, setIsPublicationBusy] = useState(false)
@@ -702,7 +705,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [storeId, customDomainRecord?.id, customDomainStatus])
 
   useEffect(() => {
-    if (!storeId) return
+    if (!storeId || embeddedPreview) return
     let active = true
     const refreshProducts = () => listProducts(storeId)
       .then((nextProducts) => { if (active) setPersistedProducts(nextProducts) })
@@ -710,10 +713,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     refreshProducts()
     window.addEventListener('focus', refreshProducts)
     return () => { active = false; window.removeEventListener('focus', refreshProducts) }
-  }, [storeId])
+  }, [storeId, embeddedPreview])
 
   useEffect(() => {
-    if (!storeId) return
+    if (!storeId || embeddedPreview) return
     let active = true
     const refreshCategories = () => listProductCategories(storeId)
       .then((nextCategories) => { if (active) setProductCategories(nextCategories) })
@@ -721,7 +724,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     refreshCategories()
     window.addEventListener('focus', refreshCategories)
     return () => { active = false; window.removeEventListener('focus', refreshCategories) }
-  }, [storeId])
+  }, [storeId, embeddedPreview])
 
   const hasPendingRefund = orders.some((order) => ['requested', 'pending'].includes(order.refundStatus ?? ''))
   useEffect(() => {
@@ -1522,10 +1525,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [isAddOpen, addProductStep])
 
   useEffect(() => {
+    if (embeddedPreview) return
     localStorage.setItem('autoSwipeEnabled', String(autoSwipeEnabled))
     localStorage.setItem('autoSwipeDelay', String(autoSwipeDelay))
     localStorage.setItem('autoSwipeSpeed', String(autoSwipeSpeed))
-  }, [autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed])
+  }, [autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, embeddedPreview])
 
   useEffect(() => {
     if (!showAddedToast) return
@@ -1638,7 +1642,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     const track = trackRef.current
     track?.scrollTo({ left: (index + 1) * track.clientWidth, behavior: 'smooth' })
     const product = displayProducts[index]
-    if (!isSeoStorefront || !storeSlug || !product) return
+    if (embeddedPreview || !isSeoStorefront || !storeSlug || !product) return
     const nextSlug = getProductUrlSlug(product)
     const nextPath = isDedicatedStorefrontHostname(window.location.hostname)
       ? `/toode/${encodeURIComponent(nextSlug)}/`
@@ -1736,7 +1740,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [activeProduct, reportInitialVisualReady])
 
   useEffect(() => {
-    if (!isSeoStorefront || !storeSlug) return
+    if (embeddedPreview || !isSeoStorefront || !storeSlug) return
     const routedProduct = productRouteSlug
       ? displayProducts.find((product) =>
         getProductUrlSlug(product).toLowerCase() === productRouteSlug.toLowerCase()
@@ -1789,7 +1793,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       },
     })
   }, [
-    isSeoStorefront, storeSlug, productRouteSlug, displayProducts, editableStoreName,
+    embeddedPreview, isSeoStorefront, storeSlug, productRouteSlug, displayProducts, editableStoreName,
     storeDescription, storeLogo, storeSeoTitle, storeSeoDescription, productBrand, searchConsoleVerification,
   ])
   const editOptionValues = editProductOptionValues.split(',').map((value) => value.trim()).filter(Boolean)
@@ -3072,7 +3076,13 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 {status && <em>{status}</em>}
                 <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>
-            })}</div>
+            })}
+              {storeId && storeSlug && isLoggedIn && !adminShowcaseMode && <button type="button" data-section="qr" aria-haspopup="dialog" onClick={() => setIsStoreQrOpen(true)}>
+                <span className="settings-home__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM21 15v6h-6M3 12h6M12 3v6M12 15v6M15 12h6" /></svg></span>
+                <span className="settings-home__copy"><strong>QR-kood</strong><small>Logo ja allalaadimine</small></span>
+                <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+              </button>}
+            </div>
           </div> : null}
           {settingsSection === 'store' && <div className="settings-panel" role="tabpanel">
             <header><span>POE SEADED</span><p>Halda poe nähtavust ja põhiandmeid.</p></header>
@@ -3490,6 +3500,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </div>
         </section>
       </div>}
+      {isStoreQrOpen && isSettingsOpen && isLoggedIn && <Suspense fallback={null}><StoreQrDialog url={`https://${storePublicUrl}`} storeName={editableStoreName} logo={storeLogo} onClose={() => setIsStoreQrOpen(false)} /></Suspense>}
       {activeProduct && isShareOpen && <div className="overlay share-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsShareOpen(false)}>
         <section className={`share-sheet${isShareDragging ? ' is-dragging' : ''}`} style={shareDragY ? { transform: `translateY(${shareDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Jaga toodet">
           <div

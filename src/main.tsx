@@ -22,6 +22,8 @@ const PlatformApp = lazy(() => import('./PlatformApp'))
 const Kaubamaja = lazy(() => import('./Kaubamaja'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
 const OrderReceiptPage = lazy(() => import('./OrderReceiptPage'))
+const StorefrontPreviewFrame = lazy(() => import('./StorefrontPreviewFrame'))
+const isEmbeddedStorePreview = window.parent !== window && document.documentElement.dataset.storefrontPreview === 'true'
 
 const receiptLocation = readReceiptLocation(window.location.href)
 if (receiptLocation) {
@@ -232,8 +234,10 @@ function Root() {
   return isPoeruumHomepage ? <Homepage /> : <PlatformWithSupport />
 }
 
-registerGlobalErrorMonitoring()
+if (!isEmbeddedStorePreview) registerGlobalErrorMonitoring()
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><ErrorBoundary><Root /></ErrorBoundary></StrictMode>,
+  <StrictMode><ErrorBoundary>{isEmbeddedStorePreview
+    ? <Suspense fallback={null}><StorefrontPreviewFrame /></Suspense>
+    : <Root />}</ErrorBoundary></StrictMode>,
 )

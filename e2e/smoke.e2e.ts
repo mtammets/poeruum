@@ -212,7 +212,10 @@ test('legal routes render their dedicated documents', async ({ page }) => {
 
 test('storefront preview owns its toolbar styles independently', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Vaata näidispoodi' }).click()
+  await page.evaluate(async () => {
+    const { mountStorefrontPreviewHarness } = await import('/e2e/storefront-preview-harness.tsx')
+    mountStorefrontPreviewHarness()
+  })
 
   const previewBar = page.locator('.platform-preview-bar')
   await expect(previewBar).toBeVisible()
@@ -233,7 +236,10 @@ test('storefront modal close button owns mobile taps', async ({ browser, baseURL
   const page = await context.newPage()
 
   await page.goto(`${baseURL}/`)
-  await page.getByRole('link', { name: 'Ava näidispood' }).tap()
+  await page.evaluate(async () => {
+    const { mountStorefrontPreviewHarness } = await import('/e2e/storefront-preview-harness.tsx')
+    mountStorefrontPreviewHarness()
+  })
 
   await page.getByRole('button', { name: 'Poe omanik? Logi sisse' }).tap()
   const dialog = page.getByRole('dialog', { name: 'Logi sisse' })
@@ -249,7 +255,10 @@ test('storefront modal close button owns mobile taps', async ({ browser, baseURL
 
 test('support launcher is limited to the owner editing view', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Vaata näidispoodi' }).click()
+  await page.evaluate(async () => {
+    const { mountStorefrontPreviewHarness } = await import('/e2e/storefront-preview-harness.tsx')
+    mountStorefrontPreviewHarness()
+  })
 
   const supportProbe = page.locator('.support-launcher')
   await page.locator('.app-shell').evaluate((storefront) => {

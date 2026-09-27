@@ -1,18 +1,20 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
+import { PDFDocument } from 'pdf-lib'
+import { PNG } from 'pngjs'
+import jsQR from 'jsqr'
 
 const USER_ID = '20000000-0000-4000-8000-000000000001'
 const STORE_ID = '10000000-0000-4000-8000-000000000001'
 
-test('homepage loads responsive showcase images in parallel and waits for the next slide', async ({ page }) => {
+test('homepage embeds the real storefront settings and details in its phone', async ({ page }) => {
   await installSupabaseBackend(page)
-  await page.clock.install()
-  const showcaseId = '00000000-0000-4000-8000-000000000001'
-  const imageRoot = 'http://localhost:4174/storage/v1/object/public/product-images/showcase-test'
+  const imageRoot = 'http://localhost:4174/storage/v1/object/public/product-images/homepage-test'
   const products = ['lamp', 'vase', 'tray'].map((name, index) => {
     const image = `${imageRoot}/${name}/master.svg`
     const variant = (role: string, width: number, height: number) => ({ url: `${imageRoot}/${name}/${role}.svg`, width, height, bytes: width })
     return {
-      id: name, store_id: showcaseId, name, image_url: image, gallery: [image], price: 39,
+      id: name, store_id: STORE_ID, name, image_url: image, gallery: [image], price: 39, sale_price: 31.2,
       search_visible: true, sort_order: index,
       image_variants: { [image]: { mimeType: 'image/svg+xml', variants: {
         thumb: variant('thumb', 320, 480), medium: variant('medium', 640, 960),
@@ -20,53 +22,227 @@ test('homepage loads responsive showcase images in parallel and waits for the ne
       } } },
     }
   })
-  let releaseStore!: () => void
-  let releaseNextImage!: () => void
-  const storeReady = new Promise<void>((resolve) => { releaseStore = resolve })
-  const nextImageReady = new Promise<void>((resolve) => { releaseNextImage = resolve })
   let storeRequests = 0
   let productRequests = 0
   const requestedImages: string[] = []
+  const previewStore = { ...store, name: 'Esimene pood', slug: 'pood-0', settings: {
+    ...store.settings, editableStoreName: 'Esimene pood', storeTheme: 'paper', storeAccent: '#cc6633',
+    storeLogo: '/images/poeruum-email-logo.svg', storeDescription: 'Poe päris tutvustus.',
+    deliverySettings: {
+      dispatchTime: { enabled: true, min: 1, max: 2, unit: 'business_days' },
+      parcelProviders: { omniva: { enabled: true, price: 3 }, dpd: { enabled: false, price: 0 }, smartposti: { enabled: false, price: 0 } },
+      courierEnabled: false, pickupEnabled: false, courierPrice: 0, freeShippingFrom: 0, pickupAddress: '',
+    },
+    autoSwipeEnabled: false,
+  } }
+  await page.addInitScript(() => localStorage.setItem('autoSwipeEnabled', 'true'))
   await page.route('**/rest/v1/public_storefronts?*', async (route) => {
     storeRequests += 1
-    await storeReady
-    await json(route, { ...store, id: showcaseId, slug: 'naidispood' })
+    await json(route, previewStore)
   })
+  const catalogProduct = { id: 'lamp', name: 'Lamp', image_url: '/images/kaubamaja-example-ceramics.webp', price: 39 }
+  await page.route('**/rest/v1/rpc/storefront_seo_catalog', (route) => json(route, [
+    { store_id: 'empty', store_slug: 'empty', store_name: 'Tühi pood', products: [] },
+    { store_id: 'sold', store_slug: 'sold', store_name: 'Väljamüüdud pood', products: [{ ...catalogProduct, stock: 0 }] },
+    ...['Esimene pood', 'Teine pood', 'Kolmas pood', 'Neljas pood'].map((name, index) => ({
+      store_id: index === 0 ? STORE_ID : `store-${index}`, store_slug: `pood-${index}`, store_name: name,
+      primary_hostname: index === 0 ? 'esimene.example.ee' : undefined,
+      store_logo: '/images/poeruum-email-logo.svg', products: [catalogProduct],
+    })),
+  ]))
   await page.route('**/rest/v1/products?*', async (route) => {
     productRequests += 1
+    expect(new URL(route.request().url()).searchParams.get('store_id')).toBe(`eq.${STORE_ID}`)
     await json(route, products)
   })
   await page.route(`${imageRoot}/**`, async (route) => {
     requestedImages.push(route.request().url())
-    if (route.request().url().includes('/vase/')) await nextImageReady
     await route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="480"><rect width="320" height="480" fill="#265f43"/></svg>' })
   })
 
-  try {
-    await page.goto('/')
-    // Products must be requested even while the store response is still held.
-    await expect.poll(() => productRequests).toBe(1)
-    releaseStore()
-    const slides = page.locator('.platform-phone__slides')
-    const firstImage = slides.locator('img').nth(1)
-    await expect(firstImage).toHaveAttribute('fetchpriority', 'high')
-    await expect.poll(() => firstImage.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true)
-    expect(await firstImage.evaluate((image: HTMLImageElement) => image.currentSrc)).toContain('/lamp/thumb.svg')
-    expect(requestedImages.some((url) => url.endsWith('/master.svg'))).toBe(false)
-    expect(storeRequests).toBe(1)
-    expect(productRequests).toBe(1)
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  const phone = page.frameLocator('.platform-phone__frame')
+  await expect(page.locator('.platform-phone')).toHaveAttribute('href', 'https://esimene.example.ee/')
+  await expect(phone.locator('.story-brand')).toContainText('ESIMENE POOD')
+  await expect(phone.locator('.app-shell')).toHaveAttribute('data-store-theme', 'paper')
+  await expect(phone.locator('.product-price .price-value strong')).toHaveText('31.2 €')
+  await expect(phone.locator('.product-details__buy')).toHaveCSS('background-color', 'rgb(204, 102, 51)')
+  await expect(phone.locator('.product-availability')).toContainText('Saadame 1–2 tööpäevaga')
+  await expect(phone.locator('.site-footer')).toContainText('Poe päris tutvustus.')
+  await expect(phone.locator('.storefront-product-links')).toHaveCSS('position', 'absolute')
+  await expect(page.getByText(/näidispood/i)).toHaveCount(0)
+  const previewOrder = await phone.locator('.story-slide > img').evaluateAll((images) =>
+    images.slice(1, -1).map((image) => image.getAttribute('alt')!),
+  )
+  expect([...previewOrder].sort()).toEqual(['lamp', 'tray', 'vase'])
+  const firstImage = phone.locator('.story-slide > img').nth(1)
+  await expect(firstImage).toHaveAttribute('fetchpriority', 'high')
+  await expect.poll(() => firstImage.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true)
+  expect(await firstImage.evaluate((image: HTMLImageElement) => image.currentSrc)).toContain(`/${previewOrder[0]}/medium.svg`)
+  expect(requestedImages.some((url) => url.endsWith('/master.svg'))).toBe(false)
+  expect(storeRequests).toBe(1)
+  expect(productRequests).toBe(1)
+  expect(await phone.locator('body').evaluate(() => innerWidth)).toBe(390)
+  expect(await page.evaluate(() => localStorage.getItem('autoSwipeEnabled'))).toBe('true')
+  const motion = await phone.locator('.story-track').evaluate((track) => new Promise<{
+    width: number; samples: Array<{ time: number; x: number; y: number; product: string | null }>
+  }>((resolve) => {
+    const width = track.clientWidth
+    const start = performance.now()
+    const samples: Array<{ time: number; x: number; y: number; product: string | null }> = []
+    const sample = () => {
+      samples.push({
+        time: performance.now() - start, x: track.scrollLeft, y: scrollY,
+        product: document.querySelector('.product-details h1')?.textContent ?? null,
+      })
+      if (track.scrollLeft >= 2 * width - 1) resolve({ width, samples })
+      else requestAnimationFrame(sample)
+    }
+    sample()
+  }))
+  const { width, samples } = motion
+  const maximumScroll = Math.max(...samples.map((sample) => sample.y))
+  expect(maximumScroll).toBeGreaterThan(0)
+  const reading = samples.filter((sample) => sample.y === maximumScroll)
+  expect(reading.at(-1)!.time - reading[0].time).toBeGreaterThan(2500)
+  const returnedToTop = samples.find((sample, index) => sample.y === 0 && samples[index - 1]?.y > 0)!
+  const swipe = samples.filter((sample) => sample.x > width + 1)
+  expect(swipe[0].time - returnedToTop.time).toBeGreaterThan(500)
+  expect(swipe.every((sample) => sample.y === 0)).toBe(true)
+  expect(swipe.some((sample) => sample.x < 2 * width - 1)).toBe(true)
+  expect(samples.filter((sample) => sample.x === width).every((sample) => sample.product === previewOrder[0])).toBe(true)
+  expect(await page.evaluate(() => scrollY)).toBe(0)
+  await expect(phone.locator('.product-details h1')).toHaveText(previewOrder[1])
+  expect(errors).toEqual([])
 
-    await page.clock.runFor(3500)
-    await expect(slides).toHaveAttribute('style', 'transform: translateX(-100%);')
-    releaseNextImage()
-    await expect.poll(() => slides.locator('img').nth(2).evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true)
-    await page.clock.runFor(3300)
-    await expect(slides).toHaveAttribute('style', 'transform: translateX(-200%);')
-  } finally {
-    releaseStore()
-    releaseNextImage()
-  }
+  const cards = page.locator('.platform-stores__card')
+  await expect(cards).toHaveCount(3)
+  await expect(cards.first()).toHaveAttribute('href', 'https://esimene.example.ee/')
+  await expect(cards).toHaveText(['Esimene pood', 'Teine pood', 'Kolmas pood'])
+  await expect(page.getByRole('link', { name: 'Vaata kõiki poode' })).toHaveAttribute('href', 'https://kaubamaja.poeruum.ee/')
+  expect(await page.locator('.platform-stores').evaluate((section) =>
+    Boolean(section.compareDocumentPosition(document.getElementById('hind')!) & Node.DOCUMENT_POSITION_FOLLOWING),
+  )).toBe(true)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Ava menüü' }).click()
+  await expect(page.locator('.platform-mobile-menu').getByRole('link', { name: 'Kaubamaja' })).toHaveAttribute('href', 'https://kaubamaja.poeruum.ee/')
+  await page.getByRole('button', { name: 'Sulge menüü' }).click()
+  await cards.first().scrollIntoViewIfNeeded()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
+  expect(await page.locator('.platform-stores__grid').evaluate((grid) => grid.scrollWidth > grid.clientWidth)).toBe(true)
+
+  await page.route('https://esimene.example.ee/', (route) => route.fulfill({ contentType: 'text/html', body: '<h1>Esimene pood</h1>' }))
+  await page.locator('.platform-phone').focus()
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL('https://esimene.example.ee/')
 })
+
+test('homepage omits unavailable stores and keeps signup and Kaubamaja accessible', async ({ page }) => {
+  await installSupabaseBackend(page)
+  await page.goto('/')
+  await expect(page.locator('.platform-hero__copy > button')).toHaveText('Alusta tasuta →')
+  await expect(page.locator('.platform-phone')).toHaveCount(0)
+  await expect(page.locator('.platform-stores')).toHaveCount(0)
+  await expect(page.locator('nav').getByRole('link', { name: 'Kaubamaja' })).toHaveAttribute('href', 'https://kaubamaja.poeruum.ee/')
+})
+
+test('merchant downloads readable branded QR artwork for the active shop domain', async ({ page }, testInfo) => {
+  await installSupabaseBackend(page, { ...store, settings: { ...store.settings, storeLogo: '/images/poeruum-email-logo.svg' } })
+  await page.route('**/functions/v1/custom-domain', (route) => json(route, {
+    domain: { id: 'domain-1', hostname: 'keraamika.example.ee', status: 'active' },
+  }))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await expect(page.locator('.settings-store-address strong')).toHaveText('keraamika.example.ee')
+  await expect(page.locator('.settings-store-address button')).toHaveCount(1)
+  const opener = page.locator('.settings-home button[data-section="qr"]')
+  await expect(opener).toContainText('QR-kood')
+  await opener.click()
+  const qr = page.getByRole('dialog', { name: 'Poe QR-kood', exact: true })
+  await expect(qr.getByLabel('Poe logoga')).toBeChecked()
+  await expect(qr.getByRole('button', { name: 'Ring', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  for (const shape of ['round', 'square']) {
+    await qr.getByRole('button', { name: shape === 'round' ? 'Ring' : 'Ruut', exact: true }).click()
+    const pngButton = qr.getByRole('button', { name: /Laadi PNG alla/ })
+    await expect(pngButton).toBeEnabled()
+    const pngDownload = page.waitForEvent('download')
+    await pngButton.click()
+    const png = await pngDownload
+    expect(png.suggestedFilename()).toMatch(new RegExp(`-qr-${shape === 'round' ? 'kleeps' : 'ruut'}\\.png$`))
+    const pngPath = testInfo.outputPath(`${shape}.png`)
+    await png.saveAs(pngPath)
+    const artwork = PNG.sync.read(await readFile(pngPath))
+    expect([artwork.width, artwork.height]).toEqual([2000, 2000])
+    let logoPixels = 0
+    for (let index = 0; index < artwork.data.length; index += 4) {
+      const alpha = artwork.data[index + 3] / 255
+      for (let channel = 0; channel < 3; channel++) artwork.data[index + channel] = artwork.data[index + channel] * alpha + 255 * (1 - alpha)
+      if (artwork.data[index + 1] > artwork.data[index] + 20) logoPixels++
+    }
+    expect(logoPixels).toBeGreaterThan(1000)
+    if (shape === 'round') {
+      // The artwork should fill every side of the circle, not leave a small
+      // square QR surrounded by an otherwise empty circular sticker.
+      for (const [cx, cy] of [[.5, .1], [.9, .5], [.5, .9], [.1, .5]]) {
+        let darkPixels = 0
+        for (let dy = -50; dy <= 50; dy += 5) {
+          for (let dx = -50; dx <= 50; dx += 5) {
+            const index = ((cy * artwork.height + dy) * artwork.width + cx * artwork.width + dx) * 4
+            if (artwork.data[index] < 32 && artwork.data[index + 1] < 32 && artwork.data[index + 2] < 32) darkPixels++
+          }
+        }
+        expect(darkPixels).toBeGreaterThan(60)
+      }
+    }
+    expect(jsQR(new Uint8ClampedArray(artwork.data), artwork.width, artwork.height)?.data).toBe('https://keraamika.example.ee')
+    const pdfDownload = page.waitForEvent('download')
+    await qr.getByRole('button', { name: /Laadi PDF alla/ }).click()
+    const pdfPath = testInfo.outputPath(`${shape}.pdf`)
+    await (await pdfDownload).saveAs(pdfPath)
+    const pdf = await PDFDocument.load(await readFile(pdfPath))
+    expect(pdf.getPageCount()).toBe(1)
+    expect(pdf.getPage(0).getWidth()).toBeCloseTo(50 * 72 / 25.4)
+    expect(pdf.getPage(0).getHeight()).toBeCloseTo(50 * 72 / 25.4)
+    await qr.screenshot({ path: testInfo.outputPath(`${shape}-dialog.png`) })
+  }
+  await page.keyboard.press('Escape')
+  await expect(qr).toHaveCount(0)
+  await expect(opener).toBeFocused()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
+  await page.setViewportSize({ width: 1440, height: 1100 })
+  await page.getByRole('dialog', { name: 'Seaded', exact: true }).screenshot({ path: testInfo.outputPath('settings-qr-card.png') })
+})
+
+for (const missingLogo of [false, true]) {
+  test(`merchant QR works ${missingLogo ? 'without a store logo' : 'after a logo fails to load'}`, async ({ page }) => {
+    await installSupabaseBackend(page, { ...store, settings: { ...store.settings, storeLogo: missingLogo ? null : '/missing-qr-logo.svg' } })
+    await page.route('**/missing-qr-logo.svg', (route) => route.fulfill({ status: 404, body: '' }))
+    await page.goto('/?continue_setup=1')
+    await page.getByLabel('E-posti aadress').fill(user.email)
+    await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+    await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+    await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+    await page.locator('.settings-home button[data-section="qr"]').click()
+    const qr = page.getByRole('dialog', { name: 'Poe QR-kood', exact: true })
+    await expect(qr.locator('header p')).toHaveText('sisselogimise-testipood.poeruum.ee')
+    if (!missingLogo) {
+      await expect(qr.getByRole('alert')).toContainText('Logoga QR-koodi ei õnnestunud luua')
+      await expect(qr.getByRole('button', { name: /Laadi PNG alla/ })).toBeDisabled()
+      await qr.getByLabel('Poe logoga').uncheck()
+    }
+    await expect(qr.getByRole('button', { name: /Laadi PNG alla/ })).toBeEnabled()
+    await expect(qr.getByRole('alert')).toHaveCount(0)
+    await qr.getByRole('button', { name: 'Sulge', exact: true }).click()
+    await expect(qr).toHaveCount(0)
+  })
+}
 
 const encodeJwtPart = (value: Record<string, unknown>) => Buffer
   .from(JSON.stringify(value))

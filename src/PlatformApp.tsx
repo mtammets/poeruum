@@ -1,17 +1,19 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import BillingPlanDialog from './BillingPlanDialog'
 import PasswordInput from './PasswordInput'
 import { Brand } from './Brand'
 import { createStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
-import { loadPublicShowcase, PHONE_IMAGE_SIZES } from './lib/showcase'
+import { loadPublicShowcase } from './lib/showcase'
+import HomepageStorePhone from './HomepageStorePhone'
 import { getResponsiveImageProps } from './storefrontModel'
+import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPaymentSetupState, getStoreDestination, getStripeSetupMode, type OnboardingStep, type StripeSetupPurpose } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { clearPasswordRecoveryIntent, getPasswordResetRedirectUrl, isPasswordRecoveryLocation, preservePasswordRecoveryIntent } from './lib/passwordRecovery'
 import { getMerchantLoginUrl, getMerchantStoreUrl, getRequestedProductSlug, getRequestedStoreSlug, isDedicatedStorefrontHostname, isMerchantManagementLocation, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
 import { isHomepageAnalyticsLocation, startHomepageEngagementTracking, trackHomepageEvent } from './lib/homepageAnalytics'
-import { products as bundledProducts, type Product } from './products'
+import type { Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { createRandomId } from './lib/randomId'
 import { stripeRequirementsFromStore, type StripeRequirementSummary } from './lib/stripeRequirements'
@@ -36,7 +38,7 @@ const Storefront = lazy(async () => {
 })
 const StripeEmbeddedOnboarding = lazy(() => import('./StripeEmbeddedOnboarding'))
 
-type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'product' | 'publish' | 'storefront' | 'sample'
+type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'product' | 'publish' | 'storefront'
 type RegistryLookupStatus = 'idle' | 'loading' | 'found' | 'not-found' | 'error'
 const STRIPE_REQUIREMENTS_LINK_FAILURE = 'Seda linki ei saanud avada. Logi sisse õige Poeruumi kontoga.'
 
@@ -250,10 +252,6 @@ function PlatformFlow() {
   const [isSetupExiting, setIsSetupExiting] = useState(false)
   const [setupExitSaveFailed, setSetupExitSaveFailed] = useState(false)
   const [isBillingCardOpen, setIsBillingCardOpen] = useState(false)
-  const [phoneSlideIndex, setPhoneSlideIndex] = useState(1)
-  const [isPhoneSwipeAnimated, setIsPhoneSwipeAnimated] = useState(true)
-  const [isPhoneDetailsOpen, setIsPhoneDetailsOpen] = useState(false)
-  const [loadedPhoneImages, setLoadedPhoneImages] = useState<Set<string>>(() => new Set())
   const [store, setStore] = useState<StoreRecord | null>(null)
   const [storedProducts, setStoredProducts] = useState<Product[]>([])
   const [authError, setAuthError] = useState('')
@@ -269,22 +267,10 @@ function PlatformFlow() {
   const [isPublicStoreLoading, setIsPublicStoreLoading] = useState(shouldLoadPublicStore)
   const [isPublicStoreVisualReady, setIsPublicStoreVisualReady] = useState(false)
   const requestedProductSlug = getRequestedProductSlug(window.location)
-  const [sampleStore, setSampleStore] = useState<PublicStoreRecord | null>(null)
-  const [sampleProducts, setSampleProducts] = useState<Product[]>([])
-  const phonePreviewProducts = useMemo(() => (sampleStore ? sampleProducts : bundledProducts)
-    .filter((product) => product.searchVisible !== false)
-    .map((product) => ({
-      ...product,
-      description: product.description ?? '',
-      price: product.salePrice !== undefined && product.price !== undefined && product.salePrice < product.price
-        ? product.salePrice
-        : product.price ?? 0,
-      images: Array.from(new Set([product.image, ...(product.gallery ?? [])])).filter(Boolean),
-    })), [sampleStore, sampleProducts])
-  const phoneProductIndex = phonePreviewProducts.length
-    ? (phoneSlideIndex - 1 + phonePreviewProducts.length) % phonePreviewProducts.length
-    : 0
-  const isPhonePreviewReady = phonePreviewProducts.length > 0 && loadedPhoneImages.has(phonePreviewProducts[0].images[0])
+  const [featuredStores, setFeaturedStores] = useState<StoreDirectoryEntry[]>([])
+  const [featuredStore, setFeaturedStore] = useState<StoreDirectoryEntry | null>(null)
+  const [featuredStorefront, setFeaturedStorefront] = useState<PublicStoreRecord | null>(null)
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
 
   useEffect(() => {
     if (screen !== 'business' || !email) return
@@ -505,21 +491,23 @@ function PlatformFlow() {
   }, [])
 
   useEffect(() => {
-    if (!['landing', 'sample'].includes(screen) || !isSupabaseConfigured) return
+    if (screen !== 'landing' || shouldLoadPublicStore || isMerchantLocation || !isSupabaseConfigured) return
     let active = true
-    const loadSampleStore = (refresh = false) => loadPublicShowcase(refresh).then(({ store: found, products: nextProducts }) => {
+    const loadFeaturedStores = (refresh = false) => loadPublicShowcase(refresh).then(({ stores, store: found, storefront, products: nextProducts }) => {
       if (!active) return
-      setSampleStore(found)
-      setSampleProducts(nextProducts)
+      setFeaturedStores(stores)
+      setFeaturedStore(found)
+      setFeaturedStorefront(storefront)
+      setFeaturedProducts(nextProducts)
     }).catch(() => {
       // Keep the last successful preview when refreshing fails.
     })
-    void loadSampleStore()
-    const refreshSampleStore = () => { void loadSampleStore(true) }
-    window.addEventListener('focus', refreshSampleStore)
+    void loadFeaturedStores()
+    const refreshFeaturedStores = () => { void loadFeaturedStores(true) }
+    window.addEventListener('focus', refreshFeaturedStores)
     return () => {
       active = false
-      window.removeEventListener('focus', refreshSampleStore)
+      window.removeEventListener('focus', refreshFeaturedStores)
     }
   }, [screen])
 
@@ -618,7 +606,7 @@ function PlatformFlow() {
 
   useEffect(() => {
     if (!store || !onlineUserId || shouldLoadPublicStore
-      || ['landing', 'sample', 'login', 'forgot-password', 'reset-password', 'account'].includes(screen)) return
+      || ['landing', 'login', 'forgot-password', 'reset-password', 'account'].includes(screen)) return
     // Covers a newly created shop and a changed shop address as well as login.
     redirectToOwnedStore(store)
   }, [store?.slug, onlineUserId, screen])
@@ -1192,52 +1180,6 @@ function PlatformFlow() {
     }
   }, [isMobileNavOpen])
 
-  useEffect(() => {
-    if (screen !== 'landing' || !isPhonePreviewReady || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setIsPhoneDetailsOpen(false)
-      return
-    }
-    let closeDetailsTimeout: number | undefined
-    const showDetails = () => {
-      setIsPhoneDetailsOpen(true)
-      closeDetailsTimeout = window.setTimeout(() => setIsPhoneDetailsOpen(false), 3600)
-    }
-    const firstDetailsTimeout = window.setTimeout(showDetails, 7600)
-    const detailsInterval = window.setInterval(showDetails, 15000)
-    return () => {
-      window.clearInterval(detailsInterval)
-      window.clearTimeout(firstDetailsTimeout)
-      if (closeDetailsTimeout !== undefined) window.clearTimeout(closeDetailsTimeout)
-    }
-  }, [screen, isPhonePreviewReady])
-
-  useEffect(() => {
-    if (screen !== 'landing' || isPhoneDetailsOpen || phonePreviewProducts.length < 2
-      || !loadedPhoneImages.has(phonePreviewProducts[phoneProductIndex].images[0])
-      || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const swipeInterval = window.setInterval(() => {
-      const nextProduct = phonePreviewProducts[(phoneProductIndex + 1) % phonePreviewProducts.length]
-      if (loadedPhoneImages.has(nextProduct.images[0])) setPhoneSlideIndex((index) => index + 1)
-    }, 3200)
-    return () => window.clearInterval(swipeInterval)
-  }, [screen, isPhoneDetailsOpen, phoneProductIndex, phonePreviewProducts, loadedPhoneImages])
-
-  useEffect(() => {
-    if (!phonePreviewProducts.length || phoneSlideIndex !== phonePreviewProducts.length + 1) return
-    const normalizeTimeout = window.setTimeout(() => {
-      setIsPhoneSwipeAnimated(false)
-      setPhoneSlideIndex(1)
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => setIsPhoneSwipeAnimated(true)))
-    }, 560)
-    return () => window.clearTimeout(normalizeTimeout)
-  }, [phoneSlideIndex, phonePreviewProducts.length])
-
-  useEffect(() => {
-    setIsPhoneSwipeAnimated(false)
-    setPhoneSlideIndex(1)
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setIsPhoneSwipeAnimated(true)))
-  }, [phonePreviewProducts.length])
-
   const resetPlatformFlow = () => {
     setScreen('landing')
     setEmail('')
@@ -1289,7 +1231,6 @@ function PlatformFlow() {
   const backMap: Partial<Record<Screen, Screen>> = {
     login: 'landing', 'forgot-password': 'login', 'reset-password': 'login', account: 'landing', store: 'account', business: 'store', payments: 'business', shipping: 'payments', product: 'shipping', publish: 'product',
   }
-  const phoneProduct = phonePreviewProducts[phoneProductIndex]
   const selectPricingPlan = (plan: PricingPlan) => {
     setPricingPlan(plan)
   }
@@ -1400,11 +1341,6 @@ function PlatformFlow() {
     setScreen('account')
   }
 
-  const openSampleStore = (placement: 'nav' | 'mobile_nav' | 'phone') => {
-    trackHomepageEvent('demo_open', placement, onlineUserId ? 'merchant' : 'anonymous')
-    setScreen('sample')
-  }
-
   const trackFaqOpen = (event: React.MouseEvent<HTMLElement>) => {
     const details = event.currentTarget.parentElement
     // Native toggle events are also trusted for default/programmatic opens.
@@ -1470,18 +1406,6 @@ function PlatformFlow() {
       isLeaving={Boolean(publicStore && !isPublicStoreLoading && isPublicStoreVisualReady)}
     />
   </div>
-  if (screen === 'sample') return <Storefront
-    key={`sample-storefront-${sampleStore?.id ?? 'bundled'}`}
-    storeId={sampleStore?.id}
-    initialSettings={sampleStore?.settings}
-    seedProducts={sampleStore ? sampleProducts : undefined}
-    storeName={sampleStore?.name}
-    storeSlug={sampleStore?.slug}
-    paymentProvider={sampleStore?.payment_provider}
-    paymentsReady={false}
-    initialShipping={sampleStore?.shipping}
-    onExit={leaveMerchantStore}
-  />
   if (screen === 'product') return <>
   <Storefront
     key={`onboarding-product-${store?.id ?? 'new'}`}
@@ -1528,7 +1452,7 @@ function PlatformFlow() {
     <nav><Brand /><div ref={mobileNavRef} className="platform-nav-actions">
       <a className="platform-nav-link" href="#hind">Hind</a>
       <a className="platform-nav-link" href="#kkk">KKK</a>
-      <button className="platform-nav-link" onClick={() => openSampleStore('nav')}>Vaata näidispoodi</button>
+      <a className="platform-nav-link" href="https://kaubamaja.poeruum.ee/">Kaubamaja</a>
       {onlineUserId
         ? <>
           <button className="platform-nav-link platform-nav-login" type="button" onClick={() => void signOutFromLanding()} disabled={isAuthBusy}>{isAuthBusy ? 'Login välja…' : 'Logi välja'}</button>
@@ -1546,7 +1470,7 @@ function PlatformFlow() {
       {isMobileNavOpen && <div className="platform-mobile-menu">
         <a href="#hind" onClick={() => setIsMobileNavOpen(false)}><span>Hind</span><b>→</b></a>
         <a href="#kkk" onClick={() => setIsMobileNavOpen(false)}><span>KKK</span><b>→</b></a>
-        <button type="button" onClick={() => { setIsMobileNavOpen(false); openSampleStore('mobile_nav') }}><span>Näidispood</span><b>→</b></button>
+        <a href="https://kaubamaja.poeruum.ee/"><span>Kaubamaja</span><b>→</b></a>
         {onlineUserId
           ? <>
             <button type="button" onClick={resumeMerchantFlow}><span>Minu pood</span><b>→</b></button>
@@ -1566,50 +1490,30 @@ function PlatformFlow() {
         <p>Loo, avalda ja halda oma e-poodi otse telefonist.</p>
         <button onClick={() => startOrResumeMerchantFlow()}>{onlineUserId ? 'Jätka oma poega' : 'Alusta tasuta'} <span>→</span></button>
       </div>
-      <div className="platform-phone-stage">
-        <div className={`platform-phone${isPhoneDetailsOpen ? ' is-details' : ''}`} role="link" tabIndex={0} aria-label="Ava näidispood" onClick={() => openSampleStore('phone')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSampleStore('phone') } }}>
-          <div className="platform-phone__screen"><div className="platform-phone__journey">
-            <section className="platform-phone__story">
-              {phoneProduct
-                ? <>
-                  <div className={`platform-phone__slides${isPhoneSwipeAnimated ? '' : ' is-jumping'}`} style={{ transform: `translateX(-${phoneSlideIndex * 100}%)` }}>
-                    {[phonePreviewProducts[phonePreviewProducts.length - 1], ...phonePreviewProducts, phonePreviewProducts[0]].map((product, index) => <img
-                      {...getResponsiveImageProps(product, product.images[0], 'medium')}
-                      sizes={PHONE_IMAGE_SIZES}
-                      fetchPriority={index === 1 ? 'high' : 'low'}
-                      decoding="async"
-                      onLoad={() => setLoadedPhoneImages((current) => current.has(product.images[0]) ? current : new Set(current).add(product.images[0]))}
-                      alt={product.name}
-                      key={`${product.id}-${index}`}
-                    />)}
-                  </div>
-                  <div className="platform-phone__shade" />
-                  <div className="platform-phone__progress" style={{ gridTemplateColumns: `repeat(${phonePreviewProducts.length}, 1fr)` }}>{phonePreviewProducts.map((product, index) => <i className={index === phoneProductIndex ? 'is-active' : ''} key={product.id} />)}</div>
-                  <header className="platform-phone__header">
-                    <div><img src="/images/poeruum-email-logo.svg" alt="" /><strong>POERUUM</strong></div>
-                    <aside><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg></i><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h10l2-8H6" /><circle cx="9" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg><b>0</b></i></aside>
-                  </header>
-                  {phoneProduct.images.length > 1 && <div className="platform-phone__thumbs">{phoneProduct.images.map((image, index) => <span className={index === 0 ? 'is-active' : ''} key={image}><img {...getResponsiveImageProps(phoneProduct, image, 'thumb')} sizes="1.9rem" decoding="async" fetchPriority="low" alt="" /></span>)}</div>}
-                  <div className="platform-phone__buy"><span>Osta</span><strong>{phoneProduct.price} €</strong></div>
-                </>
-                : <div className="platform-phone__empty" aria-hidden="true" />}
-            </section>
-            <section className="platform-phone__details">
-              {phoneProduct
-                ? <>
-                  <header><h3>{phoneProduct.name}</h3><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></svg></span></header>
-                  <div><small>Kirjeldus</small><p>{phoneProduct.description}</p></div>
-                  <div className="platform-phone__price"><small>Hind</small><strong>{phoneProduct.price} €</strong></div>
-                  <div className="platform-phone__cart">Lisa ostukorvi</div>
-                  <footer><strong>POERUUM</strong><small>Valmistatud hoolega Eestis</small></footer>
-                </>
-                : null}
-            </section>
-          </div></div>
-        </div>
-      </div>
+      {featuredStore && featuredStorefront && featuredProducts.length > 0 && <HomepageStorePhone
+        store={featuredStorefront} products={featuredProducts} url={featuredStore.url}
+      />}
     </section>
     <section className="platform-benefits"><div><b>01</b><strong>Loo konto</strong><span>Alusta vaid mõne minutiga</span></div><div><b>02</b><strong>Seadista oma pood</strong><span>Lisa tooted, maksed ja tarne</span></div><div><b>03</b><strong>Avalda ja hakka müüma</strong><span>Sinu poe veebiaadressil</span></div></section>
+    {featuredStores.length > 0 && <section className="platform-stores" aria-label="Poeruumis loodud poed">
+      <div className="platform-stores__grid">
+        {featuredStores.map((store) => {
+          const product = store.id === featuredStore?.id
+            ? featuredProducts.find((product) => product.id === store.products[0].id)
+            : undefined
+          const image = product?.image || store.products[0].imageUrl!
+          return <a className="platform-stores__card" href={store.url} key={store.id}>
+            <div className="platform-stores__image"><img
+              {...(product ? getResponsiveImageProps(product, image, 'medium') : { src: image })}
+              sizes="(max-width: 760px) 82vw, (max-width: 1216px) 30vw, 360px"
+              alt="" loading="lazy" decoding="async"
+            /></div>
+            <span>{store.name}<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 15 15 5M7 5h8v8" /></svg></span>
+          </a>
+        })}
+      </div>
+      <a className="platform-stores__all" href="https://kaubamaja.poeruum.ee/">Vaata kõiki poode <span aria-hidden="true">→</span></a>
+    </section>}
     <section className="platform-pricing" id="hind">
       <div className="platform-pricing__copy">
         <span className="platform-eyebrow">Kaks lihtsat valikut</span>

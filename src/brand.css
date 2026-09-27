@@ -5611,6 +5611,7 @@
 .settings-home button[data-section='notifications'] { --section-accent: #b59cff; }
 .settings-home button[data-section='billing'] { --section-accent: #ffd166; }
 .settings-home button[data-section='account'] { --section-accent: #9eabb9; }
+.settings-home button[data-section='qr'] { --section-accent: #75d7d0; }
 
 .settings-home button:hover,
 .settings-home button:active {
