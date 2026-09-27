@@ -44,7 +44,7 @@ test('Kaubamaja is a minimal first-party store directory', async ({ page }) => {
   await expect(page.locator('.store-directory')).toHaveCSS('background-color', 'rgb(243, 240, 231)')
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.getByRole('link', { name: 'Minu poe haldus', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Minu poe haldus', exact: true })).toBeHidden()
   await expect(page.locator('.store-directory__create-short')).toBeVisible()
   await expect(page.locator('.store-directory__create-full')).toBeHidden()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
