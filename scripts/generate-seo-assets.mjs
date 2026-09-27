@@ -3,6 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { config } from 'dotenv'
 import { aboutPoeruumContent } from '../shared/about-poeruum-content.mjs'
+import { renderAboutPoeruumContent } from '../shared/about-poeruum-markup.mjs'
 
 config({ path: '.env', quiet: true })
 
@@ -139,19 +140,10 @@ const renderPage = (metadata) => baseHtml
   .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(metadata.title)}</title>`)
   .replace(contentBlockPattern, `<!-- poeruum:content:start --><main class="seo-fallback">${fallbackLoaderMarkup}<div><span>${escapeHtml(metadata.eyebrow || 'Poeruum')}</span><h1>${escapeHtml(metadata.heading || metadata.title)}</h1><p>${escapeHtml(metadata.description)}</p>${metadata.ctaUrl ? `<a href="${escapeHtml(metadata.ctaUrl)}">${escapeHtml(metadata.ctaLabel || 'Ava leht')}</a>` : ''}${metadata.secondaryCtaUrl ? `<a class="seo-fallback__secondary" href="${escapeHtml(metadata.secondaryCtaUrl)}">${escapeHtml(metadata.secondaryCtaLabel || 'Vaata veel')}</a>` : ''}</div></main><!-- poeruum:content:end -->`)
 
-const aboutBrandMarkup = '<div class="platform-brand" aria-label="Poeruum"><span class="platform-brand__mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="1" y="1" width="38" height="38" rx="11"></rect><path d="M10 16.5h20l-1.7 15H11.7L10 16.5Z"></path><path d="M14.8 18v-3.2C14.8 11.3 16.9 9 20 9s5.2 2.3 5.2 5.8V18"></path><path d="M15.5 22.2h9"></path></svg></span><strong>Poe<span>ruum</span></strong></div>'
-const renderAboutPoeruumPage = (metadata) => {
-  const capabilities = aboutPoeruumContent.capabilities.map((item, index) => `<article><span aria-hidden="true">0${index + 1}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.text)}</p></article>`).join('')
-  const audiences = aboutPoeruumContent.audiences.map((item) => `<article><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.text)}</p></article>`).join('')
-  const steps = aboutPoeruumContent.steps.map((step, index) => `<li><span>${index + 1}</span><div><h3>${escapeHtml(step.title)}</h3><p>${escapeHtml(step.text)}</p></div></li>`).join('')
-  const faqs = aboutPoeruumContent.faqs.map((faq, index) => `<details${index === 0 ? ' open' : ''}><summary>${escapeHtml(faq.question)}<span aria-hidden="true">+</span></summary><p>${escapeHtml(faq.answer)}</p></details>`).join('')
-  const content = `<main class="about-poeruum"><nav class="about-poeruum__nav" aria-label="Põhinavigatsioon"><a href="/" aria-label="Poeruumi avaleht">${aboutBrandMarkup}</a><a class="about-poeruum__nav-cta" href="/#hind">Loo oma pood <span aria-hidden="true">↗</span></a></nav><header class="about-poeruum__hero"><h1>${escapeHtml(aboutPoeruumContent.title)}</h1><p>${escapeHtml(aboutPoeruumContent.definition)}</p><div class="about-poeruum__hero-links"><a href="/#hind">Loo oma pood <span aria-hidden="true">→</span></a><a href="https://kaubamaja.poeruum.ee/">Vaata Kaubamaja</a></div></header><section class="about-poeruum__workflow" aria-labelledby="about-workflow-title"><header><h2 id="about-workflow-title">${escapeHtml(aboutPoeruumContent.workflowHeading)}</h2><p>${escapeHtml(aboutPoeruumContent.workflowIntro)}</p></header><div class="about-poeruum__capabilities">${capabilities}</div></section><section class="about-poeruum__audience" aria-labelledby="about-audience-title"><header><h2 id="about-audience-title">${escapeHtml(aboutPoeruumContent.audienceHeading)}</h2><p>${escapeHtml(aboutPoeruumContent.audienceIntro)}</p></header><div>${audiences}</div></section><aside class="about-poeruum__alternative" aria-labelledby="about-alternative-title"><h2 id="about-alternative-title">${escapeHtml(aboutPoeruumContent.alternativeHeading)}</h2><p>${escapeHtml(aboutPoeruumContent.alternativeText)}</p></aside><section class="about-poeruum__steps" aria-labelledby="about-steps-title"><h2 id="about-steps-title">${escapeHtml(aboutPoeruumContent.stepsHeading)}</h2><ol>${steps}</ol></section><section class="about-poeruum__faq" aria-labelledby="about-faq-title"><h2 id="about-faq-title">${escapeHtml(aboutPoeruumContent.faqHeading)}</h2><div>${faqs}</div></section><section class="about-poeruum__closing"><p>Valmis alustama?</p><h2>Sinu pood võib olla järgmine.</h2><div><a href="/#hind">Loo oma pood <span aria-hidden="true">→</span></a><a href="https://kaubamaja.poeruum.ee/">Vaata poode</a></div></section><footer class="about-poeruum__footer"><a href="/">${aboutBrandMarkup}</a><div><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span></div></footer></main>`
-
-  return baseHtml
-    .replace(seoBlockPattern, renderSeoBlock(metadata))
-    .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(metadata.title)}</title>`)
-    .replace(contentBlockPattern, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
-}
+const renderAboutPoeruumPage = (metadata) => baseHtml
+  .replace(seoBlockPattern, renderSeoBlock(metadata))
+  .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(metadata.title)}</title>`)
+  .replace(contentBlockPattern, `<!-- poeruum:content:start -->${renderAboutPoeruumContent()}<!-- poeruum:content:end -->`)
 
 const writePage = async (relativePath, html) => {
   const directory = path.join(outputDirectory, relativePath)

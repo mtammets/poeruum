@@ -7,13 +7,14 @@ export const aboutPoeruumContent: {
   definition: string
   workflowHeading: string
   workflowIntro: string
-  capabilities: ContentItem[]
+  capabilities: (ContentItem & { detail: string })[]
   audienceHeading: string
   audienceIntro: string
-  audiences: ContentItem[]
+  audiences: (ContentItem & { image: string; imageAlt: string; label: string })[]
   alternativeHeading: string
   alternativeText: string
   stepsHeading: string
+  stepsIntro: string
   steps: ContentItem[]
   faqHeading: string
   faqs: FaqItem[]

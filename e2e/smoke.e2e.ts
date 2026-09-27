@@ -97,7 +97,7 @@ test('storefront keeps a clear return path to Kaubamaja without crowding direct 
 test('Poeruum explainer page answers who the platform is for', async ({ page }) => {
   await page.goto('/mis-on-poeruum/')
 
-  await expect(page.getByRole('heading', { name: 'Mis on Poeruum ja kellele see sobib?', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sinu tooted. Sinu e-pood.', exact: true })).toBeVisible()
   await expect(page.getByText(/Poeruum on Eestis loodud e-poeplatvorm/)).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Kellele Poeruum sobib?' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Millal tasub valida muu lahendus?' })).toBeVisible()
