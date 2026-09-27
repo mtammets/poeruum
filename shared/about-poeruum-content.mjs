@@ -21,6 +21,8 @@ export const aboutPoeruumContent = {
       detail: 'Paki teelepaneku korraldad sina. Ostjale saadetakse tellimuse kinnitus e-postiga.',
     },
   ],
+  directoryHeading: 'Sinu pood on nähtav ka Kaubamajas.',
+  directoryText: 'Avaldatud pood lisandub automaatselt Poeruumi Kaubamajja, kus ostjad saavad avastada poode ja otsida tooteid. Kaubamajast jõuab ostja otse sinu e-poodi.',
   audienceHeading: 'Kellele Poeruum sobib?',
   audienceIntro: 'Ettevõtjale, kes müüb füüsilisi tooteid ja tahab oma e-poodi ise hallata. Nii esimese toote müügiks kui ka olemasoleva valiku veebi toomiseks.',
   audiences: [

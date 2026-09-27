@@ -168,6 +168,33 @@ async function installProductHomepage(page: Page, brokenGallery = false, product
     : route.fulfill({ contentType: 'image/svg+xml', body: `<svg xmlns="http://www.w3.org/2000/svg" width="390" height="800"><rect width="390" height="800" fill="${route.request().url() === mainImage ? '#265f43' : '#cc6633'}"/></svg>` }))
 }
 
+test('explainer reuses the homepage phone and keeps the real shop preview on refresh', async ({ page }) => {
+  await installProductHomepage(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.goto('/mis-on-poeruum/')
+  const phone = page.locator('.about-poeruum__phone .platform-phone')
+  const frame = page.frameLocator('.platform-phone__frame')
+  await expect(phone).toHaveAttribute('href', 'https://kruk-kruk.poeruum.ee/')
+  await expect(frame.locator('.product-details h1')).toHaveText('Nokkmüts')
+  await expect(frame.locator('.product-price .price-value strong')).toHaveText('42 €')
+  await expect(frame.locator('.storefront-product-links')).toHaveCSS('position', 'absolute')
+  await expect(page.locator('.about-poeruum__sample-order, .about-poeruum__orders-preview')).toHaveCount(0)
+  await expect(page.getByText(/näidispood|näidisandmed/i)).toHaveCount(0)
+  await frame.locator('html').evaluate((node) => { node.dataset.previewProbe = 'preserved' })
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(frame.locator('html')).toHaveAttribute('data-preview-probe', 'preserved')
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 })
+    await phone.scrollIntoViewIfNeeded()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    expect(await frame.locator('body').evaluate(() => innerWidth)).toBe(390)
+    expect((await phone.boundingBox())!.width).toBeGreaterThan(200)
+  }
+  expect(errors).toEqual([])
+})
+
 test('homepage shows a second gallery image, resets a single product, and preserves the iframe on focus', async ({ page }) => {
   await installProductHomepage(page)
   await page.clock.install()

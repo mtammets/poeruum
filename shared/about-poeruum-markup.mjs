@@ -18,8 +18,8 @@ const icons = [
 ]
 const icon = (index) => `<svg viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[index]}</svg>`
 
-// This public page uses only native links and details. Share its escaped markup between
-// React and the build-time HTML so the content also works before (or without) JavaScript.
+// Share the escaped content between React and build-time HTML so it also works
+// without JavaScript. React mounts the shared homepage phone into the empty slot.
 export const renderAboutPoeruumContent = () => `
 <div class="about-poeruum">
   <a class="about-poeruum__skip" href="#tutvustus">Liigu lehe sisu juurde</a>
@@ -39,29 +39,9 @@ export const renderAboutPoeruumContent = () => `
           <a class="about-poeruum__button" href="/#hind">Loo oma pood ${arrow}</a>
           <a class="about-poeruum__text-link" href="https://kaubamaja.poeruum.ee/">Vaata Poeruumi poode <span aria-hidden="true">→</span></a>
         </div>
-        <ul class="about-poeruum__hero-points"><li>Oma veebiaadress</li><li>Telefonis hallatav</li><li>Eestikeelne keskkond</li></ul>
+        <ul class="about-poeruum__hero-points"><li>Oma veebiaadress</li><li>Telefonis hallatav</li><li>Nähtav Kaubamajas</li></ul>
       </div>
-      <figure class="about-poeruum__preview">
-        <div class="about-poeruum__preview-stage" role="img" aria-label="Näidis: keraamiline kruus sinu poes ja tasutud tellimus poe halduses.">
-          <div class="about-poeruum__preview-label" aria-hidden="true"><span>Sinu pood, sinu käekiri.</span><span>Näidisvaade</span></div>
-          <div class="about-poeruum__sample-store" aria-hidden="true">
-            <div class="about-poeruum__sample-address"><span>● ● ●</span>sinu-pood.poeruum.ee</div>
-            <div class="about-poeruum__sample-product">
-              <img src="/images/poeruumi-lood-tass.webp" alt="" width="1536" height="1024" fetchpriority="high">
-              <div class="about-poeruum__sample-brand">Sinu pood <span>✳</span></div>
-              <div class="about-poeruum__sample-description"><small>Loodud hoolega</small><strong>Igapäevane lemmik.</strong><div><span>Keraamiline kruus</span><b>24 €</b></div></div>
-            </div>
-          </div>
-          <div class="about-poeruum__sample-order" aria-hidden="true">
-            <span class="about-poeruum__order-icon">✓</span>
-            <div><small>Poe halduses</small><strong>Uus tellimus</strong></div>
-            <span class="about-poeruum__paid">Tasutud</span>
-            <div class="about-poeruum__order-line"><span>1 × Keraamiline kruus</span><b>24 €</b></div>
-            <div class="about-poeruum__order-shipping"><span>Tarne pakiautomaati</span><span>Valmis pakkimiseks</span></div>
-          </div>
-        </div>
-        <figcaption>Ostjale sinu pood. Sulle ülevaade müügist.</figcaption>
-      </figure>
+      <div class="about-poeruum__phone" id="about-poeruum-phone"></div>
     </header>
 
     <section id="voimalused" class="about-poeruum__section about-poeruum__workflow" aria-labelledby="about-workflow-title">
@@ -69,6 +49,10 @@ export const renderAboutPoeruumContent = () => `
       <div class="about-poeruum__capabilities">${content.capabilities.map((item, index) => `
         <article><div class="about-poeruum__capability-top">${icon(index)}<span>0${index + 1}</span></div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.text)}</p><p class="about-poeruum__detail">${escapeHtml(item.detail)}</p></article>`).join('')}
       </div>
+      <aside class="about-poeruum__directory" aria-labelledby="about-directory-title">
+        <h3 id="about-directory-title">${escapeHtml(content.directoryHeading)}</h3>
+        <div><p>${escapeHtml(content.directoryText)}</p><a class="about-poeruum__text-link" href="https://kaubamaja.poeruum.ee/">Tutvu Poeruumi Kaubamajaga ${arrow}</a></div>
+      </aside>
     </section>
 
     <section id="kellele" class="about-poeruum__section about-poeruum__audience" aria-labelledby="about-audience-title">

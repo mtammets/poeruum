@@ -1,0 +1,12 @@
+.platform-phone-stage { position: relative; z-index: 2; justify-self: end; width: 18rem; height: 35rem; }
+.platform-phone { position: relative; z-index: 2; display: block; width: 100%; height: 100%; padding: .55rem; overflow: hidden; border: 8px solid #17231c; border-radius: 2.8rem; outline: 0; background: #111; color: inherit; text-decoration: none; box-shadow: 0 35px 70px #17231c42; cursor: pointer; transform: rotate(4deg); transition: transform 220ms ease, box-shadow 220ms ease; }
+.platform-phone:hover { box-shadow: 0 40px 78px #17231c4f; transform: rotate(2.5deg) translateY(-.3rem); }
+.platform-phone:focus-visible { box-shadow: 0 0 0 4px var(--platform-lime), 0 40px 78px #17231c4f; }
+.platform-phone:active { transform: rotate(3deg) translateY(-.1rem) scale(.99); }
+.platform-phone__screen { width: 100%; height: 100%; overflow: hidden; border-radius: 2rem; background: #000; }
+.platform-phone__frame { display: block; width: 390px; border: 0; transform-origin: top left; pointer-events: none; }
+
+@media (max-width: 760px) {
+  .platform-phone-stage { justify-self: center; width: min(15.25rem, 72vw); height: min(29rem, 137vw); }
+  .platform-phone { border-width: 7px; border-radius: 2.55rem; transform: rotate(2deg); }
+}

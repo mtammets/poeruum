@@ -61,31 +61,10 @@
 .about-poeruum__hero-points { display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin: 1.55rem 0 0; padding: 0; list-style: none; color: var(--about-muted); font-size: .72rem; }
 .about-poeruum__hero-points li::before { margin-right: .35rem; color: #265f43; content: '✓'; }
 
-.about-poeruum__preview { min-width: 0; margin: 0; }
-.about-poeruum__preview-stage { position: relative; min-height: 29rem; border-radius: 1.5rem; background: #e4e9d9; background-image: linear-gradient(130deg, #e4e9d9, #edf0e5); }
-.about-poeruum__preview-label { position: absolute; top: 1.35rem; right: 1.5rem; left: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .7rem; color: #3e5747; }
-.about-poeruum__preview-label > span:first-child { font-weight: 600; }
-.about-poeruum__preview-label > span:last-child { padding: .2rem .5rem; border: 1px solid #b7c6b1; border-radius: 5px; font-size: .6rem; }
-.about-poeruum__sample-store { position: absolute; top: 4.4rem; left: 2.6rem; width: 65%; max-width: 20rem; padding: .4rem; border: 1px solid #d7d9cf; border-radius: 1rem; background: #fffdf8; box-shadow: 0 18px 35px #233b2221; transform: rotate(-4deg); }
-.about-poeruum__sample-address { display: flex; align-items: center; gap: .8rem; padding: .35rem .3rem .6rem; color: #647168; font-size: .56rem; }
-.about-poeruum__sample-address > span { color: #b9c2b6; font-size: .45rem; letter-spacing: .05em; }
-.about-poeruum__sample-product { position: relative; overflow: hidden; height: 19rem; border-radius: .6rem; background: #9c8c70; color: #fff; }
-.about-poeruum__sample-product > img { width: 100%; height: 100%; object-fit: cover; object-position: 47% center; }
-.about-poeruum__sample-product::after { position: absolute; inset: 0; background: linear-gradient(#17201650, transparent 25%, transparent 40%, #172016d6); content: ''; }
-.about-poeruum__sample-brand { position: absolute; z-index: 1; top: 1rem; right: 1rem; left: 1rem; display: flex; justify-content: space-between; font-size: .83rem; font-weight: 600; }
-.about-poeruum__sample-brand > span { font-size: 1.25rem; line-height: 1; }
-.about-poeruum__sample-description { position: absolute; z-index: 1; right: 1rem; bottom: 1rem; left: 1rem; }
-.about-poeruum__sample-description > small { display: block; margin-bottom: .35rem; font-size: .55rem; text-transform: uppercase; letter-spacing: .08em; }
-.about-poeruum__sample-description > strong { display: block; max-width: 9ch; margin-bottom: .8rem; font-family: Manrope, sans-serif; font-size: 1.75rem; font-weight: 600; line-height: 1.1; letter-spacing: -.05em; }
-.about-poeruum__sample-description > div { display: flex; justify-content: space-between; gap: .5rem; padding-top: .6rem; border-top: 1px solid #ffffff60; font-size: .68rem; }
-.about-poeruum__sample-order { position: absolute; z-index: 2; right: -1rem; bottom: 1.65rem; display: grid; grid-template-columns: 2.25rem 1fr auto; align-items: center; gap: .75rem; width: 17.75rem; padding: 1.1rem; border: 1px solid #dce2d7; border-radius: .85rem; background: #fffefa; box-shadow: 0 15px 32px #233b221a; }
-.about-poeruum__order-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: .65rem; background: #edf3d5; color: #265f43; font-size: 1rem; }
-.about-poeruum__sample-order small { display: block; color: var(--about-muted); font-size: .6rem; }
-.about-poeruum__sample-order strong { display: block; font-size: .82rem; }
-.about-poeruum__paid { align-self: start; padding: .2rem .45rem; border-radius: 1rem; background: #eaf2e6; color: #265f43; font-size: .55rem; font-weight: 700; }
-.about-poeruum__order-line { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: .5rem; padding-top: .75rem; border-top: 1px solid #e4e7dd; font-size: .67rem; }
-.about-poeruum__order-shipping { grid-column: 1 / -1; display: grid; gap: .15rem; color: var(--about-muted); font-size: .6rem; }
-.about-poeruum__preview figcaption { margin-top: .95rem; color: var(--about-muted); font-size: .72rem; text-align: center; }
+.about-poeruum__phone { display: grid; place-items: center; min-width: 0; padding: 1.25rem 2rem; }
+.about-poeruum__phone:empty { display: none; }
+.about-poeruum__phone .platform-phone-stage { justify-self: center; }
+.about-poeruum__hero:not(:has(.platform-phone)) { grid-template-columns: 1fr; }
 
 .about-poeruum__section { padding-block: 4.5rem; }
 .about-poeruum__section-heading { display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: 3rem; margin-bottom: 2.4rem; }
@@ -102,6 +81,10 @@
 .about-poeruum__capabilities h3 { margin-bottom: .8rem; }
 .about-poeruum__capabilities p { margin-bottom: 1.25rem; color: var(--about-muted); font-size: .88rem; line-height: 1.75; }
 .about-poeruum__capabilities .about-poeruum__detail { margin-top: auto; margin-bottom: 0; padding-top: 1rem; border-top: 1px solid var(--about-line); color: #396447; font-size: .8rem; }
+.about-poeruum__directory { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; margin-top: 2.75rem; padding-top: 2.25rem; border-top: 1px solid var(--about-line); }
+.about-poeruum__directory h3 { max-width: 21ch; color: #265f43; font-size: 1.65rem; letter-spacing: -.045em; }
+.about-poeruum__directory p { color: var(--about-muted); font-size: .9rem; line-height: 1.75; }
+.about-poeruum__directory a { margin-top: .75rem; }
 .about-poeruum__audience-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; }
 .about-poeruum__audience-image { position: relative; margin-bottom: 1.3rem; }
 .about-poeruum__audience-image img { display: block; width: 100%; height: auto; aspect-ratio: 1.5; object-fit: cover; border-radius: .8rem; }
@@ -168,8 +151,6 @@
   .about-poeruum__container { width: min(100% - 4rem, 75rem); }
   .about-poeruum__hero { gap: 2.25rem; }
   .about-poeruum__hero h1 { font-size: clamp(2.9rem, 5.4vw, 3.8rem); }
-  .about-poeruum__sample-store { left: 1.4rem; width: 75%; }
-  .about-poeruum__sample-order { right: -.6rem; width: 16.3rem; }
   .about-poeruum__capabilities article { padding-inline: 1.2rem; }
   .about-poeruum__pricing { padding: 2rem; }
   .about-poeruum__steps, .about-poeruum__faq { gap: 3rem; }
@@ -179,12 +160,9 @@
   .about-poeruum__nav-links { display: none; }
   .about-poeruum__hero { grid-template-columns: 1fr; gap: 2rem; padding: 3rem 0; }
   .about-poeruum__hero-copy { padding: 0; }
+  .about-poeruum__phone { padding: .5rem 1rem 1.5rem; }
   .about-poeruum__hero h1 { font-size: clamp(3rem, 8vw, 4rem); }
   .about-poeruum__intro { max-width: 38rem; }
-  .about-poeruum__preview { width: min(100%, 32rem); justify-self: center; }
-  .about-poeruum__preview-stage { min-height: 28rem; }
-  .about-poeruum__sample-store { left: 2rem; width: 65%; }
-  .about-poeruum__sample-order { right: .75rem; }
   .about-poeruum__section { padding-block: 3.25rem; }
   .about-poeruum__section-heading { grid-template-columns: 1fr; gap: 1.1rem; margin-bottom: 1.8rem; }
   .about-poeruum__section-heading h2 { max-width: 22ch; }
@@ -194,6 +172,7 @@
   .about-poeruum__capability-top { margin-bottom: 1rem; }
   .about-poeruum__capabilities p { margin-bottom: .75rem; }
   .about-poeruum__capabilities .about-poeruum__detail { padding-top: 0; border: 0; }
+  .about-poeruum__directory { grid-template-columns: 1fr; gap: 1rem; margin-top: 2rem; padding-top: 1.75rem; }
   .about-poeruum__audience-grid { gap: 1rem; }
   .about-poeruum__audience-grid h3 { font-size: 1rem; }
   .about-poeruum__audience-grid p { font-size: .8rem; }
@@ -220,13 +199,6 @@
   .about-poeruum .about-poeruum__eyebrow { margin-bottom: 1rem; font-size: .64rem; }
   .about-poeruum__hero .about-poeruum__actions { gap: .65rem 1rem; margin-top: 1.4rem; }
   .about-poeruum__hero-points { gap: .4rem .8rem; margin-top: 1rem; font-size: .68rem; }
-  .about-poeruum__preview-stage { min-height: 33.5rem; border-radius: 1rem; }
-  .about-poeruum__preview-label { top: 1rem; right: 1rem; left: 1rem; font-size: .6rem; }
-  .about-poeruum__preview-label > span:last-child { font-size: .52rem; }
-  .about-poeruum__sample-store { top: 3.8rem; left: 1.3rem; width: 77%; }
-  .about-poeruum__sample-product { height: 17.5rem; }
-  .about-poeruum__sample-order { right: .8rem; bottom: .9rem; width: min(16rem, 87%); padding: .85rem; gap: .55rem; }
-  .about-poeruum__preview figcaption { font-size: .65rem; }
   .about-poeruum__section { padding-block: 2.75rem; }
   .about-poeruum__audience-grid { grid-template-columns: 1fr; gap: 1.8rem; }
   .about-poeruum__audience-grid h3 { font-size: 1.15rem; }

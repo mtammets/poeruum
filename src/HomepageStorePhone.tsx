@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PublicStoreRecord } from './lib/database'
 import type { Product } from './products'
+import './homepageStorePhone.css'
 
 export type StorefrontPreviewData = { store: PublicStoreRecord; products: Product[] }
 

@@ -8,6 +8,8 @@ export const aboutPoeruumContent: {
   workflowHeading: string
   workflowIntro: string
   capabilities: (ContentItem & { detail: string })[]
+  directoryHeading: string
+  directoryText: string
   audienceHeading: string
   audienceIntro: string
   audiences: (ContentItem & { image: string; imageAlt: string; label: string })[]
