@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createServer, request } from 'node:http'
 import { once } from 'node:events'
+import { getStoreDirectoryHighlights, normalizeStoreDirectoryCatalog } from '../shared/store-directory.mjs'
 
 // Verify the actual production HTML, including when JavaScript is unavailable.
 const catalog = [10, 1, 1, 1].map((count, index) => ({
@@ -55,6 +56,13 @@ for (const records of [catalog, []]) {
     assert.ok(section)
     assert.equal(section.match(/<article /g)?.length, 8)
     assert.equal(section.match(/<img /g)?.length, 8)
+    const initialData = html.match(/<script type="application\/json" id="poeruum-store-directory-data" data-highlight-seed="(\d+)">(.*?)<\/script>/)
+    assert.ok(initialData)
+    const browserSelection = getStoreDirectoryHighlights(normalizeStoreDirectoryCatalog(JSON.parse(initialData[2])), Number(initialData[1]))
+    const serverNames = [...section.matchAll(/<h3>(.*?)<\/h3>/g)].map((match) => match[1])
+    const escapeHtml = (value) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
+    assert.deepEqual(serverNames, browserSelection.map(({ product }) => escapeHtml(product.name)))
+    assert.equal(new Set(serverNames).size, 8)
     assert.deepEqual([...section.matchAll(/class="store-directory__product-store">(.*?)<\/span>/g)].map((match) => match[1]), ['Pood 0', 'Pood 1', 'Pood 2', 'Pood 3', 'Pood 0', 'Pood 0', 'Pood 0', 'Pood 0'])
     assert.ok(section.includes('https://custom.example.ee/toode/toode-0/?from=kaubamaja'))
     assert.ok(section.includes('<strong>24 €</strong><del>30 €</del>'))

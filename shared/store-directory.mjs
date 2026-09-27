@@ -112,13 +112,24 @@ export function formatStoreDirectoryPrice(value) {
   })} €`
 }
 
-// Use the same stable selection in the server HTML and the browser. Give each
-// store a turn before taking another product from a larger catalog.
-export function getStoreDirectoryHighlights(stores) {
-  const candidates = stores.map((store) => ({
-    store,
-    products: store.products.filter((product) => product.imageUrl && product.price !== null && product.stock !== 0),
-  })).filter(({ products }) => products.length > 0)
+// A page seed keeps the shuffled selection stable across server rendering,
+// browser startup and catalog refreshes. Each store still gets a turn first.
+export function getStoreDirectoryHighlights(stores, seed = Math.floor(Math.random() * 2 ** 32)) {
+  let randomState = seed >>> 0
+  const random = () => {
+    randomState = (randomState + 0x6d2b79f5) >>> 0
+    let value = Math.imul(randomState ^ (randomState >>> 15), randomState | 1)
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+    return ((value ^ (value >>> 14)) >>> 0) / 2 ** 32
+  }
+  const candidates = stores.map((store) => {
+    const products = store.products.filter((product) => product.imageUrl && product.price !== null && product.stock !== 0)
+    for (let index = products.length - 1; index > 0; index--) {
+      const target = Math.floor(random() * (index + 1))
+      ;[products[index], products[target]] = [products[target], products[index]]
+    }
+    return { store, products }
+  }).filter(({ products }) => products.length > 0)
   const selected = []
   for (let index = 0; selected.length < 8 && candidates.some(({ products }) => products[index]); index++) {
     for (const { store, products } of candidates) {

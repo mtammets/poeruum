@@ -30,4 +30,4 @@ export const storeDirectoryExamples: Pick<StoreDirectoryEntry, 'id' | 'name' | '
 export function getStoreDirectoryFeaturedUrl(store: StoreDirectoryEntry): string
 export function getStoreDirectoryVisitUrl(store: StoreDirectoryEntry, product?: StoreDirectoryProduct): string
 export function normalizeStoreDirectoryCatalog(value: unknown): StoreDirectoryEntry[]
-export function getStoreDirectoryHighlights(stores: StoreDirectoryEntry[]): Array<{ store: StoreDirectoryEntry; product: StoreDirectoryProduct }>
+export function getStoreDirectoryHighlights(stores: StoreDirectoryEntry[], seed?: number): Array<{ store: StoreDirectoryEntry; product: StoreDirectoryProduct }>

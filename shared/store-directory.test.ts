@@ -152,10 +152,15 @@ describe('store directory catalog', () => {
         id: `${index}-${productIndex}`, name: `Toode ${productIndex}`, image_url: '/product.webp', price: 25, stock: 1,
       })),
     })))
-    const highlights = getStoreDirectoryHighlights(stores)
-    expect(highlights.map(({ product }) => product.id)).toEqual(['0-0', '1-0', '2-0', '3-0', '0-1', '0-2', '0-3', '0-4'])
+    const original = structuredClone(stores)
+    const highlights = getStoreDirectoryHighlights(stores, 42)
+    expect(highlights.map(({ store }) => store.id)).toEqual(['store-0', 'store-1', 'store-2', 'store-3', 'store-0', 'store-0', 'store-0', 'store-0'])
+    expect(new Set(highlights.map(({ product }) => product.id)).size).toBe(8)
+    expect(stores).toEqual(original)
     expect(getStoreDirectoryHighlights([...stores].reverse())[0].store.id).toBe('store-3')
-    expect(getStoreDirectoryHighlights(normalizeStoreDirectoryCatalog(JSON.parse(JSON.stringify(stores))))).toEqual(highlights)
+    expect(getStoreDirectoryHighlights(normalizeStoreDirectoryCatalog(JSON.parse(JSON.stringify(stores))), 42)).toEqual(highlights)
+    const firstProducts = new Set(Array.from({ length: 256 }, (_, seed) => getStoreDirectoryHighlights(stores, seed)[0].product.id))
+    expect(firstProducts).toEqual(new Set(stores[0].products.map((product) => product.id)))
   })
 
   it('only highlights visible products with pictures and prices that are not sold out', () => {
@@ -167,7 +172,7 @@ describe('store directory catalog', () => {
         { id: 'free', price: 0 }, { id: 'unlimited', stock: null }, { id: 'unlimited', stock: null },
       ].map((product) => ({ name: 'Toode', image_url: '/product.webp', price: 25, stock: 1, ...product })),
     }, { store_id: 'empty', store_name: 'Tühi pood', store_slug: 'tuhi-pood', products: [] }])
-    expect(getStoreDirectoryHighlights(stores).map(({ product }) => product.id)).toEqual(['free', 'unlimited'])
+    expect(getStoreDirectoryHighlights(stores).map(({ product }) => product.id).sort()).toEqual(['free', 'unlimited'])
     expect(getStoreDirectoryHighlights([])).toEqual([])
   })
 })

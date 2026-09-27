@@ -36,6 +36,12 @@ const readInitialStores = () => {
   catch { return [] }
 }
 
+const readHighlightSeed = () => {
+  const value = document.getElementById('poeruum-store-directory-data')?.dataset.highlightSeed
+  const seed = value ? Number(value) : Number.NaN
+  return Number.isInteger(seed) && seed >= 0 && seed < 2 ** 32 ? seed : Math.floor(Math.random() * 2 ** 32)
+}
+
 let directoryRequest: ReturnType<typeof listPublicStoreDirectory> | null = null
 const loadStores = () => {
   directoryRequest ??= listPublicStoreDirectory().finally(() => { directoryRequest = null })
@@ -120,6 +126,7 @@ export default function Kaubamaja() {
 
 function StoreDirectory() {
   const [stores, setStores] = useState<StoreDirectoryEntry[]>(readInitialStores)
+  const [highlightSeed] = useState(readHighlightSeed)
   const [query, setQuery] = useState(() => (new URLSearchParams(window.location.search).get('q') || '').slice(0, 160))
   const [productLimit, setProductLimit] = useState(productPageSize)
   const searchInput = useRef<HTMLInputElement>(null)
@@ -127,7 +134,7 @@ function StoreDirectory() {
     isSupabaseConfigured ? 'loading' : 'ready',
   )
   const search = useMemo(() => createStoreDirectorySearch(stores), [stores])
-  const highlights = useMemo(() => getStoreDirectoryHighlights(stores), [stores])
+  const highlights = useMemo(() => getStoreDirectoryHighlights(stores, highlightSeed), [stores, highlightSeed])
   const results = useMemo(() => search(query), [search, query])
   const isSearching = query.trim().length > 0
   const hasResults = results.stores.length > 0 || results.products.length > 0
