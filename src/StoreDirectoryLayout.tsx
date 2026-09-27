@@ -33,6 +33,8 @@ export default function StoreDirectoryLayout({ children, isStory = false }: { ch
       <span>© 2026 Poeruum</span>
       <div>
         <a href="https://poeruum.ee/mis-on-poeruum/">Mis on Poeruum?</a>
+        <a href="https://poeruum.ee/kasutustingimused">Kasutustingimused</a>
+        <a href="https://poeruum.ee/privaatsus">Privaatsus</a>
         <a href="https://poeruum.ee/#hind">Loo oma pood <ArrowUpRight /></a>
       </div>
     </footer>

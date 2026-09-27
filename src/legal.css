@@ -45,16 +45,37 @@
 .legal-provider dl > div { display: grid; grid-template-columns: minmax(9rem, .7fr) 1.3fr; gap: 1rem; padding: .72rem 0; border-top: 1px solid rgba(23, 35, 28, .1); font-size: .83rem; }
 .legal-provider dt { color: #69736c; }
 .legal-provider dd { margin: 0; font-weight: 650; }
-.legal-provider .is-missing { color: #8b5b23; }
+.legal-document-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.legal-document-meta button { padding: .65rem .85rem; border: 1px solid #87968a; border-radius: .45rem; background: transparent; color: var(--legal-green); font: inherit; font-size: .78rem; cursor: pointer; }
+.legal-document-meta button:hover { background: #e2e7db; }
+.legal-page :is(a, button, [tabindex]):focus-visible { outline: 2px solid var(--legal-green); outline-offset: 4px; }
+.legal-summary { margin: 0 0 1.5rem; padding: 1.5rem; border-left: 3px solid var(--legal-green); background: #e8ecdf; }
+.legal-summary strong { font-size: .95rem; }
+.legal-summary p { margin: .65rem 0 0; color: #465149; font-size: .94rem; line-height: 1.75; }
+.legal-toc { margin-bottom: 3.5rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(23, 35, 28, .16); }
+.legal-toc h2 { font-family: Manrope, sans-serif; font-size: 1.25rem; }
+.legal-toc ol { display: grid; gap: .7rem; margin: 1.2rem 0 0; padding-left: 1.5rem; font-size: .88rem; line-height: 1.5; }
+.legal-toc li { padding-left: .25rem; }
+.legal-toc a { text-decoration: none; }
+.legal-toc a:hover { text-decoration: underline; }
+.legal-content { overflow-wrap: anywhere; }
 
-.legal-content section { margin-top: 3.25rem; }
+.legal-content section { margin-top: 3.25rem; scroll-margin-top: 7rem; }
 .legal-content section h2 { margin: 0 0 1rem; font-family: Manrope, sans-serif; font-size: clamp(1.35rem, 3vw, 1.75rem); letter-spacing: -.035em; }
+.legal-content section h3 { margin: 1.65rem 0 .65rem; font-size: 1.05rem; line-height: 1.4; }
 .legal-content section p,
 .legal-content section li { color: #465149; font-size: .94rem; line-height: 1.75; }
 .legal-content section p { margin: .85rem 0; }
 .legal-content section ul { display: grid; gap: .65rem; margin: 1rem 0; padding-left: 1.25rem; }
 .legal-content section strong { color: var(--legal-ink); }
 .legal-content a { color: var(--legal-green); text-underline-offset: .18em; }
+.legal-table-wrap { max-width: 100%; overflow-x: auto; margin: 1.5rem 0; }
+.legal-table { width: 100%; border-collapse: collapse; text-align: left; color: #465149; font-size: .85rem; line-height: 1.65; }
+.legal-table caption { padding: 0 0 .85rem; text-align: left; font-weight: 700; color: var(--legal-ink); }
+.legal-table th, .legal-table td { padding: .9rem .75rem; border: 1px solid #c7cfc3; vertical-align: top; }
+.legal-table thead th { background: #e8ecdf; color: var(--legal-ink); }
+.legal-table tbody th { width: 27%; font-weight: 650; color: var(--legal-ink); }
+.legal-table code { font-size: .78rem; }
 
 .legal-footer { display: flex; align-items: center; justify-content: space-between; width: min(100% - 2.5rem, 52rem); margin: 0 auto; padding: 1.75rem 0 max(2rem, env(safe-area-inset-bottom)); border-top: 1px solid rgba(23, 35, 28, .16); color: #69736c; font-size: .72rem; }
 .legal-footer a { color: var(--legal-green); font-weight: 750; text-decoration: none; }
@@ -69,4 +90,23 @@
   .legal-hero h1 { font-size: clamp(2.25rem, 11vw, 2.75rem); overflow-wrap: anywhere; }
   .legal-provider dl > div { grid-template-columns: 1fr; gap: .3rem; }
   .legal-footer { width: min(100% - 2.4rem, 52rem); }
+}
+
+@media print {
+  @page { margin: 18mm; }
+  .legal-page { background: #fff; color: #000; min-height: auto; }
+  .legal-nav, .legal-footer, .legal-document-meta button, .legal-toc { display: none; }
+  .legal-content { width: 100%; margin: 0; padding: 0; }
+  .legal-hero { margin-bottom: 1.5rem; padding-bottom: 1rem; }
+  .legal-hero h1 { font-size: 28pt; line-height: 1.1; }
+  .legal-hero p { font-size: 11pt; }
+  .legal-summary, .legal-provider { margin-bottom: 1rem; padding: 1rem; break-inside: avoid; background: none; }
+  .legal-content section { margin-top: 1.5rem; }
+  .legal-content section h2 { font-size: 15pt; break-after: avoid; }
+  .legal-content section h3 { break-after: avoid; }
+  .legal-content section p, .legal-content section li { font-size: 10pt; line-height: 1.5; orphans: 3; widows: 3; }
+  .legal-content a { color: #000; }
+  .legal-table-wrap { overflow: visible; }
+  .legal-table { font-size: 9pt; }
+  .legal-table tr { break-inside: avoid; }
 }

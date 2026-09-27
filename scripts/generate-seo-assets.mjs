@@ -280,11 +280,11 @@ const platformPages = [
   },
   {
     path: 'privaatsus',
-    title: 'Privaatsuspoliitika — Poeruum',
+    title: 'Privaatsustingimused — Poeruum',
     description: 'Kuidas Poeruum kaupmeeste ja ostjate isikuandmeid töötleb ning kaitseb.',
     canonicalUrl: `${platformOrigin}/privaatsus/`,
     eyebrow: 'Juriidiline teave',
-    heading: 'Poeruumi privaatsuspoliitika',
+    heading: 'Poeruumi privaatsustingimused',
   },
 ]
 
