@@ -36,6 +36,9 @@ Deno.test('late refunds and disputes reconcile canonical Stripe state even with 
     refundStatus = 'pending'
     await handleStorePaymentEvent(event('refund.created', { id: 're_1', charge: 'ch_1' }), false)
     assert(observations.at(-1)?.refunded_cents === 0 && refundRequests === 1, 'Pending full refund was treated as completed or not queued')
+    refundStatus = 'failed'
+    await handleStorePaymentEvent(event('refund.failed', { id: 're_1', charge: 'ch_1' }), false)
+    assert(observations.at(-1)?.refund_review_value === 'review' && observations.at(-1)?.refunded_cents === 0, 'Failed refund not explicitly flagged for review')
     refundStatus = 'succeeded'
     amountRefunded = 500
     await handleStorePaymentEvent(event('charge.refunded', { id: 'ch_1' }), false)

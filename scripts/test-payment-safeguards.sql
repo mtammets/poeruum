@@ -35,6 +35,8 @@ begin
   perform public.finish_stripe_order_settlement(oid,job.lease_token,'refunded',null,'re_external');
   perform public.observe_stripe_order_payment(oid,'test',10000,'re_external');
   perform pg_temp.verify(not exists(select 1 from public.claim_stripe_order_settlement('test',oid)),'Duplicate refund reopened completed recovery');
+  perform public.observe_stripe_order_payment(oid,'test',0,null,null,null,'review');
+  perform pg_temp.verify((select stripe_payment_issue='review' from public.orders where id=oid),'Late failed refund was silently ignored');
   perform public.observe_stripe_order_payment(oid,'test',0,null,'dp_test','needs_response');
   perform pg_temp.verify((select stripe_payment_issue='dispute' and payment_status='refunded' from public.orders where id=oid),'Dispute lost refunded truth');
   select settings into settings_value from public.stores where id=sid;

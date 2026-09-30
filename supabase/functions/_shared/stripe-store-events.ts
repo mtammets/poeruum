@@ -52,11 +52,12 @@ export const handleStorePaymentEvent = async (event: Stripe.Event, followups = t
       const refundedCents = succeeded.reduce((sum, refund) => sum + refund.amount, 0)
       const fullRefundId = succeeded.length === 1 && succeeded[0].amount === charge.amount ? succeeded[0].id : null
       const partial = refunds.some(refund => refund.amount !== charge.amount)
+      const failed = refunds.some(refund => ['failed', 'canceled'].includes(refund.status ?? ''))
       if (refunds.length || dispute) {
         const { error: observeError } = await admin.rpc('observe_stripe_order_payment', {
           target_order_id: data.id, mode_value: mode, refunded_cents: refundedCents,
           full_refund_id: fullRefundId, dispute_id_value: dispute?.id ?? null, dispute_status_value: dispute?.status ?? null,
-          refund_review_value: partial && refundedCents < charge.amount ? 'partial_refund' : null,
+          refund_review_value: failed ? 'review' : partial && refundedCents < charge.amount ? 'partial_refund' : null,
         })
         if (observeError) throw observeError
         // A pending/failed full refund must wake even an already completed job.
