@@ -21,6 +21,8 @@ async function open(page: Page) {
   await expect(frame.getByRole('heading', { name: 'Poe nimi', exact: true })).toBeVisible()
   await frame.getByRole('button', { name: /Jätka/ }).click()
   await expect(frame.getByRole('heading', { name: 'Müüja andmed' })).toBeVisible()
+  await expect(frame.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false })).not.toBeChecked()
+  await frame.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false }).check()
   return frame
 }
 
@@ -125,6 +127,7 @@ test('settings persist into the buyer view and both PDF documents render', async
   await page.getByRole('button', { name: 'Ostja vaade', exact: true }).click()
   await expect(frame.getByRole('heading', { name: 'Tooteid veel pole' })).toBeVisible()
   await page.getByRole('button', { name: 'Poe loomine', exact: true }).click()
+  await frame.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false }).check()
   await frame.getByRole('button', { name: 'Jätka maksetega' }).click()
   await frame.getByRole('button', { name: 'Jäta praegu vahele' }).click()
   await frame.getByRole('button', { name: 'Jätka esimese tootega' }).click()
@@ -151,13 +154,14 @@ test('settings persist into the buyer view and both PDF documents render', async
   }
 })
 
-test('phone form fits the viewport and continues without an account confirmation checkbox', async ({ page }) => {
+test('phone form fits the viewport and continues with the seller declaration', async ({ page }) => {
   const frame = await open(page)
   await page.getByRole('button', { name: 'Telefon', exact: true }).click()
   await page.setViewportSize({ width: 390, height: 844 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
   expect(await frame.locator('body').evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await expect(frame.getByRole('checkbox')).toHaveCount(0)
+  await expect(frame.getByRole('checkbox')).toHaveCount(1)
+  await expect(frame.getByRole('checkbox')).toBeChecked()
   await frame.getByRole('button', { name: 'Jätka maksetega' }).click()
   await expect(frame.getByRole('button', { name: 'Seadista maksed', exact: true })).toBeVisible()
   await frame.getByRole('button', { name: 'Jäta praegu vahele' }).click()
@@ -286,4 +290,22 @@ test('return without a saved shop never creates a Stripe account', async ({ page
   await page.goto('/stripe/connect/return?refresh=1')
   await expect(page.getByRole('alert')).toContainText('Ava maksete seadistus oma poest uuesti.')
   expect(requests).toBe(0)
+})
+
+
+test('entrepreneur explicitly declares payout account use before continuing and the declaration persists', async ({ page, request }) => {
+  const frame = await open(page)
+  const declaration = frame.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false })
+  await declaration.uncheck()
+  await frame.getByRole('button', { name: 'Jätka maksetega' }).click()
+  await expect(frame.getByRole('heading', { name: 'Müüja andmed' })).toBeVisible()
+  await expect(declaration).not.toBeChecked()
+  await declaration.check()
+  await frame.getByRole('button', { name: 'Jätka maksetega' }).click()
+  await expect(frame.getByRole('button', { name: 'Seadista maksed', exact: false })).toBeVisible()
+  const sessionId = new URL(page.url()).searchParams.get('session')
+  const data = await (await request.get(`/__preview/sessions/${sessionId}/data`)).json()
+  expect(data.store.settings.entrepreneurPayoutConfirmed).toBe(true)
+  await page.getByRole('button', { name: 'Müüja seaded', exact: true }).click()
+  await expect(declaration).toBeChecked()
 })

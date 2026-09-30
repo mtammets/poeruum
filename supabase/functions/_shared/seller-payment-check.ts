@@ -29,6 +29,10 @@ export async function syncSellerPaymentCheck(admin: SupabaseClient, stripe: Stri
     settings_value: store.settings, bank_value: bank, error_value: identityError, ready_value: stripeAccountReady(account),
   })
   if (error) throw error
-  return { ready: ready === true, bank, setupError: identityError || (individual && !ready
-    ? 'Ettevõtluskonto vajab Poeruumi toe kontrolli. Lisa Stripe’i väljamaksekontoks enda aktiivne LHV ettevõtluskonto ja kirjuta info@poeruum.ee.' : null) }
+  const setupError = identityError || (individual && store.settings.entrepreneurPayoutConfirmed !== true
+    ? 'Kinnita enda aktiivse ettevõtluskonto kasutamine müüja andmetes.'
+    : individual && (!('id' in bank) || bank.country !== 'EE' || bank.currency !== 'eur')
+      ? 'Lisa Stripe’i EUR-väljamaksekontoks enda aktiivne LHV ettevõtluskonto.'
+      : null)
+  return { ready: ready === true, bank, setupError }
 }

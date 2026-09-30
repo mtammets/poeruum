@@ -1,0 +1,186 @@
+-- Replace mandatory operator approval with the seller's explicit payout declaration.
+-- Do not infer or backfill a declaration for existing sellers.
+
+create or replace function public.seller_details_complete(settings_value jsonb)
+returns boolean language sql immutable set search_path='' as $$
+  select coalesce(
+    coalesce(settings_value->>'sellerType','company') in ('company','entrepreneur')
+    and length(btrim(coalesce(settings_value->>'businessAddress',''))) between 1 and 400
+    and length(btrim(coalesce(settings_value->>'contactEmail',''))) between 1 and 254
+    and btrim(settings_value->>'contactEmail') ~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+    and case when settings_value->>'sellerType'='entrepreneur' then
+      length(btrim(coalesce(settings_value->>'sellerFirstName',''))) between 1 and 100
+      and length(btrim(coalesce(settings_value->>'sellerLastName',''))) between 1 and 100
+      and settings_value->'entrepreneurPayoutConfirmed'='true'::jsonb
+      and coalesce(settings_value->>'vatRegistered','false')='false'
+      and btrim(coalesce(settings_value->>'vatNumber',''))=''
+    else
+      length(btrim(coalesce(settings_value->>'businessName',''))) between 1 and 200
+      and btrim(coalesce(settings_value->>'registryCode','')) ~ '^[0-9]{8}$'
+      and (coalesce(settings_value->>'vatRegistered','false')='false'
+        or upper(btrim(coalesce(settings_value->>'vatNumber',''))) ~ '^EE[0-9]{9}$')
+    end, false);
+$$;
+
+
+create or replace function public.invalidate_store_payment_check()
+returns trigger language plpgsql security definer set search_path='' as $$
+begin
+  if old.stripe_account_id is distinct from new.stripe_account_id
+    or old.stripe_account_mode is distinct from new.stripe_account_mode
+    or public.seller_identity_key(old.settings) is distinct from public.seller_identity_key(new.settings) then
+    delete from public.store_payment_checks where store_id=new.id;
+    if old.stripe_account_id is not null and new.stripe_account_id is not null then new.payment_status:='pending'; end if;
+  elsif new.settings->>'sellerType'='entrepreneur'
+    and old.settings->'entrepreneurPayoutConfirmed' is distinct from new.settings->'entrepreneurPayoutConfirmed'
+    and new.stripe_account_id is not null then
+    -- A fresh Stripe check activates payments after the seller saves the declaration.
+    new.payment_status:='pending';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.invalidate_store_payment_check() from public,anon,authenticated;
+
+
+create or replace function public.sync_store_payment_check(target_store_id uuid, account_value text, mode_value text,
+  settings_value jsonb, bank_value jsonb, error_value text, ready_value boolean)
+returns boolean language plpgsql security definer set search_path='' as $$
+declare target public.stores%rowtype; previous public.store_payment_checks%rowtype; approved boolean; ready boolean;
+begin
+  select * into target from public.stores where id=target_store_id for update;
+  if not found or target.stripe_account_id is distinct from account_value or target.stripe_account_mode is distinct from mode_value
+    or public.seller_identity_key(target.settings) is distinct from public.seller_identity_key(settings_value) then raise exception 'SELLER_CHANGED'; end if;
+  select * into previous from public.store_payment_checks where store_id=target_store_id for update;
+  approved := coalesce(previous.verified_at is not null and previous.account_id=account_value and previous.stripe_mode=mode_value
+    and previous.identity=public.seller_identity_key(settings_value) and previous.bank=bank_value and error_value is null,false);
+  insert into public.store_payment_checks(store_id,account_id,stripe_mode,identity,bank,identity_error,stripe_ready)
+    values(target_store_id,account_value,mode_value,public.seller_identity_key(settings_value),bank_value,error_value,ready_value)
+    on conflict(store_id) do update set account_id=excluded.account_id,stripe_mode=excluded.stripe_mode,identity=excluded.identity,
+      bank=excluded.bank,identity_error=excluded.identity_error,stripe_ready=excluded.stripe_ready,checked_at=now(),
+      verified_at=case when approved then store_payment_checks.verified_at end,
+      verified_by=case when approved then store_payment_checks.verified_by end,
+      evidence=case when approved then store_payment_checks.evidence end;
+  ready:=ready_value and error_value is null and (coalesce(target.settings->>'sellerType','company')<>'entrepreneur' or (public.seller_details_complete(target.settings)
+    and nullif(bank_value->>'id','') is not null and bank_value->>'country'='EE' and bank_value->>'currency'='eur'));
+  ready:=coalesce(ready,false);
+  update public.stores set payment_status=case when ready then 'connected' else 'pending' end where id=target_store_id;
+  return ready;
+end;
+$$;
+revoke all on function public.sync_store_payment_check(uuid,text,text,jsonb,jsonb,text,boolean) from public,anon,authenticated;
+grant execute on function public.sync_store_payment_check(uuid,text,text,jsonb,jsonb,text,boolean) to service_role;
+
+
+
+drop function if exists public.approve_entrepreneur_payout(uuid,text,text,uuid);
+
+create or replace function public.publish_store(target_store_id uuid)
+returns public.stores
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_user_id uuid := (select auth.uid());
+  target_store public.stores%rowtype;
+  target_settings jsonb;
+begin
+  if current_user_id is null then
+    raise exception 'Poe avaldamiseks logi sisse.' using errcode = '42501';
+  end if;
+
+  select store.*
+  into target_store
+  from public.stores as store
+  where store.id = target_store_id
+    and store.owner_id = current_user_id
+  for update;
+
+  if target_store.id is null then
+    raise exception 'Poodi ei leitud või sul puudub selle muutmise õigus.' using errcode = '42501';
+  end if;
+
+  perform public.require_merchant_email(current_user_id);
+
+  if target_store.settings->>'sellerType'='entrepreneur' then
+    if target_store.settings->'entrepreneurPayoutConfirmed' is distinct from 'true'::jsonb then
+      raise exception 'Kinnita enda aktiivse ettevõtluskonto kasutamine müüja andmetes.';
+    end if;
+    if not exists (
+      select 1 from public.store_payment_checks c where c.store_id=target_store.id
+        and c.account_id=target_store.stripe_account_id and c.stripe_mode=target_store.stripe_account_mode
+        and c.identity=public.seller_identity_key(target_store.settings) and c.identity_error is null and c.stripe_ready
+        and nullif(c.bank->>'id','') is not null and c.bank->>'country'='EE' and c.bank->>'currency'='eur'
+    ) then raise exception 'Enne avaldamist lõpeta Stripe’i maksete seadistamine.'; end if;
+  end if;
+
+  if target_store.is_published then
+    return target_store;
+  end if;
+
+  target_settings := coalesce(target_store.settings, '{}'::jsonb);
+
+  if not public.seller_details_complete(target_settings) then
+    raise exception 'Enne avaldamist lisa täielikud müüja andmed.';
+  end if;
+
+  if target_store.payment_provider <> 'stripe'
+    or target_store.payment_status <> 'connected'
+    or target_store.stripe_account_id is null
+    or not target_store.stripe_account_charges_enabled
+    or not target_store.stripe_account_payouts_enabled then
+    raise exception 'Enne avaldamist ühenda Stripe’i maksed.';
+  end if;
+
+  if coalesce(cardinality(target_store.shipping), 0) = 0 then
+    raise exception 'Enne avaldamist vali vähemalt üks tarneviis.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.products as product
+    where product.store_id = target_store.id
+  ) then
+    raise exception 'Enne avaldamist lisa vähemalt üks toode.';
+  end if;
+
+  if target_store.pricing_plan = 'fixed'
+    and coalesce(target_store.stripe_subscription_status, '') not in ('active', 'trialing') then
+    raise exception 'Kindla paketi tellimus peab enne avaldamist olema aktiivne.';
+  end if;
+
+  update public.stores
+  set is_published = true,
+      settings = jsonb_set(target_settings, '{onboardingStep}', '"complete"'::jsonb, true)
+  where id = target_store.id
+  returning * into target_store;
+
+  return target_store;
+end;
+$$;
+
+create or replace function public.admin_payment_reviews()
+returns jsonb language plpgsql security definer set search_path='' as $$
+begin
+  if coalesce(auth.jwt()->'app_metadata'->>'role','')<>'admin' then raise exception 'ADMIN_REQUIRED' using errcode='42501'; end if;
+  return jsonb_build_object('orders',coalesce((select jsonb_agg(row_to_json(q)) from (
+    select o.id,o.order_number,s.name as store_name,o.stripe_mode,o.stripe_payment_intent_id,o.stripe_payment_issue,
+      o.stripe_dispute_id,o.stripe_dispute_status,o.stripe_refunded_amount_cents,j.status,j.last_error,o.payment_status
+    from public.orders o join public.stores s on s.id=o.store_id left join public.stripe_order_settlements j on j.order_id=o.id
+    where o.stripe_payment_issue is not null or j.status='needs_review' order by o.updated_at desc limit 200) q),'[]'::jsonb),
+    'sellers',coalesce((select jsonb_agg(row_to_json(q)) from (
+      select s.id,s.name,s.settings->>'businessName' as seller_name,s.stripe_account_id,s.stripe_account_mode,
+        c.bank,c.identity_error,c.checked_at,c.stripe_ready,s.payment_status,
+        coalesce(s.settings->'entrepreneurPayoutConfirmed'='true'::jsonb,false) as seller_confirmed
+      from public.stores s left join public.store_payment_checks c on c.store_id=s.id
+      where s.stripe_account_id is not null and (s.settings->>'sellerType'='entrepreneur' or c.identity_error is not null)
+      order by (c.identity_error is not null) desc,s.created_at limit 200) q),'[]'::jsonb));
+end;
+$$;
+
+
+-- Existing sellers must make their own declaration; an old admin review is not consent.
+update public.stores set payment_status='pending'
+where settings->>'sellerType'='entrepreneur' and stripe_account_id is not null
+  and settings->'entrepreneurPayoutConfirmed' is distinct from 'true'::jsonb;

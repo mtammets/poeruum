@@ -6,6 +6,7 @@ export type SellerDetailsValue = {
   sellerType: SellerType
   sellerFirstName: string
   sellerLastName: string
+  entrepreneurPayoutConfirmed: boolean
   businessName: string
   registryCode: string
   businessAddress: string
@@ -32,7 +33,7 @@ export default function SellerDetailsFields({ value, onChange, typeLocked = fals
         <span>{label}</span><i aria-hidden="true">{value.sellerType === type ? '✓' : ''}</i>
       </label>)}
     </fieldset>
-    {typeLocked && <small className="seller-details__hint">Müüja nime või registrikoodi muutmisel tuleb maksed uuesti kinnitada. Poe nime saad muuta eraldi.</small>}
+    {typeLocked && <small className="seller-details__hint">Müüja nime või registrikoodi muutmisel kontrollib Poeruum andmete vastavust Stripe’i kontoga uuesti. Poe nime saad muuta eraldi.</small>}
     {individual ? <div className="seller-details__names">
       <label>Eesnimi<input required autoComplete="given-name" maxLength={100} value={value.sellerFirstName} onChange={(event) => onChange({ sellerFirstName: event.target.value })} /></label>
       <label>Perekonnanimi<input required autoComplete="family-name" maxLength={100} value={value.sellerLastName} onChange={(event) => onChange({ sellerLastName: event.target.value })} /></label>
@@ -44,6 +45,7 @@ export default function SellerDetailsFields({ value, onChange, typeLocked = fals
     <label>{individual ? 'Aadress' : 'Registrijärgne aadress'}<input required autoComplete="street-address" maxLength={400} value={value.businessAddress} onChange={(event) => onChange({ businessAddress: event.target.value })} /></label>
     {individual && <small className="seller-details__hint">Aadress kuvatakse ostjale müüja andmetes.</small>}
     <label>Kontakt-e-post<input required type="email" autoComplete="email" maxLength={254} value={value.contactEmail} onChange={(event) => onChange({ contactEmail: event.target.value })} /></label>
+    {individual && <label className="seller-details__check"><input type="checkbox" required checked={value.entrepreneurPayoutConfirmed} onChange={(event) => onChange({ entrepreneurPayoutConfirmed: event.target.checked })} /><span>Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot ja suunan Stripe’i väljamaksed sellele kontole.</span></label>}
     {!individual && <>
       <label className="seller-details__check"><input type="checkbox" checked={value.vatRegistered} onChange={(event) => onChange({ vatRegistered: event.target.checked, ...(!event.target.checked ? { vatNumber: '' } : {}) })} /><span>Olen käibemaksukohustuslane</span></label>
       {value.vatRegistered && <label>KMKR number<input required pattern="EE[0-9]{9}" maxLength={11} value={value.vatNumber} onChange={(event) => onChange({ vatNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11) })} /></label>}

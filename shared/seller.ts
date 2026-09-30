@@ -20,6 +20,7 @@ export function sellerDetailsError(settings: Record<string, unknown>): string | 
   if (settings.sellerType !== undefined && settings.sellerType !== 'company' && settings.sellerType !== 'entrepreneur') return 'Vali müüja tüüp.'
   if (sellerType(settings) === 'entrepreneur') {
     if (!validText(settings.sellerFirstName, 100) || !validText(settings.sellerLastName, 100)) return 'Lisa ees- ja perekonnanimi.'
+    if (settings.entrepreneurPayoutConfirmed !== true) return 'Kinnita enda aktiivse ettevõtluskonto kasutamine müüja andmetes.'
     if (settings.vatRegistered === true || text(settings.vatNumber)) return 'Ettevõtluskonto kasutaja ei saa olla käibemaksukohustuslane.'
   } else {
     if (!validText(settings.businessName, 200)) return 'Lisa ettevõtte nimi.'

@@ -14,7 +14,7 @@ declare oid uuid:='79000000-0000-4000-8000-000000000003'; sid uuid:='79000000-00
   settings_value jsonb; bank_value jsonb:='{"id":"ba_test","country":"EE","currency":"eur","fingerprint":"fp_test","last4":"1234"}';
 begin
   perform pg_temp.verify(not has_table_privilege('anon','public.store_payment_checks','select') and not has_table_privilege('authenticated','public.store_payment_checks','select'),'Payout evidence is public');
-  perform pg_temp.verify(not has_function_privilege('authenticated','public.approve_entrepreneur_payout(uuid,text,text,uuid)','execute'),'Seller can approve their own account');
+  perform pg_temp.verify(to_regprocedure('public.approve_entrepreneur_payout(uuid,text,text,uuid)') is null,'Legacy manual approval can bypass the seller declaration');
   perform pg_temp.verify(not has_function_privilege('authenticated','public.observe_stripe_order_payment(uuid,text,integer,text,text,text,text)','execute'),'Seller can forge Stripe state');
   perform pg_temp.verify(not has_function_privilege('authenticated','public.retry_funded_stripe_refund(uuid)','execute'),'Seller can bypass refund hold');
   perform pg_temp.verify(not has_column_privilege('authenticated','public.orders','stripe_payment_issue','update'),'Seller can clear review');
@@ -40,15 +40,29 @@ begin
   perform public.observe_stripe_order_payment(oid,'test',0,null,'dp_test','needs_response');
   perform pg_temp.verify((select stripe_payment_issue='dispute' and payment_status='refunded' from public.orders where id=oid),'Dispute lost refunded truth');
   select settings into settings_value from public.stores where id=sid;
-  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Unreviewed entrepreneur was activated');
-  perform public.approve_entrepreneur_payout(sid,'ba_test','MTA and complete IBAN verified; private evidence reference TEST','79000000-0000-4000-8000-000000000001');
-  perform pg_temp.verify(public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Approval not retained for same account');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Missing declaration activated payments');
+  -- An old administrator approval is not the seller's declaration.
+  update public.store_payment_checks set verified_at=now() where store_id=sid;
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Old admin approval bypassed declaration');
+  update public.store_payment_checks set verified_at=null where store_id=sid;
+  update public.stores set settings=settings||'{"entrepreneurPayoutConfirmed":true}' where id=sid;
+  select settings into settings_value from public.stores where id=sid;
+  perform pg_temp.verify(public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Declared ready seller required admin approval');
   update public.stores set name='New shop brand' where id=sid;
   perform pg_temp.verify((select payment_status='connected' from public.stores where id=sid),'Shop brand invalidated legal identity');
-  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value||'{"id":"ba_changed","fingerprint":"other"}',null,true),'Changed bank retained approval');
+  perform pg_temp.verify(public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value||'{"id":"ba_changed","fingerprint":"other"}',null,true),'Valid bank change required manual approval');
   perform pg_temp.verify((select verified_at is null and evidence is null from public.store_payment_checks where store_id=sid),'Old evidence reused for new bank');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,'Nimi ei ühti',true),'Identity mismatch accepted');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,false),'Incomplete Stripe setup accepted');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,'{}',null,true),'Missing payout account accepted');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value||'{"country":"GB"}',null,true),'Non-Estonian payout account accepted');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value||'{"currency":"usd"}',null,true),'Non-EUR payout account accepted');
   perform public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true);
-  perform public.approve_entrepreneur_payout(sid,'ba_test','MTA and complete IBAN verified again; TEST','79000000-0000-4000-8000-000000000001');
+  update public.stores set settings=settings||'{"entrepreneurPayoutConfirmed":false}' where id=sid;
+  perform pg_temp.verify((select payment_status='pending' from public.stores where id=sid),'Revoked declaration left payments active');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Stale request bypassed revoked declaration');
+  update public.stores set settings=settings||'{"entrepreneurPayoutConfirmed":true}' where id=sid;
+  perform public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true);
   update public.stores set settings=settings||'{"sellerFirstName":"Jaan"}' where id=sid;
   perform pg_temp.verify((select payment_status='pending' from public.stores where id=sid),'Changed seller stayed connected');
   perform pg_temp.verify(not exists(select 1 from public.store_payment_checks where store_id=sid),'Changed seller retained bank verification');

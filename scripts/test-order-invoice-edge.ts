@@ -24,7 +24,7 @@ const fixture = (): InvoiceDocument => ({
 Deno.test('entrepreneur sale and return proofs show legal identity without company or private banking fields', async () => {
   const document = fixture()
   document.snapshot = buildInvoiceSnapshot({
-    settings: { sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+    settings: { sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm', entrepreneurPayoutConfirmed: true,
       businessAddress: 'Kase 12, Tartu', contactEmail: 'liisa@example.com', registryCode: 'PRIVATE_ID', iban: 'PRIVATE_IBAN' },
     buyer: document.snapshot.buyer, storeName: 'Liisa ateljee', storeSlug: 'liisa', delivery: 'Omniva', deliveryCents: 300,
     items: [{ name: 'Akvarell', quantity: 1, unitGrossCents: 6500, options: '' }],
@@ -74,7 +74,7 @@ Deno.test('entrepreneur confirmation and refund emails attach the matching proof
       document.kind = credit ? 'credit' : 'invoice'
       document.original_number = credit ? 'TEST-ORIGINAL' : null
       document.snapshot = buildInvoiceSnapshot({
-        settings: { sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+        settings: { sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm', entrepreneurPayoutConfirmed: true,
           businessAddress: 'Tallinn', contactEmail: 'seller@example.invalid', orderNotificationEmail: 'orders@example.invalid' },
         storeName: 'Ateljee', storeSlug: 'ateljee', buyer: document.snapshot.buyer,
         delivery: 'Omniva', deliveryCents: 350,

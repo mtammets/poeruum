@@ -2,9 +2,13 @@
 
 Avalik müüja peab kattuma Stripe’i konto õigusliku omanikuga. Nime või registrikoodi muutmisel muutub maksete olek pooleliolevaks. Kontroll toimub Stripe’i oleku küsimisel, Connecti sündmustel ja enne iga uue makselehe loomist. Poe kaubamärgi muutmine kinnitust ei tühista. Varasemate tellimuste müüjaandmete hetktõmmised säilivad.
 
-Ettevõtluskonto kinnitamine toimub `/admin/payments` vaates. Vali „Laadi Stripe’i andmed” või „Uuenda Stripe’i andmeid”, kontrolli Stripe’i EUR-väljamaksekonto täielikku IBANit ja omanikku privaatse tõendi alusel ning sama konto aktiivsust MTA ettevõtluskonto otsingus. Kinnita alles siis, kui see on sama müüja aktiivne LHV ettevõtluskonto. Viimased neli numbrit või panga nimi pole piisav tõend. Lisa kontrolli kuupäev ja privaatse tõendi viide; ära kopeeri IBANit ega isikukoodi avalikesse seadetesse ega märkusesse. Kui täielikku kontot ei saa tõendada, jäta konto kinnitamata.
+Ettevõtluskontoga müüja kinnitab müüjaandmetes ise, et kasutab enda aktiivset LHV ettevõtluskontot ja suunab Stripe’i väljamaksed sellele. Kinnitus salvestub väljale `entrepreneurPayoutConfirmed` ning kehtib ka edaspidiste väljamaksete puhul: müüja peab kontoandmed ajakohased hoidma. Olemasolevale müüjale kinnitust automaatselt ei lisata. Varasem administraatori kontroll ei asenda müüja kinnitust.
 
-Kinnitus seotakse Stripe’i konto, režiimi, müüja identiteedi ja konkreetse väljamaksekonto tunnustega. Konto või omaniku muutus tühistab kinnituse. Konto kontrolli andmed on privaatses tabelis, kuhu müüja ja avalik veeb ei pääse. MTA aktiivsuse kontroll on käsitsi tehtud kontroll selle kuupäeval, mitte pidev MTA-integratsioon; kahtluse korral tuleb see uuesti teha.
+Maksed aktiveeruvad automaatselt, kui müüja kinnitus ja andmed on olemas, nimi vastab Stripe’i õiguslikule omanikule, Stripe lubab makseid ja väljamakseid ning olemas on kasutusvalmis Eesti EUR-väljamaksekonto. Müüja kinnituse salvestamine käivitab veebis uue Stripe’i kontrolli. Kinnituse eemaldamine peatab uued maksed kohe. Konto või omaniku muutusi kontrollitakse uuesti automaatselt; administraatori tavapärast heakskiitu pole vaja. Konto või identiteedi muutumisel ei kasutata vana kontrolli tõendit uue konto kohta.
+
+See on müüja enda kinnitus, mitte Poeruumi, Stripe’i ega MTA tõend ettevõtluskonto olemasolu kohta. Panga nimi, riik ja viimased numbrid ei tuvasta ettevõtluskonto maksurežiimi. MTA automaatset päringut pole lisatud. Kahtluse või andmete mittevastavuse korral võib küsida täiendavaid tõendeid; konto täielikke andmeid ei panda avalikesse seadetesse. Võimalikud platvormi aruandlus- ja muud seaduslikud kohustused on eraldi.
+
+`/admin/payments` kuvab maksete probleemid ja müüjate seadistuse seisu, sealhulgas puuduva müüja kinnituse ning nime mittevastavuse. Administraatori kinnitamise nupp ja `approve_entrepreneur_payout` RPC on eemaldatud. Konto kontrolli andmed ja võimalikud varasemad tõendid jäävad privaatsesse tabelisse.
 
 `charge.refunded`, `refund.created/updated/failed` ja maksevaidluse sündmused loevad Stripe’ist värske seisu. Täistagastuseks loetakse ainult õnnestunud tagastuste summat. Ostja tagastus ja müüja ülekande tagasipööramine on eraldi seisundid: ostja tagastus ei muutu ebaõnnestunuks, kui müüja kontol raha napib. Täistagastuse dokument väljastatakse kohe andmebaasis. Osalised tagastused (sh osaliste tagastuste dokumentide ja tasude arvestus) ning vaidlused vajavad administraatori käsitlust Stripe’is; süsteem ei tee nende põhjal automaatselt uusi rahaliigutusi.
 
@@ -15,8 +19,8 @@ Müüja summa „Sinu Stripe’i kontole” ei tähenda kinnitatud pangalaekumis
 ## Avaldamine ja kontroll
 
 1. Käivita `npm run check`, Edge-testid, brauseritestid ning `scripts/test-payment-safeguards.sql` lokaalses andmebaasis.
-2. Avalda migratsioonid `202609300009_payment_seller_safeguards.sql`, `202609300010_failed_external_refund_review.sql` ja `202609300011_payment_review_setup_state.sql` ning maksete, tagastuste ja Connecti Edge-funktsioonid, sh uus `payment-review`. Ühiste failide muutuste tõttu avalda ka `stripe-reservation-reaper`.
+2. Avalda migratsioonid `202609300009_payment_seller_safeguards.sql`, `202609300010_failed_external_refund_review.sql`, `202609300011_payment_review_setup_state.sql` ja `202609300012_seller_payout_declaration.sql` ning maksete, tagastuste ja Connecti Edge-funktsioonid, sh uus `payment-review`. Ühiste failide muutuste tõttu avalda ka `stripe-reservation-reaper`.
 3. Käivita `node scripts/configure-stripe-settlement-webhook.mjs apply` ja `check` mõlema kasutatava Stripe’i režiimi õigete võtmetega. Skript säilitab senised tellitud sündmused ja lisab ka Connecti väljamaksekonto muudatused.
 4. Avalda veeb pärast edukat CI-d. Kontrolli `/admin/payments` ja maksete endpoint’ide ligipääsukontrolli.
 
-Uued sündmused ei asenda ajaloolist auditit: enne selle uuenduse avaldamist Stripe’is tehtud osalised tagastused või vaidlused võivad vajada eraldi võrdlust. Kinnitamata ettevõtluskontolt ei saa uut makselehte avada ega poodi avaldada.
+Uued sündmused ei asenda ajaloolist auditit: enne selle uuenduse avaldamist Stripe’is tehtud osalised tagastused või vaidlused võivad vajada eraldi võrdlust. Müüja enda kinnituseta või automaatseid kontrolle läbimata ettevõtluskontoga müüjal ei saa uut makselehte avada ega poodi avaldada.

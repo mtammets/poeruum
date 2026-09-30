@@ -20,7 +20,7 @@ Deno.serve(async request => {
     const limit = await checkRateLimit(request, 'payment-review', 20, 60, user.id)
     if (!limit.allowed) return rateLimitResponse(limit.retry_after_seconds, headers)
     const admin = createClient(env('SUPABASE_URL'), env('POERUUM_SUPABASE_SECRET_KEY'), options)
-    const input = await request.json() as { action?: string; storeId?: string; orderId?: string; bankId?: string; evidence?: string }
+    const input = await request.json() as { action?: string; storeId?: string; orderId?: string }
     const key = env('STRIPE_SECRET_KEY')
     const mode = assertStripeMode(key)
     if (input.action === 'retry-refund') {
@@ -32,7 +32,7 @@ Deno.serve(async request => {
       // The durable worker owns the retry; no browser request moves funds.
       return json({ ok: true })
     }
-    if (!['refresh-seller', 'approve-seller'].includes(input.action ?? '')) return json({ error: 'Tundmatu toiming.' }, 400)
+    if (input.action !== 'refresh-seller') return json({ error: 'Tundmatu toiming.' }, 400)
     const { data: store, error } = await admin.from('stores').select('*').eq('id', input.storeId ?? '').single()
     if (error) throw error
     if (!store.stripe_account_id) return json({ error: 'Stripe’i konto puudub.' }, 409)
@@ -41,12 +41,6 @@ Deno.serve(async request => {
     const account = await stripe.accounts.retrieve(store.stripe_account_id)
     if ('deleted' in account && account.deleted) return json({ error: 'Konto on kustutatud.' }, 409)
     await syncSellerPaymentCheck(admin, stripe, store, account)
-    if (input.action === 'approve-seller') {
-      const { error: approveError } = await admin.rpc('approve_entrepreneur_payout', {
-        target_store_id: store.id, bank_id_value: input.bankId ?? '', evidence_value: input.evidence ?? '', admin_id: user.id,
-      })
-      if (approveError) return json({ error: 'Kontrolli värskeid kontoandmeid ning lisa kontrolli tõend. Konto või müüja andmed võivad olla muutunud.' }, 409)
-    }
     return json({ ok: true })
   } catch (error) {
     await captureEdgeError('payment-review', error)

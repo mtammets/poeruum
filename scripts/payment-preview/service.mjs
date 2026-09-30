@@ -98,7 +98,7 @@ export function createPreviewService({ origin, environment, helpers, fetchStripe
     }] : []
     if (sellerPreview || sellerType === 'entrepreneur') {
       store.name = 'Liisa ateljee'; store.slug = 'liisa-ateljee'
-      Object.assign(store.settings, { sellerType, sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+      Object.assign(store.settings, { sellerType, sellerFirstName: 'Liisa', sellerLastName: 'Tamm', entrepreneurPayoutConfirmed: screen !== 'store' && screen !== 'business',
         businessName: sellerType === 'entrepreneur' ? 'Liisa Tamm' : 'Liisa Ateljee OÜ', registryCode: sellerType === 'entrepreneur' ? '' : '12345678',
         businessAddress: 'Kase 12, Tartu, 51004', contactEmail: 'liisa@example.com',
         vatRegistered: false, vatNumber: '', storeTheme: 'paper', storeAccent: '#c17d52',

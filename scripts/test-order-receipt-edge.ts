@@ -203,7 +203,7 @@ Deno.test('company and entrepreneur checkout amounts match saved documents acros
         ]) {
           const registered = seller === 'vat-company'
           settings = { sellerType: seller === 'entrepreneur' ? 'entrepreneur' : 'company',
-            sellerFirstName: 'Liisa', sellerLastName: 'Tamm', businessName: 'Pood OÜ', registryCode: '12345678',
+            sellerFirstName: 'Liisa', sellerLastName: 'Tamm', entrepreneurPayoutConfirmed: true, businessName: 'Pood OÜ', registryCode: '12345678',
             businessAddress: 'Tallinn', contactEmail: 'seller@example.invalid', vatRegistered: registered,
             vatNumber: registered ? 'EE123456789' : '',
             deliverySettings: { pickupEnabled: true, pickupAddress: 'Tallinn', courierEnabled: true, courierPrice: 6,

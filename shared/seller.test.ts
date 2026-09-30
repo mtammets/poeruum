@@ -4,13 +4,15 @@ import { buildInvoiceSnapshot, orderDocumentLabel } from './order-invoice'
 import { getStripePrefill } from '../supabase/functions/_shared/stripe-connect-prefill'
 
 const entrepreneur = { sellerType: 'entrepreneur', sellerFirstName: ' Liisa ', sellerLastName: ' Tamm ',
-  businessAddress: 'Kase 12, Tartu', contactEmail: 'liisa@example.com', vatRegistered: false }
+  businessAddress: 'Kase 12, Tartu', contactEmail: 'liisa@example.com', vatRegistered: false, entrepreneurPayoutConfirmed: true }
 const company = { businessName: 'Näidis OÜ', registryCode: '12345678', businessAddress: 'Kase 12, Tartu', contactEmail: 'pood@example.com' }
 
 describe('seller identity across onboarding, payments and purchase documents', () => {
   it('accepts an entrepreneur without a registry code and preserves the legacy company requirement', () => {
     expect(hasSellerDetails(entrepreneur)).toBe(true)
-    expect(hasSellerDetails({ ...entrepreneur, entrepreneurAccountConfirmed: false })).toBe(true)
+    for (const value of [undefined, false, 'true', 1]) {
+      expect(hasSellerDetails({ ...entrepreneur, entrepreneurPayoutConfirmed: value })).toBe(false)
+    }
     expect(sellerName(entrepreneur)).toBe('Liisa Tamm')
     expect(hasSellerDetails(company)).toBe(true)
     expect(hasSellerDetails({ ...company, registryCode: '' })).toBe(false)

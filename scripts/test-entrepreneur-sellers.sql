@@ -12,7 +12,7 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
 values('78000000-0000-4000-8000-000000000001','authenticated','authenticated','seller-test@example.com',now(),'{}','{}',now(),now());
 insert into public.stores(id,owner_id,name,slug,settings,shipping)
 values('78000000-0000-4000-8000-000000000002','78000000-0000-4000-8000-000000000001','Liisa ateljee','entrepreneur-seller-test',
-'{"sellerType":"entrepreneur","sellerFirstName":"Liisa","sellerLastName":"Tamm","businessAddress":"Tartu","contactEmail":"liisa@example.com","registryCode":"PRIVATE_ID"}',array['pickup']);
+'{"sellerType":"entrepreneur","sellerFirstName":"Liisa","sellerLastName":"Tamm","businessAddress":"Tartu","contactEmail":"liisa@example.com","registryCode":"PRIVATE_ID","entrepreneurPayoutConfirmed":true}',array['pickup']);
 insert into public.products(id,store_id,name,image_url,price,stock)
 values('entrepreneur-test-art','78000000-0000-4000-8000-000000000002','Akvarell','',65,5);
 do $$ declare settings_value jsonb;
@@ -20,7 +20,8 @@ begin
   select settings into settings_value from public.stores where id='78000000-0000-4000-8000-000000000002';
   perform pg_temp.seller_assert(public.seller_details_complete(settings_value),'Valid individual blocked');
   perform pg_temp.seller_assert(settings_value->>'registryCode'='' and settings_value->>'businessName'='Liisa Tamm','Private registry field leaked or name missing');
-  perform pg_temp.seller_assert(public.seller_details_complete(settings_value||'{"entrepreneurAccountConfirmed":false}'::jsonb),'Legacy unchecked confirmation blocked seller');
+  perform pg_temp.seller_assert(not public.seller_details_complete(settings_value-'entrepreneurPayoutConfirmed'),'Missing seller declaration accepted');
+  perform pg_temp.seller_assert(not public.seller_details_complete(settings_value||'{"entrepreneurPayoutConfirmed":"true"}'::jsonb),'String declaration accepted');
   perform pg_temp.seller_assert(not public.seller_details_complete(settings_value-'sellerLastName'),'Missing last name accepted');
   perform pg_temp.seller_assert(not public.seller_details_complete(settings_value||'{"sellerType":"unknown"}'::jsonb),'Unknown type accepted');
   perform pg_temp.seller_assert(not public.seller_details_complete(settings_value||'{"sellerType":"company"}'::jsonb),'Company registry requirement bypassed');
@@ -30,9 +31,16 @@ update public.stores set payment_provider='stripe',payment_status='connected',st
   stripe_account_charges_enabled=true,stripe_account_payouts_enabled=true,stripe_account_mode='test'
 where id='78000000-0000-4000-8000-000000000002';
 select pg_temp.seller_error($q$update public.stores set settings=settings||'{"sellerType":"company"}' where id='78000000-0000-4000-8000-000000000002'$q$,'Müüja tüübi muutmiseks');
-insert into public.store_payment_checks(store_id,account_id,stripe_mode,identity,stripe_ready,verified_at)
-select id,stripe_account_id,stripe_account_mode,public.seller_identity_key(settings),true,now() from public.stores where id='78000000-0000-4000-8000-000000000002';
+update public.stores set settings=settings||'{"entrepreneurPayoutConfirmed":false}' where id='78000000-0000-4000-8000-000000000002';
 select set_config('request.jwt.claim.sub','78000000-0000-4000-8000-000000000001',true);
+set local role authenticated;
+select pg_temp.seller_error($q$select public.publish_store('78000000-0000-4000-8000-000000000002')$q$,'Kinnita enda aktiivse ettevõtluskonto kasutamine');
+reset role;
+update public.stores set settings=settings||'{"entrepreneurPayoutConfirmed":true}' where id='78000000-0000-4000-8000-000000000002';
+select pg_temp.seller_assert(public.sync_store_payment_check(id,stripe_account_id,stripe_account_mode,settings,
+  '{"id":"ba_test","country":"EE","currency":"eur"}',null,true),'Ready seller required admin approval')
+from public.stores where id='78000000-0000-4000-8000-000000000002';
+select pg_temp.seller_assert((select verified_at is null from public.store_payment_checks where store_id='78000000-0000-4000-8000-000000000002'),'Seller declaration marked as admin verification');
 set local role authenticated;
 select public.publish_store('78000000-0000-4000-8000-000000000002');
 reset role;

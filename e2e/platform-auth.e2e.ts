@@ -1124,7 +1124,7 @@ test('monthly fees preserve each payment’s recorded net and VAT and exclude re
     product_subtotal: 100, total: 100, stripe_platform_fee_net_cents: 400,
     stripe_platform_fee_vat_cents: 96, stripe_platform_fee_cents: 496 })
   await installSupabaseBackend(page, { ...store, settings: { ...store.settings,
-    sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm', registryCode: '', vatRegistered: false,
+    sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm', entrepreneurPayoutConfirmed: true, registryCode: '', vatRegistered: false,
   } }, connectedStripeStatus, { getOrders: () => orders })
   await page.goto('/?continue_setup=1')
   await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
@@ -1747,4 +1747,33 @@ test('email confirmation is available inside account settings without a storefro
   await notice.getByRole('button', { name: 'Muuda aadressi' }).click()
   await page.screenshot({ path: 'output/account-email-settings.png', fullPage: true })
   await expect(notice.getByLabel('Uus e-posti aadress')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+})
+
+
+test('saving a seller payout declaration refreshes Stripe automatically without an admin', async ({ page }) => {
+  const stripeStatus: Record<string, unknown> = { ...connectedStripeStatus, status: 'pending',
+    setupError: 'Kinnita enda aktiivse ettevõtluskonto kasutamine müüja andmetes.',
+    requirements: { ...connectedStripeStatus.requirements, dueCount: 0 } }
+  const backend = await installSupabaseBackend(page, { ...store, payment_status: 'pending', settings: {
+    ...store.settings, sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+    businessName: 'Liisa Tamm', registryCode: '', vatRegistered: false, entrepreneurPayoutConfirmed: false,
+  } }, stripeStatus)
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="payments"]').click()
+  await page.getByRole('button', { name: 'Ava müüja andmed' }).click()
+  const declaration = page.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false })
+  await expect(declaration).not.toBeChecked()
+  const saved = page.waitForResponse(response => response.url().includes('/rest/v1/stores') && response.request().method() === 'PATCH')
+  const refreshed = page.waitForResponse(response => response.url().includes('/functions/v1/stripe-connect') && response.request().method() === 'POST')
+  stripeStatus.status = 'connected'; stripeStatus.setupError = null
+  await declaration.check()
+  expect((await saved).ok()).toBe(true)
+  expect((await refreshed).ok()).toBe(true)
+  expect(backend.currentStore().settings).toMatchObject({ entrepreneurPayoutConfirmed: true })
+  await expect(page.getByText('Kinnita enda aktiivse ettevõtluskonto kasutamine müüja andmetes.', { exact: true })).toHaveCount(0)
+  await page.screenshot({ path: 'output/seller-payout-declaration.png', fullPage: true })
 })

@@ -236,6 +236,7 @@ function PlatformFlow() {
   const [stripeEmbeddedMode, setStripeEmbeddedMode] = useState<'onboarding' | 'management' | 'remediation'>('onboarding')
   const [stripeRequirements, setStripeRequirements] = useState<StripeRequirementSummary | null>(null)
   const [stripeDetailsSubmitted, setStripeDetailsSubmitted] = useState<boolean | null>(null)
+  const [stripeSetupError, setStripeSetupError] = useState<string | null>(null)
   const [stripeRequirementsLinkIntent, setStripeRequirementsLinkIntent] = useState<StripeRequirementsLinkIntent>(() =>
     shouldLoadPublicStore ? 'none' : getStripeRequirementsLinkIntent(window.location))
   const stripeRequirementsLinkPending = stripeRequirementsLinkIntent === 'valid'
@@ -246,6 +247,7 @@ function PlatformFlow() {
   const [sellerType, setSellerType] = useState<SellerType>('company')
   const [sellerFirstName, setSellerFirstName] = useState('')
   const [sellerLastName, setSellerLastName] = useState('')
+  const [entrepreneurPayoutConfirmed, setEntrepreneurPayoutConfirmed] = useState(false)
   const [businessName, setBusinessName] = useState('')
   const [registryCode, setRegistryCode] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
@@ -528,13 +530,14 @@ function PlatformFlow() {
     setPayment('stripe')
     setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle')
     setStripeRequirements(nextStore.stripe_account_id ? stripeRequirementsFromStore(nextStore) : null)
-    if (!nextStore.stripe_account_id) setStripeDetailsSubmitted(null)
+    if (!nextStore.stripe_account_id) { setStripeDetailsSubmitted(null); setStripeSetupError(null) }
     setPricingPlan(nextStore.pricing_plan)
     setFixedPlanTrialStartedAt(nextStore.trial_started_at)
     setShipping(nextStore.shipping)
     setSellerType(getSellerType(settings))
     setSellerFirstName(String(settings.sellerFirstName ?? ''))
     setSellerLastName(String(settings.sellerLastName ?? ''))
+    setEntrepreneurPayoutConfirmed(settings.entrepreneurPayoutConfirmed === true)
     setBusinessName(String(settings.businessName ?? ''))
     setRegistryCode(String(settings.registryCode ?? ''))
     setBusinessAddress(String(settings.businessAddress ?? ''))
@@ -568,6 +571,7 @@ function PlatformFlow() {
         const result = await invokeStripeConnect('status')
         if (!active) return
         if (result.status) setPaymentStatus(result.status)
+        setStripeSetupError(result.setupError ?? null)
         if (result.detailsSubmitted !== undefined) setStripeDetailsSubmitted(result.detailsSubmitted)
         if (result.requirements) setStripeRequirements(result.requirements)
         setStore((current) => current ? {
@@ -604,7 +608,8 @@ function PlatformFlow() {
       window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [onlineUserId, store?.stripe_account_id])
+  }, [onlineUserId, store?.stripe_account_id, store?.settings.entrepreneurPayoutConfirmed,
+    store?.settings.sellerFirstName, store?.settings.sellerLastName, store?.settings.businessName, store?.settings.registryCode])
 
   const redirectToOwnedStore = (nextStore: StoreRecord) => {
     const target = getMerchantStoreUrl(nextStore.slug, window.location)
@@ -790,6 +795,7 @@ function PlatformFlow() {
       try {
         if (stripeConnectResult === 'refresh') setIsStripeOnboardingOpen(true)
         const result = await invokeStripeConnect('status')
+        if (active) setStripeSetupError(result.setupError ?? null)
         const refreshedStore = await getMyStore()
         if (refreshedStore && active) await applyStore(refreshedStore)
         setAuthNotice(result.status === 'connected'
@@ -1048,12 +1054,13 @@ function PlatformFlow() {
     } finally { setIsAuthBusy(false) }
   }
 
-  const sellerDetails: SellerDetailsValue = { sellerType, sellerFirstName, sellerLastName,
+  const sellerDetails: SellerDetailsValue = { sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed,
     businessName, registryCode, businessAddress, contactEmail: businessEmail, vatRegistered, vatNumber }
   const changeSellerDetails = (patch: Partial<SellerDetailsValue>) => {
     if (patch.sellerType !== undefined) setSellerType(patch.sellerType)
     if (patch.sellerFirstName !== undefined) setSellerFirstName(patch.sellerFirstName)
     if (patch.sellerLastName !== undefined) setSellerLastName(patch.sellerLastName)
+    if (patch.entrepreneurPayoutConfirmed !== undefined) setEntrepreneurPayoutConfirmed(patch.entrepreneurPayoutConfirmed)
     if (patch.registryCode !== undefined) {
       setRegistryCode(patch.registryCode); setBusinessName(''); setBusinessAddress('')
       setRegistryLookupStatus('idle'); setRegistryLookupCompanyName('')
@@ -1072,7 +1079,7 @@ function PlatformFlow() {
       shipping,
       settings: normalizeSellerSettings({
         ...existingSettings,
-        sellerType, sellerFirstName: sellerFirstName.trim(), sellerLastName: sellerLastName.trim(),
+        sellerType, sellerFirstName: sellerFirstName.trim(), sellerLastName: sellerLastName.trim(), entrepreneurPayoutConfirmed,
         businessName: businessName.trim(),
         registryCode: registryCode.trim(),
         businessAddress: businessAddress.trim(),
@@ -1115,6 +1122,7 @@ function PlatformFlow() {
       let latestRequirements = stripeRequirements
       if (saved.stripe_account_id && purpose === 'onboarding' && detailsSubmitted === undefined) {
         const stripeResult = await invokeStripeConnect('status')
+        setStripeSetupError(stripeResult.setupError ?? null)
         detailsSubmitted = stripeResult.detailsSubmitted
         latestStatus = stripeResult.status ?? latestStatus
         latestRequirements = stripeResult.requirements ?? latestRequirements
@@ -1150,6 +1158,7 @@ function PlatformFlow() {
     setAuthError('')
     try {
       const result = await invokeStripeConnect('status')
+      setStripeSetupError(result.setupError ?? null)
       if (result.detailsSubmitted !== undefined) setStripeDetailsSubmitted(result.detailsSubmitted)
       if (result.requirements) setStripeRequirements(result.requirements)
       const refreshedStore = await getMyStore()
@@ -1290,6 +1299,7 @@ function PlatformFlow() {
     try {
       const result = await invokeStripeConnect('status')
       if (result.status) setPaymentStatus(result.status)
+      setStripeSetupError(result.setupError ?? null)
       if (result.detailsSubmitted !== undefined) setStripeDetailsSubmitted(result.detailsSubmitted)
       if (result.requirements) setStripeRequirements(result.requirements)
     } catch (error) {
@@ -1312,6 +1322,7 @@ function PlatformFlow() {
       if (paymentStatus !== 'connected' || !store.stripe_account_id) {
         const stripeResult = await invokeStripeConnect('status')
         if (stripeResult.status) setPaymentStatus(stripeResult.status)
+        setStripeSetupError(stripeResult.setupError ?? null)
         if (stripeResult.detailsSubmitted !== undefined) setStripeDetailsSubmitted(stripeResult.detailsSubmitted)
         if (stripeResult.requirements) setStripeRequirements(stripeResult.requirements)
         if (stripeResult.status !== 'connected') {
@@ -1320,9 +1331,9 @@ function PlatformFlow() {
             Boolean(store.stripe_account_id),
             stripeResult.requirements ?? stripeRequirements,
           )
-          setAuthError(latestSetupState === 'reviewing'
+          setAuthError(stripeResult.setupError || (latestSetupState === 'reviewing'
             ? 'Stripe kontrollib veel esitatud andmeid. Pood on salvestatud ja saad selle avaldada kohe, kui maksed on aktiveeritud.'
-            : 'Stripe vajab enne poe avaldamist veel andmeid. Ava maksete samm ja lõpeta seadistus.')
+            : 'Stripe vajab enne poe avaldamist veel andmeid. Ava maksete samm ja lõpeta seadistus.'))
           return
         }
       }
@@ -1475,7 +1486,7 @@ function PlatformFlow() {
     pricingPlan={pricingPlan}
     fixedPlanTrialStartedAt={fixedPlanTrialStartedAt}
     stripeSubscriptionStatus={store?.stripe_subscription_status}
-    stripeRequirements={stripeRequirements}
+    stripeRequirements={stripeRequirements} paymentSetupError={stripeSetupError}
     merchantMode
     ownerEmail={email}
     accountEmailNotice={accountEmailNotice}
@@ -1491,7 +1502,7 @@ function PlatformFlow() {
   </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} sellerTypeLocked={Boolean(store?.stripe_account_id)} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} accountEmailNotice={accountEmailNotice} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={syncMerchantStore} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} paymentSetupError={stripeSetupError} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} sellerTypeLocked={Boolean(store?.stripe_account_id)} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} accountEmailNotice={accountEmailNotice} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={syncMerchantStore} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
     {stripeEmbeddedOverlay}
   </>
 
@@ -1791,7 +1802,8 @@ function PlatformFlow() {
       setIsSetupExiting(false)
     }
   }
-  const paymentSetupState = getPaymentSetupState(paymentStatus, Boolean(store?.stripe_account_id), stripeRequirements)
+  const needsPayoutConfirmation = sellerType === 'entrepreneur' && !entrepreneurPayoutConfirmed
+  const paymentSetupState = needsPayoutConfirmation || stripeSetupError ? 'setup-required' : getPaymentSetupState(paymentStatus, Boolean(store?.stripe_account_id), stripeRequirements)
   const paymentNeedsAction = paymentSetupState === 'setup-required'
   const paymentCanContinue = paymentSetupState !== 'setup-required'
   const paymentIssues = paymentNeedsAction ? stripeRequirementIssueCopies(stripeRequirements) : []
@@ -1845,12 +1857,13 @@ function PlatformFlow() {
       /> : <>{paymentIssues.length > 0 && <div className="connected-provider is-pending" role="alert">
         <span aria-hidden="true">!</span><div>{paymentIssues.map(issue => <div key={issue.title}><strong>{issue.title}</strong><small>{issue.detail}</small></div>)}</div>
       </div>}
-      {paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect('onboarding')}>
+      {stripeSetupError && !needsPayoutConfirmation && <p role="alert">{stripeSetupError}</p>}
+      {needsPayoutConfirmation ? <button className="payment-setup-action" onClick={() => setScreen('business')}><strong>Kinnita ettevõtluskonto kasutamine müüja andmetes</strong><span aria-hidden="true">→</span></button> : paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect('onboarding')}>
         <strong>{isStripeConnecting ? 'Avan maksete seadistust…' : paymentIssues.length ? 'Kontrolli andmeid Stripe’is' : paymentStatus === 'pending' ? 'Jätka maksete seadistamist' : 'Seadista maksed'}</strong><span aria-hidden="true">→</span>
       </button> : paymentSetupState === 'reviewing' ? <div className="connected-provider is-pending" role="status">
         <span aria-hidden="true">…</span><div><strong>Stripe kontrollib andmeid</strong><small>Kõik vajalik on esitatud. Võid poe seadistamisega jätkata; maksed aktiveeruvad pärast Stripe’i kinnitust.</small></div>
       </div> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}
-      {!isStripeOnboardingOpen && sellerType === 'entrepreneur' && <p className="setup-helper">Lisa Stripe’i väljamaksekontoks enda aktiivne LHV ettevõtluskonto. Enne maksete aktiveerimist kontrollib Poeruumi tugi konto ja müüja vastavust. Kontrolli alustamiseks kirjuta info@poeruum.ee. Ära lisa IBANit poe avalikesse andmetesse. Ettevõtluskonto maksu peab pank kinni eraldi.</p>}
+      {!isStripeOnboardingOpen && sellerType === 'entrepreneur' && <p className="setup-helper">Lisa Stripe’i väljamaksekontoks enda aktiivne LHV ettevõtluskonto ja hoia see ajakohane. Poeruum kontrollib automaatselt müüja nime vastavust ja maksete valmisolekut. Ettevõtluskonto maksu peab pank kinni kontole laekumisel.</p>}
       {!isStripeOnboardingOpen && store?.stripe_connection_type === 'oauth' && <>
         <a className="payment-setup-action is-existing" href={stripeDashboardUrl(store.stripe_account_id!, store.stripe_account_mode)} target="_blank" rel="noopener noreferrer"><strong>Halda kontot Stripe’is</strong><span aria-hidden="true">↗</span></a>
       </>}

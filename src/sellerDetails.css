@@ -20,3 +20,6 @@
 .seller-details .seller-details__hint { margin: -12px 0 0; color: #747d75; font-size: 12px; line-height: 1.5; font-weight: 400; }
 .settings-panel > .seller-details { margin-bottom: 24px; }
 @media (max-width: 360px) { .seller-details__names { grid-template-columns: 1fr; } .seller-details .seller-type__option { padding: 16px 12px; } }
+
+.settings-panel .seller-details > label, .settings-panel .seller-details__names > label { color: #f1f3ef; }
+.settings-panel .seller-details__hint { color: #b1bab3; }

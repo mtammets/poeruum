@@ -304,6 +304,7 @@ export type StorefrontProps = {
   theme?: StoreTheme
   paymentProvider?: PaymentProvider
   paymentsReady?: boolean
+  paymentSetupError?: string | null
   sellerTypeLocked?: boolean
   initialShipping?: string[]
   initialPublished?: boolean
@@ -335,7 +336,7 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', accountEmailNotice, onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, paymentSetupError = null, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', accountEmailNotice, onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const [initialSetupDraft] = useState<Product | null>(() => merchantMode && onContinueSetup && !seedProducts.length
     ? { id: createRandomId(), name: '', description: '', image: EMPTY_PRODUCT_IMAGE, gallery: [], alt: '', searchVisible: true }
     : null)
@@ -444,6 +445,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [sellerType, setSellerType] = useState<SellerType>('company')
   const [sellerFirstName, setSellerFirstName] = useState('')
   const [sellerLastName, setSellerLastName] = useState('')
+  const [entrepreneurPayoutConfirmed, setEntrepreneurPayoutConfirmed] = useState(false)
   const [businessName, setBusinessName] = useState('')
   const [registryCode, setRegistryCode] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
@@ -630,7 +632,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const dispatchTime: DispatchTime = deliverySettings.dispatchTime ?? { enabled: false, min: null, max: null, unit: 'business_days' }
   const dispatchTimeError = getDispatchTimeError(deliverySettings.dispatchTime)
   const settingsSnapshot = JSON.stringify(normalizeSellerSettings({
-    sellerType, sellerFirstName, sellerLastName,
+    sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed,
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
     directoryCover, directoryDescription,
@@ -679,6 +681,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     setSellerType(getSellerType(value))
     setSellerFirstName(String(value.sellerFirstName ?? ''))
     setSellerLastName(String(value.sellerLastName ?? ''))
+    setEntrepreneurPayoutConfirmed(value.entrepreneurPayoutConfirmed === true)
     if (value.businessName != null) setBusinessName(value.businessName)
     if (value.registryCode != null) setRegistryCode(value.registryCode)
     if (value.businessAddress != null) setBusinessAddress(value.businessAddress)
@@ -2515,6 +2518,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     }
     setBillingPlan(plan)
   }
+  const needsPayoutConfirmation = sellerType === 'entrepreneur' && !entrepreneurPayoutConfirmed
   const stripeActionRequired = stripeRequirementsNeedAction(stripeRequirements)
   const stripeRequirementDeadline = formatStripeRequirementDeadline(stripeRequirements?.currentDeadline)
   const stripeIssueCopies = stripeRequirementIssueCopies(stripeRequirements)
@@ -3326,6 +3330,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           {settingsSection === 'payments' && <div className="settings-panel payments-panel" role="tabpanel">
             {accountEmailNotice}
             <header><p>Vali, kuidas kliendid sinu poes maksavad.</p></header>
+            {needsPayoutConfirmation ? <div className="settings-payment-requirement" role="alert"><div><strong>Kinnita ettevõtluskonto kasutamine</strong><p>Märgi müüja andmetes, et kasutad enda aktiivset ettevõtluskontot ja suunad Stripe’i väljamaksed sellele.</p><button type="button" className="settings-secondary-action" onClick={() => setSettingsSection('business')}>Ava müüja andmed</button></div></div>
+              : paymentSetupError && <div className="settings-payment-requirement" role="alert"><div><strong>Maksed vajavad andmete parandamist</strong><p>{paymentSetupError}</p></div></div>}
             <div className="settings-provider-list">
               {([
                 ['stripe', 'Stripe', 'Kliendid saavad maksta kaardi, Apple Pay või Google Payga. Raha liigub sinu kontole.', 'Ühenda, et võtta vastu kaardi- ja nutimakseid.'],
@@ -3334,7 +3340,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 return <button type="button" disabled={isCurrentProvider} aria-pressed={isCurrentProvider} className={isCurrentProvider ? `is-active${paymentsReady ? '' : ' is-pending'}` : ''} onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider(id) : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')} key={id}>
                 <span className="settings-provider-logo is-stripe">S</span>
                 <span><strong>{name}</strong><small>{isCurrentProvider ? stripeActionRequired ? 'Müüja andmed vajavad kinnitamist.' : paymentsReady ? connectedDetail : 'Makseid saab vastu võtta pärast andmete kinnitamist.' : disconnectedDetail}</small></span>
-                <i className={`settings-provider-status${stripeActionRequired ? ' is-warning' : ''}`}>{isCurrentProvider ? stripeActionRequired ? <span>Vajab tegevust</span> : paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
+                <i className={`settings-provider-status${stripeActionRequired ? ' is-warning' : ''}`}>{isCurrentProvider ? stripeActionRequired || needsPayoutConfirmation || paymentSetupError ? <span>Vajab tegevust</span> : paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
               </button>})}
             </div>
             {stripeActionRequired && <div className="settings-payment-requirement" role="alert">
@@ -3400,11 +3406,12 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </div>
           </div>}
           {settingsSection === 'business' && <div className="settings-panel" role="tabpanel">
-            <SellerDetailsFields value={{ sellerType, sellerFirstName, sellerLastName, businessName, registryCode, businessAddress, contactEmail, vatRegistered, vatNumber }}
+            <SellerDetailsFields value={{ sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, businessName, registryCode, businessAddress, contactEmail, vatRegistered, vatNumber }}
               typeLocked={sellerTypeLocked} onChange={(patch: Partial<SellerDetailsValue>) => {
                 if (patch.sellerType !== undefined) setSellerType(patch.sellerType)
                 if (patch.sellerFirstName !== undefined) setSellerFirstName(patch.sellerFirstName)
                 if (patch.sellerLastName !== undefined) setSellerLastName(patch.sellerLastName)
+                if (patch.entrepreneurPayoutConfirmed !== undefined) setEntrepreneurPayoutConfirmed(patch.entrepreneurPayoutConfirmed)
                 if (patch.businessName !== undefined) setBusinessName(patch.businessName)
                 if (patch.registryCode !== undefined) setRegistryCode(patch.registryCode)
                 if (patch.businessAddress !== undefined) setBusinessAddress(patch.businessAddress)
