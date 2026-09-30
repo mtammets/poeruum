@@ -631,8 +631,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [productEdits, setProductEdits] = useState<Record<string, Partial<Product>>>({})
   const dispatchTime: DispatchTime = deliverySettings.dispatchTime ?? { enabled: false, min: null, max: null, unit: 'business_days' }
   const dispatchTimeError = getDispatchTimeError(deliverySettings.dispatchTime)
+  const entrepreneurPayoutAdminException = initialSettings.entrepreneurPayoutAdminException === true
   const settingsSnapshot = JSON.stringify(normalizeSellerSettings({
-    sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed,
+    sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, entrepreneurPayoutAdminException,
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
     directoryCover, directoryDescription,
@@ -2518,7 +2519,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     }
     setBillingPlan(plan)
   }
-  const needsPayoutConfirmation = sellerType === 'entrepreneur' && !entrepreneurPayoutConfirmed
+  const needsPayoutConfirmation = sellerType === 'entrepreneur' && !entrepreneurPayoutConfirmed && !entrepreneurPayoutAdminException
   const stripeActionRequired = stripeRequirementsNeedAction(stripeRequirements)
   const stripeRequirementDeadline = formatStripeRequirementDeadline(stripeRequirements?.currentDeadline)
   const stripeIssueCopies = stripeRequirementIssueCopies(stripeRequirements)
@@ -3406,7 +3407,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </div>
           </div>}
           {settingsSection === 'business' && <div className="settings-panel" role="tabpanel">
-            <SellerDetailsFields value={{ sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, businessName, registryCode, businessAddress, contactEmail, vatRegistered, vatNumber }}
+            <SellerDetailsFields value={{ sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, entrepreneurPayoutAdminException, businessName, registryCode, businessAddress, contactEmail, vatRegistered, vatNumber }}
               typeLocked={sellerTypeLocked} onChange={(patch: Partial<SellerDetailsValue>) => {
                 if (patch.sellerType !== undefined) setSellerType(patch.sellerType)
                 if (patch.sellerFirstName !== undefined) setSellerFirstName(patch.sellerFirstName)

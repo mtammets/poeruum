@@ -576,6 +576,7 @@ function PlatformFlow() {
         if (result.requirements) setStripeRequirements(result.requirements)
         setStore((current) => current ? {
           ...current,
+          ...(result.payoutAdminException !== undefined ? { settings: { ...current.settings, entrepreneurPayoutAdminException: result.payoutAdminException } } : {}),
           ...(result.status ? { payment_status: result.status } : {}),
           ...(result.chargesEnabled !== undefined ? { stripe_account_charges_enabled: result.chargesEnabled } : {}),
           ...(result.payoutsEnabled !== undefined ? { stripe_account_payouts_enabled: result.payoutsEnabled } : {}),
@@ -608,7 +609,7 @@ function PlatformFlow() {
       window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [onlineUserId, store?.stripe_account_id, store?.settings.entrepreneurPayoutConfirmed,
+  }, [onlineUserId, store?.stripe_account_id, store?.settings.entrepreneurPayoutConfirmed, store?.settings.entrepreneurPayoutAdminException,
     store?.settings.sellerFirstName, store?.settings.sellerLastName, store?.settings.businessName, store?.settings.registryCode])
 
   const redirectToOwnedStore = (nextStore: StoreRecord) => {
@@ -1055,6 +1056,7 @@ function PlatformFlow() {
   }
 
   const sellerDetails: SellerDetailsValue = { sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed,
+    entrepreneurPayoutAdminException: store?.settings.entrepreneurPayoutAdminException === true,
     businessName, registryCode, businessAddress, contactEmail: businessEmail, vatRegistered, vatNumber }
   const changeSellerDetails = (patch: Partial<SellerDetailsValue>) => {
     if (patch.sellerType !== undefined) setSellerType(patch.sellerType)
@@ -1802,7 +1804,7 @@ function PlatformFlow() {
       setIsSetupExiting(false)
     }
   }
-  const needsPayoutConfirmation = sellerType === 'entrepreneur' && !entrepreneurPayoutConfirmed
+  const needsPayoutConfirmation = sellerType === 'entrepreneur' && !entrepreneurPayoutConfirmed && !sellerDetails.entrepreneurPayoutAdminException
   const paymentSetupState = needsPayoutConfirmation || stripeSetupError ? 'setup-required' : getPaymentSetupState(paymentStatus, Boolean(store?.stripe_account_id), stripeRequirements)
   const paymentNeedsAction = paymentSetupState === 'setup-required'
   const paymentCanContinue = paymentSetupState !== 'setup-required'

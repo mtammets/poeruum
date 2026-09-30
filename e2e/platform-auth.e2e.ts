@@ -1777,3 +1777,39 @@ test('saving a seller payout declaration refreshes Stripe automatically without 
   await expect(page.getByText('Kinnita enda aktiivse ettevõtluskonto kasutamine müüja andmetes.', { exact: true })).toHaveCount(0)
   await page.screenshot({ path: 'output/seller-payout-declaration.png', fullPage: true })
 })
+
+for (const published of [false, true]) {
+  test(`an admin exception keeps seller consent false in ${published ? 'settings' : 'onboarding'}`, async ({ page }) => {
+    const backend = await installSupabaseBackend(page, { ...store, is_published: published, settings: {
+      ...store.settings, onboardingStep: 'business', sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+      businessName: 'Liisa Tamm', registryCode: '', vatRegistered: false, entrepreneurPayoutConfirmed: false,
+      entrepreneurPayoutAdminException: true,
+    } }, { ...connectedStripeStatus, setupError: null, requirements: { ...connectedStripeStatus.requirements, dueCount: 0 } })
+    await signInThroughLanding(page)
+    if (published) {
+      await page.getByRole('button', { name: /Seaded/ }).click()
+      await page.locator('.settings-home button[data-section="business"]').click()
+    }
+    await expect(page.getByText('Poeruumi administraator on sellele kontole teinud erandi.', { exact: false })).toBeVisible()
+    await expect(page.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false })).toHaveCount(0)
+    const saved = page.waitForResponse(response => response.url().includes('/rest/v1/stores') && response.request().method() === 'PATCH')
+    if (published) await page.getByLabel('Kontakt-e-post', { exact: true }).fill('updated@example.com')
+    else await page.getByRole('button', { name: 'Jätka maksetega' }).click()
+    expect((await saved).ok()).toBe(true)
+    expect(backend.currentStore().settings).toMatchObject({ entrepreneurPayoutConfirmed: false, entrepreneurPayoutAdminException: true })
+    if (!published) await expect(page.getByRole('button', { name: 'Kinnita ettevõtluskonto kasutamine müüja andmetes' })).toHaveCount(0)
+  })
+}
+
+
+test('a revoked admin exception restores the seller declaration in the open session', async ({ page }) => {
+  await installSupabaseBackend(page, { ...store, is_published: false, settings: {
+    ...store.settings, onboardingStep: 'business', sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+    businessName: 'Liisa Tamm', registryCode: '', vatRegistered: false, entrepreneurPayoutConfirmed: false,
+    entrepreneurPayoutAdminException: true,
+  } }, { ...connectedStripeStatus, status: 'pending', payoutAdminException: false,
+    setupError: 'Kinnita enda aktiivse ettevõtluskonto kasutamine müüja andmetes.' })
+  await signInThroughLanding(page)
+  await expect(page.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false })).toBeVisible()
+  await expect(page.getByText('Poeruumi administraator on sellele kontole teinud erandi.', { exact: false })).toHaveCount(0)
+})

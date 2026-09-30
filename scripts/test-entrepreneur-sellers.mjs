@@ -21,6 +21,7 @@ ${read('../supabase/migrations/202609300005_stripe_oauth.sql')}
 ${read('../supabase/migrations/202609300007_remove_entrepreneur_account_confirmation.sql')}
 ${read('../supabase/migrations/202609300008_cap_gross_platform_fees.sql')}
 ${read('../supabase/migrations/202609300012_seller_payout_declaration.sql')}
+${read('../supabase/migrations/202609300013_seller_payout_exception.sql')}
 ${read('./test-entrepreneur-sellers.sql')}
 ${read('./test-stripe-oauth.sql')}
 ${read('../supabase/migrations/202609300006_stripe_hosted_onboarding.sql')}

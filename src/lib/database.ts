@@ -236,6 +236,7 @@ export async function invokeStripeConnect(
   if (data?.error) throw new Error(String(data.error))
   return data as {
     setupError?: string | null
+    payoutAdminException?: boolean
     clientSecret?: string
     dashboardUrl?: string
     status?: StoreRecord['payment_status']

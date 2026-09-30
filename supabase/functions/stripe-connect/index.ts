@@ -119,6 +119,7 @@ Deno.serve(async (request) => {
       return json({
         status,
         setupError: verification.setupError,
+        payoutAdminException: verification.payoutAdminException,
         chargesEnabled: account.charges_enabled,
         payoutsEnabled: account.payouts_enabled,
         detailsSubmitted: account.details_submitted,

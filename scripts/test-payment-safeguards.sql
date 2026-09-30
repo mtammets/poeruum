@@ -71,6 +71,54 @@ begin
     raise exception 'Stale identity reconnected';
   exception when others then if sqlerrm<>'SELLER_CHANGED' then raise; end if; end;
 end; $$;
+
+-- Explicit operator exceptions remain private, scoped and independent of seller attestations.
+do $$ declare sid uuid:='79000000-0000-4000-8000-000000000002';
+  bank_value jsonb:='{"id":"ba_exception","country":"EE","currency":"eur"}'; settings_value jsonb;
+begin
+  perform pg_temp.verify(not has_table_privilege('anon','public.seller_payout_exceptions','select')
+    and not has_table_privilege('authenticated','public.seller_payout_exceptions','select')
+    and not has_table_privilege('authenticated','public.seller_payout_exceptions','insert')
+    and not has_table_privilege('authenticated','public.seller_payout_exceptions','update'),'Exception audit exposed to sellers');
+  update public.stores set settings=settings||'{"entrepreneurPayoutConfirmed":false,"entrepreneurPayoutAdminException":true}' where id=sid;
+  select settings into settings_value from public.stores where id=sid;
+  perform pg_temp.verify(not public.seller_details_complete(settings_value),'Client forged admin exception');
+  perform public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true);
+  insert into public.seller_payout_exceptions(store_id,owner_id,account_id,stripe_mode,identity,bank,approved_by,reason)
+    select id,owner_id,stripe_account_id,stripe_account_mode,public.seller_identity_key(settings),bank_value,owner_id,
+      'Explicit operator instruction for this existing seller only.' from public.stores where id=sid;
+  update public.stores set settings=settings where id=sid;
+  select settings into settings_value from public.stores where id=sid;
+  perform pg_temp.verify(public.seller_details_complete(settings_value),'Scoped exception did not accept seller details');
+  perform pg_temp.verify(settings_value->'entrepreneurPayoutConfirmed'='false'::jsonb,'Exception invented seller consent');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,'Mismatch',true),'Exception bypassed Stripe identity');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,false),'Exception bypassed Stripe readiness');
+  perform pg_temp.verify(public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Scoped ready seller stayed pending');
+  update public.stores set settings=settings-'entrepreneurPayoutAdminException',name='Brand only' where id=sid;
+  perform pg_temp.verify((select settings->'entrepreneurPayoutAdminException'='true'::jsonb and payment_status='connected' from public.stores where id=sid),'Autosave or branding removed exception');
+  -- Copied settings do not grant another store any authority, even on INSERT.
+  insert into public.stores(id,owner_id,name,slug,settings)
+    select '79000000-0000-4000-8000-000000000004',owner_id,'Other seller','exception-copy-test',settings from public.stores where id=sid;
+  perform pg_temp.verify((select not public.seller_details_complete(settings) from public.stores where id='79000000-0000-4000-8000-000000000004'),'Exception copied to another store');
+  -- Publication progresses to the real remaining prerequisite, without publishing an empty store.
+  update public.stores set payment_provider='stripe',stripe_account_charges_enabled=true,stripe_account_payouts_enabled=true,shipping=array['pickup'] where id=sid;
+  update auth.users set email_confirmed_at=now() where id='79000000-0000-4000-8000-000000000001';
+  perform set_config('request.jwt.claim.sub','79000000-0000-4000-8000-000000000001',true);
+  begin
+    perform public.publish_store(sid);
+    raise exception 'Empty store was published';
+  exception when others then if sqlerrm<>'Enne avaldamist lisa vähemalt üks toode.' then raise; end if; end;
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value||'{"id":"ba_new"}',null,true),'Changed bank reused exception');
+  perform pg_temp.verify((select revoked_at is not null from public.seller_payout_exceptions where store_id=sid),'Bank change not recorded');
+  perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Stale settings or old bank resurrected exception');
+  -- Regrant for independent identity-invalidation coverage.
+  update public.seller_payout_exceptions set revoked_at=null where store_id=sid;
+  update public.stores set settings=settings where id=sid;
+  perform pg_temp.verify(public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Regranted exception unavailable');
+  update public.stores set settings=settings||'{"sellerLastName":"Kask"}' where id=sid;
+  perform pg_temp.verify((select revoked_at is not null from public.seller_payout_exceptions where store_id=sid),'Identity change retained exception');
+  perform pg_temp.verify((select payment_status='pending' and not public.seller_details_complete(settings) from public.stores where id=sid),'Identity change stayed active');
+end; $$;
 set local role authenticated;
 select set_config('request.jwt.claims','{"app_metadata":{}}',true);
 do $$ begin

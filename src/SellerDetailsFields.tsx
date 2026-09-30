@@ -7,6 +7,7 @@ export type SellerDetailsValue = {
   sellerFirstName: string
   sellerLastName: string
   entrepreneurPayoutConfirmed: boolean
+  entrepreneurPayoutAdminException?: boolean
   businessName: string
   registryCode: string
   businessAddress: string
@@ -45,7 +46,8 @@ export default function SellerDetailsFields({ value, onChange, typeLocked = fals
     <label>{individual ? 'Aadress' : 'Registrijärgne aadress'}<input required autoComplete="street-address" maxLength={400} value={value.businessAddress} onChange={(event) => onChange({ businessAddress: event.target.value })} /></label>
     {individual && <small className="seller-details__hint">Aadress kuvatakse ostjale müüja andmetes.</small>}
     <label>Kontakt-e-post<input required type="email" autoComplete="email" maxLength={254} value={value.contactEmail} onChange={(event) => onChange({ contactEmail: event.target.value })} /></label>
-    {individual && <label className="seller-details__check"><input type="checkbox" required checked={value.entrepreneurPayoutConfirmed} onChange={(event) => onChange({ entrepreneurPayoutConfirmed: event.target.checked })} /><span>Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot ja suunan Stripe’i väljamaksed sellele kontole.</span></label>}
+    {individual && value.entrepreneurPayoutAdminException && <p className="seller-details__hint">Poeruumi administraator on sellele kontole teinud erandi. Sinu täiendavat kinnitust praegu ei nõuta.</p>}
+    {individual && !value.entrepreneurPayoutAdminException && <label className="seller-details__check"><input type="checkbox" required checked={value.entrepreneurPayoutConfirmed} onChange={(event) => onChange({ entrepreneurPayoutConfirmed: event.target.checked })} /><span>Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot ja suunan Stripe’i väljamaksed sellele kontole.</span></label>}
     {!individual && <>
       <label className="seller-details__check"><input type="checkbox" checked={value.vatRegistered} onChange={(event) => onChange({ vatRegistered: event.target.checked, ...(!event.target.checked ? { vatNumber: '' } : {}) })} /><span>Olen käibemaksukohustuslane</span></label>
       {value.vatRegistered && <label>KMKR number<input required pattern="EE[0-9]{9}" maxLength={11} value={value.vatNumber} onChange={(event) => onChange({ vatNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11) })} /></label>}

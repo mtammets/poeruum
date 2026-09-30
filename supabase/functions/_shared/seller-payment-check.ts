@@ -1,6 +1,6 @@
 import type Stripe from 'npm:stripe@^22'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
-import { sellerType } from '../../../shared/seller.ts'
+import { sellerPayoutAccepted, sellerType } from '../../../shared/seller.ts'
 import { stripeSellerIdentityError, existingStripeAccountError, stripeAccountReady } from './stripe-oauth.ts'
 
 type Store = { id: string; settings: Record<string, unknown>; stripe_account_id: string; stripe_account_mode: string; stripe_connection_type: string | null }
@@ -29,10 +29,13 @@ export async function syncSellerPaymentCheck(admin: SupabaseClient, stripe: Stri
     settings_value: store.settings, bank_value: bank, error_value: identityError, ready_value: stripeAccountReady(account),
   })
   if (error) throw error
-  const setupError = identityError || (individual && store.settings.entrepreneurPayoutConfirmed !== true
+  // The sync can revoke an exception after a bank change; use the current projection.
+  const { data: currentStore, error: readError } = await admin.from('stores').select('settings').eq('id', store.id).single()
+  if (readError) throw readError
+  const setupError = identityError || (individual && !sellerPayoutAccepted(currentStore.settings)
     ? 'Kinnita enda aktiivse ettevõtluskonto kasutamine müüja andmetes.'
     : individual && (!('id' in bank) || bank.country !== 'EE' || bank.currency !== 'eur')
       ? 'Lisa Stripe’i EUR-väljamaksekontoks enda aktiivne LHV ettevõtluskonto.'
       : null)
-  return { ready: ready === true, bank, setupError }
+  return { ready: ready === true, bank, setupError, payoutAdminException: currentStore.settings.entrepreneurPayoutAdminException === true }
 }

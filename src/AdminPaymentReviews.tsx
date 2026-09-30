@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { requireSupabase } from './lib/supabase'
 import './adminPaymentReviews.css'
 type Payment = { id: string; order_number: string; store_name: string; stripe_mode: string; stripe_payment_intent_id: string; stripe_dispute_id: string | null; stripe_dispute_status: string | null; stripe_payment_issue: string | null; last_error: string | null; payment_status: string }
-type Seller = { id: string; name: string; seller_name: string; stripe_account_id: string; stripe_account_mode: string; checked_at: string | null; stripe_ready: boolean | null; bank: { id?: string; bank_name?: string; last4?: string; account_holder_name?: string; country?: string; currency?: string } | null; identity_error: string | null; seller_confirmed: boolean; payment_status: string }
+type Seller = { id: string; name: string; seller_name: string; stripe_account_id: string; stripe_account_mode: string; checked_at: string | null; stripe_ready: boolean | null; bank: { id?: string; bank_name?: string; last4?: string; account_holder_name?: string; country?: string; currency?: string } | null; identity_error: string | null; seller_confirmed: boolean; admin_exception?: boolean; payment_status: string }
 const dashboard = (mode: string, path: string) => `https://dashboard.stripe.com/${mode === 'test' ? 'test/' : ''}${path}`
 export default function AdminPaymentReviews() {
   const [data, setData] = useState<{ orders: Payment[]; sellers: Seller[] }>({ orders: [], sellers: [] })
@@ -44,8 +44,9 @@ export default function AdminPaymentReviews() {
       {data.sellers.map(seller => {
         return <article key={seller.id}><h3>{seller.name}</h3>
           {seller.name !== seller.seller_name && <p>Müüja: {seller.seller_name}</p>}
-          <p><strong>{seller.identity_error ? 'Müüja andmed ei ühti' : !seller.seller_confirmed ? 'Müüja kinnitus puudub' : !seller.checked_at ? 'Stripe’i andmed veel laadimata' : seller.payment_status === 'connected' ? 'Maksed valmis' : 'Müüja seadistus on pooleli'}</strong>{seller.stripe_account_mode === 'test' && ' · Testkonto'}</p>
-          {!seller.seller_confirmed && !seller.identity_error && <p>Müüja peab oma müüjaandmetes kinnitama, et kasutab enda aktiivset ettevõtluskontot ja suunab Stripe’i väljamaksed sellele.</p>}
+          <p><strong>{seller.identity_error ? 'Müüja andmed ei ühti' : !seller.seller_confirmed && !seller.admin_exception ? 'Müüja kinnitus puudub' : !seller.checked_at ? 'Stripe’i andmed veel laadimata' : seller.payment_status === 'connected' ? 'Maksed valmis' : 'Müüja seadistus on pooleli'}</strong>{seller.stripe_account_mode === 'test' && ' · Testkonto'}</p>
+          {seller.admin_exception && <p>Administraatori erand. Müüja enda kinnitust ei ole nõutud.</p>}
+          {!seller.seller_confirmed && !seller.admin_exception && !seller.identity_error && <p>Müüja peab oma müüjaandmetes kinnitama, et kasutab enda aktiivset ettevõtluskontot ja suunab Stripe’i väljamaksed sellele.</p>}
           {!seller.checked_at ? <p>Stripe’i maksete valmisolekut pole veel kontrollitud.</p>
             : !seller.stripe_ready ? <p>Müüja peab Stripe’is seadistuse lõpetama või ootama Stripe’i kontrolli.</p> : null}
           {seller.bank?.id && <p>{seller.bank.bank_name || 'Stripe’i väljamaksekonto'} {seller.bank.last4 && `•••• ${seller.bank.last4}`} {seller.bank.account_holder_name}</p>}

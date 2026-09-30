@@ -19,6 +19,16 @@ describe('seller identity across onboarding, payments and purchase documents', (
     expect(hasSellerDetails({ ...entrepreneur, sellerType: 'unknown' })).toBe(false)
     expect(hasSellerDetails({ ...entrepreneur, sellerType: null })).toBe(false)
   })
+  it('accepts a protected admin exception without inventing a seller declaration', () => {
+    const settings = { ...entrepreneur, entrepreneurPayoutConfirmed: false, entrepreneurPayoutAdminException: true }
+    expect(hasSellerDetails(settings)).toBe(true)
+    expect(settings.entrepreneurPayoutConfirmed).toBe(false)
+    for (const value of [undefined, false, 'true', 1]) {
+      expect(hasSellerDetails({ ...settings, entrepreneurPayoutAdminException: value })).toBe(false)
+    }
+    expect(hasSellerDetails({ ...settings, sellerFirstName: '' })).toBe(false)
+    expect(hasSellerDetails({ ...settings, vatRegistered: true })).toBe(false)
+  })
   it('requires both legal names, contact information and non-VAT status', () => {
     for (const patch of [{ sellerFirstName: '' }, { sellerLastName: '' }, { sellerLastName: 'Tam\nm' }, { businessAddress: '' },
       { contactEmail: 'invalid' }, { vatRegistered: true }, { vatNumber: 'EE123456789' }]) {

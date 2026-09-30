@@ -280,3 +280,18 @@ test('unloaded and incomplete seller accounts never show a premature approval fo
   await expect(page.getByRole('button', { name: 'Kinnita ettevõtluskonto' })).toHaveCount(0)
   await page.screenshot({ path: 'output/payment-review-incomplete.png', fullPage: true })
 })
+
+test('an admin exception is shown separately from seller confirmation', async ({ page }) => {
+  await installBackend(page)
+  await page.route('**/rest/v1/rpc/admin_payment_reviews', route => route.fulfill({
+    headers: { 'Access-Control-Allow-Origin': '*' }, json: { orders: [], sellers: [{
+      id: 'seller', name: 'Ateljee', seller_name: 'Liisa Tamm', stripe_account_id: 'acct_test', stripe_account_mode: 'live',
+      bank: { id: 'ba_test', country: 'EE', currency: 'eur' }, stripe_ready: true, seller_confirmed: false,
+      admin_exception: true, payment_status: 'connected', checked_at: '2026-09-30T12:00:00Z',
+    }] },
+  }))
+  await page.goto('/admin/payments')
+  await expect(page.getByText('Maksed valmis', { exact: true })).toBeVisible()
+  await expect(page.getByText('Administraatori erand.', { exact: false })).toBeVisible()
+  await expect(page.getByText('Müüja kinnitus puudub', { exact: true })).toHaveCount(0)
+})
