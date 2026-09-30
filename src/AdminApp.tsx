@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import './admin.css'
+import './adminUsers.css'
 import { createRandomId } from './lib/randomId'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -467,7 +468,7 @@ function ProgressBar({ row }: { row: AdminUserRow }) {
   return <div className={`admin-progress ${progressState}`}>
     <div className="admin-progress__meta"><strong>{percent}%</strong><span>{completed} tehtud · {setupSteps.length - completed} teha</span></div>
     <div className="admin-progress__track" role="progressbar" aria-label="Poe seadistuse edenemine" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${completed} sammu ${setupSteps.length}-st tehtud`}>
-      <span style={{ width: `${percent}%` }} />
+      {setupSteps.map((step, index) => <span className={index < completed ? 'is-done' : undefined} key={step.key} aria-hidden="true" />)}
     </div>
     <small>{percent === 100 ? 'Kõik sammud tehtud' : `Järgmine samm: ${getNextStep(row)}`}</small>
   </div>
@@ -1004,7 +1005,7 @@ export default function AdminApp() {
     { label: 'Pood avaldatud', detail: 'Valmis poed', value: homepageAnalytics.stores_published },
   ]
 
-  return <main className="admin-shell">
+  return <main className={`admin-shell${activeView === 'users' ? ' admin-shell--users' : ''}`}>
     <aside className="admin-sidebar">
       <a href="/" aria-label="Poeruumi avaleht"><Brand /></a>
       <nav aria-label="Administraatori menüü">
@@ -1024,7 +1025,7 @@ export default function AdminApp() {
     </aside>
 
     <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
-      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>
+      {activeView !== 'users' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
@@ -1348,7 +1349,7 @@ export default function AdminApp() {
 
         {activeView === 'users' && <section className="admin-users">
           {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset (suurim arv: {Math.max(...signupAlerts.map((alert) => Number(alert.requests)))}). Vaata uued kontod üle; jagatud võrk üksi ei tähenda väärkasutust.</p></div>}
-          <header><div><h2>Seadistuse edenemine</h2></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
+          <header><div><h2>Kasutajad</h2></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
           <div className="admin-filters" role="group" aria-label="Filtreeri kasutajaid">
             {filters.map((item) => <button type="button" className={filter === item.id ? 'is-active' : ''} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} key={item.id}>{item.label}</button>)}
           </div>
@@ -1365,10 +1366,10 @@ export default function AdminApp() {
                 ? getStorefrontCanonicalUrl(row.store_slug, undefined, row.custom_hostname ?? undefined)
                 : null
               return <article className={`admin-user-row${percent === 100 ? ' is-complete' : ''}`} key={row.user_id}>
-                <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><div className="admin-user-row__store"><strong>{row.store_name || 'Poodi pole loodud'}</strong>{storefrontUrl && <a href={storefrontUrl} target="_blank" rel="noopener noreferrer" title={storefrontUrl} aria-label={`Ava pood ${row.store_name || row.store_slug} uuel vahelehel`}>Ava pood <span aria-hidden="true">↗</span></a>}</div><a href={`mailto:${row.email}`}>{row.email}</a>{row.email_is_disposable && <span className="admin-email-flag" title="Teadaolev ajutine meiliteenus. Märge ei tõesta väärkasutust.">Ajutine e-post</span>}{row.email_confirmed === false && <span className="admin-email-flag is-unconfirmed">Kinnitamata</span>}{row.email_review_required && <span className="admin-email-flag">Ülevaatus: 30 päeva tegevuseta</span>}</div></div>
+                <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><div className="admin-user-row__store"><strong title={row.store_name || 'Poodi pole loodud'}>{row.store_name || 'Poodi pole loodud'}</strong>{storefrontUrl && <a href={storefrontUrl} target="_blank" rel="noopener noreferrer" title={storefrontUrl} aria-label={`Ava pood ${row.store_name || row.store_slug} uuel vahelehel`}>Ava pood <span aria-hidden="true">↗</span></a>}</div><a href={`mailto:${row.email}`} title={row.email}>{row.email}</a>{(row.email_is_disposable || row.email_confirmed === false || row.email_review_required) && <div className="admin-user-row__flags">{row.email_is_disposable && <span className="admin-email-flag" title="Teadaolev ajutine meiliteenus. Märge ei tõesta väärkasutust.">Ajutine e-post</span>}{row.email_confirmed === false && <span className="admin-email-flag is-unconfirmed">Kinnitamata</span>}{row.email_review_required && <span className="admin-email-flag">Ülevaatus: 30 päeva tegevuseta</span>}</div>}</div></div>
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
-                <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 && !paymentIssue ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small title={paymentIssue?.detail}>{paymentIssue?.title ?? (row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett')}</small>}</div>
+                <div className="admin-user-row__status">{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 && !paymentIssue ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small title={paymentIssue?.detail}>{paymentIssue?.title ?? (row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett')}</small>}</div>
                 <div className={`admin-user-row__support${latestEmail && ['failed', 'bounced', 'complained', 'suppressed'].includes(latestEmail.status) ? ' is-error' : ''}`}>{row.open_support_count > 0 ? <a href="/admin/support" onClick={(event) => navigateToView(event, 'support')}><strong>{row.open_support_count} avatud vestlus{row.open_support_count === 1 ? '' : 't'}</strong><small>{formatRelativeTime(row.last_support_at)}</small></a> : latestEmail ? <span><strong>{latestEmail.email_type === 'onboarding_reminder' ? 'Seadistuse meeldetuletus' : latestEmail.email_type === 'support_reply' ? 'Klienditoe vastus' : latestEmail.email_type === 'support_confirmation' ? 'Küsimuse kinnitus' : latestEmail.subject || 'Poeruumi kiri'}</strong><small>{latestEmail.status === 'delivered' ? 'Kohale toimetatud' : latestEmail.status === 'sent' ? 'Saatmine vastu võetud' : latestEmail.status === 'delivery_delayed' ? 'Kohaletoimetamine viibib' : latestEmail.status === 'suppressed' ? 'Saatmine blokeeritud' : latestEmail.status === 'bounced' ? 'Ei jõudnud kohale' : latestEmail.status === 'complained' ? 'Märgiti rämpspostiks' : 'Saatmine ebaõnnestus'} · {formatRelativeTime(latestEmail.status_updated_at)}</small></span> : <span>Suhtlust pole</span>}</div>
                 <div className="admin-user-row__activity"><strong className={isOnline ? 'is-online' : undefined}>{isOnline ? 'Online' : formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
               </article>
