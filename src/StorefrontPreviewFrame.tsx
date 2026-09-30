@@ -117,10 +117,10 @@ export default function StorefrontPreviewFrame() {
         if (cancelled || !await pause(0)) return
 
         if (products.length > 1) {
-          const physicalIndex = Math.round(track.scrollLeft / track.clientWidth)
           // Use the real carousel so the next product slides in from the right,
-          // including the seamless last-to-first transition.
-          track.scrollTo({ left: (physicalIndex + 1) * track.clientWidth, behavior: 'smooth' })
+          // including the seamless last-to-first transition. The tour owns the
+          // target; a resize or scroll-snap adjustment must not skip a product.
+          track.scrollTo({ left: (index + 2) * track.clientWidth, behavior: 'smooth' })
           if (!await waitUntilStill(() => track.scrollLeft)) return
         }
         setImageSelection(null)

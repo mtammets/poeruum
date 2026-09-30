@@ -253,6 +253,9 @@ test('homepage demonstrates typing and opening a real search result for more tha
   await page.goto('/')
   const phone = page.frameLocator('.platform-phone__frame')
   await expect(phone.locator('.story-slide > img').nth(1)).toHaveJSProperty('complete', true)
+  // Keep time fixed between runFor calls: browser round trips must not type
+  // another letter while the test changes the reduced-motion preference.
+  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 100))
   const products = await phone.locator('#storefront-preview-data').textContent()
   const target = JSON.parse(products!).products[1].name
   await page.locator('.platform-hero__copy > button').focus()
