@@ -13,10 +13,11 @@ const schedule = migration.slice(migration.lastIndexOf('do $$'))
 // rolled-back transaction. The cron schedule never becomes visible or runs.
 const sql = `begin;
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
-values ('76000000-0000-4000-8000-000000000001','authenticated','authenticated','migration@example.invalid','{}','{}',now(),now());
+values ('76000000-0000-4000-8000-000000000001','authenticated','authenticated','migration@example.invalid','{}','{}',now(),now()),
+('76000000-0000-4000-8000-000000000007','authenticated','authenticated','migration-disabled@example.invalid','{}','{}',now(),now());
 insert into public.stores(id,owner_id,name,slug,settings) values
 ('76000000-0000-4000-8000-000000000002','76000000-0000-4000-8000-000000000001','Enabled','email-migration-enabled','{}'),
-('76000000-0000-4000-8000-000000000003','76000000-0000-4000-8000-000000000001','Disabled','email-migration-disabled','{"customerConfirmations":false,"sellerNotifications":false}');
+('76000000-0000-4000-8000-000000000003','76000000-0000-4000-8000-000000000007','Disabled','email-migration-disabled','{"customerConfirmations":false,"sellerNotifications":false}');
 insert into public.orders(id,store_id,order_number,items,customer_name,customer_email,delivery,
 product_subtotal,total,payment_status,stripe_mode,stripe_payment_intent_id,customer_confirmation_sent_at,seller_notification_sent_at)
 select ('76000000-0000-4000-8000-00000000000' || n)::uuid,
