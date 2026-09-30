@@ -31,7 +31,8 @@ export function beginStripeRedirect(url: string, storeId: string, mode: StripeRe
   // resume the same fixture and its desktop/phone view after returning.
   if (import.meta.env.DEV && window.parent !== window) {
     try {
-      if (window.parent.location.origin === window.location.origin && window.parent.location.pathname === '/previews/sellers.html') target = window.parent
+      if (window.parent.location.origin === window.location.origin
+        && ['/previews/sellers.html', '/previews/payments.html'].includes(window.parent.location.pathname)) target = window.parent
     } catch { /* A different origin is not an authorized preview wrapper. */ }
   }
   const returnTo = `${target.location.pathname}${target.location.search}${target.location.hash}`

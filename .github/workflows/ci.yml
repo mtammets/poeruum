@@ -72,6 +72,9 @@ jobs:
       - name: Seller setup, Stripe return and first product journey
         run: npm run test:seller-preview -- --workers=1
 
+      - name: Payment preview navigation and Stripe return
+        run: npm run test:payment-preview -- --workers=1
+
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
 

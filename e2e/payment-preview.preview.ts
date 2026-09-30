@@ -34,6 +34,84 @@ test('real app screens are available without signup and use isolated fixtures', 
   expect(externalWrites).toEqual([])
 })
 
+for (const mobile of [true, false]) {
+  test(`hosted Stripe opens the whole tab and restores the ${mobile ? 'phone' : 'desktop'} payment preview`, async ({ page, context, request }) => {
+    let sessionsCreated = 0
+    let starts = 0
+    let statuses = 0
+    page.on('request', request => {
+      if (new URL(request.url()).pathname === '/__preview/sessions' && request.method() === 'POST') sessionsCreated++
+    })
+    await page.goto('/previews/payments.html')
+    const frame = page.frameLocator('iframe')
+    await expect(frame.getByRole('heading', { name: 'Ühenda poe maksed' })).toBeVisible()
+    await page.getByRole('button', { name: mobile ? 'Telefon' : 'Arvuti', exact: true }).click()
+    await page.getByRole('button', { name: /Müüja andmed/ }).click()
+    await frame.getByLabel('Ettevõtte nimi', { exact: true }).fill('Minu testpood OÜ')
+    await frame.getByRole('button', { name: 'Jätka maksetega' }).click()
+    await expect(frame.getByRole('heading', { name: 'Ühenda poe maksed' })).toBeVisible()
+    const originalUrl = page.url()
+    const id = new URL(originalUrl).searchParams.get('session')!
+    const data = await (await request.get(`/__preview/sessions/${id}/data`)).json()
+    const originalSessions = sessionsCreated
+    const ready = mobile
+    await page.route('**/functions/v1/stripe-connect', route => {
+      const body = route.request().postDataJSON()
+      if (body.action === 'hosted-start') {
+        expect(body.storeId).toBe(data.store.id)
+        starts++
+        return route.fulfill({ json: { url: 'https://connect.stripe.com/setup/payment-preview-test', storeId: body.storeId } })
+      }
+      if (body.action === 'status' && starts) {
+        statuses++
+        return route.fulfill({ json: { status: ready ? 'connected' : 'pending', chargesEnabled: ready, payoutsEnabled: ready,
+          detailsSubmitted: ready, requirements: { dueCount: ready ? 0 : 2, pastDue: false, pendingVerification: false, issues: [] } } })
+      }
+      return route.continue()
+    })
+    await page.route('**/rest/v1/stores?*', async route => {
+      if (!starts || route.request().method() !== 'GET') return route.continue()
+      const response = await route.fetch()
+      const data = await response.json()
+      const update = (store: Record<string, unknown>) => ({ ...store, stripe_account_id: 'acct_preview_test', stripe_connection_type: 'hosted',
+        stripe_account_mode: 'test', payment_status: ready ? 'connected' : 'pending', stripe_account_charges_enabled: ready,
+        stripe_account_payouts_enabled: ready, stripe_account_requirements_due_count: ready ? 0 : 2 })
+      return route.fulfill({ response, json: Array.isArray(data) ? data.map(update) : update(data) })
+    })
+    await page.route('https://connect.stripe.com/setup/payment-preview-test', route => route.fulfill({
+      contentType: 'text/html', headers: { 'Content-Security-Policy': "frame-ancestors 'none'" },
+      body: '<h1>Stripe test</h1><a href="http://127.0.0.1:4186/stripe/connect/return">Tagasi eelvaatesse</a>',
+    }))
+    await frame.getByRole('button', { name: 'Seadista maksed', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Stripe test' })).toBeVisible()
+    expect(context.pages()).toHaveLength(1)
+    await page.getByRole('link', { name: 'Tagasi eelvaatesse' }).click()
+    await expect(page).toHaveURL(originalUrl)
+    const restored = ready ? frame.getByText('Maksed on valmis', { exact: true }) : frame.getByRole('button', { name: 'Jätka maksete seadistamist' })
+    await expect(restored).toBeVisible()
+    await expect(page.getByRole('button', { name: mobile ? 'Telefon' : 'Arvuti', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('iframe')).toHaveAttribute('src', `/?preview_session=${id}`)
+    await page.reload()
+    await expect(restored).toBeVisible()
+    expect(starts).toBe(1)
+    expect(statuses).toBeGreaterThan(0)
+    expect(sessionsCreated).toBe(originalSessions)
+    expect((await (await request.get(`/__preview/sessions/${id}/data`)).json()).store.settings.businessName).toBe('Minu testpood OÜ')
+    await page.getByRole('button', { name: /Alusta uuesti/ }).click()
+    await expect(frame.getByLabel('Ettevõtte nimi', { exact: true })).toHaveValue('Näidise Käsitöö OÜ')
+    expect(new URL(page.url()).searchParams.get('session')).not.toBe(id)
+  })
+}
+
+test('expired payment preview requires an explicit restart', async ({ page }) => {
+  await page.goto('/previews/payments.html?session=00000000-0000-4000-8000-000000000000&phone=0')
+  await expect(page.getByRole('alert')).toContainText('Eelvaate katse aegus')
+  await expect(page.locator('iframe')).toHaveCount(0)
+  await page.getByRole('button', { name: /Alusta uuesti/ }).click()
+  await expect(page.frameLocator('iframe').getByRole('heading', { name: 'Ühenda poe maksed' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Arvuti', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})
+
 for (const paymentState of ['idle', 'incomplete'] as const) {
   test(`publication directs ${paymentState} payments back to setup`, async ({ page }) => {
     const publicationRequests: string[] = []

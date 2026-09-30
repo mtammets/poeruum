@@ -23,6 +23,15 @@ const stepLabels: Record<string, string> = {
   legal_entity: 'Ettevõtte andmed', individual: 'Isikuandmed', requirements: 'Andmete täiendamine',
 }
 
+function readSelection(params: URLSearchParams): Selection {
+  return {
+    kind: params.get('kind') === 'stripe' ? 'stripe' : 'app',
+    screen: screens.find(([value]) => value === params.get('screen'))?.[0] ?? 'payments',
+    paymentState: states.find(([value]) => value === params.get('paymentState'))?.[0] ?? 'idle',
+    preset: presets.find(([value]) => value === params.get('preset'))?.[0] ?? 'new',
+  }
+}
+
 async function request<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`/__preview/${path}`, {
     ...(body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
@@ -35,8 +44,8 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 
 function PaymentPreview() {
   const [ready, setReady] = useState<boolean | null>(null)
-  const [selection, setSelection] = useState<Selection>({ kind: 'app', screen: 'payments', paymentState: 'idle', preset: 'new' })
-  const [mobile, setMobile] = useState(true)
+  const [selection, setSelection] = useState(() => readSelection(new URLSearchParams(window.location.search)))
+  const [mobile, setMobile] = useState(() => new URLSearchParams(window.location.search).get('phone') !== '0')
   const [frameUrl, setFrameUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -59,12 +68,30 @@ function PaymentPreview() {
     setError('')
     setSteps([])
     setFrameUrl('')
-    void request<{ url: string }>('sessions', selection).then((session) => {
-      if (active) setFrameUrl(session.url)
+    const params = new URLSearchParams(window.location.search)
+    const existing = params.get('session')
+    const resume = existing && attempt === 0 && JSON.stringify(readSelection(params)) === JSON.stringify(selection)
+    const open = resume
+      ? request(`sessions/${encodeURIComponent(existing)}/data`).then(() => ({ id: existing, url: selection.kind === 'app'
+        ? `/?preview_session=${encodeURIComponent(existing)}` : `/previews/stripe-frame.html?session=${encodeURIComponent(existing)}` }))
+      : request<{ id: string; url: string }>('sessions', selection)
+    void open.then((session) => {
+      if (!active) return
+      const url = new URL(window.location.href)
+      url.searchParams.set('session', session.id)
+      for (const [key, value] of Object.entries(selection)) url.searchParams.set(key, value)
+      window.history.replaceState({}, '', url)
+      setFrameUrl(session.url)
     }).catch((problem) => { if (active) setError(problem.message) })
       .finally(() => { if (active) setBusy(false) })
     return () => { active = false }
   }, [ready, selection, attempt])
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('phone', mobile ? '1' : '0')
+    window.history.replaceState({}, '', url)
+  }, [mobile])
 
   useEffect(() => {
     const observe = (event: MessageEvent) => {
