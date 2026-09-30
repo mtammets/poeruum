@@ -51,6 +51,9 @@ jobs:
       - name: Private invoices, PDF rendering and delivery recovery
         run: npm run test:order-invoice-edge
 
+      - name: Merchant email activation enforcement
+        run: npm run test:account-email-edge
+
       - name: Production build
         run: npm run build:app
 
@@ -94,6 +97,9 @@ jobs:
 
       - name: Test data retention boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-data-retention.sql
+
+      - name: Test merchant email policy and unused registration cleanup
+        run: npm run test:account-email-db
 
       - name: Test protected store publication
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-store-publication.sql

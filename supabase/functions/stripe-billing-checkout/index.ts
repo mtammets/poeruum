@@ -49,6 +49,11 @@ Deno.serve(async (request) => {
     if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retry_after_seconds, corsHeaders)
 
     const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
+    const { error: emailPolicyError } = await admin.rpc('require_merchant_email', { target_user_id: user.id })
+    if (emailPolicyError) {
+      if (emailPolicyError.code !== '42501') throw emailPolicyError
+      return json({ error: emailPolicyError.message, code: 'merchant_email_required' }, 403)
+    }
     const { data: store, error: storeError } = await admin.from('stores').select('*').eq('owner_id', user.id).order('created_at').limit(1).maybeSingle()
     if (storeError) throw storeError
     if (!store) return json({ error: 'Pood tuleb enne paketi valimist salvestada.' }, 404)

@@ -206,3 +206,31 @@ test('a merchant cannot open the directory administration', async ({ page }) => 
   await expect(page.getByText('Sellel kontol puudub administraatori ligipääs.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Salvesta järjekord' })).toHaveCount(0)
 })
+
+
+test('admin sees temporary email flags, inactive review and signup volume without losing registrations', async ({ page }) => {
+  await installBackend(page)
+  const users = [
+    { user_id: 'temp', email: 'trial@minitts.net', email_is_disposable: true, email_confirmed: true, email_review_required: true },
+    { user_id: 'pending', email: 'pending@tozya.com', email_is_disposable: true, email_confirmed: false, email_review_required: false },
+    { user_id: 'regular', email: 'merchant@example.com', email_is_disposable: false, email_confirmed: true, email_review_required: false },
+  ].map((row) => ({ ...row, user_created_at: '2026-09-29T09:00:00Z', product_count: 0, order_count: 0,
+    gross_sales: 0, open_support_count: 0, stripe_account_requirement_issues: [], last_activity_at: null }))
+  await page.route('**/rpc/admin_dashboard_users', (route) => jsonReply(route, users))
+  await page.route('**/rpc/admin_signup_alerts', (route) => jsonReply(route, [{ requests: 5 }]))
+  await page.goto('/admin/users')
+  await expect(page.locator('.admin-user-row')).toHaveCount(3)
+  await expect(page.locator('.admin-email-flag').filter({ hasText: 'Ajutine e-post' })).toHaveCount(2)
+  await expect(page.getByText('Tavapärasest rohkem registreerumiskatseid')).toBeVisible()
+  await page.getByRole('button', { name: 'Ajutine e-post', exact: true }).click()
+  await expect(page.locator('.admin-user-row')).toHaveCount(2)
+  await page.getByRole('button', { name: 'E-posti ülevaatus', exact: true }).click()
+  await expect(page.locator('.admin-user-row')).toHaveCount(1)
+  await expect(page.locator('.admin-user-row')).toContainText('trial@minitts.net')
+  await page.getByRole('button', { name: 'Kõik', exact: true }).click()
+  await expect(page.locator('.admin-user-row')).toHaveCount(3)
+  await page.screenshot({ path: 'output/account-email-admin.png', fullPage: true })
+})
+
+const jsonReply = (route: Route, value: unknown) => route.fulfill({ status: 200, contentType: 'application/json',
+  headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(value) })

@@ -47,6 +47,9 @@ type AdminUserRow = {
   has_published: boolean
   open_support_count: number
   last_support_at: string | null
+  email_confirmed: boolean
+  email_is_disposable: boolean
+  email_review_required: boolean
 }
 
 type SetupStep = {
@@ -55,7 +58,7 @@ type SetupStep = {
   nextLabel: string
 }
 
-type UserFilter = 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
+type UserFilter = 'temporary-email' | 'email-review' | 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
 type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
@@ -270,6 +273,8 @@ const filters: Array<{ id: UserFilter; label: string }> = [
   { id: 'payments', label: 'Maksed puudu' },
   { id: 'unpublished', label: 'Avaldamata' },
   { id: 'complete', label: 'Valmis' },
+  { id: 'temporary-email', label: 'Ajutine e-post' },
+  { id: 'email-review', label: 'E-posti ülevaatus' },
 ]
 
 const sortOptions: Array<{ id: UserSort; label: string }> = [
@@ -637,6 +642,12 @@ export default function AdminApp() {
     setOnlineUserIds(new Set((data ?? []).map((row: { user_id: string }) => row.user_id)))
   }
 
+  const [signupAlerts, setSignupAlerts] = useState<Array<{ requests: number; first_seen_at: string; last_seen_at: string }>>([])
+  const loadSignupAlerts = async () => {
+    const { data, error: queryError } = await requireSupabase().rpc('admin_signup_alerts')
+    if (!queryError) setSignupAlerts(data ?? [])
+  }
+
   const loadLatestEmails = async () => {
     const { data, error: queryError } = await requireSupabase().rpc('admin_latest_email_deliveries')
     if (queryError) return
@@ -790,6 +801,7 @@ export default function AdminApp() {
     void loadRevenue()
     if (includeAnalytics) void loadHomepageAnalytics()
     void loadLatestEmails()
+    void loadSignupAlerts()
     void loadHomepageSettings()
     const { data, error: queryError } = await requireSupabase().rpc('admin_dashboard_users')
     if (queryError) {
@@ -923,6 +935,8 @@ export default function AdminApp() {
         if (filter === 'incomplete' && (percent === 0 || percent === 100)) return false
         if (filter === 'payments' && row.has_payments) return false
         if (filter === 'unpublished' && (row.has_published || percent === 0)) return false
+        if (filter === 'temporary-email' && !row.email_is_disposable) return false
+        if (filter === 'email-review' && !row.email_review_required) return false
         if (filter === 'complete' && percent !== 100) return false
         return !normalizedSearch || `${row.store_name ?? ''} ${row.email} ${row.store_slug ?? ''} ${row.custom_hostname ?? ''}`.toLocaleLowerCase('et').includes(normalizedSearch)
       })
@@ -1328,6 +1342,7 @@ export default function AdminApp() {
         {activeView === 'leads' && <AdminLeads />}
 
         {activeView === 'users' && <section className="admin-users">
+          {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset (suurim arv: {Math.max(...signupAlerts.map((alert) => Number(alert.requests)))}). Vaata uued kontod üle; jagatud võrk üksi ei tähenda väärkasutust.</p></div>}
           <header><div><h2>Seadistuse edenemine</h2></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
           <div className="admin-filters" role="group" aria-label="Filtreeri kasutajaid">
             {filters.map((item) => <button type="button" className={filter === item.id ? 'is-active' : ''} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} key={item.id}>{item.label}</button>)}
@@ -1345,7 +1360,7 @@ export default function AdminApp() {
                 ? getStorefrontCanonicalUrl(row.store_slug, undefined, row.custom_hostname ?? undefined)
                 : null
               return <article className={`admin-user-row${percent === 100 ? ' is-complete' : ''}`} key={row.user_id}>
-                <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><div className="admin-user-row__store"><strong>{row.store_name || 'Poodi pole loodud'}</strong>{storefrontUrl && <a href={storefrontUrl} target="_blank" rel="noopener noreferrer" title={storefrontUrl} aria-label={`Ava pood ${row.store_name || row.store_slug} uuel vahelehel`}>Ava pood <span aria-hidden="true">↗</span></a>}</div><a href={`mailto:${row.email}`}>{row.email}</a></div></div>
+                <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><div className="admin-user-row__store"><strong>{row.store_name || 'Poodi pole loodud'}</strong>{storefrontUrl && <a href={storefrontUrl} target="_blank" rel="noopener noreferrer" title={storefrontUrl} aria-label={`Ava pood ${row.store_name || row.store_slug} uuel vahelehel`}>Ava pood <span aria-hidden="true">↗</span></a>}</div><a href={`mailto:${row.email}`}>{row.email}</a>{row.email_is_disposable && <span className="admin-email-flag" title="Teadaolev ajutine meiliteenus. Märge ei tõesta väärkasutust.">Ajutine e-post</span>}{row.email_confirmed === false && <span className="admin-email-flag is-unconfirmed">Kinnitamata</span>}{row.email_review_required && <span className="admin-email-flag">Ülevaatus: 30 päeva tegevuseta</span>}</div></div>
                 <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
                 <ProgressBar row={row} />
                 <div>{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 && !paymentIssue ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small title={paymentIssue?.detail}>{paymentIssue?.title ?? (row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett')}</small>}</div>

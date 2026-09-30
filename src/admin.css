@@ -674,3 +674,8 @@
   .admin-sidebar nav a, .admin-sidebar nav button { width: 2.5rem; height: 2.5rem; }
   .admin-sidebar__account button { width: 2.5rem; height: 2.5rem; }
 }
+
+.admin-email-flag { display: inline-block; margin: .3rem .3rem 0 0; padding: .15rem .45rem; border-radius: .35rem; background: #fff1cf; color: #775614; font-size: .7rem; font-weight: 600; }
+.admin-email-flag.is-unconfirmed { background: #eff1ed; color: #637060; }
+.admin-signup-alert { padding: 1rem 1.25rem; margin-bottom: 1rem; background: #fff8e8; border: 1px solid #d9bd79; border-radius: .75rem; color: #4a3b1e; }
+.admin-signup-alert p { margin: .5rem 0 0; }

@@ -1,3 +1,5 @@
+import AccountEmailNotice from './AccountEmailNotice'
+import { requireMerchantEmail } from './lib/accountEmail'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import BillingPlanDialog from './BillingPlanDialog'
 import PasswordInput from './PasswordInput'
@@ -1060,6 +1062,7 @@ function PlatformFlow() {
     setAuthError('')
     setAuthNotice('')
     try {
+      await requireMerchantEmail()
       const saved = await persistStore({ payment_provider: 'stripe' }, store?.is_published ? 'complete' : 'payments')
       setPayment('stripe')
       setPaymentStatus(saved.stripe_account_id ? saved.payment_status : 'pending')
@@ -1259,6 +1262,7 @@ function PlatformFlow() {
     setIsPublishing(true); setAuthError('')
     try {
       if (!store) throw new Error('Poodi ei leitud. Salvesta poe andmed ja proovi uuesti.')
+      await requireMerchantEmail()
 
       if (paymentStatus !== 'connected' || !store.stripe_account_id) {
         const stripeResult = await invokeStripeConnect('status')
@@ -1352,7 +1356,7 @@ function PlatformFlow() {
     if (label) trackHomepageEvent('faq_open', label, onlineUserId ? 'merchant' : 'anonymous')
   }
 
-  const returnNotice = authNotice ? <div className="app-return-notice" role="status" aria-live="polite">
+  const authReturnNotice = authNotice ? <div className="app-return-notice" role="status" aria-live="polite">
     <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
   </div> : null
   const stripeEmbeddedDialogLabel = stripeEmbeddedMode === 'remediation' ? 'Ettevõtte andmete kinnitamine' : 'Stripe’i andmed'
@@ -1379,6 +1383,8 @@ function PlatformFlow() {
       </div>
     </div>
     : null
+
+  const returnNotice = <><AccountEmailNotice key={onlineUserId} userId={onlineUserId} />{authReturnNotice}</>
 
   if (isMerchantRedirecting || (isMerchantLocation && !isAuthResolved) || redirectPublicOwnerLogin || (isAuthBusy && onlineUserId && ['login', 'forgot-password', 'account'].includes(screen))) {
     return <main className="platform-loading" aria-label="Laadin sinu poodi" aria-busy="true"><span /></main>
@@ -1407,6 +1413,7 @@ function PlatformFlow() {
     />
   </div>
   if (screen === 'product') return <>
+  {returnNotice}
   <Storefront
     key={`onboarding-product-${store?.id ?? 'new'}`}
     storeId={store?.id}
@@ -1676,6 +1683,7 @@ function PlatformFlow() {
           <h1>Loo konto</h1>
           <form onSubmit={signUp}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sina@ettevote.ee" autoFocus /></label>
+            <small>Kinnita konto e-post 7 päeva jooksul. Kasutamata ja kinnitamata registreerumise kustutame pärast seda automaatselt.</small>
             <PasswordInput key="signup-password" label="Parool" required name="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" hint={PASSWORD_REQUIREMENTS_TEXT} />
             <label className="auth-consent">
               <input required type="checkbox" />
@@ -1800,6 +1808,7 @@ function PlatformFlow() {
         <span aria-hidden="true">…</span><div><strong>Stripe kontrollib andmeid</strong><small>Kõik vajalik on esitatud. Võid poe seadistamisega jätkata; maksed aktiveeruvad pärast Stripe’i kinnitust.</small></div>
       </div> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
+      {!isStripeOnboardingOpen && !paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore({}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Seadista maksed hiljem ja jätka tarnega <span>→</span></button>}
       {!isStripeOnboardingOpen && paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore({}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
     </div>}
 

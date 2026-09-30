@@ -150,6 +150,12 @@ Deno.serve(async (request) => {
 
     if (body.action !== 'start') return json({ error: 'Tundmatu tegevus.' }, 400)
 
+    const { error: emailPolicyError } = await admin.rpc('require_merchant_email', { target_user_id: user.id })
+    if (emailPolicyError) {
+      if (emailPolicyError.code !== '42501') throw emailPolicyError
+      return json({ error: emailPolicyError.message, code: 'merchant_email_required' }, 403)
+    }
+
     // A compliance link may only continue an existing Poeruum-managed account.
     // Never create or replace a payout account from an emailed remediation link.
     if (!accountId && !canCreateStripeConnectAccount(hasStoredAccountId, requestedMode)) {

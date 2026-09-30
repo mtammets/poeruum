@@ -501,7 +501,7 @@ button, a, summary { touch-action: manipulation; }
 .stripe-payment__card small { color: rgba(255, 255, 255, .58); line-height: 1.45; }
 
 .shipping-list { display: grid; gap: .55rem; }
-.shipping-list label { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) auto; align-items: center; gap: .75rem; min-width: 0; padding: .85rem; border: 1px solid #dfe2db; border-radius: .75rem; cursor: pointer; }
+.shipping-list label { position: relative; display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) auto; align-items: center; gap: .75rem; min-width: 0; padding: .85rem; border: 1px solid #dfe2db; border-radius: .75rem; cursor: pointer; }
 .shipping-list label > .shipping-brand { display: grid; width: 4.4rem; height: 2.8rem; place-items: center; border: 1px solid #e7e9e3; border-radius: .65rem; background: #fff; }
 .shipping-brand img { display: block; width: 82%; max-height: 1.5rem; object-fit: contain; }
 .shipping-brand--omniva img { width: 77%; }
@@ -511,7 +511,8 @@ button, a, summary { touch-action: manipulation; }
 .shipping-list label div { display: grid; min-width: 0; gap: .1rem; }
 .shipping-list label strong, .shipping-list label small { overflow-wrap: anywhere; }
 .shipping-list label small { color: #8b938d; }
-.shipping-list input { position: absolute; opacity: 0; }
+.setup-form .shipping-list input { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; clip-path: inset(50%); opacity: 0; }
+.shipping-list input:focus-visible + i { outline: 2px solid var(--platform-green); outline-offset: 3px; }
 .shipping-list label > i { width: 2.35rem; height: 1.35rem; border-radius: 999px; background: #d4d9d2; transition: 160ms; }
 .shipping-list label > i::after { content: ""; display: block; width: .95rem; height: .95rem; margin: .2rem; border-radius: 50%; background: #fff; transition: 160ms; }
 .shipping-list input:checked + i { background: var(--platform-green); }

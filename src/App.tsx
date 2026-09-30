@@ -1,3 +1,4 @@
+import { getAccountEmailStatus } from './lib/accountEmail'
 import OrderDocumentLinks from './OrderDocumentLinks'
 import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
@@ -2151,6 +2152,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         options: { captchaToken: accountCaptchaToken || undefined },
       })
       if (verificationError) throw new Error('Praegune parool ei ole õige.')
+      const emailStatus = await getAccountEmailStatus(nextEmail)
+      if (emailStatus.candidate_is_disposable) throw new Error('Poe konto jaoks kasuta püsivat e-posti aadressi.')
       const { error: updateError } = await supabase.auth.updateUser({ email: nextEmail }, { emailRedirectTo: window.location.origin })
       if (updateError) throw updateError
       setIsEmailChangeOpen(false)

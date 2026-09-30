@@ -16,8 +16,8 @@ import './legal.css'
 
 export type LegalDocument = 'terms' | 'privacy'
 
-const DOCUMENT_VERSION = '2026-09-28'
-const DOCUMENT_DATE = '28. september 2026'
+const DOCUMENT_VERSION = '2026-09-30'
+const DOCUMENT_DATE = '30. september 2026'
 const PROVIDER = {
   name: 'Animaator OÜ',
   registryCode: '17135632',
@@ -77,7 +77,7 @@ function Terms() {
     </> },
     { id: 'konto', title: 'Konto loomine ja lepingu sõlmimine', content: <>
       <p>Konto looja peab olema vähemalt 18-aastane ja tal peab olema õigus kaupmeest esindada. Teenusleping sõlmitakse konto registreerimisel kasutustingimustega nõustumisega. Tasuline pakett aktiveeritakse eraldi kinnituse ja maksete seadistamise järel.</p>
-      <p>Kaupmees esitab õiged ettevõtte-, kontakt- ja maksuandmed ning hoiab need ajakohased. Konto e-posti aadress peab toimima, sest sinna saadetakse lepingu, maksete ja turvalisusega seotud teated. Vajaduse korral võib Poeruum küsida esindusõiguse või andmete õigsuse tõendamist.</p>
+      <p>Kaupmees esitab õiged ettevõtte-, kontakt- ja maksuandmed ning hoiab need ajakohased. Konto e-posti aadress peab toimima, sest sinna saadetakse lepingu, maksete ja turvalisusega seotud teated. Ajutise meiliteenuse aadressiga saab poe seadistamist proovida; poe avaldamiseks ning maksete ühendamiseks või seadistamise jätkamiseks tuleb kinnitada püsiv e-posti aadress. Isiklik e-post ja püsiv privaatsusaliase aadress sobivad samuti. Vajaduse korral võib Poeruum küsida esindusõiguse või andmete õigsuse tõendamist.</p>
       <p>Kasutaja hoiab sisselogimisandmeid turvaliselt ja teatab kahtlustatavast volitamata kasutusest viivitamata aadressil <Contact />. Konto kaudu tehtud toimingute eest vastutatakse vastavalt rikkumise asjaoludele ja kohaldatavale õigusele.</p>
     </> },
     { id: 'kaupmees', title: 'Kaupmehe kohustused ja ostjate õigused', content: <>
@@ -150,6 +150,7 @@ function Terms() {
       <p>Stripe’i iseseisvad säilitamiskohustused ning lõpetamata väljamaksed või vaidlused võivad takistada Stripe’i konto kohest sulgemist. Kaupmehe eraldiseisev Stripe’i konto võib jääda alles. Kustutamistoimingu tõrke korral tuleb pöörduda kasutajatoe poole. Pärast konto sulgemist saab säilitatud andmeid puudutava põhjendatud taotluse esitada <Contact />.</p>
       <p>Poeruum võib lõpetada teenuse olulise või korduva rikkumise, ebaseadusliku tegevuse või teenuse turvalisuse ohustamise korral. Parandatava rikkumise puhul antakse üldjuhul võimalus see kõrvaldada. Kogu teenussuhte lõpetamisest teatatakse koos põhjustega üldjuhul vähemalt 30 päeva ette. Viivitamatu piiramine või lõpetamine on lubatud seadusest tuleneva kohustuse, tõsise turvaohu või muu seadusega lubatud erandi korral; põhjustest teavitatakse niipea, kui see on lubatud.</p>
       <p>Vähemalt 180 päeva kasutamata, mitte kunagi avaldatud tühja poomustandi võib eemaldada, kui sellel pole tooteid, makseühendust, tasulist paketti, kohandatud domeeni, tellimusi ega finantskirjeid. Vähemalt seitse päeva varem saadetakse e-posti teade. Sisselogimine või seadistamise jätkamine tühistab eemaldamise ning kasutajakonto jääb alles.</p>
+      <p>Kinnitamata e-postiga registreerumise eemaldame pärast seitset päeva, kui kontole pole sisse logitud ning puuduvad pood ja muud seotud kasutajaandmed. Kinnitatud või kasutatud kontosid see reegel ei puuduta.</p>
       <p>Lepingu lõppemine ei kaota varem tekkinud makse-, konfidentsiaalsus-, andmekaitse- ega ostjate ees võetud kohustusi.</p>
     </> },
     { id: 'vastutus', title: 'Vastutuse jaotus', content: <>
@@ -233,6 +234,8 @@ function Privacy() {
       <p>Säilitamisaeg sõltub andmete eesmärgist. Allpool on Poeruumi rakenduses kasutatavad tähtajad ja kriteeriumid. Teenusepakkujate enda logidele, varukoopiatele ja iseseisvatele seaduslikele kohustustele võivad kehtida eraldi tähtajad.</p>
       <ul>
         <li><strong>Konto ja poe sisu:</strong> konto kasutamise ajal; kustutamistaotluse täitmisel eemaldatakse konto, poe sisu, tootefailid, domeeniühendused ja kontoga seotud tugisisu. Tühja avaldamata poomustandi võib pärast 180 päeva tegevusetust ja vähemalt seitsmepäevast eelteadet eemaldada; autentimiskonto jääb siis alles.</li>
+        <li><strong>Kinnitamata registreerumine:</strong> vähemalt seitse päeva registreerimisest. Kasutamata, poeta ja muude seotud kasutajaandmeteta kinnitamata konto eemaldatakse järgmise igapäevase puhastuse käigus.</li>
+        <li><strong>Registreerumise turvaseire:</strong> registreerumiskatse aeg ja salajase soolaga IP-aadressist tuletatud räsi kuni 30 päeva. Algset IP-aadressi selles seiretabelis ei hoita; andmeid kasutatakse ebatavalise registreerumismahu märkamiseks.</li>
         <li><strong>Tellimused:</strong> rakenduse tavapärane arhiivitähtaeg on kaheksa aastat tellimuse kuupäevast. Kui seotud arve või kreeditarve väljastatakse hiljem, pikeneb seotud tellimuse säilitamine vähemalt kaheksa aastani dokumendi väljastamisest. Kaupmees peab hindama, milliseid andmeid ta oma raamatupidamiseks tegelikult vajab.</li>
         <li><strong>Arved ja kreeditarved:</strong> säilivad koos dokumendile kantud müüja- ja ostjaandmetega seotud tellimuse arhiivitähtaja lõpuni. Konto kustutamine eemaldab ostja kontakt- ja tarneandmed tellimuse töövaatest, kuid ei kustuta dokumente ega kõiki nende alusandmeid.</li>
         <li><strong>Tellimuskirjade sisu:</strong> tellimusega seotud saatmisjärjekorras võivad säilida adressaat ja kirja sisu kuni seotud tellimuse kustutamiseni. See on eraldi allpool nimetatud lühiajalisest kättetoimetamislogist.</li>

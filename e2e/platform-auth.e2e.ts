@@ -627,7 +627,7 @@ const installSupabaseBackend = async (
   page: Page,
   storeFixture: Record<string, unknown> = store,
   stripeStatusFixture: Record<string, unknown> = connectedStripeStatus,
-  options: { beforeProductsResponse?: () => Promise<void>; publicStore?: typeof store;
+  options: { temporaryEmail?: boolean; beforeProductsResponse?: () => Promise<void>; publicStore?: typeof store;
     products?: Record<string, unknown>[]; getOrders?: () => Record<string, unknown>[]; refundOrder?: () => Record<string, unknown> } = {},
 ) => {
   let passwordSignIns = 0
@@ -636,6 +636,8 @@ const installSupabaseBackend = async (
   const passwordUpdates: string[] = []
   const passwordResetRedirects: string[] = []
   const signOutScopes: string[] = []
+  const accountEmail = { email: options.temporaryEmail ? 'trial@minitts.net' : user.email, pending_email: null as string | null, email_confirmed: true, is_disposable: Boolean(options.temporaryEmail), activation_allowed: !options.temporaryEmail }
+  const emailUpdates: string[] = []
   let currentStore = { ...storeFixture }
   let currentProducts = structuredClone(options.products ?? [])
 
@@ -692,8 +694,14 @@ const installSupabaseBackend = async (
 
     if (url.pathname.endsWith('/auth/v1/user')) {
       if (request.method() === 'PUT') {
-        currentPassword = request.postDataJSON().password
-        passwordUpdates.push(currentPassword!)
+        if (request.postDataJSON().password) {
+          currentPassword = request.postDataJSON().password
+          passwordUpdates.push(currentPassword!)
+        }
+        if (request.postDataJSON().email) {
+          accountEmail.pending_email = request.postDataJSON().email
+          emailUpdates.push(accountEmail.pending_email!)
+        }
       }
       await json(route, user)
       return
@@ -757,6 +765,11 @@ const installSupabaseBackend = async (
       return
     }
 
+    if (url.pathname.endsWith('/rest/v1/rpc/account_email_status')) {
+      await json(route, { ...accountEmail, candidate_is_disposable: /@(minitts\.net|tozya\.com)$/i.test(request.postDataJSON()?.candidate_email ?? '') })
+      return
+    }
+
     if (url.pathname.includes('/rest/v1/rpc/')) {
       await json(route, null)
       return
@@ -771,6 +784,8 @@ const installSupabaseBackend = async (
   })
 
   return {
+    emailUpdates,
+    confirmEmail: () => { accountEmail.email = accountEmail.pending_email!; accountEmail.pending_email = null; accountEmail.is_disposable = false; accountEmail.activation_allowed = true },
     currentStore: () => currentStore,
     currentProducts: () => currentProducts,
     passwordSignIns: () => passwordSignIns,
@@ -1543,4 +1558,39 @@ test('private receipt downloads its invoice and credit without exposing a public
   expect(bodies[0].token).toHaveLength(64)
   expect(bodies[1]).toEqual({ token: bodies[0].token, documentId: invoice.id })
   await expect(page.locator('a[href*="order-documents"]')).toHaveCount(0)
+})
+
+
+test('temporary-email merchant can keep a draft and must confirm the replacement address', async ({ page }) => {
+  const draft = { ...store, is_published: false, stripe_account_id: null, payment_status: 'idle',
+    settings: { ...store.settings, onboardingStep: 'payments' } }
+  const backend = await installSupabaseBackend(page, draft, { status: 'idle', detailsSubmitted: false }, { temporaryEmail: true })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Logi sisse' }).first().click()
+  await page.getByLabel('E-posti aadress').fill('trial@minitts.net')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  const notice = page.getByRole('complementary', { name: 'Konto e-posti kinnitamine' })
+  await expect(notice).toContainText('Kasuta poe jaoks püsivat e-posti aadressi')
+  await page.getByRole('button', { name: 'Seadista maksed →' }).click()
+  await expect(page.getByRole('alert')).toContainText('vaheta konto ajutine e-post')
+  await expect(page.getByRole('dialog', { name: 'Stripe’i andmed' })).toHaveCount(0)
+  await page.getByRole('button', { name: /Seadista maksed hiljem/ }).click()
+  await expect(page.getByRole('heading', { name: 'Vali tarneviisid' })).toBeVisible()
+  await notice.getByRole('button', { name: 'Muuda konto e-posti' }).click()
+  await notice.getByLabel('Uus e-posti aadress').fill('another@tozya.com')
+  await notice.getByLabel('Praegune parool', { exact: true }).fill('turvaline-testiparool')
+  await notice.getByRole('button', { name: 'Saada kinnituskiri' }).click()
+  await expect(notice.getByRole('alert')).toContainText('ajutisele meiliteenusele')
+  expect(backend.emailUpdates).toEqual([])
+  await notice.getByLabel('Uus e-posti aadress').fill('merchant@example.com')
+  await notice.getByRole('button', { name: 'Saada kinnituskiri' }).click()
+  await expect(notice).toContainText('Ootab kinnitamist: merchant@example.com')
+  expect(backend.emailUpdates).toEqual(['merchant@example.com'])
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.screenshot({ path: 'output/account-email-mobile.png', fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  backend.confirmEmail()
+  await notice.getByRole('button', { name: 'Kontrolli kinnitust' }).click()
+  await expect(notice).toHaveCount(0)
 })
