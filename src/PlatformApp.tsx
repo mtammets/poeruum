@@ -1683,7 +1683,6 @@ function PlatformFlow() {
           <h1>Loo konto</h1>
           <form onSubmit={signUp}>
             <label>E-posti aadress<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sina@ettevote.ee" autoFocus /></label>
-            <small>Kinnita konto e-post 7 päeva jooksul. Kasutamata ja kinnitamata registreerumise kustutame pärast seda automaatselt.</small>
             <PasswordInput key="signup-password" label="Parool" required name="password" minLength={PASSWORD_MIN_LENGTH} placeholder={`Vähemalt ${PASSWORD_MIN_LENGTH} märki`} autoComplete="new-password" hint={PASSWORD_REQUIREMENTS_TEXT} />
             <label className="auth-consent">
               <input required type="checkbox" />
@@ -1695,7 +1694,6 @@ function PlatformFlow() {
             <button type="submit" disabled={isAuthBusy || !isCaptchaReady}>{isAuthBusy ? 'Loon kontot…' : 'Loo konto ja jätka'} <span>→</span></button>
           </form>
           <div className="auth-switch"><span>Konto juba olemas?</span><button type="button" onClick={() => setScreen('login')}>Logi sisse</button></div>
-          <small>Konto luuakse Supabase Authis.</small>
         </section>
       </div>
     </div>
