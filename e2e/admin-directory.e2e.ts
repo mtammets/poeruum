@@ -240,7 +240,7 @@ test('payment review shows refund recovery separately and requires evidence for 
   const actions: Record<string, unknown>[] = []
   const reviews = {
     orders: [{ id: 'order-test', order_number: 'PR-TEST', store_name: 'Ateljee', stripe_mode: 'test', stripe_payment_intent_id: 'pi_test', stripe_payment_issue: 'funds_required', payment_status: 'refunded', last_error: 'FUNDS_REQUIRED:reversal: Raha puudub.' }],
-    sellers: [{ id: 'store-test', name: 'Ateljee', seller_name: 'Liisa Tamm', stripe_account_id: 'acct_test', stripe_account_mode: 'test', bank: { id: 'ba_test', last4: '1234', bank_name: 'LHV' }, verified_at: null }],
+    sellers: [{ id: 'store-test', name: 'Ateljee', seller_name: 'Liisa Tamm', stripe_account_id: 'acct_test', stripe_account_mode: 'test', checked_at: '2026-09-30T12:00:00Z', stripe_ready: true, bank: { id: 'ba_test', last4: '1234', bank_name: 'LHV', country: 'EE', currency: 'eur' }, verified_at: null }],
   }
   await page.route('**/__e2e_supabase/rest/v1/rpc/admin_payment_reviews', route => route.fulfill({ json: reviews, headers: { 'Access-Control-Allow-Origin': '*' } }))
   await page.route('**/__e2e_supabase/functions/v1/payment-review', async route => {
@@ -251,9 +251,9 @@ test('payment review shows refund recovery separately and requires evidence for 
   await page.goto('/admin/payments')
   await expect(page.getByRole('heading', { name: 'Maksete kontroll', exact: true })).toBeVisible()
   await expect(page.getByText('Ostja makse on juba tagastatud;', { exact: false })).toBeVisible()
-  const approve = page.getByRole('button', { name: 'Täielik IBAN, aktiivne ettevõtluskonto ja omanik kontrollitud — kinnita' })
+  const approve = page.getByRole('button', { name: 'Kinnita ettevõtluskonto' })
   await expect(approve).toBeDisabled()
-  await page.getByLabel('Kontrolli tõend ja kuupäev').fill('MTA kontroll 30.09.2026 ja privaatse tõendi viide 123')
+  await page.getByLabel('Konto kontrolli märkus').fill('MTA kontroll 30.09.2026 ja privaatse tõendi viide 123')
   await approve.click()
   await expect.poll(() => actions.length).toBe(1)
   expect(actions[0]).toMatchObject({ action: 'approve-seller', storeId: 'store-test', bankId: 'ba_test' })
@@ -263,4 +263,23 @@ test('payment review shows refund recovery separately and requires evidence for 
   await page.setViewportSize({ width: 390, height: 844 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   await page.screenshot({ path: 'output/payment-reviews-mobile.png', fullPage: true })
+})
+
+
+test('unloaded and incomplete seller accounts never show a premature approval form', async ({ page }) => {
+  await installBackend(page)
+  let loaded = false
+  await page.route('**/__e2e_supabase/rest/v1/rpc/admin_payment_reviews', route => route.fulfill({
+    headers: { 'Access-Control-Allow-Origin': '*' }, json: { orders: [], sellers: [{ id: 'seller', name: 'Ateljee', seller_name: 'Liisa Tamm', stripe_account_id: 'acct_test', stripe_account_mode: 'live', bank: null, stripe_ready: false, checked_at: loaded ? '2026-09-30T12:00:00Z' : null }] },
+  }))
+  await page.goto('/admin/payments')
+  await expect(page.getByText('Stripe’i andmed veel laadimata', { exact: true })).toBeVisible()
+  await expect(page.getByText('Pangakonto puudub', { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel('Konto kontrolli märkus')).toHaveCount(0)
+  loaded = true
+  await page.getByRole('button', { name: 'Uuenda maksete kontrolli' }).click()
+  await expect(page.getByText('Müüja seadistus on pooleli', { exact: true })).toBeVisible()
+  await expect(page.getByText('Praegu pole sul vaja midagi kinnitada.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Kinnita ettevõtluskonto' })).toHaveCount(0)
+  await page.screenshot({ path: 'output/payment-review-incomplete.png', fullPage: true })
 })
