@@ -69,6 +69,9 @@ jobs:
       - name: Browser smoke tests
         run: npm run test:smoke
 
+      - name: Seller setup, Stripe return and first product journey
+        run: npm run test:seller-preview -- --workers=1
+
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
 
@@ -103,6 +106,9 @@ jobs:
 
       - name: Test protected store publication
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-store-publication.sql
+
+      - name: Test entrepreneur sellers, payment permissions and sale documents
+        run: npm run test:entrepreneur-sellers
 
       - name: Test product image access boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-product-image-access.sql

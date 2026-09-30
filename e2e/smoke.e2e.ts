@@ -397,7 +397,7 @@ test('a merchant can open Stripe remediation from Poeruum settings', async ({ pa
   await expect(page.getByText(/Sisesta sellele väljale õige aadress ja esita seda kinnitav dokument/)).toBeVisible()
   await expect(page.getByText(/09\.10\.2026/)).toBeVisible()
 
-  await page.getByRole('button', { name: 'Kinnita ettevõtte andmed' }).click()
+  await page.getByRole('button', { name: 'Kinnita müüja andmed' }).click()
   await expect.poll(() => page.evaluate(() => window.__stripeConnectCalls)).toBe(1)
   await expect.poll(() => page.evaluate(() => window.__stripeConnectPurpose)).toBe('requirements')
 

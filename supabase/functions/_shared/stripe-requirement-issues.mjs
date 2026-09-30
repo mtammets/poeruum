@@ -99,7 +99,7 @@ const CODE_COPY = Object.freeze({
   ),
   verification_failed_keyed_identity: copy(
     'Esitatud isikuandmeid ei saanud kinnitada',
-    'Kontrolli Stripe’i vormis isiku ametlikku nime ja sünnikuupäeva ning esita küsitud dokument uuesti.',
+    'Kontrolli Stripe’is oma isikuandmeid ja lisa küsitud tõend.',
   ),
   verification_failed_tax_id_match: copy(
     'Ettevõtte maksu- või registrinumbrit ei saanud kinnitada',

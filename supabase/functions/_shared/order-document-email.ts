@@ -1,3 +1,4 @@
+import { orderDocumentLabel } from '../../../shared/order-invoice.ts'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { emailShell } from './order-email-template.ts'
 import type { OrderEmailKind, OrderEmailPayload } from './order-email.ts'
@@ -16,8 +17,13 @@ export async function buildOrderDocumentEmail(admin: SupabaseClient, orderId: st
   const appUrl = Deno.env.get('APP_URL')?.trim()
   if (!appUrl) throw new Error('Puudub APP_URL.')
   const receiptUrl = `${appUrl.replace(/\/$/, '')}/p/${encodeURIComponent(snapshot.storeSlug)}?checkout=status#receipt=${access.token}`
-  const title = credit ? `Kreeditarve ${document.number}` : `Tellimus ${document.order_number} on kinnitatud`
-  const intro = credit
+  const label = orderDocumentLabel(document.kind, snapshot.seller.type)
+  const individual = snapshot.seller.type === 'entrepreneur'
+  const title = credit ? `${label} ${document.number}` : `Tellimus ${document.order_number} on kinnitatud`
+  const intro = individual ? (credit ? `Tellimuse ${document.order_number} makse on tagastatud. Tagastustõend on kirja manuses.`
+    : refunded ? 'Müügitõend on kirja manuses. Makse on tagastatud; tagastustõend saadetakse eraldi.'
+      : customer ? 'Makse õnnestus. Müügitõend on kirja manuses.' : 'Sinu poodi saabus tasutud tellimus. Müügitõend on kirja manuses.')
+    : credit
     ? `Tellimuse ${document.order_number} makse on tagastatud. Kirjale on lisatud kreeditarve, mis viitab arvele ${document.original_number}.`
     : refunded
       ? 'Kirjale on lisatud tasutud tellimuse arve. Selle tellimuse makse on tagastatud; kreeditarve saadame eraldi kirjaga.'
@@ -36,7 +42,7 @@ export async function buildOrderDocumentEmail(admin: SupabaseClient, orderId: st
     tags: [{ name: 'email_type', value: kind === 'customer' ? 'order_customer_confirmation' : kind === 'seller' ? 'order_seller_notification' : `order_${kind}` },
       { name: 'order_id', value: orderId }, { name: 'order_email_job_id', value: jobId }],
     html: emailShell({ title, intro, seller: !customer, credit, canReply: true, actionUrl: receiptUrl,
-      note: credit ? 'Kreeditarve on kirja manuses.' : refunded ? 'Tellimuse makse on tagastatud. Kreeditarve saadame eraldi.' : 'Hakkame tellimust ette valmistama. Arve on kirja manuses.',
+      note: individual ? (credit ? 'Tagastustõend on kirja manuses.' : 'Müügitõend on kirja manuses.') : credit ? 'Kreeditarve on kirja manuses.' : refunded ? 'Tellimuse makse on tagastatud. Kreeditarve saadame eraldi.' : 'Hakkame tellimust ette valmistama. Arve on kirja manuses.',
       store: { id: '', owner_id: '', name: snapshot.storeName, settings: {} },
       settings: { editableStoreName: snapshot.storeName, businessName: snapshot.seller.name, contactEmail: snapshot.seller.email,
         storeAccent: snapshot.storeAccent, storeLogo: snapshot.storeLogo },
@@ -52,6 +58,6 @@ export async function buildOrderDocumentEmail(admin: SupabaseClient, orderId: st
         customer_confirmation_sent_at: null, seller_notification_sent_at: null,
       },
     }),
-    text: `${title}\n\n${intro}\n\n${snapshot.lines.map((line) => `${line.name} ${line.options} × ${line.quantity}: ${money(line.grossCents * (credit ? -1 : 1))}`).join('\n')}\n\nKokku: ${total}\nTarne: ${snapshot.delivery}\n\nTellimus ja arved: ${receiptUrl}\n\n${snapshot.seller.name} · ${snapshot.seller.email}`,
+    text: `${title}\n\n${intro}\n\n${snapshot.lines.map((line) => `${line.name} ${line.options} × ${line.quantity}: ${money(line.grossCents * (credit ? -1 : 1))}`).join('\n')}\n\nKokku: ${total}\nTarne: ${snapshot.delivery}\n\nTellimus ja dokumendid: ${receiptUrl}\n\n${snapshot.seller.name} · ${snapshot.seller.email}`,
   }
 }

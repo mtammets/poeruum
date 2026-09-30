@@ -177,7 +177,7 @@ function renderStorefront(template, store, product) {
       url: canonical,
       itemCondition: 'https://schema.org/NewCondition',
       seller: {
-        '@type': 'Organization',
+        '@type': settings.sellerType === 'entrepreneur' ? 'Person' : 'Organization',
         name: settings.businessName || store.store_name,
         hasMerchantReturnPolicy: returnPolicy,
       },
@@ -357,6 +357,15 @@ createServer(async (req, res) => {
           'Cache-Control': url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
         })
       }
+    }
+
+    if (url.pathname === '/stripe/connect/return') {
+      return send(res, 200, req.method === 'HEAD' ? null : await templatePromise, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-store',
+        'Referrer-Policy': 'no-referrer',
+        'X-Robots-Tag': 'noindex, nofollow',
+      })
     }
 
     // Receipt access is verified by the Edge endpoint. Serve only the shell

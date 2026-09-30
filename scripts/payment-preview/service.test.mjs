@@ -4,9 +4,12 @@ import { isAllowedPreviewRequest } from './plugin.mjs'
 import * as prefill from '../../supabase/functions/_shared/stripe-connect-prefill.ts'
 import * as components from '../../supabase/functions/_shared/stripe-connect-session.ts'
 import * as requirements from '../../supabase/functions/_shared/stripe-connect-requirements.ts'
+import * as hosted from '../../supabase/functions/_shared/stripe-hosted.ts'
+import * as oauth from '../../supabase/functions/_shared/stripe-oauth.ts'
+import * as sellers from '../../shared/seller.ts'
 
 const environment = { STRIPE_TEST_PUBLISHABLE_KEY: 'pk_test_preview', STRIPE_TEST_SECRET_KEY: 'sk_test_preview' }
-const helpers = { ...prefill, ...components, ...requirements }
+const helpers = { ...prefill, ...components, ...requirements, ...sellers, ...oauth, ...hosted }
 const make = (extra = {}) => createPreviewService({ origin: 'http://127.0.0.1:4185', environment, helpers, ...extra })
 const response = (data, status = 200) => new Response(JSON.stringify(data), { status })
 
@@ -76,6 +79,48 @@ describe('isolated payment preview', () => {
     expect(fetchStripe.mock.calls.every(([, options]) => options.method !== 'DELETE')).toBe(true)
   })
 
+  it('takes seller onboarding through Stripe and trusts only its charges and payouts status', async () => {
+    let ready = false
+    const calls = []
+    const fetchStripe = vi.fn(async (url, options) => {
+      calls.push({ url, ...options })
+      if (url.endsWith('/accounts')) return response({ id: 'acct_seller_created_here' })
+      if (url.endsWith('/account_sessions')) return response({ client_secret: 'stripe_test_session' })
+      return response({ id: 'acct_seller_created_here', details_submitted: ready, charges_enabled: ready,
+        payouts_enabled: ready, capabilities: { transfers: ready ? 'active' : 'inactive' }, requirements: { currently_due: ready ? [] : ['individual.dob.day', 'individual.address.line1', 'external_account'] } })
+    })
+    const service = make({ fetchStripe })
+    const fixture = service.createSession({ kind: 'app', sellerPreview: true, sellerType: 'entrepreneur' })
+    fixture.store.settings.sellerFirstName = 'Kadi'
+    expect(await service.stripeAction(fixture, 'status')).toMatchObject({ status: 'idle', chargesEnabled: false, payoutsEnabled: false })
+    expect(fetchStripe).not.toHaveBeenCalled()
+    expect(await service.stripeAction(fixture, 'start')).toEqual({ clientSecret: 'stripe_test_session' })
+    const create = calls.find((call) => call.url.endsWith('/accounts')).body
+    expect(create.get('business_type')).toBe('individual')
+    expect(create.get('individual[first_name]')).toBe('Kadi')
+    for (const field of ['company[registration_number]', 'individual[dob][year]', 'individual[id_number]', 'external_account', 'tos_acceptance[date]']) expect(create.has(field)).toBe(false)
+    const components = calls.find((call) => call.url.endsWith('/account_sessions')).body
+    expect(components.get('components[account_onboarding][features][external_account_collection]')).toBe('true')
+    expect(await service.stripeAction(fixture, 'status')).toMatchObject({ status: 'pending', chargesEnabled: false, payoutsEnabled: false, detailsSubmitted: false, requirements: { dueCount: 3 } })
+    expect(fixture.store.payment_status).toBe('pending')
+    ready = true
+    expect(await service.stripeAction(fixture, 'status')).toMatchObject({ status: 'connected', chargesEnabled: true, payoutsEnabled: true })
+    expect(fixture.store.payment_status).toBe('connected')
+    await service.cleanup()
+    expect(calls.filter((call) => call.method === 'DELETE').map((call) => call.url)).toEqual(['https://api.stripe.com/v1/accounts/acct_seller_created_here'])
+  })
+
+  it('cannot activate seller payments with missing test credentials or a preset', async () => {
+    const fetchStripe = vi.fn()
+    const service = make({ environment: {}, fetchStripe })
+    expect(() => service.createSession({ sellerPreview: true, paymentState: 'connected' })).toThrow('seadistamata')
+    const fixture = service.createSession({ sellerPreview: true, sellerType: 'entrepreneur' })
+    await expect(service.stripeAction(fixture, 'start')).rejects.toThrow('testvõtmed')
+    expect(fixture.accountId).toBeNull()
+    expect(fixture.store.payment_status).toBe('idle')
+    expect(fetchStripe).not.toHaveBeenCalled()
+  })
+
   it('keeps the preview available only to the same local origin', () => {
     const origin = 'http://127.0.0.1:4185'
     expect(isAllowedPreviewRequest({ headers: { host: '127.0.0.1:4185', origin } }, origin)).toBe(true)
@@ -85,5 +130,59 @@ describe('isolated payment preview', () => {
       { host: 'example.com:4185' },
       { host: '127.0.0.1:4185', 'sec-fetch-site': 'cross-site' },
     ]) expect(isAllowedPreviewRequest({ headers }, origin)).toBe(false)
+  })
+})
+
+describe('dedicated hosted account preview', () => {
+  const prepare = () => {
+    let account
+    const fetchStripe = vi.fn(async (url, options) => {
+      if (options.method === 'DELETE') return response({ deleted: true })
+      if (url.endsWith('/accounts')) {
+        const body = options.body
+        account = { id: 'acct_dedicated', country: 'EE', business_type: body.get('business_type'),
+          controller: { requirement_collection: body.get('controller[requirement_collection]'), stripe_dashboard: { type: body.get('controller[stripe_dashboard][type]') } },
+          metadata: { poeruum_connection: body.get('metadata[poeruum_connection]'), poeruum_store_id: body.get('metadata[poeruum_store_id]') },
+          charges_enabled: false, payouts_enabled: false, capabilities: { transfers: 'inactive' }, details_submitted: false,
+          requirements: { currently_due: ['external_account'] } }
+        return response(account)
+      }
+      if (url.endsWith('/account_links')) return response({ url: 'https://connect.stripe.com/setup/test' })
+      if (url.endsWith('/login_links')) return response({ url: 'https://connect.stripe.com/express/test' })
+      return response(account)
+    })
+    const service = make({ fetchStripe })
+    const session = service.createSession({ sellerPreview: true, sellerType: 'entrepreneur' })
+    return { service, session, fetchStripe, account: () => account }
+  }
+  it('creates one dedicated account for repeated starts and expired-link refreshes', async () => {
+    const { service, session, fetchStripe, account } = prepare()
+    const input = { storeId: session.store.id, returnOrigin: 'http://127.0.0.1:4185' }
+    await Promise.all([service.stripeAction(session, 'hosted-start', 'onboarding', input), service.stripeAction(session, 'hosted-start', 'onboarding', input)])
+    await service.stripeAction(session, 'hosted-refresh', 'onboarding', input)
+    expect(fetchStripe.mock.calls.filter(([url]) => url.endsWith('/accounts'))).toHaveLength(1)
+    const payload = fetchStripe.mock.calls.find(([url]) => url.endsWith('/accounts'))[1].body
+    expect(payload.get('controller[requirement_collection]')).toBe('stripe')
+    expect(payload.get('controller[stripe_dashboard][type]')).toBe('express')
+    expect(payload.has('individual[first_name]')).toBe(false)
+    expect(payload.has('external_account')).toBe(false)
+    const link = fetchStripe.mock.calls.find(([url]) => url.endsWith('/account_links'))[1].body
+    expect(link.get('return_url')).toBe('http://127.0.0.1:4185/stripe/connect/return')
+    expect(link.get('refresh_url')).toBe('http://127.0.0.1:4185/stripe/connect/return?refresh=1')
+    expect(session.store.stripe_connection_type).toBe('hosted')
+    expect(await service.stripeAction(session, 'status')).toMatchObject({ status: 'pending', detailsSubmitted: false })
+    Object.assign(account(), { charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' }, details_submitted: true, requirements: {} })
+    expect(await service.stripeAction(session, 'status')).toMatchObject({ status: 'connected' })
+    account().business_type = 'company'
+    expect(await service.stripeAction(session, 'status')).toMatchObject({ status: 'pending', setupError: expect.stringContaining('müüja tüüp') })
+    await service.cleanup()
+    expect(fetchStripe.mock.calls.filter(([, options]) => options.method === 'DELETE')).toHaveLength(1)
+  })
+  it('rejects old OAuth, foreign redirects and missing accounts without creating anything', async () => {
+    const { service, session, fetchStripe } = prepare()
+    for (const action of ['oauth-start', 'oauth-complete', 'hosted-refresh']) await expect(service.stripeAction(session, action)).rejects.toThrow()
+    await expect(service.stripeAction(session, 'hosted-start', 'onboarding', { returnOrigin: 'https://evil.example' })).rejects.toThrow()
+    await expect(service.stripeAction(session, 'hosted-start', 'onboarding', { storeId: 'other-store' })).rejects.toThrow()
+    expect(fetchStripe).not.toHaveBeenCalled()
   })
 })

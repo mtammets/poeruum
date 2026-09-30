@@ -15,6 +15,8 @@ export type StoreRecord = {
   payment_provider: 'stripe' | 'montonio'
   payment_status: 'idle' | 'connected' | 'pending'
   stripe_account_id: string | null
+  stripe_account_mode?: 'test' | 'live' | null
+  stripe_connection_type?: 'managed' | 'oauth' | 'hosted' | null
   stripe_account_charges_enabled: boolean
   stripe_account_payouts_enabled: boolean
   stripe_account_requirements_due_count: number
@@ -232,13 +234,29 @@ export async function invokeStripeConnect(
   }
   if (data?.error) throw new Error(String(data.error))
   return data as {
+    setupError?: string | null
     clientSecret?: string
+    dashboardUrl?: string
     status?: StoreRecord['payment_status']
     chargesEnabled?: boolean
     payoutsEnabled?: boolean
     detailsSubmitted?: boolean
     requirements?: StripeRequirementSummary
   }
+}
+
+export async function invokeStripeHosted(action: 'hosted-start' | 'hosted-refresh', mode: 'onboarding' | 'management' | 'remediation', storeId: string) {
+  const { data, error } = await requireSupabase().functions.invoke('stripe-connect', {
+    body: { action, mode, storeId, returnOrigin: window.location.origin },
+  })
+  if (error) {
+    const context = 'context' in error ? error.context : null
+    const details = context instanceof Response ? await context.clone().json().catch(() => null) : null
+    throw new Error(details?.error || 'Maksete seadistust ei saanud avada. Proovi uuesti.')
+  }
+  if (data?.error) throw new Error(String(data.error))
+  if (typeof data?.url !== 'string') throw new Error('Maksete seadistust ei saanud avada. Proovi uuesti.')
+  return data as { url: string; storeId: string }
 }
 
 export async function manageCustomDomain(

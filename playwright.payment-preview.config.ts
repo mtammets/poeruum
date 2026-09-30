@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
+  expect: { timeout: 15000 },
   testDir: './e2e',
   testMatch: 'payment-preview.preview.ts',
   fullyParallel: true,

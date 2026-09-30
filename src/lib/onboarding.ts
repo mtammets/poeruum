@@ -1,3 +1,4 @@
+import { hasSellerDetails } from '../../shared/seller'
 import type { StoreRecord } from './database'
 import { stripeRequirementsNeedAction, type StripeRequirementSummary } from './stripeRequirements'
 
@@ -54,13 +55,7 @@ export const getStoreDestination = (store: StoreRecord, productCount?: number): 
 
   // Older drafts do not have an onboarding step yet. Infer the first
   // unfinished screen once, then persist an explicit step on the next save.
-  const hasSellerDetails = Boolean(
-    String(settings.businessName ?? '').trim()
-    && /^\d{8}$/.test(String(settings.registryCode ?? '').trim())
-    && String(settings.businessAddress ?? '').trim()
-    && String(settings.contactEmail ?? '').trim(),
-  )
-  if (!hasSellerDetails) return 'business'
+  if (!hasSellerDetails(settings)) return 'business'
   if (store.payment_status === 'idle') return 'payments'
   if (!store.shipping.length) return 'shipping'
   if (productCount === 0) return 'product'

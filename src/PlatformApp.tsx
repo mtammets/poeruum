@@ -1,10 +1,14 @@
+import { beginStripeRedirect } from './lib/stripeHosted'
+import { stripeDashboardUrl } from './lib/stripeOAuth'
+import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFields'
+import { hasSellerDetails, normalizeSellerSettings, sellerDetailsError, sellerType as getSellerType, type SellerType } from '../shared/seller'
 import AccountEmailNotice from './AccountEmailNotice'
 import { requireMerchantEmail } from './lib/accountEmail'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import BillingPlanDialog from './BillingPlanDialog'
 import PasswordInput from './PasswordInput'
 import { Brand } from './Brand'
-import { createStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
+import { createStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, invokeStripeHosted, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
 import { loadPublicShowcase } from './lib/showcase'
 import HomepageStorePhone from './HomepageStorePhone'
 import { getResponsiveImageProps } from './storefrontModel'
@@ -18,7 +22,7 @@ import { isHomepageAnalyticsLocation, startHomepageEngagementTracking, trackHome
 import type { Product } from './products'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
 import { createRandomId } from './lib/randomId'
-import { stripeRequirementsFromStore, type StripeRequirementSummary } from './lib/stripeRequirements'
+import { stripeRequirementIssueCopies, stripeRequirementsFromStore, type StripeRequirementSummary } from './lib/stripeRequirements'
 import { getStripeRequirementsLinkIntent, getStripeRequirementsStoreTarget, removeStripeRequirementsLinkParam, type StripeRequirementsLinkIntent } from './lib/stripeRequirementsLink'
 import {
   DEFAULT_RETURNS_TEXT,
@@ -239,13 +243,16 @@ function PlatformFlow() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const mobileNavRef = useRef<HTMLDivElement>(null)
   const [shipping, setShipping] = useState<string[]>(['omniva', 'pickup'])
+  const [sellerType, setSellerType] = useState<SellerType>('company')
+  const [sellerFirstName, setSellerFirstName] = useState('')
+  const [sellerLastName, setSellerLastName] = useState('')
   const [businessName, setBusinessName] = useState('')
   const [registryCode, setRegistryCode] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
   const [vatRegistered, setVatRegistered] = useState(false)
   const [vatNumber, setVatNumber] = useState('')
   const [registryLookupStatus, setRegistryLookupStatus] = useState<RegistryLookupStatus>('idle')
-  const [registryLookupCompanyName, setRegistryLookupCompanyName] = useState('')
+  const [, setRegistryLookupCompanyName] = useState('')
   const [registryLookupAttempt, setRegistryLookupAttempt] = useState(0)
   const [businessEmail, setBusinessEmail] = useState('')
   const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
@@ -374,7 +381,7 @@ function PlatformFlow() {
   }, [onlineUserId])
 
   useEffect(() => {
-    if (screen !== 'business' || !/^\d{8}$/.test(registryCode)) {
+    if (sellerType !== 'company' || screen !== 'business' || !/^\d{8}$/.test(registryCode)) {
       setRegistryLookupStatus('idle')
       setRegistryLookupCompanyName('')
       return
@@ -415,7 +422,7 @@ function PlatformFlow() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [registryCode, registryLookupAttempt, screen])
+  }, [registryCode, registryLookupAttempt, screen, sellerType])
 
   useEffect(() => {
     if (confirmationResendCooldown <= 0) return
@@ -513,7 +520,7 @@ function PlatformFlow() {
     }
   }, [screen])
 
-  const applyStore = async (nextStore: StoreRecord) => {
+  const syncMerchantStore = (nextStore: StoreRecord) => {
     const settings = nextStore.settings as Record<string, unknown>
     setStore(nextStore)
     setStoreName(nextStore.name)
@@ -525,6 +532,9 @@ function PlatformFlow() {
     setPricingPlan(nextStore.pricing_plan)
     setFixedPlanTrialStartedAt(nextStore.trial_started_at)
     setShipping(nextStore.shipping)
+    setSellerType(getSellerType(settings))
+    setSellerFirstName(String(settings.sellerFirstName ?? ''))
+    setSellerLastName(String(settings.sellerLastName ?? ''))
     setBusinessName(String(settings.businessName ?? ''))
     setRegistryCode(String(settings.registryCode ?? ''))
     setBusinessAddress(String(settings.businessAddress ?? ''))
@@ -532,6 +542,10 @@ function PlatformFlow() {
     setVatNumber(String(settings.vatNumber ?? ''))
     setBusinessEmail(String(settings.contactEmail ?? '') || email)
     setReturnsText(String(settings.returnsText ?? DEFAULT_RETURNS_TEXT))
+  }
+
+  const applyStore = async (nextStore: StoreRecord) => {
+    syncMerchantStore(nextStore)
     const nextProducts = await listProducts(nextStore.id)
     setStoredProducts(nextProducts)
     return nextProducts
@@ -1034,13 +1048,31 @@ function PlatformFlow() {
     } finally { setIsAuthBusy(false) }
   }
 
+  const sellerDetails: SellerDetailsValue = { sellerType, sellerFirstName, sellerLastName,
+    businessName, registryCode, businessAddress, contactEmail: businessEmail, vatRegistered, vatNumber }
+  const changeSellerDetails = (patch: Partial<SellerDetailsValue>) => {
+    if (patch.sellerType !== undefined) setSellerType(patch.sellerType)
+    if (patch.sellerFirstName !== undefined) setSellerFirstName(patch.sellerFirstName)
+    if (patch.sellerLastName !== undefined) setSellerLastName(patch.sellerLastName)
+    if (patch.registryCode !== undefined) {
+      setRegistryCode(patch.registryCode); setBusinessName(''); setBusinessAddress('')
+      setRegistryLookupStatus('idle'); setRegistryLookupCompanyName('')
+    }
+    if (patch.businessName !== undefined) setBusinessName(patch.businessName)
+    if (patch.businessAddress !== undefined) setBusinessAddress(patch.businessAddress)
+    if (patch.contactEmail !== undefined) setBusinessEmail(patch.contactEmail)
+    if (patch.vatRegistered !== undefined) setVatRegistered(patch.vatRegistered)
+    if (patch.vatNumber !== undefined) setVatNumber(patch.vatNumber)
+  }
+
   const persistStore = async (overrides: Partial<StoreContentInput> = {}, nextStep?: OnboardingStep) => {
     const existingSettings = (store?.settings ?? {}) as Record<string, unknown>
     const payload = {
       name: storeName.trim(), slug: slug || slugify(storeName), payment_provider: payment,
       shipping,
-      settings: {
+      settings: normalizeSellerSettings({
         ...existingSettings,
+        sellerType, sellerFirstName: sellerFirstName.trim(), sellerLastName: sellerLastName.trim(),
         businessName: businessName.trim(),
         registryCode: registryCode.trim(),
         businessAddress: businessAddress.trim(),
@@ -1049,7 +1081,7 @@ function PlatformFlow() {
         contactEmail: businessEmail.trim(),
         returnsText: returnsText.trim() || DEFAULT_RETURNS_TEXT,
         onboardingStep: store?.is_published ? 'complete' : nextStep ?? existingSettings.onboardingStep ?? 'business',
-      },
+      }),
       ...overrides,
     }
     const saved = store ? await updateStore(store.id, payload) : await createStore(payload)
@@ -1058,6 +1090,10 @@ function PlatformFlow() {
   }
 
   const startStripeConnect = async (purpose?: StripeSetupPurpose) => {
+    if (store?.stripe_connection_type === 'oauth' && store.stripe_account_id) {
+      window.location.assign(stripeDashboardUrl(store.stripe_account_id, store.stripe_account_mode))
+      return
+    }
     setIsStripeConnecting(true)
     setAuthError('')
     setAuthNotice('')
@@ -1065,7 +1101,14 @@ function PlatformFlow() {
       await requireMerchantEmail()
       const saved = await persistStore({ payment_provider: 'stripe' }, store?.is_published ? 'complete' : 'payments')
       setPayment('stripe')
-      setPaymentStatus(saved.stripe_account_id ? saved.payment_status : 'pending')
+      setPaymentStatus(saved.payment_status)
+
+      if (!saved.stripe_account_id || saved.stripe_connection_type === 'hosted') {
+        const mode = purpose === 'management' ? 'management' : purpose === 'requirements' ? 'remediation' : 'onboarding'
+        const result = await invokeStripeHosted('hosted-start', mode, saved.id)
+        beginStripeRedirect(result.url, saved.id, mode)
+        return
+      }
 
       let detailsSubmitted = stripeDetailsSubmitted ?? undefined
       let latestStatus = saved.payment_status
@@ -1114,7 +1157,7 @@ function PlatformFlow() {
       setAuthNotice(stripeEmbeddedMode === 'remediation'
         ? result.requirements?.dueCount
           ? 'Stripe salvestas andmed. Mõni kinnitus on veel pooleli.'
-          : 'Ettevõtte andmed on esitatud. Stripe kontrollib neid turvaliselt.'
+          : 'Andmed on kontrollimisel.'
         : result.status === 'connected'
           ? 'Stripe on ühendatud ja maksed on aktiivsed.'
           : 'Stripe salvestas andmed. Konto kontroll või seadistamine on veel pooleli.')
@@ -1206,6 +1249,9 @@ function PlatformFlow() {
     setIsPublishing(false)
     setIsMobileNavOpen(false)
     setShipping(['omniva', 'pickup'])
+    setSellerType('company')
+    setSellerFirstName('')
+    setSellerLastName('')
     setBusinessName('')
     setRegistryCode('')
     setBusinessAddress('')
@@ -1253,8 +1299,7 @@ function PlatformFlow() {
     }
   }
   const publishStore = async () => {
-    if (!businessName.trim() || !/^\d{8}$/.test(registryCode.trim()) || !businessAddress.trim() || !businessEmail.trim()
-      || (vatRegistered && !/^EE\d{9}$/.test(vatNumber.trim()))) {
+    if (!hasSellerDetails(normalizeSellerSettings(sellerDetails))) {
       setAuthError('Enne avaldamist lisa täielikud müüja andmed.')
       setScreen('business')
       return
@@ -1359,7 +1404,7 @@ function PlatformFlow() {
   const authReturnNotice = authNotice ? <div className="app-return-notice" role="status" aria-live="polite">
     <span>{authNotice}</span><button type="button" onClick={() => setAuthNotice('')} aria-label="Sulge teade">×</button>
   </div> : null
-  const stripeEmbeddedDialogLabel = stripeEmbeddedMode === 'remediation' ? 'Ettevõtte andmete kinnitamine' : 'Stripe’i andmed'
+  const stripeEmbeddedDialogLabel = stripeEmbeddedMode === 'remediation' ? 'Andmete kinnitamine' : 'Stripe’i andmed'
   const stripeEmbeddedOverlay = isStripeOnboardingOpen && (screen === 'storefront' || screen === 'product')
     ? <div className="stripe-connect-overlay stripe-connect-overlay--embedded" role="dialog" aria-modal="true" aria-label={stripeEmbeddedDialogLabel}>
       <div className="stripe-connect-embedded-shell">
@@ -1423,6 +1468,7 @@ function PlatformFlow() {
     storeSlug={slug || 'minu-pood'}
     paymentProvider={payment}
     paymentsReady={paymentStatus === 'connected'}
+    sellerTypeLocked={Boolean(store?.stripe_account_id)}
     initialShipping={shipping}
     initialPublished={false}
     pricingPlan={pricingPlan}
@@ -1435,15 +1481,7 @@ function PlatformFlow() {
     onBackToSetup={() => setScreen('shipping')}
     onContinueSetup={continueFromFirstProduct}
     onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)}
-    onStoreChange={(nextStore) => {
-      setStore(nextStore)
-      setStoreName(nextStore.name)
-      setPayment('stripe')
-      setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle')
-      setPricingPlan(nextStore.pricing_plan)
-      setFixedPlanTrialStartedAt(nextStore.trial_started_at)
-      setShipping(nextStore.shipping)
-    }}
+    onStoreChange={syncMerchantStore}
     onAccountDeleted={handleAccountDeleted}
     onExit={leaveMerchantStore}
   />
@@ -1451,7 +1489,7 @@ function PlatformFlow() {
   </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={(nextStore) => { setStore(nextStore); setStoreName(nextStore.name); setPayment('stripe'); setPaymentStatus(nextStore.payment_provider === 'stripe' ? nextStore.payment_status : 'idle'); setPricingPlan(nextStore.pricing_plan); setFixedPlanTrialStartedAt(nextStore.trial_started_at); setShipping(nextStore.shipping) }} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} sellerTypeLocked={Boolean(store?.stripe_account_id)} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={syncMerchantStore} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
     {stripeEmbeddedOverlay}
   </>
 
@@ -1571,7 +1609,7 @@ function PlatformFlow() {
       <div className="platform-faq__list">
         <details open data-analytics-label="pricing"><summary onClick={trackFaqOpen}>Kui palju Poeruum maksab?<span>+</span></summary><p>Valida saad kahe paketi vahel. Paindlikul paketil kuutasu ei ole: Poeruumi teenustasu on {formatPricingPercent(PLATFORM_FEE_RATE)} toodete müügisummalt + käibemaks ehk kokku {formatPricingPercent(PLATFORM_FEE_RATE * (1 + VAT_RATE))}. Tasu ei arvestata tarnelt ja see ei ületa {formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus koos käibemaksuga. Kui müüki ei ole, on Poeruumi tasu 0 €. Kindel pakett algab 30-päevase tasuta prooviperioodiga ja maksab seejärel {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga; Poeruumi müügitasu selle paketiga ei ole. Stripe’i maksetöötlustasu lisandub mõlemas paketis.</p></details>
         <details data-analytics-label="plan_features"><summary onClick={trackFaqOpen}>Kas paketid erinevad võimaluste poolest?<span>+</span></summary><p>Ei. Mõlemas paketis saad kasutada Poeruumi põhivõimalusi, sealhulgas oma domeeni. Erineb ainult hinnastamise viis: Paindlik pakett sobib müügipõhise tasuga alustamiseks ja Kindel pakett püsiva kuutasu eelistajale.</p></details>
-        <details data-analytics-label="requirements"><summary onClick={trackFaqOpen}>Mida vajan poe avamiseks?<span>+</span></summary><p>Vajad Poeruumi kontot, ettevõtte kontakt- ja registriandmeid, vähemalt üht toodet, valitud tarneviisi ning ühendatud Stripe’i kontot. Poe saad enne avaldamist rahulikult valmis seadistada ja üle vaadata.</p></details>
+        <details data-analytics-label="requirements"><summary onClick={trackFaqOpen}>Mida vajan poe avamiseks?<span>+</span></summary><p>Vajad müüja kontaktandmeid, vähemalt üht toodet, tarneviisi ja seadistatud makseid. Müüjaks võib olla ettevõte või ettevõtluskontoga eraisik.</p></details>
         <details data-analytics-label="payments"><summary onClick={trackFaqOpen}>Kuidas kliendid maksta saavad?<span>+</span></summary><p>Pärast Stripe’i ühendamist saavad ostjad maksta Stripe’i turvalisel makselehel pangakaardiga ning sobivas seadmes Apple Pay või Google Payga. Poeruum ei salvesta ostjate kaardiandmeid.</p></details>
         <details data-analytics-label="shipping"><summary onClick={trackFaqOpen}>Milliseid tarneviise saab kasutada?<span>+</span></summary><p>Saad pakkuda Omniva, DPD ja SmartPosti pakiautomaate, kullerit ning ise järele tulemist. Sina valid kasutatavad tarneviisid, hinnad ja tasuta tarne piiri. Ostja valib kassas sobiva pakiautomaadi; paki saatmise korraldad sina.</p></details>
         <details data-analytics-label="custom_domain"><summary onClick={trackFaqOpen}>Kas saan kasutada oma domeeni?<span>+</span></summary><p>Jah. Poeruum annab poele automaatselt aadressi kujul poenimi.poeruum.ee, kuid soovi korral saad ühendada juba olemasoleva domeeni. Poeruum selle eest lisatasu ei küsi; domeeni teenusepakkuja tasu jääb sulle.</p></details>
@@ -1754,6 +1792,7 @@ function PlatformFlow() {
   const paymentSetupState = getPaymentSetupState(paymentStatus, Boolean(store?.stripe_account_id), stripeRequirements)
   const paymentNeedsAction = paymentSetupState === 'setup-required'
   const paymentCanContinue = paymentSetupState !== 'setup-required'
+  const paymentIssues = paymentNeedsAction ? stripeRequirementIssueCopies(stripeRequirements) : []
 
   return <SetupShell
     screen={screen}
@@ -1764,7 +1803,7 @@ function PlatformFlow() {
   >
     {returnNotice}
     {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { await persistStore({}, 'business'); setScreen('business') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
-      <span className="setup-kicker">Alustame põhilisest</span><h1>Mis on sinu poe nimi?</h1><p>Seda näevad sinu kliendid poe päises ja otsingutulemustes.</p>
+      <h1>Poe nimi</h1>
       <label>Poe nimi<input
         required
         autoFocus
@@ -1785,8 +1824,8 @@ function PlatformFlow() {
     </form>}
 
     {screen === 'payments' && <div className="setup-form">
-      {!isStripeOnboardingOpen && <><span className="setup-kicker">Maksete vastuvõtmine</span><h1>{paymentNeedsAction ? 'Ühenda poe maksed' : 'Poe maksed'}</h1>
-        <p>{paymentNeedsAction ? 'Maksete vastuvõtmiseks tuleb seadistada Stripe’i konto. ' : ''}Stripe töötleb klientide makseid ja kannab raha sinu pangakontole.</p>
+      {!isStripeOnboardingOpen && <><h1>{paymentIssues.length ? 'Maksete kinnitamine' : paymentNeedsAction ? 'Ühenda poe maksed' : 'Poe maksed'}</h1>
+        {paymentNeedsAction && !paymentIssues.length && <p>{sellerType === 'entrepreneur' ? 'Kinnita oma andmed.' : 'Maksed laekuvad sinu pangakontole.'}</p>}
         <div className="provider-list">
           <div>
             <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe</strong><small>Kaardid, Apple Pay ja Google Pay</small></span>
@@ -1800,19 +1839,26 @@ function PlatformFlow() {
         onExit={finishStripeEmbeddedOnboarding}
         onClose={finishStripeEmbeddedOnboarding}
         onError={(message) => { setAuthError(message); setIsStripeConnecting(false) }}
-      /> : <>{paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect('onboarding')}>
-        <strong>{isStripeConnecting ? 'Avan maksete seadistust…' : paymentStatus === 'pending' ? 'Jätka maksete seadistamist' : 'Seadista maksed'}</strong><span>→</span>
+      /> : <>{paymentIssues.length > 0 && <div className="connected-provider is-pending" role="alert">
+        <span aria-hidden="true">!</span><div>{paymentIssues.map(issue => <div key={issue.title}><strong>{issue.title}</strong><small>{issue.detail}</small></div>)}</div>
+      </div>}
+      {paymentNeedsAction ? <button className="payment-setup-action is-stripe" disabled={isStripeConnecting} onClick={() => void startStripeConnect('onboarding')}>
+        <strong>{isStripeConnecting ? 'Avan maksete seadistust…' : paymentIssues.length ? 'Kontrolli andmeid Stripe’is' : paymentStatus === 'pending' ? 'Jätka maksete seadistamist' : 'Seadista maksed'}</strong><span aria-hidden="true">→</span>
       </button> : paymentSetupState === 'reviewing' ? <div className="connected-provider is-pending" role="status">
         <span aria-hidden="true">…</span><div><strong>Stripe kontrollib andmeid</strong><small>Kõik vajalik on esitatud. Võid poe seadistamisega jätkata; maksed aktiveeruvad pärast Stripe’i kinnitust.</small></div>
       </div> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}
+      {!isStripeOnboardingOpen && store?.stripe_connection_type === 'oauth' && <>
+        {sellerType === 'entrepreneur' && <p className="setup-helper">Kontrolli Stripe’is, et väljamaksed lähevad sinu LHV ettevõtluskontole.</p>}
+        <a className="payment-setup-action is-existing" href={stripeDashboardUrl(store.stripe_account_id!, store.stripe_account_mode)} target="_blank" rel="noopener noreferrer"><strong>Halda kontot Stripe’is</strong><span aria-hidden="true">↗</span></a>
+      </>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
-      {!isStripeOnboardingOpen && !paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore({}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Seadista maksed hiljem ja jätka tarnega <span>→</span></button>}
+      {!isStripeOnboardingOpen && !paymentCanContinue && <button className="payment-setup-skip" disabled={isStripeConnecting} onClick={async () => { try { await persistStore({}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jäta praegu vahele</button>}
       {!isStripeOnboardingOpen && paymentCanContinue && <button className="setup-next" onClick={async () => { try { await persistStore({}, 'shipping'); setScreen('shipping') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>Jätka tarnega <span>→</span></button>}
     </div>}
 
     {screen === 'shipping' && <div className="setup-form"><span className="setup-kicker">Kauba kättesaamine</span><h1>Vali tarneviisid</h1>
       <div className="shipping-list">{[
-        ['omniva', 'https://old.omniva.ee/public/banners/logo/Omniva_lockup_horizontal_orange.svg', 'Omniva pakiautomaat'],
+        ['omniva', '/images/omniva-logo.svg', 'Omniva pakiautomaat'],
         ['dpd', 'https://www.dpd.com/wp-content/themes/DPD_NoLogin/images/DPD_logo_redgrad_rgb_responsive.svg', 'DPD pakiautomaat'],
         ['smartposti', 'https://images.ctfassets.net/dvxpcmq06s7e/5LDF7M5UltxLRSteji1IIj/66fc61b81e453d12d154fcaceec04e42/Logo_SmartPosti.png', 'SmartPosti pakiautomaat'],
         ['pickup', '', 'Tulen ise järele'],
@@ -1823,45 +1869,24 @@ function PlatformFlow() {
     {screen === 'business' && <form className="setup-form setup-business" onSubmit={async (event) => {
       event.preventDefault()
       setAuthError('')
-      if (!/^\d{8}$/.test(registryCode.trim())) { setAuthError('Registrikood peab olema 8-kohaline.'); return }
-      if (vatRegistered && !/^EE\d{9}$/.test(vatNumber.trim())) { setAuthError('KMKR number peab olema kujul EE123456789.'); return }
+      const error = sellerDetailsError(normalizeSellerSettings(sellerDetails))
+      if (error) { setAuthError(error); return }
       try { await persistStore({}, 'payments'); setScreen('payments') }
       catch (error) { setAuthError(error instanceof Error ? error.message : 'Müüja andmete salvestamine ebaõnnestus.') }
     }}>
-      <span className="setup-kicker">Kes kliendile müüb?</span><h1>Sinu ettevõte</h1>
-      <label>Registrikood<input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={registryCode} onChange={(event) => {
-        const nextRegistryCode = event.target.value.replace(/\D/g, '').slice(0, 8)
-        if (nextRegistryCode !== registryCode) {
-          setBusinessName('')
-          setBusinessAddress('')
-          setRegistryLookupStatus('idle')
-          setRegistryLookupCompanyName('')
-        }
-        setRegistryCode(nextRegistryCode)
-      }} placeholder="12345678" /></label>
-      {registryLookupStatus !== 'idle' && <div className={`setup-business__registry-note is-${registryLookupStatus}`} role={registryLookupStatus === 'not-found' || registryLookupStatus === 'error' ? 'alert' : 'status'} aria-live="polite">
-        <span>{registryLookupStatus === 'found' ? '✓' : registryLookupStatus === 'loading' ? '…' : '!'}</span>
-        <p>{registryLookupStatus === 'loading'
-          ? 'Otsin ettevõtet Äriregistrist…'
-          : registryLookupStatus === 'found'
-            ? `Ettevõte leitud: ${registryLookupCompanyName}`
-            : registryLookupStatus === 'not-found'
-              ? 'Sellise registrikoodiga aktiivset ettevõtet ei leitud.'
-              : <>Äriregistri päring ebaõnnestus. <button type="button" onClick={() => setRegistryLookupAttempt((attempt) => attempt + 1)}>Proovi uuesti</button></>}</p>
-      </div>}
-      <label>Ettevõtte nimi<input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
-      <label>Ettevõtte registrijärgne aadress<input required aria-describedby="setup-business-address-help" value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label>
-      <small id="setup-business-address-help" className="setup-field-note">Ettevõtte kehtiv aadress Äriregistris. Tegelik tegevuskoht võib sellest erineda.</small>
-      <label>Klientide kontakt-e-post<input required type="email" value={businessEmail} onChange={(event) => setBusinessEmail(event.target.value)} placeholder="tere@minupood.ee" /></label>
-      <label className="setup-vat-toggle"><input type="checkbox" checked={vatRegistered} onChange={(event) => { setVatRegistered(event.target.checked); if (!event.target.checked) setVatNumber('') }} /><span><strong>Olen käibemaksukohustuslane</strong><small>Kasuta poes Eesti standardmäära 24%</small></span></label>
-      {vatRegistered && <label>KMKR number<input required value={vatNumber} pattern="EE[0-9]{9}" maxLength={11} onChange={(event) => setVatNumber(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11))} placeholder="EE123456789" /><small>Tootehinnad sisestad koos käibemaksuga.</small></label>}
+      <h1>Müüja andmed</h1>
+      <SellerDetailsFields value={sellerDetails} onChange={changeSellerDetails} typeLocked={Boolean(store?.stripe_account_id)} registryStatus={
+        registryLookupStatus === 'loading' ? <small className="seller-details__hint" role="status">Otsin ettevõtet…</small>
+          : registryLookupStatus === 'not-found' ? <small className="seller-details__hint">Ettevõtet ei leitud. Kontrolli registrikoodi.</small>
+            : registryLookupStatus === 'error' ? <small className="seller-details__hint">Täida ettevõtte andmed käsitsi.</small> : null
+      } />
       {authError && <p className="add-product-error" role="alert">{authError}</p>}
       <button className="setup-next" type="submit">Jätka maksetega <span>→</span></button>
     </form>}
 
     {screen === 'publish' && <div className="setup-form publish-step"><div className="publish-ready">
       <div className="publish-ready__copy">
-        <strong>Sinu Poeruum<br />{paymentSetupState === 'connected' && storedProducts.length ? 'on valmis!' : 'on peaaegu valmis'}</strong>
+        <strong>Avalda pood</strong>
       </div>
       <span className="publish-celebration" aria-hidden="true">
         <svg viewBox="0 0 140 120">
@@ -1903,7 +1928,7 @@ function PlatformFlow() {
           <button type="button" onClick={() => setScreen('payments')} aria-label="Muuda makseteenust"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.5-10.5a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" /><path d="m14.5 6.7 2.8 2.8" /></svg></button>
         </div>
         <div className="publish-seller-row">
-          <span><strong>{businessName}</strong><small>· {registryCode}</small></span>
+          <span><strong>{sellerType === 'entrepreneur' ? `${sellerFirstName} ${sellerLastName}`.trim() : businessName}</strong>{sellerType === 'company' && <small>· {registryCode}</small>}</span>
           <button type="button" onClick={() => setScreen('business')} aria-label="Muuda müüja andmeid">Muuda</button>
         </div>
         <div className="publish-seller-row">

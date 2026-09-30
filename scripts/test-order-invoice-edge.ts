@@ -21,6 +21,34 @@ const fixture = (): InvoiceDocument => ({
   }),
 })
 
+Deno.test('entrepreneur sale and return proofs show legal identity without company or private banking fields', async () => {
+  const document = fixture()
+  document.snapshot = buildInvoiceSnapshot({
+    settings: { sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+      businessAddress: 'Kase 12, Tartu', contactEmail: 'liisa@example.com', registryCode: 'PRIVATE_ID', iban: 'PRIVATE_IBAN' },
+    buyer: document.snapshot.buyer, storeName: 'Liisa ateljee', storeSlug: 'liisa', delivery: 'Omniva', deliveryCents: 300,
+    items: [{ name: 'Akvarell', quantity: 1, unitGrossCents: 6500, options: '' }],
+  })
+  const original = PDFPage.prototype.drawText
+  const text: string[] = []
+  PDFPage.prototype.drawText = function (value, options) { text.push(value); return original.call(this, value, options) }
+  try {
+    for (const credit of [false, true]) {
+      text.length = 0
+      const pdf = await PDFDocument.load(await renderOrderInvoice({ ...document, kind: credit ? 'credit' : 'invoice', original_number: credit ? 'ORIGINAL-1' : null }))
+      assert(pdf.getTitle()?.startsWith(credit ? 'Tagastustõend ' : 'Müügitõend '), 'Wrong document label')
+      assert(pdf.getPageCount() === 1 && pdf.getAuthor() === 'Liisa Tamm', 'Seller name or page count incorrect')
+      assert(text.includes(credit ? '-68,00 €' : '68,00 €'), 'Incorrect total')
+      assert(text.includes('Liisa Tamm'), 'Seller name missing')
+      assert(!text.some((line) => /PRIVATE|KMKR|Hind KM-ta|Kokku käibemaksuta/.test(line)), 'Private information or unnecessary tax labels exposed')
+      // Buyer company data still belongs on their proof of purchase.
+      assert(text.includes('Registrikood: 87654321'), 'Company buyer identity was lost')
+      assert(!text.includes('Registrikood: '), 'Empty seller registry label was printed')
+      if (credit) assert(text.includes('Algne müügitõend: ORIGINAL-1'), 'Return proof lost original reference')
+    }
+  } finally { PDFPage.prototype.drawText = original }
+})
+
 Deno.test('PDF invoices embed Estonian text and paginate long orders; credits retain their original reference', async () => {
   const invoice = fixture()
   const bytes = await renderOrderInvoice(invoice)

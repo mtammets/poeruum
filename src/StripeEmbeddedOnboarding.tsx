@@ -42,8 +42,8 @@ export default function StripeEmbeddedOnboarding({
   const isStripeTestMode = stripePublishableKey?.startsWith('pk_test_') === true
   const isManagement = mode === 'management'
   const isRemediation = mode === 'remediation'
-  const title = isRemediation ? 'Ettevõtte andmete kinnitamine' : isManagement ? 'Stripe’i andmed' : 'Stripe’i konto seadistamine'
-  const subtitle = isRemediation ? 'Turvaline Stripe’i vorm Poeruumi sees' : isManagement ? 'Ettevõtte andmed ja kontrollid' : 'Maksete vastuvõtt'
+  const title = isRemediation ? 'Andmete kinnitamine' : isManagement ? 'Stripe’i andmed' : 'Stripe’i konto seadistamine'
+  const subtitle = isRemediation ? '' : isManagement ? '' : 'Maksete vastuvõtt'
   const onboardingCollectionOptions = isRemediation
     ? { fields: 'currently_due' as const, futureRequirements: 'include' as const }
     : { fields: 'eventually_due' as const, futureRequirements: 'include' as const }
@@ -97,13 +97,13 @@ export default function StripeEmbeddedOnboarding({
     fetchClientSecret: async () => {
       if (connection) return connection.fetchClientSecret(mode)
       const result = await invokeStripeConnect('start', mode)
-      if (!result.clientSecret) throw new Error('Stripe ei tagastanud AccountSessioni võtit.')
+      if (!result.clientSecret) throw new Error('Maksete seadistamist ei saanud avada. Proovi uuesti.')
       return result.clientSecret
     },
   }) : null)
 
   useEffect(() => {
-    if (!connectInstance) onError('Stripe’i publishable key puudub.')
+    if (!connectInstance) onError('Maksete seadistamine pole praegu saadaval.')
   }, [connectInstance, onError])
 
   useEffect(() => {
@@ -155,7 +155,7 @@ export default function StripeEmbeddedOnboarding({
 
   if (!connectInstance) return null
   return <section className={`stripe-embedded is-${mode}`} aria-label={title}>
-    <header><div>{isRemediation ? <BrandMark className="stripe-embedded__poeruum-mark" /> : <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i>}<span><strong>{title}</strong><small>{subtitle}{isStripeTestMode ? ' · Testkeskkond' : ''}</small></span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
+    <header><div>{isRemediation ? <BrandMark className="stripe-embedded__poeruum-mark" /> : <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i>}<span><strong>{title}</strong>{(subtitle || isStripeTestMode) && <small>{[subtitle, isStripeTestMode ? 'Testkeskkond' : ''].filter(Boolean).join(' · ')}</small>}</span></div><aside><button type="button" disabled={isClosing} onClick={() => void closeStripeForm()}>{isClosing && <i aria-hidden="true" />}<span>{isClosing ? 'Sulgen…' : 'Sulge'}</span></button></aside></header>
     <StripeAddressGuide requirements={requirements} onManage={isRemediation ? onManage : undefined} />
     {!isManagement && !isCompleting && loadPhase === 'ready' && currentStep === 'representative_details' && <div className="stripe-embedded__personal-hints" role="note">
       <p><strong>Täisnimi</strong> — sisesta oma ees- ja perekonnanimi nii, nagu need on isikut tõendaval dokumendil.</p>
@@ -175,7 +175,7 @@ export default function StripeEmbeddedOnboarding({
           <button type="button" onClick={retryStripeForm}>Proovi uuesti</button>
         </> : <>
           <BrandMark className="stripe-preparing__logo" />
-          <h2>{loadPhase === 'connecting' ? 'Ühendame turvaliselt Stripe’iga' : isRemediation ? 'Avame ettevõtte andmete vormi' : 'Avame Stripe’i vormi'}</h2>
+          <h2>{loadPhase === 'connecting' ? 'Avame vormi' : isRemediation ? 'Avame vormi' : 'Avame Stripe’i vormi'}</h2>
           <p>Hetk palun…</p>
         </>}
       </div>}

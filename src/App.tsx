@@ -1,4 +1,7 @@
+import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFields'
+import { hasSellerDetails, normalizeSellerSettings, sellerType as getSellerType, type SellerType } from '../shared/seller'
 import { getAccountEmailStatus } from './lib/accountEmail'
+import { createRandomId } from './lib/randomId'
 import OrderDocumentLinks from './OrderDocumentLinks'
 import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
@@ -301,6 +304,7 @@ export type StorefrontProps = {
   theme?: StoreTheme
   paymentProvider?: PaymentProvider
   paymentsReady?: boolean
+  sellerTypeLocked?: boolean
   initialShipping?: string[]
   initialPublished?: boolean
   merchantMode?: boolean
@@ -330,7 +334,10 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+  const [initialSetupDraft] = useState<Product | null>(() => merchantMode && onContinueSetup && !seedProducts.length
+    ? { id: createRandomId(), name: '', description: '', image: EMPTY_PRODUCT_IMAGE, gallery: [], alt: '', searchVisible: true }
+    : null)
   const support = useContext(SupportContext)
   const isShowcasePreview = Boolean(onExit && !merchantMode)
   const isDemoExperience = isShowcasePreview || initialSettings.isDemoStore === true
@@ -433,6 +440,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       pickupAddress: 'Paldiski mnt 25, 10612 Tallinn',
     }
   })
+  const [sellerType, setSellerType] = useState<SellerType>('company')
+  const [sellerFirstName, setSellerFirstName] = useState('')
+  const [sellerLastName, setSellerLastName] = useState('')
   const [businessName, setBusinessName] = useState('')
   const [registryCode, setRegistryCode] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
@@ -505,7 +515,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [autoSwipeEnabled, setAutoSwipeEnabled] = useState(() => localStorage.getItem('autoSwipeEnabled') !== 'false')
   const [autoSwipeDelay, setAutoSwipeDelay] = useState(() => Number(localStorage.getItem('autoSwipeDelay')) || 30)
   const [autoSwipeSpeed, setAutoSwipeSpeed] = useState(() => Number(localStorage.getItem('autoSwipeSpeed')) || 10)
-  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(Boolean(initialSetupDraft))
+  const [isSavingProduct, setIsSavingProduct] = useState(false)
+  const productSaveLockRef = useRef(false)
   const [isDescriptionGenerating, setIsDescriptionGenerating] = useState(false)
   const [isExitAttentionActive, setIsExitAttentionActive] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -568,8 +580,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [editImageTransforms, setEditImageTransforms] = useState<Record<string, ProductImageTransform>>({})
   const [editProductImageVariants, setEditProductImageVariants] = useState<Record<string, ProductImageAsset>>({})
   const [editImageUploads, setEditImageUploads] = useState<EditImageUpload[]>([])
-  const [editProductStock, setEditProductStock] = useState('')
-  const [editProductOneOfAKind, setEditProductOneOfAKind] = useState(false)
+  const [editProductStock, setEditProductStock] = useState(initialSetupDraft ? '1' : '')
+  const [editProductOneOfAKind, setEditProductOneOfAKind] = useState(Boolean(initialSetupDraft))
   const [editProductCategoryId, setEditProductCategoryId] = useState('')
   const [editProductName, setEditProductName] = useState('')
   const [editProductSeoTitle, setEditProductSeoTitle] = useState('')
@@ -608,15 +620,16 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const isSearchVisible = isSearchOpen || (embeddedPreview && previewSearch !== null)
   const displayedSearchQuery = embeddedPreview && previewSearch ? previewSearch.query : searchQuery
   const [searchCategoryId, setSearchCategoryId] = useState('')
-  const [addedProducts, setAddedProducts] = useState<Product[]>([])
+  const [addedProducts, setAddedProducts] = useState<Product[]>(initialSetupDraft ? [initialSetupDraft] : [])
   const [persistedProducts, setPersistedProducts] = useState<Product[]>(seedProducts)
   const [productCategories, setProductCategories] = useState<ProductCategory[]>(seedCategories ?? [])
-  const [draftProductId, setDraftProductId] = useState<string | null>(null)
+  const [draftProductId, setDraftProductId] = useState<string | null>(initialSetupDraft?.id ?? null)
   const [deletedProductIds, setDeletedProductIds] = useState<string[]>([])
   const [productEdits, setProductEdits] = useState<Record<string, Partial<Product>>>({})
   const dispatchTime: DispatchTime = deliverySettings.dispatchTime ?? { enabled: false, min: null, max: null, unit: 'business_days' }
   const dispatchTimeError = getDispatchTimeError(deliverySettings.dispatchTime)
-  const settingsSnapshot = JSON.stringify({
+  const settingsSnapshot = JSON.stringify(normalizeSellerSettings({
+    sellerType, sellerFirstName, sellerLastName,
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
     directoryCover, directoryDescription,
@@ -625,7 +638,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     deliverySettings, businessName, registryCode, businessAddress, vatRegistered, vatNumber, returnsText, orderNotificationEmail,
     billingPlan, sellerNotifications, customerConfirmations,
     autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed,
-  })
+  }))
   const currentSettingsSnapshotRef = useRef(settingsSnapshot)
   currentSettingsSnapshotRef.current = settingsSnapshot
   const hasUnsavedSettings = isSettingsOpen && Boolean(savedSettingsSnapshotRef.current) && savedSettingsSnapshotRef.current !== settingsSnapshot
@@ -662,6 +675,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     if (value.tiktokUrl != null) setTiktokUrl(value.tiktokUrl)
     if (value.activePaymentProvider) setActivePaymentProvider(value.activePaymentProvider)
     if (value.deliverySettings) setDeliverySettings(value.deliverySettings)
+    setSellerType(getSellerType(value))
+    setSellerFirstName(String(value.sellerFirstName ?? ''))
+    setSellerLastName(String(value.sellerLastName ?? ''))
     if (value.businessName != null) setBusinessName(value.businessName)
     if (value.registryCode != null) setRegistryCode(value.registryCode)
     if (value.businessAddress != null) setBusinessAddress(value.businessAddress)
@@ -1088,6 +1104,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }
 
   const closeEditProduct = () => {
+    if (productSaveLockRef.current) return
     if (editImageUploads.some((upload) => upload.phase !== 'error')) {
       setAuthToast('Oota, kuni pilt on üles laaditud')
       return
@@ -1135,6 +1152,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     setIsCustomProductOptionOpen(false)
     setCustomProductOption('')
     setIsEditOpen(false)
+    if (onContinueSetup && !persistedProducts.length) onBackToSetup?.()
   }
 
   const requestExit = () => {
@@ -1837,7 +1855,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       : product.imageTransforms?.[image] ?? DEFAULT_IMAGE_TRANSFORM
   }
 
-  const activeEditImage = activeProduct && isEditOpen ? getDisplayedProductImage(activeProduct) : null
+  const activeEditImage = activeProduct && isEditOpen && editProductImages.length ? getDisplayedProductImage(activeProduct) : null
   const activeEditImageTransform = activeEditImage ? editImageTransforms[activeEditImage] ?? DEFAULT_IMAGE_TRANSFORM : DEFAULT_IMAGE_TRANSFORM
   const setActiveEditImageTransform = (transform: ProductImageTransform) => {
     if (!activeEditImage) return
@@ -1912,7 +1930,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }
 
   const saveEditedProduct = async () => {
-    if (!activeProduct) return
+    if (!activeProduct || productSaveLockRef.current) return
     if (isDescriptionGenerating) { setAuthToast('Oota, kuni kirjeldus on valmis.'); return }
     if (editImageUploads.length) {
       setAuthToast(editImageUploads.some((upload) => upload.phase === 'error') ? 'Paranda ebaõnnestunud pildi üleslaadimine' : 'Oota, kuni pildid on üles laaditud')
@@ -1971,55 +1989,67 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       options: editProductOptionType !== 'none' && optionValues.length ? [{ name: editProductOptionType, values: optionValues }] : [],
     }
     const saved = { ...activeProduct, ...changes }
-    let persisted = saved
-    try { if (storeId) persisted = await saveProduct(storeId, saved) }
-    catch (error) { setAuthToast(error instanceof Error ? error.message : 'Toote salvestamine ebaõnnestus'); return }
-    if (storeId) {
-      setPersistedProducts((current) => {
-        const exists = current.some((product) => product.id === persisted.id)
-        return exists ? current.map((product) => product.id === persisted.id ? persisted : product) : [...current, persisted]
-      })
-      setAddedProducts((current) => current.filter((product) => product.id !== persisted.id))
-      setProductEdits((current) => {
-        const next = { ...current }
-        delete next[persisted.id]
-        return next
-      })
-      // A committed image can be part of an immutable order snapshot. Keep
-      // replaced files; account-level retention cleanup removes the prefix later.
-      const abandonedUploads = [...uploadedDuringEditRef.current].filter((image) => !editProductImages.includes(image))
-      if (abandonedUploads.length) void removeStoredProductImages(editProductImageVariants, abandonedUploads).catch(() => undefined)
-      uploadedDuringEditRef.current.clear()
-    } else {
-      setProductEdits((current) => ({ ...current, [activeProduct.id]: changes }))
+    productSaveLockRef.current = true
+    setIsSavingProduct(true)
+    try {
+      const persisted = storeId ? await saveProduct(storeId, saved) : saved
+      if (storeId) {
+        setPersistedProducts((current) => {
+          const exists = current.some((product) => product.id === persisted.id)
+          return exists ? current.map((product) => product.id === persisted.id ? persisted : product) : [...current, persisted]
+        })
+        setAddedProducts((current) => current.filter((product) => product.id !== activeProduct.id && product.id !== persisted.id))
+        setProductEdits((current) => {
+          const next = { ...current }
+          delete next[activeProduct.id]
+          delete next[persisted.id]
+          return next
+        })
+        // A committed image can be part of an immutable order snapshot. Keep
+        // replaced files; account-level retention cleanup removes the prefix later.
+        const abandonedUploads = [...uploadedDuringEditRef.current].filter((image) => !editProductImages.includes(image))
+        if (abandonedUploads.length) void removeStoredProductImages(editProductImageVariants, abandonedUploads).catch(() => undefined)
+        uploadedDuringEditRef.current.clear()
+      } else {
+        setProductEdits((current) => ({ ...current, [activeProduct.id]: changes }))
+      }
+      editSessionImageUrlsRef.current.forEach((url) => committedEditImageUrlsRef.current.add(url))
+      editSessionImageUrlsRef.current.clear()
+      if (draftProductId === activeProduct.id) {
+        setDraftProductId(null)
+        if (!onContinueSetup) setShowAddedToast(true)
+      }
+      if (onContinueSetup) {
+        try { await onContinueSetup() }
+        catch (error) { setAuthToast(error instanceof Error ? error.message : 'Seadistamise jätkamine ebaõnnestus'); return }
+      }
+      setEditProductImages([])
+      setEditProductImageVariants({})
+      setEditProductStock('')
+      setEditProductOneOfAKind(false)
+      setEditProductCategoryId('')
+      setEditProductName('')
+      setEditProductSeoTitle('')
+      setEditProductSlug('')
+      setIsEditProductSlugCustom(false)
+      setEditProductAlt('')
+      setEditProductSearchVisible(true)
+      setEditProductOptionType('none')
+      setEditProductOptionValues('')
+      setIsEditOpen(false)
+      setAuthToast(null)
+    } catch (error) {
+      setAuthToast(error instanceof Error ? error.message : 'Toote salvestamine ebaõnnestus')
+    } finally {
+      productSaveLockRef.current = false
+      setIsSavingProduct(false)
     }
-    editSessionImageUrlsRef.current.forEach((url) => committedEditImageUrlsRef.current.add(url))
-    editSessionImageUrlsRef.current.clear()
-    if (draftProductId === activeProduct.id) {
-      setDraftProductId(null)
-      setShowAddedToast(true)
-    }
-    setEditProductImages([])
-    setEditProductImageVariants({})
-    setEditProductStock('')
-    setEditProductOneOfAKind(false)
-    setEditProductCategoryId('')
-    setEditProductName('')
-    setEditProductSeoTitle('')
-    setEditProductSlug('')
-    setIsEditProductSlugCustom(false)
-    setEditProductAlt('')
-    setEditProductSearchVisible(true)
-    setEditProductOptionType('none')
-    setEditProductOptionValues('')
-    setIsEditOpen(false)
-    setAuthToast(null)
   }
 
   useEffect(() => {
     // Existing products enter edit mode without forcing iOS to open the
     // keyboard and resize the page. A new draft still starts in the name field.
-    if (!isEditOpen || !activeProduct || draftProductId !== activeProduct.id) return
+    if (onContinueSetup || !isEditOpen || !activeProduct || draftProductId !== activeProduct.id) return
     const frame = window.requestAnimationFrame(() => {
       const nameField = editProductNameRef.current
       if (!nameField) return
@@ -2032,7 +2062,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       selection?.addRange(range)
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [isEditOpen, activeProduct?.id, draftProductId])
+  }, [isEditOpen, activeProduct?.id, draftProductId, onContinueSetup])
 
   const buyNow = () => {
     if (!activeProduct || isActiveProductSoldOut) return
@@ -2384,9 +2414,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   )
   const storeInitial = editableStoreName.trim().charAt(0).toLocaleUpperCase('et') || 'P'
   const displayedContactEmail = isDemoExperience ? DEMO_SELLER.contactEmail : contactEmail
-  const vatDetailsComplete = !vatRegistered || /^EE\d{9}$/.test(vatNumber.trim())
   const sellerDetailsComplete = isDemoExperience
-    || Boolean(businessName.trim() && /^\d{8}$/.test(registryCode.trim()) && businessAddress.trim() && contactEmail.trim() && vatDetailsComplete)
+    || hasSellerDetails(JSON.parse(settingsSnapshot))
   const changeStorePublication = async (published: boolean) => {
     if (!storeId || isPublicationBusy) return
     if (published && !sellerDetailsComplete) {
@@ -2477,7 +2506,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const stripeIssueCopies = stripeRequirementIssueCopies(stripeRequirements)
   const stripePaymentsRestricted = Boolean(stripeRequirements?.pastDue || stripeRequirements?.disabledReason)
   const stripeManagementLabel = stripeActionRequired
-    ? 'Kinnita ettevõtte andmed'
+    ? 'Kinnita müüja andmed'
     : paymentsReady ? 'Halda Stripe’i andmeid' : 'Jätka Stripe’i seadistamist'
   const setupChecklist = [
     { id: 'store', label: 'Poe põhiandmed', done: Boolean(editableStoreName.trim()), section: 'store' as const },
@@ -2608,12 +2637,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const storeDirectoryReturnUrl = getStoreDirectoryReturnUrl()
 
   return (
-    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'} data-product-onboarding={onContinueSetup ? 'true' : 'false'}>
-      {onContinueSetup && isAdminMode && !isCustomerPreview && <aside className="product-onboarding-bar" aria-label="Esimese toote seadistamine">
-        <button className="product-onboarding-bar__back" type="button" disabled={isSetupContinuationBusy} onClick={onBackToSetup} aria-label="Tagasi tarneviiside juurde"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h11"/></svg></button>
-        <span><strong>Esimene toode</strong><small>{persistedProducts.length ? 'Toode on salvestatud — saad jätkata' : 'Lisa vähemalt üks toode, pood jääb mustandiks'}</small></span>
-        <button className="product-onboarding-bar__continue" type="button" disabled={!persistedProducts.length || isEditOpen || isSetupContinuationBusy} onClick={() => void continueProductOnboarding()}>{isSetupContinuationBusy ? 'Salvestan…' : 'Jätka'}<span aria-hidden="true">→</span></button>
-      </aside>}
+    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-photo-empty={isEditOpen && !editProductImages.length ? 'true' : 'false'} data-setup-editing={onContinueSetup && isEditOpen ? 'true' : 'false'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
       {isSeoStorefront && storeSlug && <nav className="storefront-product-links" aria-label="Kõik poe tooted">
         <a href="/">Poe avaleht</a>
         {displayProducts.filter((product) => product.searchVisible !== false).map((product) =>
@@ -2692,8 +2716,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </>}
           {isAdminMode ? <div className="empty-storefront__content">
             <section className="empty-storefront__intro">
-              <span><i>✓</i> {onContinueSetup ? 'Pood on turvaliselt mustandina' : 'Pood on aktiivne'}</span>
-              <h1>Hea algus.<br />Nüüd esimene toode.</h1>
+              <h1>Lisa esimene toode</h1>
               <p>Pildista või vali foto galeriist.</p>
             </section>
             <button
@@ -2706,18 +2729,26 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               onDrop={(event) => { event.preventDefault(); productDropDepthRef.current = 0; setIsProductDropActive(false); chooseAddProductImages(event.dataTransfer.files) }}
             >
               <span className="empty-storefront__product-visual"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="11" width="34" height="27" rx="5"/><path d="m11 33 9-9 6 6 4-4 7 7"/><circle cx="31.5" cy="19" r="3"/></svg><i>+</i></span>
-              <span className="empty-storefront__product-copy"><small>{isProductDropActive ? 'FOTOD VALMIS' : 'JÄRGMINE SAMM'}</small><strong>{isProductDropActive ? 'Lase fotod lahti' : 'Alusta lisamist'}</strong><em className="empty-storefront__drop-copy">Vali arvutist või lohista fotod siia</em></span>
+              <span className="empty-storefront__product-copy"><strong>{isProductDropActive ? 'Lase fotod lahti' : 'Lisa tootefoto'}</strong><em className="empty-storefront__drop-copy">Vali arvutist või lohista fotod siia</em></span>
               <svg className="empty-storefront__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
             </button>
-          </div> : <div className="empty-storefront__customer"><h1>Pood avaneb peagi.</h1><p>Esimesed tooted on juba teel.</p>{isSeoStorefront && <a className="empty-storefront__directory-link" href={storeDirectoryReturnUrl}>Avasta teisi poode →</a>}{!isCustomerPreview && <button className="empty-storefront__owner-login" type="button" onClick={openOwnerLogin}>Poe omanik? Logi sisse</button>}</div>}
+          </div> : <div className="empty-storefront__customer"><h1>Tooteid veel pole</h1>{isSeoStorefront && <a className="empty-storefront__directory-link" href={storeDirectoryReturnUrl}>Avasta teisi poode →</a>}{!isCustomerPreview && <button className="empty-storefront__owner-login" type="button" onClick={openOwnerLogin}>Poe omanik? Logi sisse</button>}</div>}
         </div>}
 
-        {activeProduct && isEditOpen && <div className="product-image-editor">
+        {activeProduct && isEditOpen && <div className={`product-image-editor${!editProductImages.length ? ' is-empty' : ''}`}>
           {editImageUploads.length > 0 && <div className={`product-image-editor__upload-status${editImageUploads.some((upload) => upload.phase === 'error') ? ' is-error' : ''}`} role="status" aria-live="polite">
             {editImageUploads.some((upload) => upload.phase === 'error') ? <span>!</span> : <i />}
             <div><strong>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Pildi üleslaadimine ebaõnnestus' : editImageUploads.some((upload) => upload.phase === 'preparing') ? 'Valmistan fotot ette…' : 'Laen pilti üles…'}</strong><small>{editImageUploads.some((upload) => upload.phase === 'error') ? 'Proovi pisipildi juures uuesti.' : editImageUploads.some((upload) => upload.slow) ? 'Läheb tavapärasest veidi kauem…' : 'Võid oodata — aken jääb avatuks.'}</small></div>
           </div>}
-          <div className="product-image-editor__gesture-area" aria-label="Tootepildi paigutamine" onPointerDown={handleImagePointerDown} onPointerMove={handleImagePointerMove} onPointerUp={endImagePointer} onPointerCancel={endImagePointer} onWheel={handleImageWheel} onDoubleClick={() => setActiveEditImageTransform(activeEditImageTransform.scale > 1.05 ? DEFAULT_IMAGE_TRANSFORM : { x: 0, y: 0, scale: 2 })} />
+          {!editProductImages.length ? <button className={`product-image-editor__empty${isProductDropActive ? ' is-drop-active' : ''}`} type="button"
+            onClick={() => { editProductImageModeRef.current = 'add'; editProductImageInputRef.current?.click() }}
+            onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setIsProductDropActive(true) }}
+            onDragLeave={() => setIsProductDropActive(false)}
+            onDrop={(event) => { event.preventDefault(); setIsProductDropActive(false); editProductImageModeRef.current = 'add'; chooseEditProductImages(event.dataTransfer.files) }}>
+            <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="11" width="34" height="27" rx="5"/><path d="m11 33 9-9 6 6 4-4 7 7"/><circle cx="31.5" cy="19" r="3"/></svg>
+            <span>Lisa foto</span>
+          </button> :
+          <><div className="product-image-editor__gesture-area" aria-label="Tootepildi paigutamine" onPointerDown={handleImagePointerDown} onPointerMove={handleImagePointerMove} onPointerUp={endImagePointer} onPointerCancel={endImagePointer} onWheel={handleImageWheel} onDoubleClick={() => setActiveEditImageTransform(activeEditImageTransform.scale > 1.05 ? DEFAULT_IMAGE_TRANSFORM : { x: 0, y: 0, scale: 2 })} />
           <ProductImageTray images={editProductImages} selectedImage={editProductImages[selectedImages[activeProduct.id] ?? 0]}
             disabled={editImageUploads.length > 0} onReorder={reorderEditProductImages}
             itemClassName={(image, index) => {
@@ -2736,7 +2767,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </>
             }}>
             {editProductImages.length < MAX_PRODUCT_IMAGES && <button className="product-image-editor__add" type="button" title="Lisa pilt" aria-label="Lisa pilt" disabled={editImageUploads.length > 0} onClick={() => { editProductImageModeRef.current = 'add'; editProductImageInputRef.current?.click() }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>}
-          </ProductImageTray>
+          </ProductImageTray></>}
           <input ref={editProductImageInputRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(event) => { chooseEditProductImages(event.target.files); event.target.value = '' }} />
         </div>}
 
@@ -2804,7 +2835,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             suppressContentEditableWarning
             role={isEditOpen ? 'textbox' : undefined}
             aria-label={isEditOpen ? 'Toote nimi' : undefined}
-            data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Lisa toote nimi' : undefined}
+            data-placeholder={isEditOpen && activeProduct.id === draftProductId ? 'Toote nimi' : undefined}
             spellCheck={isEditOpen}
             onInput={(event) => {
               const name = event.currentTarget.textContent ?? ''
@@ -2818,8 +2849,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <button className="share-product" disabled={isEditOpen} onClick={shareActiveProduct} tabIndex={isEditOpen ? -1 : 0} aria-label={isEditOpen ? 'Jaga toodet pärast muudatuste salvestamist' : 'Jaga toodet'}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></svg></button>
             {isAdminMode && <div className="admin-actions">
               {isEditOpen ? <>
-                <button onClick={closeEditProduct} tabIndex={-1} aria-label="Loobu muudatustest" title="Loobu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-                <button ref={saveProductButtonRef} className={`save-product-edit${isExitAttentionActive ? ' is-exit-target' : ''}`} disabled={editImageUploads.length > 0 || isDescriptionGenerating} onClick={saveEditedProduct} tabIndex={-1} aria-label="Salvesta muudatused" title="Salvesta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>
+                <button onClick={closeEditProduct} disabled={isSavingProduct} tabIndex={onContinueSetup ? 0 : -1} aria-label="Loobu muudatustest" title="Loobu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+                {!onContinueSetup && <button ref={saveProductButtonRef} className={`save-product-edit${isExitAttentionActive ? ' is-exit-target' : ''}`} disabled={isSavingProduct || editImageUploads.length > 0 || isDescriptionGenerating} onClick={saveEditedProduct} tabIndex={-1} aria-label="Salvesta muudatused" title="Salvesta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>}
               </> : <>
                 <button onClick={openEditProduct} aria-label="Muuda toodet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L19 9l-4-4L4 16Zm9-9 4 4" /></svg></button>
                 <button onClick={() => setIsDeleteOpen(true)} aria-label="Kustuta toode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
@@ -2915,7 +2946,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </span>
         </div>}
         <button
-          disabled={isEditOpen ? editImageUploads.length > 0 || isDescriptionGenerating : isActiveProductSoldOut || Boolean(storeSlug && !sellerDetailsComplete)}
+          disabled={isEditOpen ? isSavingProduct || editImageUploads.length > 0 || isDescriptionGenerating : isActiveProductSoldOut || Boolean(storeSlug && !sellerDetailsComplete)}
           className={`product-details__buy${isEditOpen ? ' is-publish' : `${isActiveProductInCart ? ' is-in-cart' : ''}${addedProductId === activeProduct.id ? ' is-added' : ''}${isActiveProductSoldOut ? ' is-sold-out' : ''}`}`}
           onClick={() => {
             if (isEditOpen) {
@@ -2931,7 +2962,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             addToCart(activeProduct)
           }}
         >
-          {isEditOpen ? <span>Salvesta ja avalda</span> : storeSlug && !sellerDetailsComplete ? <span>Müük pole veel avatud</span> : isActiveProductSoldOut ? <span>Välja müüdud</span> : isActiveProductInCart ? (
+          {isEditOpen ? <span>{isSavingProduct ? 'Salvestan…' : onContinueSetup ? 'Salvesta ja jätka' : 'Salvesta ja avalda'}</span> : storeSlug && !sellerDetailsComplete ? <span>Müük pole veel avatud</span> : isActiveProductSoldOut ? <span>Välja müüdud</span> : isActiveProductInCart ? (
             <span>Ostukorvis · {activeProductCartItem?.quantity} tk</span>
           ) : isActiveProductAtCartLimit ? <span>Saadaval kogus on ostukorvis</span> : <span>Lisa ostukorvi</span>}
         </button>
@@ -3002,9 +3033,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <div><dt>E-post</dt><dd>{DEMO_SELLER.contactEmail}</dd></div>
             <div><dt>Telefon</dt><dd>{DEMO_SELLER.contactPhone}</dd></div>
           </dl> : <dl>
-            <div><dt>Ettevõte</dt><dd>{businessName || editableStoreName}</dd></div>
-            {registryCode && <div><dt>Registrikood</dt><dd>{registryCode} · Eesti äriregister</dd></div>}
-            {vatRegistered && vatNumber && <div><dt>KMKR number</dt><dd>{vatNumber}</dd></div>}
+            <div><dt>{sellerType === 'entrepreneur' ? 'Müüja' : 'Ettevõte'}</dt><dd>{sellerType === 'entrepreneur' ? `${sellerFirstName} ${sellerLastName}`.trim() || businessName : businessName || editableStoreName}</dd></div>
+            {sellerType === 'company' && registryCode && <div><dt>Registrikood</dt><dd>{registryCode} · Eesti äriregister</dd></div>}
+            {sellerType === 'company' && vatRegistered && vatNumber && <div><dt>KMKR number</dt><dd>{vatNumber}</dd></div>}
             {businessAddress && <div><dt>Aadress</dt><dd>{businessAddress}</dd></div>}
             {contactEmail && <div><dt>E-post</dt><dd><a href={`mailto:${contactEmail}`}>{contactEmail}</a></dd></div>}
             {contactPhone && <div><dt>Telefon</dt><dd><a href={`tel:${contactPhone.replace(/\s/g, '')}`}>{contactPhone}</a></dd></div>}
@@ -3066,7 +3097,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </button>
           </div>
           {isSettingsHome ? <div className="settings-home">
-            <div>{availableSettingsSections.map((section) => {
+            <div>{onContinueSetup && <button type="button" data-section="setup" disabled={!persistedProducts.length || isEditOpen || isSetupContinuationBusy} onClick={() => void continueProductOnboarding()}>
+              <span className="settings-home__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+              <strong>{isSetupContinuationBusy ? 'Salvestan…' : 'Jätka poe seadistamist'}</strong>
+              <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+            </button>}{availableSettingsSections.map((section) => {
               const status = settingsSectionStatus(section.id)
               return <button type="button" data-section={section.id} onClick={() => { setSettingsSection(section.id); setIsSettingsHome(false) }} key={section.id}>
                 <span className="settings-home__icon"><SettingsSectionIcon section={section.id} /></span>
@@ -3280,19 +3315,19 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 const isCurrentProvider = activePaymentProvider === id
                 return <button type="button" disabled={isCurrentProvider} aria-pressed={isCurrentProvider} className={isCurrentProvider ? `is-active${paymentsReady ? '' : ' is-pending'}` : ''} onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider(id) : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')} key={id}>
                 <span className="settings-provider-logo is-stripe">S</span>
-                <span><strong>{name}</strong><small>{isCurrentProvider ? stripeActionRequired ? 'Poeruumi maksepartner vajab sinu ettevõtte andmete kinnitamist.' : paymentsReady ? connectedDetail : 'Teenusepakkuja kontrollib sinu andmeid. Makseid saab vastu võtta pärast kinnitamist.' : disconnectedDetail}</small></span>
+                <span><strong>{name}</strong><small>{isCurrentProvider ? stripeActionRequired ? 'Müüja andmed vajavad kinnitamist.' : paymentsReady ? connectedDetail : 'Makseid saab vastu võtta pärast andmete kinnitamist.' : disconnectedDetail}</small></span>
                 <i className={`settings-provider-status${stripeActionRequired ? ' is-warning' : ''}`}>{isCurrentProvider ? stripeActionRequired ? <span>Vajab tegevust</span> : paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
               </button>})}
             </div>
             {stripeActionRequired && <div className="settings-payment-requirement" role="alert">
               <span aria-hidden="true">!</span>
               <div>
-                <strong>{stripeIssueCopies.length ? 'Stripe leidis andmetes parandamist vajava koha' : 'Maksete jätkamiseks kinnita ettevõtte andmed'}</strong>
-                {stripeIssueCopies.length ? <ul>{stripeIssueCopies.map((issue, index) => <li key={`${issue.title}-${index}`}><b>{issue.title}</b><small>{issue.detail}</small></li>)}</ul> : <p>Stripe on Poeruumi maksepartner, mis töötleb kaardi- ja nutimakseid ning kannab raha sulle välja. {stripePaymentsRestricted
-                  ? 'Kinnita ettevõtte andmed kohe, et maksed ja väljamaksed saaksid taastuda.'
+                <strong>{stripeIssueCopies.length ? 'Kontrolli andmeid' : 'Maksete jätkamiseks kinnita müüja andmed'}</strong>
+                {stripeIssueCopies.length ? <ul>{stripeIssueCopies.map((issue, index) => <li key={`${issue.title}-${index}`}><b>{issue.title}</b><small>{issue.detail}</small></li>)}</ul> : <p>{stripePaymentsRestricted
+                  ? 'Maksed ja väljamaksed on andmete kinnitamiseni piiratud.'
                   : stripeRequirementDeadline
-                    ? `Kinnita ettevõtte andmed enne ${stripeRequirementDeadline}, et maksed ja väljamaksed saaksid jätkuda.`
-                    : 'Kinnita ettevõtte andmed, et maksed ja väljamaksed saaksid jätkuda.'}</p>}
+                    ? `Kinnita andmed enne ${stripeRequirementDeadline}.`
+                    : 'Ava vorm ja kinnita küsitud andmed.'}</p>}
                 {stripeIssueCopies.length > 0 && <p>{stripePaymentsRestricted
                   ? 'Maksed ja väljamaksed on kuni parandatud andmete kinnitamiseni piiratud.'
                   : stripeRequirementDeadline
@@ -3302,7 +3337,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </div>}
             {!stripeActionRequired && stripeRequirements?.pendingVerification && <div className="settings-payment-requirement is-reviewing" role="status">
               <span aria-hidden="true">✓</span>
-              <div><strong>Ettevõtte andmeid kontrollitakse</strong><p>Stripe on Poeruumi maksepartner. Andmed on saadetud ja praegu ei pea sa midagi tegema.</p></div>
+              <div><strong>Andmeid kontrollitakse</strong></div>
             </div>}
             {activePaymentProvider === 'stripe' && <button className={`settings-secondary-action${stripeActionRequired ? ' is-warning' : ''}`} type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', stripeActionRequired ? 'requirements' : 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
               <span>{stripeManagementLabel}</span>
@@ -3347,17 +3382,19 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </div>
           </div>}
           {settingsSection === 'business' && <div className="settings-panel" role="tabpanel">
-            <header><span>ETTEVÕTE JA TINGIMUSED</span><p>Need andmed kuvatakse kliendile poe tingimustes.</p></header>
-            <div className="settings-fields">
-              <label>Ettevõtte nimi <small>kohustuslik</small><input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Minu Ettevõte OÜ" /></label>
-              <div><label>Registrikood <small>kohustuslik</small><input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={registryCode} onChange={(event) => setRegistryCode(event.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" /></label><label>Ettevõtte registrijärgne aadress <small>kohustuslik</small><input required aria-describedby="settings-business-address-help" value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} placeholder="Tänav 1, Tallinn, Eesti" /></label></div>
-              <small id="settings-business-address-help" className="settings-field-note">Kasuta kehtivat Äriregistri aadressi. Stripe’i aadressi muuda eraldi maksete seadetes.</small>
-              <label>Klientide kontakt-e-post <small>kohustuslik</small><input required type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="tere@minupood.ee" /></label>
-              <label className="settings-toggle"><span><strong>Olen käibemaksukohustuslane</strong><small>Poeruumi poes kasutatakse praegu Eesti standardmäära 24%</small></span><input type="checkbox" checked={vatRegistered} onChange={(event) => { setVatRegistered(event.target.checked); if (!event.target.checked) setVatNumber('') }} /><i /></label>
-              {vatRegistered && <label>KMKR number <small>kohustuslik</small><input required value={vatNumber} inputMode="text" pattern="EE[0-9]{9}" maxLength={11} onChange={(event) => setVatNumber(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11))} placeholder="EE123456789" /><small className="settings-field-note">Hinnad sisestatakse lõpphinnana koos käibemaksuga. Kassas käibemaksu juurde ei lisata.</small></label>}
-              <label>Tagastustingimused<textarea rows={4} value={returnsText} onChange={(event) => setReturnsText(event.target.value)} /></label>
-            </div>
-            <div className="settings-info-note"><span>i</span><p>Müüja nimi, 8-kohaline registrikood, aadress ja poe kontakt-e-post peavad olema enne avaldamist lisatud. Kui müüd vähendatud, 0% või maksuvaba määraga kaupu, ei ole praegune 24% standardmäära arvestus piisav.</p></div>
+            <SellerDetailsFields value={{ sellerType, sellerFirstName, sellerLastName, businessName, registryCode, businessAddress, contactEmail, vatRegistered, vatNumber }}
+              typeLocked={sellerTypeLocked} onChange={(patch: Partial<SellerDetailsValue>) => {
+                if (patch.sellerType !== undefined) setSellerType(patch.sellerType)
+                if (patch.sellerFirstName !== undefined) setSellerFirstName(patch.sellerFirstName)
+                if (patch.sellerLastName !== undefined) setSellerLastName(patch.sellerLastName)
+                if (patch.businessName !== undefined) setBusinessName(patch.businessName)
+                if (patch.registryCode !== undefined) setRegistryCode(patch.registryCode)
+                if (patch.businessAddress !== undefined) setBusinessAddress(patch.businessAddress)
+                if (patch.contactEmail !== undefined) setContactEmail(patch.contactEmail)
+                if (patch.vatRegistered !== undefined) setVatRegistered(patch.vatRegistered)
+                if (patch.vatNumber !== undefined) setVatNumber(patch.vatNumber)
+              }} />
+            <div className="settings-fields"><label>Tagastustingimused<textarea rows={4} value={returnsText} onChange={(event) => setReturnsText(event.target.value)} /></label></div>
           </div>}
           {settingsSection === 'links' && <div className="settings-panel" role="tabpanel">
             <header><span>SOTSIAALMEEDIA</span><p>Lisa lingid, mis kuvatakse poe jaluses.</p></header>

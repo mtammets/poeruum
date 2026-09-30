@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, type PDFFont } from 'npm:pdf-lib@^1.17.1'
 import fontkit from 'npm:@pdf-lib/fontkit@^1.1.1'
-import { invoiceLineDisplayAmounts, type InvoiceDocument } from '../../../shared/order-invoice.ts'
+import { invoiceLineDisplayAmounts, orderDocumentLabel, type InvoiceDocument } from '../../../shared/order-invoice.ts'
 import { notoSansBase64 } from './invoice-font/noto-sans.ts'
 import { embedInvoiceLogo } from './order-invoice-logo.ts'
 
@@ -32,7 +32,8 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
   const snapshot = document.snapshot
   const credit = document.kind === 'credit'
   const sign = credit ? -1 : 1
-  const title = `${credit ? 'Kreeditarve' : 'Arve'} ${document.number}`
+  const individual = snapshot.seller.type === 'entrepreneur'
+  const title = `${orderDocumentLabel(document.kind, snapshot.seller.type)} ${document.number}`
   pdf.setTitle(title)
   pdf.setAuthor(snapshot.seller.name)
   pdf.setCreator('Poeruum')
@@ -59,14 +60,14 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
     y = 802 - size.height - 26
   }
   paragraph(title, 23)
-  if (document.stripe_mode === 'test') paragraph('TESTARVE · Katsemakse', 11)
+  if (document.stripe_mode === 'test') paragraph('NÄIDIS · Katsemakse', 11)
   paragraph(`${credit ? 'Tagastus kinnitatud' : 'Tasutud'} · ${date(document.issued_at)}`, 11)
   paragraph(`Tellimus ${document.order_number}`)
-  paragraph(`Arve kuupäev: ${date(document.issued_at)}`)
+  paragraph(`${individual ? 'Dokumendi' : 'Arve'} kuupäev: ${date(document.issued_at)}`)
   paragraph(`${credit ? 'Algse makse' : 'Makse'} kuupäev: ${date(document.paid_at)}`)
-  if (document.original_number) paragraph(`Algne arve: ${document.original_number}`)
+  if (document.original_number) paragraph(`${individual ? 'Algne müügitõend' : 'Algne arve'}: ${document.original_number}`)
   y -= 16
-  const seller = ['MÜÜJA', snapshot.seller.name, `Registrikood: ${snapshot.seller.registryCode}`, snapshot.seller.address,
+  const seller = ['MÜÜJA', snapshot.seller.name, ...(individual ? [] : [`Registrikood: ${snapshot.seller.registryCode}`]), snapshot.seller.address,
     snapshot.seller.email, ...(snapshot.seller.vatNumber ? [`KMKR: ${snapshot.seller.vatNumber}`] : [])]
   const buyer = ['OSTJA', snapshot.buyer.name, ...(snapshot.buyer.registryCode ? [`Registrikood: ${snapshot.buyer.registryCode}`] : []),
     snapshot.buyer.address, snapshot.buyer.email, ...(snapshot.buyer.vatNumber ? [`KMKR: ${snapshot.buyer.vatNumber}`] : [])]
@@ -83,10 +84,10 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
     : { nameWidth: 223, quantity: 304, unit: 393, vat: 439 }
   const tableHeader = () => {
     draw('Toode / teenus', 42, y, 9, muted)
-    right('Kogus', columns.quantity, y, 9); right('Hind KM-ta', columns.unit, y, 9)
-    right('KM', columns.vat, y, 9)
+    right('Kogus', columns.quantity, y, 9); right(individual ? 'Hind' : 'Hind KM-ta', columns.unit, y, 9)
+    if (!individual) right('KM', columns.vat, y, 9)
     if (showRounding) right('Ümardus', 463, y, 9)
-    right('Rida KM-ta', 553, y, 9)
+    right(individual ? 'Summa' : 'Rida KM-ta', 553, y, 9)
     y -= 12
     page.drawLine({ start: { x: 42, y }, end: { x: 553, y }, thickness: .6, color: rgb(.8, .81, .82) })
     y -= 19
@@ -102,7 +103,7 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
       if (first) {
         right(String(line.quantity), columns.quantity, y, 9)
         right(money(sign * unitNetCents), columns.unit, y, 9)
-        right(snapshot.vatRate === null ? '—' : `${snapshot.vatRate}%`, columns.vat, y, 9)
+        if (!individual) right(snapshot.vatRate === null ? '—' : `${snapshot.vatRate}%`, columns.vat, y, 9)
         if (showRounding) right(money(sign * roundingCents), 463, y, 9)
         right(money(sign * line.netCents), 553, y, 9)
       }
@@ -113,14 +114,14 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
   reserve(showRounding ? 185 : 165)
   if (showRounding) paragraph('Reasumma = kogus × hind KM-ta + ümardus. Kõik summad on eurodes.', 8)
   y -= 12
-  draw('Kokku käibemaksuta', 309, y); right(`${money(sign * snapshot.netCents)} €`, 553, y); y -= 21
+  if (!individual) { draw('Kokku käibemaksuta', 309, y); right(`${money(sign * snapshot.netCents)} €`, 553, y); y -= 21 }
   if (snapshot.vatRate !== null) {
     draw(`Käibemaks ${snapshot.vatRate}%`, 309, y); right(`${money(sign * snapshot.vatCents)} €`, 553, y); y -= 21
   }
-  draw(credit ? 'Krediteeritud kokku' : 'Kokku tasutud', 309, y, 12)
+  draw(credit ? (individual ? 'Tagastatud kokku' : 'Krediteeritud kokku') : 'Kokku tasutud', 309, y, 12)
   right(`${money(sign * snapshot.totalCents)} €`, 553, y, 12); y -= 32
-  if (snapshot.vatRate === null) paragraph('Müüja ei ole käibemaksukohustuslane.')
-  paragraph(credit ? 'Makse on tagastatud. Kreeditarve muudab eespool viidatud algset arvet.' : 'Tasutud Stripe’i kaudu. Tasuda jäänud: 0,00 €.')
+  if (snapshot.vatRate === null && !individual) paragraph('Müüja ei ole käibemaksukohustuslane.')
+  paragraph(credit ? (individual ? 'Makse on tagastatud.' : 'Makse on tagastatud. Kreeditarve muudab eespool viidatud algset arvet.') : 'Tasutud. Tasuda jäänud: 0,00 €.')
   paragraph(`Tarne: ${snapshot.delivery}`, 9)
   const pages = pdf.getPages()
   pages.forEach((sheet, index) => {

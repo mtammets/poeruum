@@ -56,10 +56,14 @@ export function createPreviewService({ origin, environment, helpers, fetchStripe
     const screen = input.screen ?? 'payments'
     const paymentState = input.paymentState ?? 'idle'
     const preset = input.preset ?? 'new'
+    const sellerPreview = input.sellerPreview === true
+    const sellerType = input.sellerType ?? 'company'
+    if (!['company', 'entrepreneur'].includes(sellerType)) throw new Error('Vali müüja tüüp.')
     if (!['app', 'stripe'].includes(kind) || !screens.includes(screen) || !paymentStates.includes(paymentState) || !stripePresets.includes(preset)) {
       throw new Error('Tundmatu eelvaate olukord.')
     }
     if (kind === 'stripe' && !configuration.ready) throw new Error('Stripe’i testvõtmed on lisamata.')
+    if (sellerPreview && paymentState !== 'idle') throw new Error('Müüja eelvaade algab seadistamata maksetega.')
     const id = randomUUID()
     const userId = randomUUID()
     const now = new Date().toISOString()
@@ -92,7 +96,17 @@ export function createPreviewService({ origin, environment, helpers, fetchStripe
       description: 'Näidistoode maksete ja poe avaldamise eelvaateks.', price: 18, stock: 5,
       sort_order: 0, search_visible: true,
     }] : []
-    const session = { id, kind, preset, user, store, products, requirements, detailsSubmitted: !['idle', 'incomplete'].includes(paymentState), accountId: null, accountPromise: null, messages: [], conversations: [] }
+    if (sellerPreview || sellerType === 'entrepreneur') {
+      store.name = 'Liisa ateljee'; store.slug = 'liisa-ateljee'
+      Object.assign(store.settings, { sellerType, sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+        businessName: sellerType === 'entrepreneur' ? 'Liisa Tamm' : 'Liisa Ateljee OÜ', registryCode: sellerType === 'entrepreneur' ? '' : '12345678',
+        businessAddress: 'Kase 12, Tartu, 51004', contactEmail: 'liisa@example.com',
+        vatRegistered: false, vatNumber: '', storeTheme: 'paper', storeAccent: '#c17d52',
+        storeDescription: 'Akvarellid ja kunstiprindid',
+        deliverySettings: { parcelProviders: { omniva: { enabled: true, price: 3 }, dpd: { enabled: false, price: 3 }, smartposti: { enabled: false, price: 3 } }, courierEnabled: false, courierPrice: 5, pickupEnabled: true, pickupAddress: 'Kase 12, Tartu', freeShippingFrom: 100 } })
+
+    }
+    const session = { id, kind, preset, sellerPreview, user, store, products, requirements, detailsSubmitted: !['idle', 'incomplete'].includes(paymentState), accountId: null, accountPromise: null, messages: [], conversations: [] }
     sessions.set(id, session)
     return session
   }
@@ -123,15 +137,16 @@ export function createPreviewService({ origin, environment, helpers, fetchStripe
     throw new Error('Eelvaate sessioon puudub.')
   }
 
-  async function ensureAccount(session) {
+  async function ensureAccount(session, dedicated = false) {
     if (stopping) throw new Error('Eelvaade sulgub.')
     if (session.accountId) return session.accountId
     if (session.accountPromise) return session.accountPromise
     if (accounts.size >= 40) throw new Error('Stripe’i testkontode piir on täis. Sule ja käivita eelvaade uuesti, et ajutised kontod koristada.')
     session.accountPromise = (async () => {
       const prefill = helpers.getStripePrefill(session.store, session.user.email)
-      const businessFilled = session.preset !== 'new'
-      const account = await stripe('accounts', {
+      const individual = session.store.settings.sellerType === 'entrepreneur'
+      const businessFilled = !individual && session.preset !== 'new'
+      const account = await stripe('accounts', dedicated ? helpers.dedicatedStripeAccountParams(session.store, session.user.id, session.user.email) : {
         country: 'EE', ...prefill,
         ...(businessFilled ? {
           company: { ...prefill.company, structure: 'private_corporation', phone: '0000000000',
@@ -143,7 +158,7 @@ export function createPreviewService({ origin, environment, helpers, fetchStripe
         metadata: { poeruum_payment_preview: runId, preview_session: session.id },
       }, 'POST', `payment-preview-${runId}-${session.id}`)
       accounts.add(account.id)
-      if (session.preset === 'person') {
+      if (!dedicated && !individual && session.preset === 'person') {
         await stripe(`accounts/${account.id}/persons`, {
           first_name: 'Näidis', last_name: 'Kaupmees', email: 'eelvaade@example.com', phone: '0000000000',
           dob: { day: 1, month: 1, year: 1901 },
@@ -154,13 +169,33 @@ export function createPreviewService({ origin, environment, helpers, fetchStripe
       }
       session.accountId = account.id
       session.store.stripe_account_id = account.id
+      session.store.stripe_account_mode = 'test'
+      session.store.stripe_connection_type = dedicated ? 'hosted' : 'managed'
+      session.store.payment_status = 'pending'
       return account.id
     })()
     try { return await session.accountPromise } finally { session.accountPromise = null }
   }
 
-  async function stripeAction(session, action, mode = 'onboarding') {
-    if (!['status', 'start'].includes(action) || !['onboarding', 'remediation', 'management'].includes(mode)) throw new Error('Tundmatu Stripe’i toiming.')
+  async function stripeAction(session, action, mode = 'onboarding', input = {}) {
+    if (!['status', 'start', 'hosted-start', 'hosted-refresh'].includes(action) || !['onboarding', 'remediation', 'management'].includes(mode)) throw new Error('Tundmatu Stripe’i toiming.')
+    if (session.sellerPreview && session.kind === 'app' && action !== 'status') {
+      const error = helpers.sellerDetailsError(helpers.normalizeSellerSettings(session.store.settings))
+      if (error) throw new Error(error)
+    }
+    if (action === 'hosted-start' || action === 'hosted-refresh') {
+      if (!configuration.ready) throw new Error('Maksete seadistamine pole praegu saadaval.')
+      if (input.storeId && input.storeId !== session.store.id) throw new Error('Poe sessioon muutus. Ava maksete seadistus uuesti.')
+      helpers.stripeReturnOrigin(input.returnOrigin, origin, 'test', session.store.slug)
+      if (!session.accountId && (action === 'hosted-refresh' || mode !== 'onboarding')) throw new Error('Ava maksete seadistus oma poest uuesti.')
+      const accountId = await ensureAccount(session, true)
+      const account = await stripe(`accounts/${accountId}`)
+      if (!helpers.isDedicatedStripeAccount(account, session.store.id)) throw new Error('Stripe’i konto vajab kontrollimist.')
+      const link = mode === 'management'
+        ? await stripe(`accounts/${accountId}/login_links`, {})
+        : await stripe('account_links', helpers.stripeHostedLinkParams(accountId, origin))
+      return { url: link.url, storeId: session.store.id }
+    }
     if (action === 'status' && !session.accountId && session.kind === 'app') {
       return { status: session.store.payment_status, chargesEnabled: session.store.stripe_account_charges_enabled,
         payoutsEnabled: session.store.stripe_account_payouts_enabled, detailsSubmitted: session.detailsSubmitted, requirements: session.requirements }
@@ -168,19 +203,25 @@ export function createPreviewService({ origin, environment, helpers, fetchStripe
     const accountId = await ensureAccount(session)
     if (action === 'start') {
       const account = await stripe(`accounts/${accountId}`)
+      if (session.store.stripe_connection_type === 'oauth') return { dashboardUrl: `https://dashboard.stripe.com/${accountId}/test/settings/payouts` }
       const resolvedMode = helpers.resolveStripeConnectSessionMode(true, mode, account.details_submitted === true)
       const result = await stripe('account_sessions', { account: accountId, components: helpers.getStripeConnectSessionComponents(resolvedMode) })
       return { clientSecret: result.client_secret }
     }
     const account = await stripe(`accounts/${accountId}`)
+    return updateStatus(session, account)
+  }
+
+  function updateStatus(session, account) {
     const requirements = helpers.summarizeStripeRequirements(account)
-    const status = account.charges_enabled && account.payouts_enabled ? 'connected' : 'pending'
+    const identityError = session.store.stripe_connection_type === 'oauth' ? helpers.existingStripeAccountError(account, session.store.settings) : session.store.stripe_connection_type === 'hosted' ? helpers.hostedSellerError(account, session.store.settings) : null
+    const status = !identityError && helpers.stripeAccountReady(account) ? 'connected' : 'pending'
     Object.assign(session.store, { payment_status: status, stripe_account_id: account.id,
       stripe_account_charges_enabled: account.charges_enabled, stripe_account_payouts_enabled: account.payouts_enabled,
       ...helpers.stripeRequirementStoreUpdate(requirements) })
     session.requirements = requirements
     session.detailsSubmitted = account.details_submitted
-    return { status, chargesEnabled: account.charges_enabled, payoutsEnabled: account.payouts_enabled, detailsSubmitted: account.details_submitted, requirements }
+    return { status, setupError: identityError, chargesEnabled: account.charges_enabled, payoutsEnabled: account.payouts_enabled, detailsSubmitted: account.details_submitted, requirements }
   }
 
   function cleanup() {

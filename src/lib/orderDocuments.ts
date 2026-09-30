@@ -1,4 +1,4 @@
-import type { InvoiceDocumentSummary } from '../../shared/order-invoice'
+import { orderDocumentLabel, type InvoiceDocumentSummary } from '../../shared/order-invoice'
 import type { ReceiptAccess } from '../../shared/order-receipt'
 import { requireSupabase } from './supabase'
 
@@ -9,7 +9,7 @@ async function requestDocuments(body: OrderDocumentAccess & { documentId?: strin
   if (error) {
     const response = 'context' in error && error.context instanceof Response ? error.context : null
     const detail = await response?.clone().json().catch(() => null)
-    throw new Error(detail?.error || 'Arvete laadimine ebaõnnestus. Proovi uuesti.')
+    throw new Error(detail?.error || 'Dokumentide laadimine ebaõnnestus. Proovi uuesti.')
   }
   return data
 }
@@ -18,18 +18,18 @@ export async function listOrderDocuments(access: OrderDocumentAccess, signal?: A
   const data = await requestDocuments(access, signal)
   if (!Array.isArray(data?.documents) || data.documents.some((doc: InvoiceDocumentSummary) =>
     !doc || typeof doc.id !== 'string' || typeof doc.number !== 'string' || !['invoice','credit'].includes(doc.kind) || typeof doc.ready !== 'boolean')) {
-    throw new Error('Arvete vastus oli puudulik. Proovi uuesti.')
+    throw new Error('Dokumente ei saanud laadida. Proovi uuesti.')
   }
   return data.documents
 }
 
 export async function downloadOrderDocument(access: OrderDocumentAccess, document: InvoiceDocumentSummary) {
   const data = await requestDocuments({ ...access, documentId: document.id })
-  if (!(data instanceof Blob) || data.type !== 'application/pdf') throw new Error('Arve fail oli vigane. Proovi uuesti.')
+  if (!(data instanceof Blob) || data.type !== 'application/pdf') throw new Error('Dokumenti ei saanud avada. Proovi uuesti.')
   const url = URL.createObjectURL(data)
   const link = window.document.createElement('a')
   link.href = url
-  link.download = `${document.kind === 'credit' ? 'Kreeditarve' : 'Arve'}-${document.number.replace(/[^a-zA-Z0-9-]/g, '')}.pdf`
+  link.download = `${orderDocumentLabel(document.kind, document.sellerType)}-${document.number.replace(/[^a-zA-Z0-9-]/g, '')}.pdf`
   window.document.body.appendChild(link)
   link.click()
   link.remove()

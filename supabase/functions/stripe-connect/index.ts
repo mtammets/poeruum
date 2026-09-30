@@ -1,8 +1,10 @@
+import { sellerDetailsError, sellerType } from '../../../shared/seller.ts'
+import { existingStripeAccountError, stripeAccountReady } from '../_shared/stripe-oauth.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
-import { getStripePrefill, type PoeruumStore } from '../_shared/stripe-connect-prefill.ts'
+import { dedicatedStripeAccountParams, hostedSellerError, isDedicatedStripeAccount, stripeHostedLinkParams, stripeReturnOrigin } from '../_shared/stripe-hosted.ts'
 import {
   emptyStripeRequirementStoreUpdate,
   stripeRequirementStoreUpdate,
@@ -31,7 +33,7 @@ const getRequiredEnv = (name: string) => {
   return value
 }
 
-const stripeAccountStatus = (account: Stripe.Account) => account.charges_enabled && account.payouts_enabled ? 'connected' : 'pending'
+const stripeAccountStatus = (account: Stripe.Account) => stripeAccountReady(account) ? 'connected' : 'pending'
 
 const isPoeruumManagedAccount = (account: Stripe.Account) =>
   account.controller?.requirement_collection === 'application'
@@ -44,34 +46,6 @@ const remediationUnavailable = () => json({
 const storedAccountUnavailable = () => json({
   error: 'Stripe’i kontot ei saa turvaliselt avada. Poeruum ei muutnud konto ühendust. Palun võta ühendust Poeruumi toega.',
 }, 409)
-
-const createPoeruumManagedAccount = async (
-  stripe: Stripe,
-  store: PoeruumStore,
-  user: { id: string; email?: string },
-) => {
-  const settings = store.settings && typeof store.settings === 'object' ? store.settings : {}
-
-  return await stripe.accounts.create({
-    country: 'EE',
-    ...getStripePrefill(store, user.email ?? ''),
-    capabilities: {
-      card_payments: { requested: true },
-      transfers: { requested: true },
-    },
-    controller: {
-      fees: { payer: 'application' },
-      losses: { payments: 'application' },
-      requirement_collection: 'application',
-      stripe_dashboard: { type: 'none' },
-    },
-    metadata: {
-      poeruum_store_id: store.id,
-      poeruum_owner_id: user.id,
-      registry_code: String(settings.registryCode ?? ''),
-    },
-  })
-}
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -107,6 +81,8 @@ Deno.serve(async (request) => {
     const body = await request.json().catch(() => ({})) as {
       action?: string
       mode?: 'onboarding' | 'management' | 'remediation'
+      returnOrigin?: string
+      storeId?: string
     }
     const requestedMode = parseStripeConnectSessionMode(body.mode)
     let accountId = typeof store.stripe_account_id === 'string' ? store.stripe_account_id : null
@@ -125,12 +101,14 @@ Deno.serve(async (request) => {
       if ('deleted' in account && account.deleted) {
         await admin.from('stores').update({
           payment_status: 'idle', stripe_account_id: null,
+          stripe_connection_type: null,
           stripe_account_charges_enabled: false, stripe_account_payouts_enabled: false, stripe_account_mode: null,
           ...emptyStripeRequirementStoreUpdate(),
         }).eq('id', store.id)
         return json({ status: 'idle', detailsSubmitted: false })
       }
-      const status = stripeAccountStatus(account)
+      const identityError = store.stripe_connection_type === 'oauth' ? existingStripeAccountError(account, store.settings ?? {}) : store.stripe_connection_type === 'hosted' ? hostedSellerError(account, store.settings ?? {}) : null
+      const status = identityError ? 'pending' : stripeAccountStatus(account)
       const requirements = summarizeStripeRequirements(account)
       const { error } = await admin.from('stores').update({
         payment_provider: 'stripe', payment_status: status, stripe_account_mode: stripeMode,
@@ -141,6 +119,7 @@ Deno.serve(async (request) => {
       if (error) throw error
       return json({
         status,
+        setupError: identityError,
         chargesEnabled: account.charges_enabled,
         payoutsEnabled: account.payouts_enabled,
         detailsSubmitted: account.details_submitted,
@@ -148,12 +127,57 @@ Deno.serve(async (request) => {
       })
     }
 
-    if (body.action !== 'start') return json({ error: 'Tundmatu tegevus.' }, 400)
+    if (!['start', 'hosted-start', 'hosted-refresh'].includes(body.action ?? '')) return json({ error: 'Tundmatu tegevus.' }, 400)
 
     const { error: emailPolicyError } = await admin.rpc('require_merchant_email', { target_user_id: user.id })
     if (emailPolicyError) {
       if (emailPolicyError.code !== '42501') throw emailPolicyError
       return json({ error: emailPolicyError.message, code: 'merchant_email_required' }, 403)
+    }
+
+    const sellerError = sellerDetailsError(store.settings ?? {})
+    if (sellerError) return json({ error: sellerError }, 400)
+
+    if (body.action === 'hosted-start' || body.action === 'hosted-refresh') {
+      if (body.storeId && body.storeId !== store.id) return json({ error: 'Poe sessioon muutus. Ava maksete seadistus uuesti.' }, 409)
+      let customHostname: string | undefined
+      if (body.returnOrigin && new URL(body.returnOrigin).origin !== new URL(getRequiredEnv('APP_URL')).origin) {
+        const { data: domain, error: domainError } = await admin.from('custom_domains').select('hostname').eq('store_id', store.id).eq('status', 'active').maybeSingle()
+        if (domainError) throw domainError
+        customHostname = domain?.hostname
+      }
+      let returnOrigin: string
+      try { returnOrigin = stripeReturnOrigin(body.returnOrigin, getRequiredEnv('APP_URL'), stripeMode, store.slug, customHostname) }
+      catch { return json({ error: 'Ava maksete seadistus oma poe kaudu.' }, 400) }
+      if (!accountId && (body.action === 'hosted-refresh' || requestedMode !== 'onboarding')) return storedAccountUnavailable()
+      if (!accountId) {
+        const created = await stripe.accounts.create(dedicatedStripeAccountParams(store, user.id, user.email ?? ''), {
+          idempotencyKey: `poeruum-dedicated-${stripeMode}-${store.id}-v1`,
+        })
+        const requirements = summarizeStripeRequirements(created)
+        const { data: attached, error } = await admin.from('stores').update({
+          stripe_account_id: created.id, stripe_account_mode: stripeMode, stripe_connection_type: 'hosted',
+          payment_provider: 'stripe', payment_status: 'pending',
+          stripe_account_charges_enabled: false, stripe_account_payouts_enabled: false,
+          ...stripeRequirementStoreUpdate(requirements),
+        }).eq('id', store.id).is('stripe_account_id', null).select('id').maybeSingle()
+        if (error) throw error
+        if (!attached) {
+          const { data: current, error: currentError } = await admin.from('stores').select('stripe_account_id').eq('id', store.id).single()
+          if (currentError) throw currentError
+          if (current.stripe_account_id !== created.id) return storedAccountUnavailable()
+        }
+        accountId = created.id
+      }
+      const account = await stripe.accounts.retrieve(accountId)
+      if ('deleted' in account && account.deleted) return storedAccountUnavailable()
+      if (!isDedicatedStripeAccount(account, store.id)) return storedAccountUnavailable()
+      if (requestedMode === 'management') {
+        const login = await stripe.accounts.createLoginLink(accountId)
+        return json({ url: login.url, storeId: store.id })
+      }
+      const link = await stripe.accountLinks.create(stripeHostedLinkParams(accountId, returnOrigin))
+      return json({ url: link.url, storeId: store.id })
     }
 
     // A compliance link may only continue an existing Poeruum-managed account.
@@ -171,27 +195,22 @@ Deno.serve(async (request) => {
         throw error
       }
       const existingAccountDeleted = 'deleted' in retrievedAccount && retrievedAccount.deleted
+      if (!existingAccountDeleted && store.stripe_connection_type === 'oauth' && retrievedAccount.type === 'standard') {
+        // Existing accounts remain managed in their own Stripe Dashboard.
+        return json({ dashboardUrl: `https://dashboard.stripe.com/${encodeURIComponent(retrievedAccount.id)}/${stripeMode === 'test' ? 'test/' : ''}settings/payouts` })
+      }
       if (existingAccountDeleted || !isPoeruumManagedAccount(retrievedAccount)) {
         // Account replacement is a separate recovery decision. Never orphan a
         // stored payout account merely because a form was opened.
         return requestedMode === 'remediation' ? remediationUnavailable() : storedAccountUnavailable()
       }
+      const expectedBusinessType = sellerType(store.settings ?? {}) === 'entrepreneur' ? 'individual' : 'company'
+      if (retrievedAccount.business_type !== expectedBusinessType) return json({ error: 'Müüja andmed vajavad kinnitamist. Võta ühendust Poeruumi toega.' }, 409)
       hasExistingManagedAccount = true
       hasCompletedOnboarding = retrievedAccount.details_submitted
     }
 
-    if (!accountId) {
-      const account = await createPoeruumManagedAccount(stripe, store, user)
-      accountId = account.id
-      const requirements = summarizeStripeRequirements(account)
-      const { error } = await admin.from('stores').update({
-        payment_provider: 'stripe', payment_status: 'pending', stripe_account_id: account.id, stripe_account_mode: stripeMode,
-        stripe_account_charges_enabled: account.charges_enabled,
-        stripe_account_payouts_enabled: account.payouts_enabled,
-        ...stripeRequirementStoreUpdate(requirements),
-      }).eq('id', store.id)
-      if (error) throw error
-    }
+    if (!accountId) return json({ error: 'Ava maksete seadistus uuesti.' }, 409)
 
     const sessionMode = resolveStripeConnectSessionMode(hasExistingManagedAccount, requestedMode, hasCompletedOnboarding)
     const components: Stripe.AccountSessionCreateParams.Components = getStripeConnectSessionComponents(sessionMode)

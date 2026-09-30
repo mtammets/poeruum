@@ -1,9 +1,9 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
-import type { InvoiceDocument } from '../../../shared/order-invoice.ts'
+import { orderDocumentLabel, type InvoiceDocument } from '../../../shared/order-invoice.ts'
 
 const bucket = 'order-documents'
 export const documentPath = (id: string) => `${id}.pdf`
-export const documentFilename = (doc: Pick<InvoiceDocument, 'number' | 'kind'>) => `${doc.kind === 'credit' ? 'Kreeditarve' : 'Arve'}-${doc.number}.pdf`
+export const documentFilename = (doc: Pick<InvoiceDocument, 'number' | 'kind'> & { snapshot?: InvoiceDocument['snapshot'] }) => `${orderDocumentLabel(doc.kind, doc.snapshot?.seller.type)}-${doc.number}.pdf`
 export const bytesBase64 = (bytes: Uint8Array) => {
   let text = ''
   for (let offset = 0; offset < bytes.length; offset += 8192) text += String.fromCharCode(...bytes.subarray(offset, offset + 8192))

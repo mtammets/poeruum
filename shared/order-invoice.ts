@@ -1,3 +1,5 @@
+import { sellerDetailsError, sellerName, sellerType, type SellerType } from './seller.ts'
+
 export type InvoiceBuyer = {
   name: string
   email: string
@@ -22,7 +24,7 @@ export type InvoiceLine = {
 export type InvoiceSnapshot = {
   version: 1
   currency: 'eur'
-  seller: { name: string; registryCode: string; address: string; email: string; vatNumber: string }
+  seller: { type?: SellerType; name: string; registryCode: string; address: string; email: string; vatNumber: string }
   buyer: InvoiceBuyer
   storeName: string
   storeSlug: string
@@ -42,6 +44,7 @@ export type InvoiceDocumentSummary = {
   number: string
   kind: 'invoice' | 'credit'
   ready: boolean
+  sellerType?: SellerType
 }
 
 export type InvoiceDocument = {
@@ -59,6 +62,10 @@ export type InvoiceDocument = {
   lease_token: string | null
   pdf_sha256: string | null
 }
+
+export const orderDocumentLabel = (kind: 'invoice' | 'credit', type?: SellerType) =>
+  type === 'entrepreneur' ? (kind === 'credit' ? 'Tagastustõend' : 'Müügitõend')
+    : kind === 'credit' ? 'Kreeditarve' : 'Arve'
 
 // Keep the captured line net unchanged. A two-decimal unit price cannot always
 // reproduce it after multiplication and invoice-level VAT allocation, so show
@@ -112,13 +119,16 @@ export function buildInvoiceSnapshot(input: {
   deliveryCents: number
 }): InvoiceSnapshot {
   const settings = input.settings
+  const problem = sellerDetailsError(settings)
+  if (problem) throw new InvoiceInputError(problem)
+  const type = sellerType(settings)
   const registered = settings.vatRegistered === true
-  const registryCode = field(settings.registryCode, 'Müüja registrikood', 8)
-  if (!/^\d{8}$/.test(registryCode)) throw new InvoiceInputError('Müüja registrikood peab olema 8-kohaline.')
+  const registryCode = type === 'entrepreneur' ? '' : field(settings.registryCode, 'Müüja registrikood', 8)
+  if (type === 'company' && !/^\d{8}$/.test(registryCode)) throw new InvoiceInputError('Müüja registrikood peab olema 8-kohaline.')
   const vatNumber = registered ? field(settings.vatNumber, 'Müüja KMKR number', 11).toUpperCase() : ''
   if (registered && !/^EE\d{9}$/.test(vatNumber)) throw new InvoiceInputError('Müüja KMKR number on vigane.')
   const seller = {
-    name: field(settings.businessName, 'Müüja nimi'), registryCode,
+    type, name: field(sellerName(settings), 'Müüja nimi', type === 'entrepreneur' ? 201 : 200), registryCode,
     address: field(settings.businessAddress, 'Müüja aadress', 400),
     email: email(settings.contactEmail, 'Poe kontakt-e-post'), vatNumber,
   }

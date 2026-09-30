@@ -20,6 +20,7 @@ export const isAllowedPreviewRequest = (request, origin) => {
 }
 
 export function paymentPreviewPlugin({ origin, getService }) {
+  const uploadedImages = new Map()
   return {
     name: 'poeruum-isolated-payment-preview',
     enforce: 'pre',
@@ -31,6 +32,26 @@ export function paymentPreviewPlugin({ origin, getService }) {
         console.error(`Stripe’i testkontode koristamine ebaõnnestus. Kustuta need testkeskkonnas: ${result.remaining.join(', ')}`)
         process.exitCode = 1
       }
+    },
+    async resolveId(source) {
+      if (source === '/@poeruum-preview/app-entry') return '\0poeruum-preview-app-entry'
+      if (source.startsWith('npm:')) {
+        const name = source.slice(4).replace(/@[^/]+$/, '')
+        return this.resolve(name, undefined, { skipSelf: true })
+      }
+    },
+    load(id) {
+      if (id !== '\0poeruum-preview-app-entry') return
+      // Resolve the session at runtime so concurrent previews share no identity.
+      // Let Vite track the import, including its cache key after a hot update.
+      return `const id = new URLSearchParams(window.location.search).get('preview_session');
+        const response = await fetch('/__preview/sessions/' + id + '/auth');
+        if (response.ok) {
+          sessionStorage.setItem('poeruum-preview-auth', JSON.stringify(await response.json()));
+          await import('/src/main.tsx');
+        } else {
+          document.getElementById('root').textContent = 'Eelvaade aegus. Alusta uuesti.';
+        }`
     },
     transform(code, id) {
       if (id.replaceAll('\\', '/').endsWith('/src/lib/supabase.ts')) {
@@ -45,19 +66,7 @@ export function paymentPreviewPlugin({ origin, getService }) {
         if (context.path !== '/index.html' && context.path !== '/') return html
         const id = new URL(context.originalUrl ?? '/', origin).searchParams.get('preview_session')
         if (!id || !/^[a-f0-9-]{36}$/.test(id)) return html
-        // Keep the session bootstrap inline: Vite shares inline module proxies
-        // by HTML path, which can mix session IDs between concurrent previews.
-        return html.replace('<script type="module" src="/src/main.tsx"></script>', `<script>
-        (async () => {
-          const response = await fetch('/__preview/sessions/${id}/auth');
-          if (response.ok) {
-            sessionStorage.setItem('poeruum-preview-auth', JSON.stringify(await response.json()));
-            await import('/src/main.tsx');
-          } else {
-            document.getElementById('root').textContent = 'Eelvaate katse aegus. Ava olukord uuesti eelvaate menüüst.';
-          }
-        })();
-        </script>`)
+        return html.replace('<script type="module" src="/src/main.tsx"></script>', '<script type="module" src="/@poeruum-preview/app-entry"></script>')
       },
     },
     configureServer(server) {
@@ -78,13 +87,23 @@ export function paymentPreviewPlugin({ origin, getService }) {
               ? `/?preview_session=${session.id}`
               : `/previews/stripe-frame.html?session=${session.id}` })
           }
-          const match = path.match(/^\/__preview\/sessions\/([a-f0-9-]{36})\/(auth|stripe)$/)
+          const match = path.match(/^\/__preview\/sessions\/([a-f0-9-]{36})\/(auth|stripe|data|document)$/)
           if (match) {
             const session = service.getSession(match[1])
+            if (match[2] === 'data' && request.method === 'GET') return json(response, { store: session.store, products: session.products })
+            if (match[2] === 'document' && request.method === 'GET' && session.sellerPreview) {
+              const { buildInvoiceSnapshot } = await server.ssrLoadModule('/shared/order-invoice.ts')
+              const { renderOrderInvoice } = await server.ssrLoadModule('/supabase/functions/_shared/order-invoice-pdf.ts')
+              const snapshot = buildInvoiceSnapshot({ settings: session.store.settings, storeName: session.store.name, storeSlug: session.store.slug, buyer: { name: 'Mari Kask', email: 'mari@example.com', address: 'Pargi 4, Tallinn', company: false, registryCode: '', vatNumber: '' }, delivery: 'Omniva pakiautomaat', deliveryCents: 300, items: [{ name: session.products[0]?.name || 'Kunstiprint', quantity: 1, unitGrossCents: Math.round((session.products[0]?.price || 25) * 100), options: '' }] })
+              const credit = url.searchParams.get('kind') === 'credit'
+              const bytes = await renderOrderInvoice({ id: session.id, order_id: session.id, order_number: 'PR-1001', number: credit ? 'TEST-PR1-2026-000002' : 'TEST-PR1-2026-000001', kind: credit ? 'credit' : 'invoice', original_number: credit ? 'TEST-PR1-2026-000001' : null, issued_at: '2026-09-30T09:00:00Z', paid_at: '2026-09-30T09:00:00Z', snapshot, stripe_mode: 'test', status: 'ready', lease_token: null, pdf_sha256: null })
+              response.writeHead(200, { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store', 'Content-Disposition': 'inline; filename=ostudokument.pdf' })
+              return response.end(Buffer.from(bytes))
+            }
             if (match[2] === 'auth' && request.method === 'GET') return json(response, service.authSession(session))
             if (match[2] === 'stripe' && request.method === 'POST') {
               const body = await readJson(request)
-              return json(response, await service.stripeAction(session, body.action, body.mode))
+              return json(response, await service.stripeAction(session, body.action, body.mode, body))
             }
           }
           if (isControl) return json(response, { error: 'Tundmatu eelvaate toiming.' }, 404)
@@ -94,6 +113,15 @@ export function paymentPreviewPlugin({ origin, getService }) {
             return json(response, service.authSession(session))
           }
           if (path === '/auth/v1/logout') return json(response, {})
+          const publicImagePath = '/storage/v1/object/public/product-images/'
+          if (path.startsWith(publicImagePath) && request.method === 'GET') {
+            const image = uploadedImages.get(path.slice(publicImagePath.length))
+            if (image) {
+              response.writeHead(200, { 'Content-Type': image.type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+              return response.end(image.bytes)
+            }
+          }
+          if (path === '/storage/v1/object/public/product-images/seller-art.webp') { response.writeHead(302, { Location: '/images/kaubamaja-example-art.webp' }); return response.end() }
           if (path === '/storage/v1/object/public/product-images/preview.svg') {
             response.writeHead(200, { 'Content-Type': 'image/svg+xml' })
             return response.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#e8e6d7"/><ellipse cx="294" cy="453" rx="153" ry="27" fill="#d2d0bd"/><path d="M360 240h45c105 0 105 155 0 155h-35" fill="none" stroke="#a68563" stroke-width="34"/><path d="M152 211h239v196q0 44-119 44t-120-44Z" fill="#bf9b77"/><ellipse cx="272" cy="211" rx="120" ry="35" fill="#e4c5a4"/><ellipse cx="272" cy="211" rx="100" ry="23" fill="#7e6249"/></svg>')
@@ -101,25 +129,63 @@ export function paymentPreviewPlugin({ origin, getService }) {
           if (path === '/rest/v1/platform_settings') return json(response, null)
           if (path === '/functions/v1/report-client-error') return json(response, { ok: true })
           const session = service.fromAuthorization(request.headers.authorization)
+          const imagePath = '/storage/v1/object/product-images'
+          if (path.startsWith(`${imagePath}/`) && request.method === 'POST') {
+            const key = path.slice(imagePath.length + 1)
+            if (!key.startsWith(`${session.store.id}/`)) return json(response, { message: 'See pilt ei kuulu sinu eelvaate poele.' }, 403)
+            const chunks = []
+            let size = 0
+            for await (const chunk of request) {
+              size += chunk.length
+              if (size > 16 * 1024 * 1024) throw new Error('Pilt on eelvaate jaoks liiga suur.')
+              chunks.push(chunk)
+            }
+            const body = Buffer.concat(chunks)
+            const contentType = request.headers['content-type'] ?? ''
+            const form = contentType.startsWith('multipart/form-data')
+              ? await new Response(body, { headers: { 'Content-Type': contentType } }).formData() : null
+            const file = form ? [...form.values()].find((value) => typeof value !== 'string') : null
+            const type = file?.type ?? contentType
+            if (!['image/webp', 'image/jpeg', 'image/png'].includes(type)) return json(response, { message: 'Vali tootefoto.' }, 400)
+            const bytes = file ? Buffer.from(await file.arrayBuffer()) : body
+            uploadedImages.set(key, { bytes, type })
+            return json(response, { Key: `product-images/${key}`, Id: randomUUID() })
+          }
+          if (path === imagePath && request.method === 'DELETE') {
+            const { prefixes = [] } = await readJson(request)
+            const ownKeys = prefixes.filter((key) => typeof key === 'string' && key.startsWith(`${session.store.id}/`))
+            ownKeys.forEach((key) => uploadedImages.delete(key))
+            return json(response, ownKeys.map((name) => ({ name })))
+          }
           if (path === '/auth/v1/user') return json(response, session.user)
+          if (path === '/functions/v1/custom-domain') return json(response, { domain: null })
           if (path === '/functions/v1/stripe-connect') {
             const body = await readJson(request)
-            return json(response, await service.stripeAction(session, body.action, body.mode))
+            return json(response, await service.stripeAction(session, body.action, body.mode, body))
           }
           const rows = (data) => json(response, request.headers.accept?.includes('vnd.pgrst.object') ? data[0] ?? null : data)
           const filter = (data) => data.filter((item) => !url.searchParams.get('id')?.startsWith('eq.') || item.id === url.searchParams.get('id').slice(3))
           if (path === '/rest/v1/stores') {
             if (request.method === 'PATCH' || request.method === 'POST') {
               const body = await readJson(request)
+              if (body.settings && session.store.stripe_account_id && (body.settings.sellerType ?? 'company') !== (session.store.settings.sellerType ?? 'company')) return json(response, { message: 'Müüja tüübi muutmiseks võta ühendust Poeruumi toega.' }, 400)
               for (const key of ['name', 'slug', 'shipping', 'settings']) if (body[key] !== undefined) session.store[key] = body[key]
             } else if (request.method !== 'GET') return json(response, { error: 'Toiming ei ole selles eelvaates saadaval.' }, 405)
             const owner = url.searchParams.get('owner_id')
             if (owner && owner !== `eq.${session.user.id}`) return rows([])
             return rows(filter([session.store]))
           }
+          if (path === '/rest/v1/public_storefronts') return rows([session.store])
           if (path === '/rest/v1/products') {
             if (request.method === 'DELETE') session.products = session.products.filter((item) => item.id !== url.searchParams.get('id')?.slice(3))
-            else if (request.method === 'POST') session.products.push({ ...await readJson(request), id: randomUUID(), store_id: session.store.id })
+            else if (request.method === 'POST') {
+              const body = await readJson(request)
+              const existing = session.products.find((item) => item.id === body.id)
+              const product = { ...body, id: existing?.id ?? randomUUID(), store_id: session.store.id }
+              if (existing) Object.assign(existing, product)
+              else session.products.push(product)
+              return rows([product])
+            }
             else if (request.method === 'PATCH') {
               const body = await readJson(request)
               filter(session.products).forEach((item) => Object.assign(item, body))
@@ -138,7 +204,10 @@ export function paymentPreviewPlugin({ origin, getService }) {
           }
           if (path.startsWith('/rest/v1/rpc/')) {
             const rpc = path.split('/').pop()
+            if (rpc === 'account_email_status') return json(response, { email: session.user.email, pending_email: null, email_confirmed: true, is_disposable: false, activation_allowed: true, candidate_is_disposable: null })
             if (rpc === 'publish_store') {
+              const { hasSellerDetails } = await server.ssrLoadModule('/shared/seller.ts')
+              if (!hasSellerDetails(session.store.settings)) return json(response, { message: 'Lisa müüja andmed.' }, 400)
               if (session.store.payment_status !== 'connected' || !session.products.length) return json(response, { message: 'Enne avaldamist ühenda maksed ja lisa esimene toode.' }, 400)
               session.store.is_published = true
               session.store.settings.onboardingStep = 'complete'

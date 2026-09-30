@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { InvoiceDocumentSummary } from '../shared/order-invoice'
+import { orderDocumentLabel, type InvoiceDocumentSummary } from '../shared/order-invoice'
 import { downloadOrderDocument, listOrderDocuments, type OrderDocumentAccess } from './lib/orderDocuments'
 import './orderDocuments.css'
 
@@ -24,7 +24,7 @@ export default function OrderDocumentLinks({ access, refunded = false, lazy = fa
         const pending = !next.length || next.some((doc) => !doc.ready) || (refunded && !next.some((doc) => doc.kind === 'credit'))
         if (pending && polls++ < 12) timer = window.setTimeout(read, 5000)
       } catch (reason) {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Arvete laadimine ebaõnnestus.')
+        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Dokumentide laadimine ebaõnnestus.')
       } finally { if (!controller.signal.aborted) setLoading(false) }
     }
     void read()
@@ -33,16 +33,16 @@ export default function OrderDocumentLinks({ access, refunded = false, lazy = fa
   const download = async (document: InvoiceDocumentSummary) => {
     setBusy(document.id); setError('')
     try { await downloadOrderDocument(access, document) }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Arve allalaadimine ebaõnnestus.') }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Dokumendi allalaadimine ebaõnnestus.') }
     finally { setBusy('') }
   }
-  if (!expanded) return <div className="order-documents"><button type="button" onClick={() => setExpanded(true)}>Arved</button></div>
+  if (!expanded) return <div className="order-documents"><button type="button" onClick={() => setExpanded(true)}>Ostudokumendid</button></div>
   const pending = !documents.length || documents.some((doc) => !doc.ready) || (refunded && !documents.some((doc) => doc.kind === 'credit'))
-  return <div className="order-documents" aria-label="Tellimuse arved">
+  return <div className="order-documents" aria-label="Ostudokumendid">
     {documents.map((document) => <button key={document.id} type="button" disabled={!document.ready || Boolean(busy)} onClick={() => void download(document)}>
-      {busy === document.id ? 'Laadin…' : `${document.kind === 'credit' ? 'Kreeditarve' : 'Arve'} ${document.number}${document.ready ? ' · PDF' : ' · koostamisel'}`}
+      {busy === document.id ? 'Laadin…' : `${orderDocumentLabel(document.kind, document.sellerType)} ${document.number}${document.ready ? ' · PDF' : ' · koostamisel'}`}
     </button>)}
-    {loading ? <small>Laadin arveid…</small> : pending && !error ? <small>Arvet koostatakse. Ostjale saadetakse see e-postiga. <button type="button" onClick={() => setAttempt((value) => value + 1)}>Värskenda</button></small> : null}
+    {loading ? <small>Laadin…</small> : pending && !error ? <small>Dokumenti koostatakse. <button type="button" onClick={() => setAttempt((value) => value + 1)}>Värskenda</button></small> : null}
     {error && <p role="alert">{error} <button type="button" onClick={() => setAttempt((value) => value + 1)}>Proovi uuesti</button></p>}
   </div>
 }

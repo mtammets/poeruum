@@ -1,4 +1,6 @@
 import Stripe from 'npm:stripe@^22'
+import { existingStripeAccountError, stripeAccountReady } from '../_shared/stripe-oauth.ts'
+import { hostedSellerError } from '../_shared/stripe-hosted.ts'
 import { captureEdgeError } from '../_shared/security.ts'
 import {
   claimEvent,
@@ -19,22 +21,29 @@ const handleEvent = async (event: Stripe.Event) => {
 
   if (event.type === 'account.updated') {
     const eventAccount = event.data.object as Stripe.Account
+    const { data: stores, error: storesError } = await admin.from('stores').select('id,settings,stripe_connection_type')
+      .eq('stripe_account_id', eventAccount.id).eq('stripe_account_mode', event.livemode ? 'live' : 'test')
+    if (storesError) throw storesError
+    if (!stores?.length) return
     const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')?.trim()
     if (!stripeSecretKey) throw new Error('Puudub STRIPE_SECRET_KEY.')
     const retrievedAccount = await new Stripe(stripeSecretKey).accounts.retrieve(eventAccount.id)
     if ('deleted' in retrievedAccount && retrievedAccount.deleted) return
     const account = retrievedAccount
-    const isReady = account.charges_enabled && account.payouts_enabled
+    const isReady = stripeAccountReady(account)
     const requirements = summarizeStripeRequirements(account)
-    const { error } = await admin.from('stores').update({
-      payment_provider: 'stripe',
-      stripe_account_mode: event.livemode ? 'live' : 'test',
-      payment_status: isReady ? 'connected' : 'pending',
-      stripe_account_charges_enabled: account.charges_enabled,
-      stripe_account_payouts_enabled: account.payouts_enabled,
-      ...stripeRequirementStoreUpdate(requirements),
-    }).eq('stripe_account_id', account.id)
-    if (error) throw error
+    for (const store of stores ?? []) {
+      const identityError = store.stripe_connection_type === 'oauth' ? existingStripeAccountError(account, store.settings ?? {}) : store.stripe_connection_type === 'hosted' ? hostedSellerError(account, store.settings ?? {}) : null
+      const { error } = await admin.from('stores').update({
+        payment_provider: 'stripe',
+        stripe_account_mode: event.livemode ? 'live' : 'test',
+        payment_status: isReady && !identityError ? 'connected' : 'pending',
+        stripe_account_charges_enabled: account.charges_enabled,
+        stripe_account_payouts_enabled: account.payouts_enabled,
+        ...stripeRequirementStoreUpdate(requirements),
+      }).eq('id', store.id).eq('stripe_account_id', account.id)
+      if (error) throw error
+    }
     return
   }
 
@@ -45,10 +54,11 @@ const handleEvent = async (event: Stripe.Event) => {
       payment_status: 'idle',
       stripe_account_id: null,
       stripe_account_mode: null,
+      stripe_connection_type: null,
       stripe_account_charges_enabled: false,
       stripe_account_payouts_enabled: false,
       ...emptyStripeRequirementStoreUpdate(),
-    }).eq('stripe_account_id', connectedAccountId)
+    }).eq('stripe_account_id', connectedAccountId).eq('stripe_account_mode', event.livemode ? 'live' : 'test')
     if (error) throw error
   }
 }

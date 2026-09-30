@@ -1,5 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
+import { revokeStripeOAuthAccount } from '../_shared/stripe-oauth.ts'
+import { isDedicatedStripeAccount } from '../_shared/stripe-hosted.ts'
 import { deleteRenderCustomDomain } from '../_shared/render-custom-domain.ts'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode, type StripeMode } from '../_shared/stripe-mode.ts'
@@ -20,6 +22,7 @@ type CleanupStatus = 'pending' | 'completed' | 'skipped'
 type AccountStore = {
   id: string
   stripe_account_id: string | null
+  stripe_connection_type: 'managed' | 'oauth' | 'hosted' | null
   stripe_account_mode: StripeMode | null
   stripe_customer_id: string | null
   stripe_billing_mode: StripeMode | null
@@ -59,7 +62,7 @@ Deno.serve(async (request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const { data: stores, error: storesError } = await admin.from('stores')
-      .select('id,stripe_account_id,stripe_account_mode,stripe_customer_id,stripe_billing_mode,stripe_subscription_id')
+      .select('id,stripe_account_id,stripe_connection_type,stripe_account_mode,stripe_customer_id,stripe_billing_mode,stripe_subscription_id')
       .eq('owner_id', user.id)
     if (storesError) throw storesError
 
@@ -140,9 +143,12 @@ Deno.serve(async (request) => {
           if ('deleted' in account && account.deleted) {
             await recordCleanup('connected_account', store.stripe_account_id, store.stripe_account_mode, 'completed')
           } else {
-            const isManaged = account.controller?.requirement_collection === 'application'
-              && account.controller?.stripe_dashboard?.type === 'none'
-            if (!isManaged) {
+            const isManaged = (account.controller?.requirement_collection === 'application'
+              && account.controller?.stripe_dashboard?.type === 'none') || isDedicatedStripeAccount(account, store.id)
+            if (store.stripe_connection_type === 'oauth' && account.type === 'standard') {
+              await revokeStripeOAuthAccount(Deno.env.get('STRIPE_SECRET_KEY')!.trim(), Deno.env.get('STRIPE_CONNECT_CLIENT_ID')?.trim() ?? '', account.id)
+              await recordCleanup('connected_account', store.stripe_account_id, store.stripe_account_mode, 'completed')
+            } else if (!isManaged) {
               await recordCleanup('connected_account', store.stripe_account_id, store.stripe_account_mode, 'skipped',
                 'Stripe’i konto kuulub kasutajale ja ühendus eemaldati ainult Poeruumist.')
             } else {

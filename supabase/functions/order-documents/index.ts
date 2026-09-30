@@ -26,7 +26,7 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   try {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null
-    if (!body || (body.documentId !== undefined && !uuid(body.documentId))) return json({ error: 'Arve päring on vigane.' }, 400)
+    if (!body || (body.documentId !== undefined && !uuid(body.documentId))) return json({ error: 'Dokumenti ei saanud avada. Proovi uuesti.' }, 400)
     const access = parseReceiptAccess(body)
     if (!access && (!uuid(body.storeId) || typeof body.orderNumber !== 'string' || body.orderNumber.length > 100)) return json({ error: 'Tellimuse ligipääsuandmed puuduvad.' }, 400)
     const rate = await checkRateLimit(request, 'order-documents', 60, 60)
@@ -56,19 +56,19 @@ Deno.serve(async (request) => {
     if (body.documentId) {
       const { data, error } = await admin.from('order_documents').select('*').eq('order_id', order.id).eq('id', body.documentId).eq('stripe_mode', mode).maybeSingle()
       if (error) throw error
-      if (!data) return json({ error: 'Arvet ei leitud.' }, 404)
+      if (!data) return json({ error: 'Dokumenti ei leitud.' }, 404)
       const document = data as InvoiceDocument
-      if (document.status !== 'ready') return json({ error: 'Arvet koostatakse. Proovi mõne hetke pärast uuesti.' }, 409)
+      if (document.status !== 'ready') return json({ error: 'Dokumenti koostatakse. Proovi mõne hetke pärast uuesti.' }, 409)
       const bytes = await readDocumentPdf(admin, document)
       return new Response(new Uint8Array(bytes), { headers: { ...headers, 'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${documentFilename(document)}"` } })
+        'Content-Disposition': `attachment; filename="document-${document.number}.pdf"; filename*=UTF-8''${encodeURIComponent(documentFilename(document))}` } })
     }
-    const { data: documents, error: listError } = await admin.from('order_documents').select('id,number,kind,status')
+    const { data: documents, error: listError } = await admin.from('order_documents').select('id,number,kind,status,snapshot')
       .eq('order_id', order.id).eq('stripe_mode', mode).order('issued_at')
     if (listError) throw listError
-    return json({ documents: (documents ?? []).map((doc) => ({ id: doc.id, number: doc.number, kind: doc.kind, ready: doc.status === 'ready' })) })
+    return json({ documents: (documents ?? []).map((doc) => ({ id: doc.id, number: doc.number, kind: doc.kind, sellerType: doc.snapshot?.seller?.type ?? 'company', ready: doc.status === 'ready' })) })
   } catch (error) {
     await captureEdgeError('order-documents', error)
-    return json({ error: 'Arvete laadimine ebaõnnestus. Proovi uuesti.' }, 503)
+    return json({ error: 'Dokumentide laadimine ebaõnnestus. Proovi uuesti.' }, 503)
   }
 })

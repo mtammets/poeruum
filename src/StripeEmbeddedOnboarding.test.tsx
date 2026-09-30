@@ -78,7 +78,7 @@ describe('Stripe remediation form', () => {
       onError: () => undefined,
     }))
 
-    expect(html).toContain('aria-label="Ettevõtte andmete kinnitamine"')
+    expect(html).toContain('aria-label="Andmete kinnitamine"')
     expect(html).not.toContain('Stripe’i eraldi sisselogimisakent')
     expect(html).toContain('data-stripe-component="onboarding"')
     expect(html).not.toContain('data-stripe-component="management"')

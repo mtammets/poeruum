@@ -98,15 +98,15 @@ const copyForKind = (kind, storeName, deadline) => {
   const deadlineBy = deadlineDate
     ? `${deadlineDate.day}. ${ESTONIAN_MONTHS_BY[deadlineDate.month]} ${deadlineDate.year}`
     : null
-  const partnerIntro = 'Stripe on Poeruumi maksepartner. Selle kaudu saavad ostjad maksta kaardi, Apple Pay või Google Payga ning Stripe kannab müügitulu sinu kontole. Et maksed oleksid turvalised ja vastaksid seadustele, kontrollib Stripe aeg-ajalt ettevõtte ja selle esindaja andmeid.'
+  const partnerIntro = 'Stripe on Poeruumi maksepartner. Selle kaudu saavad ostjad maksta kaardi, Apple Pay või Google Payga ning Stripe kannab müügitulu sinu kontole. Et maksed oleksid turvalised ja vastaksid seadustele, kontrollib Stripe aeg-ajalt müüja andmeid.'
   const confirmDetail = deadlineBy
-    ? `Poe „${storeName}” puhul on vaja ettevõtte andmed üle vaadata. Kinnita need hiljemalt ${deadlineBy}, et maksed ja väljamaksed saaksid jätkuda.`
-    : `Poe „${storeName}” puhul on vaja ettevõtte andmed üle vaadata. Kinnita need esimesel võimalusel, et maksed ja väljamaksed saaksid jätkuda.`
+    ? `Poe „${storeName}” puhul on vaja müüja andmed üle vaadata. Kinnita need hiljemalt ${deadlineBy}, et maksed ja väljamaksed saaksid jätkuda.`
+    : `Poe „${storeName}” puhul on vaja müüja andmed üle vaadata. Kinnita need esimesel võimalusel, et maksed ja väljamaksed saaksid jätkuda.`
 
   if (kind === 'deadline_7d') {
     return {
-      subject: `Kinnita ettevõtte andmed 7 päeva jooksul · ${storeName}`,
-      title: 'Ettevõtte andmete kinnitamiseks on jäänud 7 päeva',
+      subject: `Kinnita müüja andmed 7 päeva jooksul · ${storeName}`,
+      title: 'Müüja andmete kinnitamiseks on jäänud 7 päeva',
       intro: partnerIntro,
       detail: confirmDetail,
       action: 'Kinnita andmed Poeruumis',
@@ -115,8 +115,8 @@ const copyForKind = (kind, storeName, deadline) => {
   }
   if (kind === 'deadline_1d') {
     return {
-      subject: `Kinnita ettevõtte andmed hiljemalt homme · ${storeName}`,
-      title: 'Ettevõtte andmete kinnitamiseks on jäänud 1 päev',
+      subject: `Kinnita müüja andmed hiljemalt homme · ${storeName}`,
+      title: 'Müüja andmete kinnitamiseks on jäänud 1 päev',
       intro: partnerIntro,
       detail: confirmDetail,
       action: 'Kinnita andmed Poeruumis',
@@ -125,27 +125,27 @@ const copyForKind = (kind, storeName, deadline) => {
   }
   if (kind === 'past_due') {
     return {
-      subject: `Ettevõtte andmete kinnitamise tähtaeg on möödas · ${storeName}`,
-      title: 'Ettevõtte andmete kinnitamise tähtaeg on möödas',
+      subject: `Müüja andmete kinnitamise tähtaeg on möödas · ${storeName}`,
+      title: 'Müüja andmete kinnitamise tähtaeg on möödas',
       intro: partnerIntro,
-      detail: `Poe „${storeName}” ettevõtte andmed on endiselt kinnitamata. Kinnita need kohe; kuni kontrolli lõpetamiseni võib Stripe piirata maksete vastuvõtmist või raha väljamaksmist.`,
+      detail: `Poe „${storeName}” müüja andmed on endiselt kinnitamata. Kinnita need kohe; kuni kontrolli lõpetamiseni võib Stripe piirata maksete vastuvõtmist või raha väljamaksmist.`,
       action: 'Kinnita andmed kohe',
       accent: '#ff7d65',
     }
   }
   if (kind === 'disabled') {
     return {
-      subject: `Maksekonto piirangu lahendamiseks kinnita ettevõtte andmed · ${storeName}`,
-      title: 'Maksekonto piirangu lahendamiseks kinnita ettevõtte andmed',
+      subject: `Maksekonto piirangu lahendamiseks kinnita müüja andmed · ${storeName}`,
+      title: 'Maksekonto piirangu lahendamiseks kinnita müüja andmed',
       intro: partnerIntro,
-      detail: `Poe „${storeName}” maksekonto kasutamine on piiratud, sest ettevõtte andmed vajavad kinnitamist. Kinnita need kohe. Pärast esitamist vaatab Stripe info üle ja otsustab, millal saab piirangu eemaldada.`,
+      detail: `Poe „${storeName}” maksekonto kasutamine on piiratud, sest müüja andmed vajavad kinnitamist. Kinnita need kohe. Pärast esitamist vaatab Stripe info üle ja otsustab, millal saab piirangu eemaldada.`,
       action: 'Kinnita andmed kohe',
       accent: '#ff675f',
     }
   }
   return {
-    subject: `${deadlineBefore ? `Kinnita ettevõtte andmed enne ${deadlineBefore}` : 'Kinnita ettevõtte andmed'} · ${storeName}`,
-    title: 'Maksete jätkamiseks kinnita ettevõtte andmed',
+    subject: `${deadlineBefore ? `Kinnita müüja andmed enne ${deadlineBefore}` : 'Kinnita müüja andmed'} · ${storeName}`,
+    title: 'Maksete jätkamiseks kinnita müüja andmed',
     intro: partnerIntro,
     detail: confirmDetail,
     action: 'Kinnita andmed Poeruumis',

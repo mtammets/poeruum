@@ -23,6 +23,14 @@ const Kaubamaja = lazy(() => import('./Kaubamaja'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
 const OrderReceiptPage = lazy(() => import('./OrderReceiptPage'))
 const StorefrontPreviewFrame = lazy(() => import('./StorefrontPreviewFrame'))
+const StripeConnectReturn = lazy(() => import('./StripeConnectReturn'))
+const isStripeConnectReturn = window.location.pathname === '/stripe/connect/return'
+if (isStripeConnectReturn) {
+  const referrer = document.createElement('meta')
+  referrer.name = 'referrer'
+  referrer.content = 'no-referrer'
+  document.head.appendChild(referrer)
+}
 const isEmbeddedStorePreview = window.parent !== window && document.documentElement.dataset.storefrontPreview === 'true'
 
 const receiptLocation = readReceiptLocation(window.location.href)
@@ -224,6 +232,7 @@ function Root() {
     }
   }, [])
 
+  if (isStripeConnectReturn) return <Suspense fallback={<LoadingScreen />}><StripeConnectReturn /></Suspense>
   if (activeReceiptLocation) return <Suspense fallback={<LoadingScreen />}><OrderReceiptPage key={JSON.stringify(activeReceiptLocation.access)} location={activeReceiptLocation} /></Suspense>
   if (isStoreDirectorySurface) return <Suspense fallback={<LoadingScreen />}><Kaubamaja /></Suspense>
   if (isAdminPath) return <Suspense fallback={<LoadingScreen />}><AdminApp /></Suspense>
@@ -233,7 +242,7 @@ function Root() {
   return isPoeruumHomepage ? <Homepage /> : <PlatformWithSupport />
 }
 
-if (!isEmbeddedStorePreview) registerGlobalErrorMonitoring()
+if (!isEmbeddedStorePreview && !isStripeConnectReturn) registerGlobalErrorMonitoring()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><ErrorBoundary>{isEmbeddedStorePreview

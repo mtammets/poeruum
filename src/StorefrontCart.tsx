@@ -234,16 +234,16 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
             <label>E-post<input required name="customerEmail" type="email" autoComplete="email" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
             <label>Telefon<input required name="customerPhone" type="tel" autoComplete="tel" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
             <fieldset className="invoice-buyer-fields">
-              <legend>Arve andmed</legend>
+              <legend>Ostja andmed</legend>
               <label className="invoice-buyer-toggle"><input type="checkbox" checked={businessBuyer} onChange={(event) => setBusinessBuyer(event.target.checked)} />Ostan ettevõttele</label>
               {businessBuyer && <>
                 <label>Ettevõtte nimi<input required name="billingName" autoComplete="billing organization" maxLength={200} /></label>
                 <label>Registrikood<input required name="billingRegistryCode" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} /></label>
                 <label>KMKR number <small>valikuline</small><input name="billingVatNumber" placeholder="EE123456789" pattern="EE[0-9]{9}" maxLength={11} /></label>
               </>}
-              <label>Arve aadress<input required name="billingAddress" autoComplete="billing street-address" maxLength={400} placeholder="Tänav, maja, linn ja sihtnumber" value={billingAddress} onChange={(event) => setBillingAddress(event.target.value)} onFocus={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
+              <label>Aadress<input required name="billingAddress" autoComplete="billing street-address" maxLength={400} placeholder="Tänav, maja, linn ja sihtnumber" value={billingAddress} onChange={(event) => setBillingAddress(event.target.value)} onFocus={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
               {delivery === 'courier' && courierAddress && <button type="button" onClick={() => setBillingAddress([courierAddress, courierCity, courierPostalCode].filter(Boolean).join(', '))}>Kasuta tarneaadressi</button>}
-              <small>Pärast maksmist saad tasutud PDF-arve e-postile.</small>
+              <small>Ostukinnitus saadetakse e-postile.</small>
             </fieldset>
             <fieldset className="payment delivery">
               <legend>Tarneviis</legend>

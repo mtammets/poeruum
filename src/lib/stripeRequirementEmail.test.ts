@@ -28,11 +28,11 @@ const render = (kind: StripeRequirementEmailKind = 'action_required') => renderS
 describe('Stripe requirement email renderer', () => {
   it('renders every action and escalation kind with the in-Poeruum CTA', () => {
     const expected = new Map<StripeRequirementEmailKind, string>([
-      ['action_required', 'Maksete jätkamiseks kinnita ettevõtte andmed'],
-      ['deadline_7d', 'Ettevõtte andmete kinnitamiseks on jäänud 7 päeva'],
-      ['deadline_1d', 'Ettevõtte andmete kinnitamiseks on jäänud 1 päev'],
-      ['past_due', 'Ettevõtte andmete kinnitamise tähtaeg on möödas'],
-      ['disabled', 'Maksekonto piirangu lahendamiseks kinnita ettevõtte andmed'],
+      ['action_required', 'Maksete jätkamiseks kinnita müüja andmed'],
+      ['deadline_7d', 'Müüja andmete kinnitamiseks on jäänud 7 päeva'],
+      ['deadline_1d', 'Müüja andmete kinnitamiseks on jäänud 1 päev'],
+      ['past_due', 'Müüja andmete kinnitamise tähtaeg on möödas'],
+      ['disabled', 'Maksekonto piirangu lahendamiseks kinnita müüja andmed'],
     ])
 
     for (const [kind, title] of expected) {
@@ -66,7 +66,7 @@ describe('Stripe requirement email renderer', () => {
   })
 
   it('uses grammatical Estonian deadline forms and a safe fallback when the date is invalid', () => {
-    expect(render()?.subject).toBe('Kinnita ettevõtte andmed enne 9. oktoobrit 2026 · Kera Kodustuudio')
+    expect(render()?.subject).toBe('Kinnita müüja andmed enne 9. oktoobrit 2026 · Kera Kodustuudio')
     expect(render()?.text).toContain('hiljemalt 9. oktoobriks 2026')
     expect(render()?.text).not.toContain('9. oktoobril 2026')
     const fallback = renderStripeRequirementEmail({
@@ -75,7 +75,7 @@ describe('Stripe requirement email renderer', () => {
       deadline: 'not-a-date',
       requirements: actionRequired,
     })
-    expect(fallback?.subject).toBe('Kinnita ettevõtte andmed · Kera Kodustuudio')
+    expect(fallback?.subject).toBe('Kinnita müüja andmed · Kera Kodustuudio')
     expect(fallback?.text).toContain('esimesel võimalusel')
   })
 
