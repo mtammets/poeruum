@@ -18,6 +18,7 @@ export type SettlementJob = {
   transfer_payload: Stripe.TransferCreateParams | null
   settlement_data: SettlementAmounts | null
   transfer_started_at: string | null
+  funding_retry_count?: number
   refund_requested_at: string | null
   refund_payload: Stripe.RefundCreateParams | null
   refund_started_at: string | null
@@ -33,6 +34,8 @@ type SettlementOrder = {
   stripe_payment_intent_id: string
   stripe_transfer_id: string | null
   stripe_refund_id: string | null
+  stripe_payment_issue?: string | null
+  stripe_dispute_status?: string | null
 }
 type Services = {
   admin: SupabaseClient
@@ -41,6 +44,9 @@ type Services = {
 }
 
 class SettlementReviewError extends Error {}
+class SettlementFundingError extends SettlementReviewError {}
+const needsFunding = (error: unknown) => Boolean(error && typeof error === 'object' && 'code' in error
+  && ['balance_insufficient', 'insufficient_funds'].includes(String(error.code)))
 const objectId = (value: string | { id: string } | null) => typeof value === 'string' ? value : value?.id
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Makse järeltoiming ebaõnnestus.'
 
@@ -76,14 +82,22 @@ export const processStoreSettlement = async (services: Services, mode: StripeMod
     })
     return { orderId: claimed.order_id, status: result.status, refundId: result.stripe_refund_id }
   }
+  const refundKey = (operation: string) => `poeruum-order-${operation}-${claimed.order_id}${claimed.funding_retry_count ? `-funding-${claimed.funding_retry_count}` : ''}`
+  const withFundingCheck = async <T>(operation: 'reversal' | 'refund', run: () => Promise<T>) => {
+    try { return await run() } catch (error) {
+      if (needsFunding(error)) throw new SettlementFundingError(`FUNDS_REQUIRED:${operation}: Tagastuseks ei jätku Stripe’i kontol raha. Poeruumi tugi kontrollib saldot ja käivitab tagastuse pärast raha lisamist uuesti.`)
+      throw error
+    }
+  }
   const checkLease = () => rpc('check_stripe_order_settlement_lease', {})
 
   try {
     const { data: orderData, error: orderError } = await admin.from('orders')
-      .select('id,store_id,order_number,total,payment_status,stripe_mode,stripe_payment_intent_id,stripe_transfer_id,stripe_refund_id')
+      .select('id,store_id,order_number,total,payment_status,stripe_mode,stripe_payment_intent_id,stripe_transfer_id,stripe_refund_id,stripe_payment_issue,stripe_dispute_status')
       .eq('id', job.order_id).single()
     if (orderError) throw orderError
     const order = orderData as SettlementOrder
+    if (['partial_refund', 'dispute'].includes(order.stripe_payment_issue ?? '')) throw new SettlementReviewError('Makse vajab Stripe’is kontrolli.')
     assertStoredStripeMode(order.stripe_mode, mode, 'Tellimuse makse')
     if (!order.stripe_payment_intent_id || !['paid', 'refunded'].includes(order.payment_status)) {
       throw new SettlementReviewError('Tellimusel puudub kinnitatud makse.')
@@ -169,7 +183,7 @@ export const processStoreSettlement = async (services: Services, mode: StripeMod
       if (transfer && !transfer.reversed) {
         if (transfer.amount_reversed !== 0) throw new SettlementReviewError('Müüja ülekanne on osaliselt tagasi pööratud.')
         await checkLease()
-        await stripe.transfers.createReversal(transfer.id, {}, { idempotencyKey: `poeruum-order-transfer-reversal-${order.id}` })
+        await withFundingCheck('reversal', () => stripe.transfers.createReversal(transfer!.id, {}, { idempotencyKey: refundKey('transfer-reversal') }))
       }
 
       if (!result) {
@@ -184,7 +198,7 @@ export const processStoreSettlement = async (services: Services, mode: StripeMod
         if (!prepared.refund_payload) throw new Error('Tagastuse andmeid ei salvestatud.')
         assertReplayWindow(prepared.refund_started_at)
         await checkLease()
-        result = await stripe.refunds.create(prepared.refund_payload, { idempotencyKey: `poeruum-order-refund-${order.id}` })
+        result = await withFundingCheck('refund', () => stripe.refunds.create(prepared.refund_payload!, { idempotencyKey: refundKey('refund') }))
       }
       validateRefund(result)
       if (result.status === 'succeeded') return finish('refunded', undefined, result.id)
@@ -195,6 +209,7 @@ export const processStoreSettlement = async (services: Services, mode: StripeMod
       return outcome
     }
 
+    if (charge.disputed && !['won', 'warning_closed'].includes(order.stripe_dispute_status ?? '')) throw new SettlementReviewError('DISPUTE: Stripe’i makse on vaidlustatud.')
     if (job.refund_requested_at) return await refund(job)
     if (charge.refunded || charge.amount_refunded > 0 || order.payment_status === 'refunded') {
       throw new SettlementReviewError('Stripe’is tagastatud makse arvestus vajab kontrollimist.')

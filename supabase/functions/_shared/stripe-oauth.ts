@@ -44,6 +44,10 @@ const normalizedName = (value: string) => value.normalize('NFKC').trim().replace
 // Connecting an existing account must never rewrite its legal identity or bank.
 export function existingStripeAccountError(account: OAuthAccount, settings: Record<string, unknown>) {
   if (account.deleted || account.type !== 'standard') return 'Vali iseseisev Stripe’i konto, mida saad ise Stripe’is hallata.'
+  return stripeSellerIdentityError(account, settings)
+}
+
+export function stripeSellerIdentityError(account: Omit<OAuthAccount, 'id'>, settings: Record<string, unknown>) {
   if (account.country !== 'EE') return 'Vali Eestis registreeritud Stripe’i konto.'
   const individual = sellerType(settings) === 'entrepreneur'
   if (account.business_type !== (individual ? 'individual' : 'company')) {

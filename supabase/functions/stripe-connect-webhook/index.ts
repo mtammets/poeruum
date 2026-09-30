@@ -1,6 +1,5 @@
 import Stripe from 'npm:stripe@^22'
-import { existingStripeAccountError, stripeAccountReady } from '../_shared/stripe-oauth.ts'
-import { hostedSellerError } from '../_shared/stripe-hosted.ts'
+import { syncSellerPaymentCheck } from '../_shared/seller-payment-check.ts'
 import { captureEdgeError } from '../_shared/security.ts'
 import {
   claimEvent,
@@ -19,25 +18,25 @@ import {
 const handleEvent = async (event: Stripe.Event) => {
   const admin = getAdminClient()
 
-  if (event.type === 'account.updated') {
-    const eventAccount = event.data.object as Stripe.Account
-    const { data: stores, error: storesError } = await admin.from('stores').select('id,settings,stripe_connection_type')
-      .eq('stripe_account_id', eventAccount.id).eq('stripe_account_mode', event.livemode ? 'live' : 'test')
+  if (event.type === 'account.updated' || event.type.startsWith('account.external_account.')) {
+    const accountId = event.type === 'account.updated' ? (event.data.object as Stripe.Account).id : event.account
+    if (!accountId) return
+    const { data: stores, error: storesError } = await admin.from('stores').select('id,settings,stripe_connection_type,stripe_account_id,stripe_account_mode')
+      .eq('stripe_account_id', accountId).eq('stripe_account_mode', event.livemode ? 'live' : 'test')
     if (storesError) throw storesError
     if (!stores?.length) return
     const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')?.trim()
     if (!stripeSecretKey) throw new Error('Puudub STRIPE_SECRET_KEY.')
-    const retrievedAccount = await new Stripe(stripeSecretKey).accounts.retrieve(eventAccount.id)
+    const stripe = new Stripe(stripeSecretKey)
+    const retrievedAccount = await stripe.accounts.retrieve(accountId)
     if ('deleted' in retrievedAccount && retrievedAccount.deleted) return
     const account = retrievedAccount
-    const isReady = stripeAccountReady(account)
     const requirements = summarizeStripeRequirements(account)
     for (const store of stores ?? []) {
-      const identityError = store.stripe_connection_type === 'oauth' ? existingStripeAccountError(account, store.settings ?? {}) : store.stripe_connection_type === 'hosted' ? hostedSellerError(account, store.settings ?? {}) : null
+      await syncSellerPaymentCheck(admin, stripe, store, account)
       const { error } = await admin.from('stores').update({
         payment_provider: 'stripe',
         stripe_account_mode: event.livemode ? 'live' : 'test',
-        payment_status: isReady && !identityError ? 'connected' : 'pending',
         stripe_account_charges_enabled: account.charges_enabled,
         stripe_account_payouts_enabled: account.payouts_enabled,
         ...stripeRequirementStoreUpdate(requirements),

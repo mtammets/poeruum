@@ -1,0 +1,12 @@
+.admin-payment-reviews { display: grid; gap: 28px; max-width: 1050px; }
+.admin-payment-reviews section, .admin-payment-reviews article { display: grid; gap: 12px; }
+.admin-payment-reviews article { padding: 22px; border: 1px solid #ddd; border-radius: 14px; background: #fff; }
+.admin-payment-reviews h2, .admin-payment-reviews h3, .admin-payment-reviews p { margin: 0; }
+.admin-payment-reviews p { line-height: 1.55; }
+.admin-payment-reviews label { display: grid; gap: 8px; }
+.admin-payment-reviews textarea { min-height: 95px; padding: 10px; font: inherit; border: 1px solid #d8ddd5; border-radius: 8px; resize: vertical; width: 100%; box-sizing: border-box; }
+.admin-payment-reviews button { padding: 10px 14px; border: 1px solid #d8ddd5; border-radius: 8px; background: #f8faf5; color: #244b35; font: inherit; font-weight: 650; cursor: pointer; justify-self: start; max-width: 100%; text-align: left; }
+.admin-payment-reviews button:disabled { opacity: .5; cursor: default; }
+
+.admin-payment-reviews a { color: #245d40; }
+.admin-payment-reviews :focus-visible { outline: 2px solid #245d40; outline-offset: 3px; }

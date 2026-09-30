@@ -11,7 +11,15 @@ describe('Stripe-hosted dedicated account onboarding', () => {
     expect(isDedicatedStripeAccount(params, 'store')).toBe(true)
     expect(isDedicatedStripeAccount(params, 'other')).toBe(false)
     expect(isDedicatedStripeAccount({ ...params, metadata: {} }, 'store')).toBe(false)
-    expect(hostedSellerError({ country: 'EE', business_type: 'company' }, { sellerType: 'entrepreneur' })).toContain('müüja tüüp')
+    expect(hostedSellerError({ country: 'EE', business_type: 'company' }, { sellerType: 'entrepreneur' })).toContain('eraisiku')
+  })
+  it('requires the Stripe legal identity to match, including missing names', () => {
+    const settings = { sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm' }
+    const account = { country: 'EE', business_type: 'individual', individual: { first_name: 'Liisa', last_name: 'Tamm' } }
+    expect(hostedSellerError(account, settings)).toBeNull()
+    expect(hostedSellerError({ ...account, individual: { first_name: 'Jaan', last_name: 'Kask' } }, settings)).toContain('nimi')
+    expect(hostedSellerError({ ...account, individual: null }, settings)).toBeTruthy()
+    expect(hostedSellerError({ country: 'EE', business_type: 'company', company: { name: 'Pood OÜ', registration_number: '87654321' } }, { businessName: 'Pood OÜ', registryCode: '12345678' })).toContain('registrikood')
   })
   it('accepts only the configured app or this shop’s own return origin', () => {
     expect(stripeReturnOrigin('http://127.0.0.1:4187', 'http://127.0.0.1:4187', 'test', 'shop')).toBe('http://127.0.0.1:4187')

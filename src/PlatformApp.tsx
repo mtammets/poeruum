@@ -1850,8 +1850,8 @@ function PlatformFlow() {
       </button> : paymentSetupState === 'reviewing' ? <div className="connected-provider is-pending" role="status">
         <span aria-hidden="true">…</span><div><strong>Stripe kontrollib andmeid</strong><small>Kõik vajalik on esitatud. Võid poe seadistamisega jätkata; maksed aktiveeruvad pärast Stripe’i kinnitust.</small></div>
       </div> : <div className="connected-provider"><span>✓</span><div><strong>Maksed on valmis</strong></div></div>}</>}
+      {!isStripeOnboardingOpen && sellerType === 'entrepreneur' && <p className="setup-helper">Lisa Stripe’i väljamaksekontoks enda aktiivne LHV ettevõtluskonto. Enne maksete aktiveerimist kontrollib Poeruumi tugi konto ja müüja vastavust. Kontrolli alustamiseks kirjuta info@poeruum.ee. Ära lisa IBANit poe avalikesse andmetesse. Ettevõtluskonto maksu peab pank kinni eraldi.</p>}
       {!isStripeOnboardingOpen && store?.stripe_connection_type === 'oauth' && <>
-        {sellerType === 'entrepreneur' && <p className="setup-helper">Kontrolli Stripe’is, et väljamaksed lähevad sinu LHV ettevõtluskontole.</p>}
         <a className="payment-setup-action is-existing" href={stripeDashboardUrl(store.stripe_account_id!, store.stripe_account_mode)} target="_blank" rel="noopener noreferrer"><strong>Halda kontot Stripe’is</strong><span aria-hidden="true">↗</span></a>
       </>}
       {authError && <p className="add-product-error" role="alert">{authError}</p>}

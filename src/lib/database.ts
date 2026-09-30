@@ -92,6 +92,7 @@ export type OrderRecord = {
   product_subtotal: number
   total: number
   status: 'new' | 'fulfilled' | 'refunded'
+  stripe_payment_issue?: string | null
   stripe_refund_status?: 'requested' | 'pending' | 'succeeded' | 'failed' | null
   created_at: string
   stripe_processing_fee_cents: number

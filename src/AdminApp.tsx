@@ -13,6 +13,7 @@ import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Tur
 import type { Product } from './products'
 import AdminLeads from './AdminLeads'
 import AdminSupport from './AdminSupport'
+import AdminPaymentReviews from './AdminPaymentReviews'
 import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 import { getStorefrontCanonicalUrl } from './lib/storefrontUrl'
@@ -60,10 +61,11 @@ type SetupStep = {
 
 type UserFilter = 'temporary-email' | 'email-review' | 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
 type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
-type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory'
+type AdminView = 'payments' | 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
+  payments: { path: '/admin/payments', title: 'Maksete kontroll' },
   overview: { path: '/admin', title: 'Ülevaade' },
   analytics: { path: '/admin/analytics', title: 'Külastatavus' },
   seo: { path: '/admin/seo', title: 'SEO' },
@@ -75,6 +77,7 @@ const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
 }
 
 const getAdminView = (pathname = window.location.pathname): AdminView => {
+  if (/^\/admin\/payments\/?$/i.test(pathname)) return 'payments'
   if (/^\/admin\/analytics\/?$/i.test(pathname)) return 'analytics'
   if (/^\/admin\/seo\/?$/i.test(pathname)) return 'seo'
   if (/^\/admin\/leads\/?$/i.test(pathname)) return 'leads'
@@ -1011,6 +1014,7 @@ export default function AdminApp() {
         <a className={activeView === 'business-card' ? 'is-active' : undefined} href="/admin/business-card" aria-current={activeView === 'business-card' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'business-card')}><span><AdminIcon name="card" /></span>Visiitkaart</a>
         <a className={activeView === 'leads' ? 'is-active' : undefined} href="/admin/leads" aria-current={activeView === 'leads' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'leads')}><span><AdminIcon name="leads" /></span>Kliendiotsing</a>
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
+        <a className={activeView === 'payments' ? 'is-active' : undefined} href="/admin/payments" aria-current={activeView === 'payments' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'payments')}><span><AdminIcon name="message" /></span>Maksete kontroll</a>
         <a className={activeView === 'support' ? 'is-active' : undefined} href="/admin/support" aria-current={activeView === 'support' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'support')}><span><AdminIcon name="message" /></span>Klienditugi</a>
         <a className={activeView === 'users' ? 'is-active' : undefined} href="/admin/users" aria-current={activeView === 'users' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'users')}><span><AdminIcon name="users" /></span>Kasutajad</a>
         <a className={activeView === 'directory' ? 'is-active' : undefined} href="/admin/kaubamaja" aria-current={activeView === 'directory' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'directory')}><span><AdminIcon name="store" /></span>Kaubamaja</a>
@@ -1020,13 +1024,14 @@ export default function AdminApp() {
     </aside>
 
     <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
-      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>
+      <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
       {error && activeView !== 'business-card' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
+        {activeView === 'payments' && <AdminPaymentReviews />}
         {activeView === 'directory' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin Kaubamaja…</div>}><AdminKaubamaja /></Suspense>}
         {activeView === 'seo' && <div className="admin-seo">
           <section className="admin-seo__summary">

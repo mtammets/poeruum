@@ -58,7 +58,8 @@
     "test:account-email-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-account-email-edge.ts",
     "test:seller-preview": "node node_modules/@playwright/test/cli.js test --config playwright.seller-preview.config.ts",
     "test:entrepreneur-sellers": "node scripts/test-entrepreneur-sellers.mjs",
-    "dev:sellers": "node scripts/payment-preview.mjs --sellers"
+    "dev:sellers": "node scripts/payment-preview.mjs --sellers",
+    "test:payment-safeguards-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-payment-safeguards-edge.ts"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

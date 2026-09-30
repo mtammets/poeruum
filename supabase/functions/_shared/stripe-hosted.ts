@@ -1,3 +1,4 @@
+import { stripeSellerIdentityError } from './stripe-oauth.ts'
 import { sellerType } from '../../../shared/seller.ts'
 import { getStripePrefill, type PoeruumStore } from './stripe-connect-prefill.ts'
 
@@ -21,6 +22,8 @@ export function dedicatedStripeAccountParams(store: PoeruumStore, ownerId: strin
 
 type HostedAccount = {
   country?: string; business_type?: string | null
+  individual?: { first_name?: string | null; last_name?: string | null } | null
+  company?: { name?: string | null; registration_number?: string | null } | null
   controller?: { requirement_collection?: string; stripe_dashboard?: { type?: string } }
   metadata?: Record<string, string> | null
 }
@@ -33,10 +36,7 @@ export function isDedicatedStripeAccount(account: HostedAccount, storeId: string
 }
 
 export function hostedSellerError(account: HostedAccount, settings: Record<string, unknown>) {
-  if (account.country !== 'EE') return 'Stripe’i konto riik peab olema Eesti.'
-  const expected = sellerType(settings) === 'entrepreneur' ? 'individual' : 'company'
-  return account.business_type && account.business_type !== expected
-    ? 'Stripe’is valitud müüja tüüp ei ühti poe müüjaandmetega. Kontrolli andmeid Stripe’is.' : null
+  return stripeSellerIdentityError(account, settings)
 }
 
 export function stripeReturnOrigin(requested: string | undefined, configured: string, mode: 'test' | 'live', storeSlug: string, customHostname?: string) {

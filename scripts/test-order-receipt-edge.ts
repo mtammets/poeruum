@@ -43,6 +43,7 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
       const url = new URL(input instanceof Request ? input.url : String(input))
       const method = init?.method || (input instanceof Request ? input.method : 'GET')
       if (url.origin === 'https://api.stripe.com') {
+        if (method === 'GET' && url.pathname === '/v1/accounts/acct_test') return Response.json({ id: 'acct_test', country: 'EE', business_type: 'company', company: { name: 'Receipt OÜ', registration_number: '12345678' }, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' } })
         if (method === 'POST' && url.pathname === '/v1/checkout/sessions') {
           checkoutPayloads.push(String(init?.body))
           checkoutKeys.push(new Headers(init?.headers).get('idempotency-key') || '')
@@ -55,6 +56,7 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
         if (method === 'GET' && url.pathname === `/v1/payment_intents/${pi.id}`) return Response.json(pi)
       } else if (url.origin === values.SUPABASE_URL) {
         const body = JSON.parse(String(init?.body || '{}'))
+        if (url.pathname.endsWith('/rpc/sync_store_payment_check')) return Response.json(true)
         if (url.pathname.endsWith('/rpc/consume_rate_limit')) return Response.json([{ allowed: rateAllowed, retry_after_seconds: 60 }])
         if (url.pathname.endsWith('/rpc/record_application_error')) return Response.json(null)
         if (url.pathname.endsWith('/rpc/create_invoiced_stripe_order')) {
@@ -160,6 +162,9 @@ Deno.test('company and entrepreneur checkout amounts match saved documents acros
     Deno.serve = ((callback: Handler) => { handler = callback; return {} }) as typeof Deno.serve
     globalThis.fetch = async (input, init) => {
       const url = new URL(input instanceof Request ? input.url : String(input))
+      if (url.origin === 'https://api.stripe.com' && url.pathname === '/v1/accounts/acct_pricing') return Response.json({ id: 'acct_pricing', country: 'EE', business_type: settings.sellerType === 'entrepreneur' ? 'individual' : 'company', individual: { first_name: 'Liisa', last_name: 'Tamm' }, company: { name: 'Pood OÜ', registration_number: '12345678' }, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' } })
+      if (url.origin === 'https://api.stripe.com' && url.pathname.endsWith('/external_accounts')) return Response.json({ object: 'list', has_more: false, data: [] })
+      if (url.pathname.endsWith('/rpc/sync_store_payment_check')) return Response.json(true) // Approval boundary is covered by SQL safeguards tests.
       if (url.origin === 'https://api.stripe.com' && url.pathname === '/v1/checkout/sessions' && init?.method === 'POST') {
         stripeParams = new URLSearchParams(String(init.body)); calls++
         return Response.json({ id: 'cs_test_pricing', url: 'https://checkout.stripe.com/c/pay/test' })

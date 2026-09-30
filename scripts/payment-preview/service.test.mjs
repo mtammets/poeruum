@@ -171,10 +171,10 @@ describe('dedicated hosted account preview', () => {
     expect(link.get('refresh_url')).toBe('http://127.0.0.1:4185/stripe/connect/return?refresh=1')
     expect(session.store.stripe_connection_type).toBe('hosted')
     expect(await service.stripeAction(session, 'status')).toMatchObject({ status: 'pending', detailsSubmitted: false })
-    Object.assign(account(), { charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' }, details_submitted: true, requirements: {} })
+    Object.assign(account(), { individual: { first_name: session.store.settings.sellerFirstName, last_name: session.store.settings.sellerLastName }, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' }, details_submitted: true, requirements: {} })
     expect(await service.stripeAction(session, 'status')).toMatchObject({ status: 'connected' })
     account().business_type = 'company'
-    expect(await service.stripeAction(session, 'status')).toMatchObject({ status: 'pending', setupError: expect.stringContaining('müüja tüüp') })
+    expect(await service.stripeAction(session, 'status')).toMatchObject({ status: 'pending', setupError: expect.stringContaining('eraisiku') })
     await service.cleanup()
     expect(fetchStripe.mock.calls.filter(([, options]) => options.method === 'DELETE')).toHaveLength(1)
   })

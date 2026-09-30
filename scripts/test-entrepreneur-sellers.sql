@@ -30,6 +30,8 @@ update public.stores set payment_provider='stripe',payment_status='connected',st
   stripe_account_charges_enabled=true,stripe_account_payouts_enabled=true,stripe_account_mode='test'
 where id='78000000-0000-4000-8000-000000000002';
 select pg_temp.seller_error($q$update public.stores set settings=settings||'{"sellerType":"company"}' where id='78000000-0000-4000-8000-000000000002'$q$,'Müüja tüübi muutmiseks');
+insert into public.store_payment_checks(store_id,account_id,stripe_mode,identity,stripe_ready,verified_at)
+select id,stripe_account_id,stripe_account_mode,public.seller_identity_key(settings),true,now() from public.stores where id='78000000-0000-4000-8000-000000000002';
 select set_config('request.jwt.claim.sub','78000000-0000-4000-8000-000000000001',true);
 set local role authenticated;
 select public.publish_store('78000000-0000-4000-8000-000000000002');

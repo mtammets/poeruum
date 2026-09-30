@@ -32,6 +32,7 @@ export default function SellerDetailsFields({ value, onChange, typeLocked = fals
         <span>{label}</span><i aria-hidden="true">{value.sellerType === type ? '✓' : ''}</i>
       </label>)}
     </fieldset>
+    {typeLocked && <small className="seller-details__hint">Müüja nime või registrikoodi muutmisel tuleb maksed uuesti kinnitada. Poe nime saad muuta eraldi.</small>}
     {individual ? <div className="seller-details__names">
       <label>Eesnimi<input required autoComplete="given-name" maxLength={100} value={value.sellerFirstName} onChange={(event) => onChange({ sellerFirstName: event.target.value })} /></label>
       <label>Perekonnanimi<input required autoComplete="family-name" maxLength={100} value={value.sellerLastName} onChange={(event) => onChange({ sellerLastName: event.target.value })} /></label>

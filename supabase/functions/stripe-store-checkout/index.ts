@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { syncSellerPaymentCheck } from '../_shared/seller-payment-check.ts'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { buildInvoiceSnapshot, parseInvoiceBuyer, InvoiceInputError } from '../../../shared/order-invoice.ts'
@@ -102,6 +103,11 @@ Deno.serve(async (request) => {
       const { error: modeUpdateError } = await admin.from('stores').update({ stripe_account_mode: stripeMode }).eq('id', storeId).is('stripe_account_mode', null)
       if (modeUpdateError) throw modeUpdateError
     }
+
+    const account = await stripe.accounts.retrieve(store.stripe_account_id)
+    if ('deleted' in account && account.deleted) return json({ error: 'Poe maksed vajavad müüja kontrolli.' }, 409)
+    const verification = await syncSellerPaymentCheck(admin, stripe, store, account)
+    if (!verification.ready) return json({ error: 'Poe maksed vajavad müüja kontrolli. Palun võta ühendust poega.' }, 409)
 
     const { data: customDomain, error: customDomainError } = await admin.from('custom_domains')
       .select('hostname')

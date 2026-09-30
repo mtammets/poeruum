@@ -107,6 +107,36 @@ const fixture = () => {
 afterEach(() => vi.useRealTimers())
 
 describe('durable order settlement', () => {
+  it('stops an insufficient-balance refund for controlled funding instead of retrying forever', async () => {
+    const f = fixture()
+    await f.run(); f.requestRefund()
+    f.stripe.transfers.createReversal.mockRejectedValueOnce(Object.assign(new Error('Insufficient balance'), { code: 'balance_insufficient' }))
+    expect(await f.run()).toMatchObject({ status: 'needs_review' })
+    expect(f.order.payment_status).toBe('paid')
+    expect(f.stripe.refunds.create).not.toHaveBeenCalled()
+    expect(f.rpc).toHaveBeenCalledWith('finish_stripe_order_settlement', expect.objectContaining({ error_value: expect.stringContaining('FUNDS_REQUIRED:') }))
+    expect(await f.run()).toBeNull()
+    f.requestRefund(); f.job.funding_retry_count = 1 // Operator releases the hold after funding.
+    expect(await f.run()).toMatchObject({ status: 'refunded' })
+    expect(f.stripe.refunds.create).toHaveBeenCalledTimes(1)
+    expect(f.stripe.transfers.createReversal).toHaveBeenLastCalledWith('tr_1', {}, { idempotencyKey: 'poeruum-order-transfer-reversal-order-1-funding-1' })
+  })
+  it('reconciles an externally refunded completed payment without making another refund', async () => {
+    const f = fixture()
+    await f.run()
+    f.refunds.push({ id: 're_external', payment_intent: 'pi_1', amount: 2732, status: 'succeeded' })
+    f.charge.refunded = true; f.charge.amount_refunded = 2732
+    f.requestRefund() // observe_stripe_order_payment reopens completed work.
+    expect(await f.run()).toMatchObject({ status: 'refunded', refundId: 're_external' })
+    expect(f.stripe.refunds.create).not.toHaveBeenCalled()
+    expect(f.stripe.transfers.createReversal).toHaveBeenCalledTimes(1)
+    expect(await f.run()).toBeNull()
+  })
+  it('holds a disputed charge before sending any money', async () => {
+    const f = fixture(); f.charge.disputed = true
+    expect(await f.run()).toMatchObject({ status: 'needs_review' })
+    expect(f.operations).toEqual([])
+  })
   it('waits 76 seconds for fees without an error, then settles once across competing executions', async () => {
     vi.useFakeTimers()
     const f = fixture()

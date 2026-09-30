@@ -54,6 +54,9 @@ jobs:
       - name: Merchant email activation enforcement
         run: npm run test:account-email-edge
 
+      - name: External refund and dispute webhooks
+        run: npm run test:payment-safeguards-edge
+
       - name: Production build
         run: npm run build:app
 
@@ -162,6 +165,9 @@ jobs:
 
       - name: Test payment confirmation before settlement and after refunds
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-paid-order-completion.sql
+
+      - name: Test payment reviews and private seller verification
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-payment-safeguards.sql
 
       - name: Test durable settlements, leases and refunds
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-order-settlements.sql

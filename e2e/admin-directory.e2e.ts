@@ -234,3 +234,33 @@ test('admin sees temporary email flags, inactive review and signup volume withou
 
 const jsonReply = (route: Route, value: unknown) => route.fulfill({ status: 200, contentType: 'application/json',
   headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(value) })
+
+test('payment review shows refund recovery separately and requires evidence for entrepreneur approval', async ({ page }) => {
+  await installBackend(page)
+  const actions: Record<string, unknown>[] = []
+  const reviews = {
+    orders: [{ id: 'order-test', order_number: 'PR-TEST', store_name: 'Ateljee', stripe_mode: 'test', stripe_payment_intent_id: 'pi_test', stripe_payment_issue: 'funds_required', payment_status: 'refunded', last_error: 'FUNDS_REQUIRED:reversal: Raha puudub.' }],
+    sellers: [{ id: 'store-test', name: 'Ateljee', seller_name: 'Liisa Tamm', stripe_account_id: 'acct_test', stripe_account_mode: 'test', bank: { id: 'ba_test', last4: '1234', bank_name: 'LHV' }, verified_at: null }],
+  }
+  await page.route('**/__e2e_supabase/rest/v1/rpc/admin_payment_reviews', route => route.fulfill({ json: reviews, headers: { 'Access-Control-Allow-Origin': '*' } }))
+  await page.route('**/__e2e_supabase/functions/v1/payment-review', async route => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' } })
+    actions.push(route.request().postDataJSON())
+    return route.fulfill({ json: { ok: true }, headers: { 'Access-Control-Allow-Origin': '*' } })
+  })
+  await page.goto('/admin/payments')
+  await expect(page.getByRole('heading', { name: 'Maksete kontroll', exact: true })).toBeVisible()
+  await expect(page.getByText('Ostja makse on juba tagastatud;', { exact: false })).toBeVisible()
+  const approve = page.getByRole('button', { name: 'Täielik IBAN, aktiivne ettevõtluskonto ja omanik kontrollitud — kinnita' })
+  await expect(approve).toBeDisabled()
+  await page.getByLabel('Kontrolli tõend ja kuupäev').fill('MTA kontroll 30.09.2026 ja privaatse tõendi viide 123')
+  await approve.click()
+  await expect.poll(() => actions.length).toBe(1)
+  expect(actions[0]).toMatchObject({ action: 'approve-seller', storeId: 'store-test', bankId: 'ba_test' })
+  await page.getByRole('button', { name: 'Saldo kontrollitud — proovi tagastust uuesti' }).click()
+  await expect(page.getByRole('status')).toContainText('Tagastus lisati uuesti tööjärjekorda')
+  expect(actions[1]).toEqual({ action: 'retry-refund', orderId: 'order-test' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: 'output/payment-reviews-mobile.png', fullPage: true })
+})

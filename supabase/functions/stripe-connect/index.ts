@@ -1,10 +1,10 @@
 import { sellerDetailsError, sellerType } from '../../../shared/seller.ts'
-import { existingStripeAccountError, stripeAccountReady } from '../_shared/stripe-oauth.ts'
+import { syncSellerPaymentCheck } from '../_shared/seller-payment-check.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
-import { dedicatedStripeAccountParams, hostedSellerError, isDedicatedStripeAccount, stripeHostedLinkParams, stripeReturnOrigin } from '../_shared/stripe-hosted.ts'
+import { dedicatedStripeAccountParams, isDedicatedStripeAccount, stripeHostedLinkParams, stripeReturnOrigin } from '../_shared/stripe-hosted.ts'
 import {
   emptyStripeRequirementStoreUpdate,
   stripeRequirementStoreUpdate,
@@ -33,7 +33,6 @@ const getRequiredEnv = (name: string) => {
   return value
 }
 
-const stripeAccountStatus = (account: Stripe.Account) => stripeAccountReady(account) ? 'connected' : 'pending'
 
 const isPoeruumManagedAccount = (account: Stripe.Account) =>
   account.controller?.requirement_collection === 'application'
@@ -107,11 +106,11 @@ Deno.serve(async (request) => {
         }).eq('id', store.id)
         return json({ status: 'idle', detailsSubmitted: false })
       }
-      const identityError = store.stripe_connection_type === 'oauth' ? existingStripeAccountError(account, store.settings ?? {}) : store.stripe_connection_type === 'hosted' ? hostedSellerError(account, store.settings ?? {}) : null
-      const status = identityError ? 'pending' : stripeAccountStatus(account)
+      const verification = await syncSellerPaymentCheck(admin, stripe, store, account)
+      const status = verification.ready ? 'connected' : 'pending'
       const requirements = summarizeStripeRequirements(account)
       const { error } = await admin.from('stores').update({
-        payment_provider: 'stripe', payment_status: status, stripe_account_mode: stripeMode,
+        payment_provider: 'stripe', stripe_account_mode: stripeMode,
         stripe_account_charges_enabled: account.charges_enabled,
         stripe_account_payouts_enabled: account.payouts_enabled,
         ...stripeRequirementStoreUpdate(requirements),
@@ -119,7 +118,7 @@ Deno.serve(async (request) => {
       if (error) throw error
       return json({
         status,
-        setupError: identityError,
+        setupError: verification.setupError,
         chargesEnabled: account.charges_enabled,
         payoutsEnabled: account.payouts_enabled,
         detailsSubmitted: account.details_submitted,
