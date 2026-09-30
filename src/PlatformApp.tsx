@@ -1429,7 +1429,8 @@ function PlatformFlow() {
     </div>
     : null
 
-  const returnNotice = <><AccountEmailNotice key={onlineUserId} userId={onlineUserId} />{authReturnNotice}</>
+  const accountEmailNotice = <AccountEmailNotice key={onlineUserId} userId={onlineUserId} />
+  const returnNotice = authReturnNotice
 
   if (isMerchantRedirecting || (isMerchantLocation && !isAuthResolved) || redirectPublicOwnerLogin || (isAuthBusy && onlineUserId && ['login', 'forgot-password', 'account'].includes(screen))) {
     return <main className="platform-loading" aria-label="Laadin sinu poodi" aria-busy="true"><span /></main>
@@ -1477,6 +1478,7 @@ function PlatformFlow() {
     stripeRequirements={stripeRequirements}
     merchantMode
     ownerEmail={email}
+    accountEmailNotice={accountEmailNotice}
     onOwnerLogin={signInFromStore}
     onBackToSetup={() => setScreen('shipping')}
     onContinueSetup={continueFromFirstProduct}
@@ -1489,7 +1491,7 @@ function PlatformFlow() {
   </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} sellerTypeLocked={Boolean(store?.stripe_account_id)} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={syncMerchantStore} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} sellerTypeLocked={Boolean(store?.stripe_account_id)} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} accountEmailNotice={accountEmailNotice} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={syncMerchantStore} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
     {stripeEmbeddedOverlay}
   </>
 
@@ -1826,6 +1828,7 @@ function PlatformFlow() {
     {screen === 'payments' && <div className="setup-form">
       {!isStripeOnboardingOpen && <><h1>{paymentIssues.length ? 'Maksete kinnitamine' : paymentNeedsAction ? 'Ühenda poe maksed' : 'Poe maksed'}</h1>
         {paymentNeedsAction && !paymentIssues.length && <p>{sellerType === 'entrepreneur' ? 'Kinnita oma andmed.' : 'Maksed laekuvad sinu pangakontole.'}</p>}
+        {accountEmailNotice}
         <div className="provider-list">
           <div>
             <i className="provider-logo provider-logo--stripe"><img src="/images/stripe-wordmark.svg" alt="" /></i><span><strong>Stripe</strong><small>Kaardid, Apple Pay ja Google Pay</small></span>
@@ -1915,6 +1918,7 @@ function PlatformFlow() {
         </svg>
       </span>
     </div>
+      {accountEmailNotice}
       <section className="publish-store-card" aria-label="Avaldatava poe kokkuvõte">
         <div className="publish-store-address">
           <span><small>Poe aadress</small><strong>{slug}<b>.poeruum.ee</b></strong></span>

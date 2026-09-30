@@ -630,7 +630,7 @@ const installSupabaseBackend = async (
   page: Page,
   storeFixture: Record<string, unknown> = store,
   stripeStatusFixture: Record<string, unknown> = connectedStripeStatus,
-  options: { temporaryEmail?: boolean; beforeProductsResponse?: () => Promise<void>; publicStore?: typeof store;
+  options: { temporaryEmail?: boolean; unconfirmedEmail?: boolean; beforeProductsResponse?: () => Promise<void>; publicStore?: typeof store;
     products?: Record<string, unknown>[]; getOrders?: () => Record<string, unknown>[]; refundOrder?: () => Record<string, unknown> } = {},
 ) => {
   let passwordSignIns = 0
@@ -639,8 +639,10 @@ const installSupabaseBackend = async (
   const passwordUpdates: string[] = []
   const passwordResetRedirects: string[] = []
   const signOutScopes: string[] = []
-  const accountEmail = { email: options.temporaryEmail ? 'trial@minitts.net' : user.email, pending_email: null as string | null, email_confirmed: true, is_disposable: Boolean(options.temporaryEmail), activation_allowed: !options.temporaryEmail }
+  const accountEmail = { email: options.temporaryEmail ? 'trial@minitts.net' : user.email, pending_email: null as string | null, email_confirmed: !options.unconfirmedEmail, is_disposable: Boolean(options.temporaryEmail), activation_allowed: !options.temporaryEmail && !options.unconfirmedEmail }
   const emailUpdates: string[] = []
+  const confirmationRequests: Array<{ type: string; email: string }> = []
+  let emailStatusUnavailable = false
   let currentStore = { ...storeFixture }
   let currentProducts = structuredClone(options.products ?? [])
 
@@ -710,6 +712,12 @@ const installSupabaseBackend = async (
       return
     }
 
+    if (url.pathname.endsWith('/auth/v1/resend')) {
+      confirmationRequests.push(request.postDataJSON())
+      await json(route, {})
+      return
+    }
+
     if (url.pathname.endsWith('/auth/v1/recover')) {
       passwordResetRedirects.push(url.searchParams.get('redirect_to') ?? '')
       await json(route, {})
@@ -769,6 +777,7 @@ const installSupabaseBackend = async (
     }
 
     if (url.pathname.endsWith('/rest/v1/rpc/account_email_status')) {
+      if (emailStatusUnavailable) { await json(route, { message: 'Temporary test outage' }, 503); return }
       await json(route, { ...accountEmail, candidate_is_disposable: /@(minitts\.net|tozya\.com)$/i.test(request.postDataJSON()?.candidate_email ?? '') })
       return
     }
@@ -788,7 +797,9 @@ const installSupabaseBackend = async (
 
   return {
     emailUpdates,
-    confirmEmail: () => { accountEmail.email = accountEmail.pending_email!; accountEmail.pending_email = null; accountEmail.is_disposable = false; accountEmail.activation_allowed = true },
+    confirmationRequests,
+    setEmailStatusUnavailable: (unavailable: boolean) => { emailStatusUnavailable = unavailable },
+    confirmEmail: () => { accountEmail.email = accountEmail.pending_email ?? accountEmail.email; accountEmail.pending_email = null; accountEmail.email_confirmed = true; accountEmail.is_disposable = false; accountEmail.activation_allowed = true },
     currentStore: () => currentStore,
     currentProducts: () => currentProducts,
     passwordSignIns: () => passwordSignIns,
@@ -1574,13 +1585,15 @@ test('temporary-email merchant can keep a draft and must confirm the replacement
   await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
   const notice = page.getByRole('complementary', { name: 'Konto e-posti kinnitamine' })
-  await expect(notice).toContainText('Kasuta poe jaoks püsivat e-posti aadressi')
+  await expect(notice).toContainText('Lisa püsiv e-posti aadress')
   await page.getByRole('button', { name: 'Seadista maksed', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('vaheta konto ajutine e-post')
   await expect(page.getByRole('dialog', { name: 'Stripe’i andmed' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Jäta praegu vahele' }).click()
   await expect(page.getByRole('heading', { name: 'Vali tarneviisid' })).toBeVisible()
-  await notice.getByRole('button', { name: 'Muuda konto e-posti' }).click()
+  await expect(notice).toHaveCount(0)
+  await page.getByRole('button', { name: 'Tagasi eelmisele lehele' }).click()
+  await notice.getByRole('button', { name: 'Muuda aadressi' }).click()
   await notice.getByLabel('Uus e-posti aadress').fill('another@tozya.com')
   await notice.getByLabel('Praegune parool', { exact: true }).fill('turvaline-testiparool')
   await notice.getByRole('button', { name: 'Saada kinnituskiri' }).click()
@@ -1588,12 +1601,109 @@ test('temporary-email merchant can keep a draft and must confirm the replacement
   expect(backend.emailUpdates).toEqual([])
   await notice.getByLabel('Uus e-posti aadress').fill('merchant@example.com')
   await notice.getByRole('button', { name: 'Saada kinnituskiri' }).click()
-  await expect(notice).toContainText('Ootab kinnitamist: merchant@example.com')
+  await expect(notice).toContainText('Kinnita uus e-posti aadress')
+  await expect(notice).toContainText('merchant@example.com')
+  await expect(notice).toContainText('trial@minitts.net')
   expect(backend.emailUpdates).toEqual(['merchant@example.com'])
   await page.setViewportSize({ width: 390, height: 844 })
   await page.screenshot({ path: 'output/account-email-mobile.png', fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Vali tarneviisid' })).toBeVisible()
+  await page.getByRole('button', { name: 'Tagasi eelmisele lehele' }).click()
+  await expect(notice).toContainText('merchant@example.com')
+  await notice.getByRole('button', { name: 'Saada kiri uuesti' }).click()
+  await expect(notice.getByRole('status')).toContainText('Kinnituskirjad on uuesti saadetud')
+  expect(backend.confirmationRequests).toMatchObject([{ type: 'email_change', email: 'trial@minitts.net' }])
   backend.confirmEmail()
-  await notice.getByRole('button', { name: 'Kontrolli kinnitust' }).click()
+  await notice.getByRole('button', { name: 'Olen kinnitanud' }).click()
   await expect(notice).toHaveCount(0)
+})
+
+async function signInThroughLanding(page: Page) {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Logi sisse' }).first().click()
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+}
+
+test('email confirmation names the address and sends a letter only when requested', async ({ page }) => {
+  const draft = { ...store, is_published: false, stripe_account_id: null, payment_status: 'idle',
+    settings: { ...store.settings, onboardingStep: 'payments' } }
+  const backend = await installSupabaseBackend(page, draft, { status: 'idle' }, { unconfirmedEmail: true })
+  await signInThroughLanding(page)
+  const notice = page.getByRole('complementary', { name: 'Konto e-posti kinnitamine' })
+  await expect(notice).toContainText('Kinnita oma e-post')
+  await expect(notice).toContainText(user.email)
+  expect(backend.confirmationRequests).toEqual([])
+  await notice.getByRole('button', { name: 'Saada kinnituskiri' }).click()
+  await expect(notice.getByRole('status')).toContainText('Ava e-postis Poeruumi kiri')
+  expect(backend.confirmationRequests).toMatchObject([{ type: 'signup', email: user.email }])
+  await expect(notice.getByRole('button', { name: /Saada uuesti/ })).toBeDisabled()
+  await notice.getByRole('button', { name: 'Olen kinnitanud' }).click()
+  await expect(notice.getByRole('status')).toContainText('Kinnitus pole veel meieni jõudnud')
+  await page.screenshot({ path: 'output/account-email-desktop.png', fullPage: true })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.screenshot({ path: 'output/account-email-confirm-mobile.png', fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  backend.confirmEmail()
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(notice).toHaveCount(0)
+})
+
+test('an unavailable email check does not claim the address is unconfirmed', async ({ page }) => {
+  const draft = { ...store, is_published: false, stripe_account_id: null, payment_status: 'idle',
+    settings: { ...store.settings, onboardingStep: 'payments' } }
+  const backend = await installSupabaseBackend(page, draft, { status: 'idle' })
+  backend.setEmailStatusUnavailable(true)
+  await signInThroughLanding(page)
+  const retry = page.getByRole('complementary', { name: 'Konto e-posti olek', exact: true })
+  await expect(retry).toContainText('E-posti olekut ei saanud praegu kontrollida')
+  await expect(page.getByRole('complementary', { name: 'Konto e-posti kinnitamine' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Saada kinnituskiri' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Seadista maksed', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Konto e-posti kontroll ebaõnnestus')
+  await expect(page.getByRole('dialog', { name: 'Stripe’i andmed' })).toHaveCount(0)
+  backend.setEmailStatusUnavailable(false)
+  await retry.getByRole('button', { name: 'Proovi uuesti' }).click()
+  await expect(retry).toHaveCount(0)
+  backend.setEmailStatusUnavailable(true)
+  const response = page.waitForResponse('**/rest/v1/rpc/account_email_status')
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await response
+  await expect(page.locator('.account-email-notice')).toHaveCount(0)
+})
+
+test('first product editing stays clear of email notices even when the check is unavailable', async ({ page }) => {
+  const draft = { ...store, is_published: false, stripe_account_id: null, payment_status: 'idle',
+    settings: { ...store.settings, onboardingStep: 'product' } }
+  const backend = await installSupabaseBackend(page, draft, { status: 'idle' }, { unconfirmedEmail: true })
+  backend.setEmailStatusUnavailable(true)
+  await signInThroughLanding(page)
+  await expect(page.getByRole('textbox', { name: 'Toote nimi', exact: true })).toBeVisible()
+  await expect(page.locator('.account-email-notice')).toHaveCount(0)
+  await page.screenshot({ path: 'output/first-product-without-email-notice.png', fullPage: true })
+  await page.getByRole('button', { name: 'Loobu muudatustest' }).click()
+  await expect(page.getByRole('heading', { name: 'Vali tarneviisid' })).toBeVisible()
+  await expect(page.locator('.account-email-notice')).toHaveCount(0)
+})
+
+test('email confirmation is available inside account settings without a storefront banner', async ({ page }) => {
+  const backend = await installSupabaseBackend(page, store, connectedStripeStatus, { unconfirmedEmail: true })
+  backend.setEmailStatusUnavailable(true)
+  await signInThroughLanding(page)
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
+  await expect(page.locator('.account-email-notice')).toHaveCount(0)
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="account"]').click()
+  const retry = page.getByRole('complementary', { name: 'Konto e-posti olek', exact: true })
+  await expect(retry).toBeVisible()
+  backend.setEmailStatusUnavailable(false)
+  await retry.getByRole('button', { name: 'Proovi uuesti' }).click()
+  const notice = page.getByRole('complementary', { name: 'Konto e-posti kinnitamine' })
+  await expect(notice).toContainText(user.email)
+  await notice.getByRole('button', { name: 'Muuda aadressi' }).click()
+  await page.screenshot({ path: 'output/account-email-settings.png', fullPage: true })
+  await expect(notice.getByLabel('Uus e-posti aadress')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
 })

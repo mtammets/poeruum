@@ -4,7 +4,7 @@ import { getAccountEmailStatus } from './lib/accountEmail'
 import { createRandomId } from './lib/randomId'
 import OrderDocumentLinks from './OrderDocumentLinks'
 import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import type { ClipboardEvent as ReactClipboardEvent, CSSProperties } from 'react'
+import type { ClipboardEvent as ReactClipboardEvent, CSSProperties, ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
 import { cancelStripeBilling, createProductCategory, createProductCategorySlug, listOrders, listProductCategories, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, setStorePublication, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type ProductCategory, type StoreRecord } from './lib/database'
@@ -324,6 +324,7 @@ export type StorefrontProps = {
   onStoreChange?: (store: StoreRecord) => void
   onAccountDeleted?: () => void
   ownerEmail?: string
+  accountEmailNotice?: ReactNode
   onOwnerLogin?: (email: string, password: string, captchaToken?: string) => Promise<void>
   onBackToSetup?: () => void
   onContinueSetup?: () => Promise<void> | void
@@ -334,7 +335,7 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', accountEmailNotice, onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const [initialSetupDraft] = useState<Product | null>(() => merchantMode && onContinueSetup && !seedProducts.length
     ? { id: createRandomId(), name: '', description: '', image: EMPTY_PRODUCT_IMAGE, gallery: [], alt: '', searchVisible: true }
     : null)
@@ -3124,6 +3125,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </div>
           </div> : null}
           {settingsSection === 'store' && <div className="settings-panel" role="tabpanel">
+            {accountEmailNotice}
             <header><span>POE SEADED</span><p>Halda poe nähtavust ja põhiandmeid.</p></header>
             {merchantMode && setupProgress < 100 && <div className={`settings-onboarding${isSetupChecklistOpen ? ' is-open' : ''}`}>
               <button className="settings-onboarding__summary" type="button" aria-expanded={isSetupChecklistOpen} onClick={() => setIsSetupChecklistOpen((open) => !open)}>
@@ -3307,6 +3309,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </fieldset>
           </div>}
           {settingsSection === 'payments' && <div className="settings-panel payments-panel" role="tabpanel">
+            {accountEmailNotice}
             <header><p>Vali, kuidas kliendid sinu poes maksavad.</p></header>
             <div className="settings-provider-list">
               {([
@@ -3466,6 +3469,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </button>}
           </div>}
           {settingsSection === 'account' && <div className="settings-panel account-panel" role="tabpanel">
+            {accountEmailNotice}
             <header><span>KONTO</span><p>Halda oma Poeruumi kontot ja sisselogimist.</p></header>
             <div className="account-panel__action account-panel__action--email">
               <span><strong>Sisselogimise e-post</strong><small>{accountEmail || 'Laadin e-posti…'}</small></span>
