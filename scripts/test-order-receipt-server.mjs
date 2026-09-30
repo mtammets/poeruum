@@ -30,5 +30,10 @@ try {
     assert.match(response.body, /<title>Tellimuse ülevaade<\/title>/)
     assert.ok(!response.body.includes('private-test-session'))
   }
+  const adminResponse = await fetch(`http://127.0.0.1:${port}/admin/payments`, { headers: { Host: 'poeruum.ee' } })
+  assert.equal(adminResponse.status, 200, 'Payment review must load directly on the production server')
+  assert.equal(adminResponse.headers.get('cache-control'), 'private, no-store')
+  assert.match(adminResponse.headers.get('x-robots-tag'), /noindex/)
+  assert.match(await adminResponse.text(), /id="root"/)
   console.log('Production receipt routing: platform path, subdomain, custom domain and legacy return passed.')
 } finally { server.kill('SIGTERM'); await once(server, 'exit') }
