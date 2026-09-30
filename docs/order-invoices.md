@@ -2,6 +2,10 @@
 
 Poeruum koostab uue ostuvoo tellimustele müüja nimel tasutud PDF-arve. Kassas küsitakse ostja arveaadressi; ettevõttele ostmisel ka ettevõtte nime, registrikoodi ja soovi korral Eesti KMKR numbrit. Maksuarvestus järgib poe olemasolevat Eesti 24% standardmäära või käibemaksukohustuseta müüja käsitlust. See muudatus ei lisa teisi maksumäärasid, ühendusesisest müüki ega osalisi tagastusi.
 
+Ettevõtluskontoga eraisikule koostatakse müügitõend ja täielikul tagastusel tagastustõend. Dokumendis on müüja ees- ja perekonnanimi, aadress ja kontakt-e-post; müüja registrikoodi, isikukoodi ega pangakonto andmeid sinna ei lisata. Müük on käibemaksuta. Ettevõttest ostja arveandmed säilivad ka eraisikult ostes. Dokumendi nimetus, PDF-manus ja allalaadimisnupp lähtuvad ostu hetkel salvestatud müüja tüübist.
+
+Poeruumi teenustasu käibemaks on müüja kauba käibemaksust eraldi: ettevõtluskonto kasutajale kehtib samuti teenustasu koos käibemaksuga. Migratsioon `202609300008_cap_gross_platform_fees.sql` piirab uusi paindliku paketi tasureserveeringuid nii 39 € neto- kui ka 48,36 € brutokuulaega. See arvestab iga makse käibemaksu sendiümardust ning hoiab test- ja pärismaksete limiidid eraldi. Olemasolevaid makseid ega tasusid ei arvutata ümber. Kaupmehe kuuülevaade liidab salvestatud netotasud ja käibemaksu eraldi; tagastamisel ja pärast tagastust ei kuvata algset summat tulevase laekumisena.
+
 PDF-i ühikuhinnad ja summad kuvatakse kahe komakohaga. Kui ümardatud netoühikuhind korda kogus erineb salvestatud netoreasummast, lisatakse tabelisse „Ümardus” veerg: reasumma = kogus × hind KM-ta + ümardus. Nii jäävad arve algsed netosumma, käibemaks ja tasutud summa muutumatuks ning sendivahe on nähtav. Kreeditarvel pööratakse ka ümarduse märk ümber. Juba salvestatud PDF-e ei kirjutata üle.
 
 Ostukorv ja Stripe'i makse algatamine kasutavad ühist sendipõhist summade ja tasuta tarne piiri arvutust (`shared/order-pricing.ts`). Eurodeks teisendatakse summad alles kuvamisel.
@@ -46,6 +50,7 @@ npm run test:order-invoice-edge
 npm run test:order-email-edge
 npm run test:order-receipt-edge
 npm run test:payment-recovery-edge
+npm run test:entrepreneur-sellers
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f scripts/test-order-invoices.sql
 node scripts/test-order-invoice-concurrency.mjs
 node node_modules/@playwright/test/cli.js test --project=platform-auth -g 'checkout|receipt|invoice'
@@ -53,5 +58,7 @@ npm run build:app
 ```
 
 Need arvetestid kasutavad kohalikku andmebaasi või asendavad võrgupäringud testvastustega. Päris makseid ega kirjade saatmist nad ei tee.
+
+Kassa Edge-test võrdleb 36 ettevõtluskonto ja ettevõtte ostustsenaariumis Stripe'i, andmebaasi ja dokumendi summasid: eraisikust/ettevõttest ostja, soodushind, kogused, tasuline tarne, järeletulemine ning tasuta tarne piir. Ettevõtluskonto andmebaasitest kontrollib ka väikeste ostude kuulae ümardust, testmaksete eraldatust, korduspäringuid ja aegunud tasureserveeringu vabanemist. Uus kuulae migratsioon tuleb rakendada enne selle paranduse veebiversiooni avaldamist.
 
 Viited: [MTA arve väljastamise juhend](https://www.emta.ee/ariklient/maksud-ja-tasumine/kaibemaks/kaibemaksuarvestus-ja-arved/arve-valjastamine), [MTA arve andmed](https://www.emta.ee/node/334/chapter/10090/pdf), [Stripe'i maksekviitungid ja arved](https://docs.stripe.com/receipts).

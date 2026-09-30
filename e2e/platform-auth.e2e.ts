@@ -1081,6 +1081,8 @@ test('an unfulfilled order stays refunding until the server confirms the refund'
     order_number: 'PR-REFUND-TEST', items: [], customer_name: 'Testostja', customer_email: 'test@example.invalid',
     delivery: 'Tulen ise järele', product_subtotal: 27.32, total: 27.32, created_at: new Date().toISOString(),
     status: 'new', payment_status: 'paid', stripe_refund_status: null as string | null,
+    stripe_processing_fee_cents: 66, stripe_platform_fee_net_cents: 109,
+    stripe_platform_fee_vat_cents: 26, stripe_platform_fee_cents: 135, stripe_seller_net_cents: 2531,
   }
   let refundRequests = 0
   await installSupabaseBackend(page, store, connectedStripeStatus, {
@@ -1095,9 +1097,11 @@ test('an unfulfilled order stays refunding until the server confirms the refund'
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
   await page.getByRole('button', { name: /Tellimused/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Tellimused' })
+  await expect(dialog.locator('.order-settlement')).toContainText('25,31 €')
   await expect(dialog.getByRole('button', { name: 'Märgi täidetuks' })).toBeVisible()
   await dialog.getByRole('button', { name: 'Tagasta makse' }).click()
   await expect(dialog.getByText('Tagastamisel', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Sulle laekub', { exact: true })).toHaveCount(0)
   await expect(dialog.getByText('Makse tagastatud', { exact: true })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Tagasta makse' })).toHaveCount(0)
   order.status = 'refunded'
@@ -1105,7 +1109,44 @@ test('an unfulfilled order stays refunding until the server confirms the refund'
   order.stripe_refund_status = 'succeeded'
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await expect(dialog.getByText('Makse tagastatud', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Sulle laekub', { exact: true })).toHaveCount(0)
   expect(refundRequests).toBe(1)
+})
+
+test('monthly fees preserve each payment’s recorded net and VAT and exclude refunded orders', async ({ page }) => {
+  const orders = Array.from({ length: 10 }, (_, index) => ({
+    order_number: `PR-FEE-${index}`, items: [], customer_name: 'Ostja', customer_email: 'ostja@example.invalid',
+    delivery: 'Järeletulemine', product_subtotal: 0.75, total: 0.75, created_at: new Date().toISOString(),
+    status: 'fulfilled', payment_status: 'paid', stripe_platform_fee_net_cents: 3,
+    stripe_platform_fee_vat_cents: 1, stripe_platform_fee_cents: 4,
+  }))
+  orders.push({ ...orders[0], order_number: 'PR-FEE-REFUNDED', status: 'refunded', payment_status: 'refunded',
+    product_subtotal: 100, total: 100, stripe_platform_fee_net_cents: 400,
+    stripe_platform_fee_vat_cents: 96, stripe_platform_fee_cents: 496 })
+  await installSupabaseBackend(page, { ...store, settings: { ...store.settings,
+    sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm', registryCode: '', vatRegistered: false,
+  } }, connectedStripeStatus, { getOrders: () => orders })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="billing"]').click()
+  const summary = page.locator('.billing-current')
+  await expect(summary.locator('header strong')).toHaveText('0,40 €')
+  await expect(summary).toContainText('Toodete müük 7,50 €')
+  await expect(summary).toContainText('Netotasu 0,30 € · käibemaks 24% 0,10 €')
+  await expect(summary).toContainText('Kuulaeni 47,96 €')
+  for (const fees of [
+    { stripe_platform_fee_net_cents: 3900, stripe_platform_fee_vat_cents: 934, stripe_platform_fee_cents: 4834 },
+    { stripe_platform_fee_net_cents: 3869, stripe_platform_fee_vat_cents: 967, stripe_platform_fee_cents: 4836 },
+  ]) {
+    orders.splice(0, orders.length, { ...orders[0], ...fees })
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(summary).toContainText('Hinnalagi täis')
+    await expect(summary).toContainText('Sel kuul rohkem Poeruumi tasu ei lisandu.')
+    await expect(summary.locator('.billing-current__progress i')).toHaveAttribute('style', 'width: 100%;')
+  }
 })
 
 for (const storefrontUrl of ['http://kruk-kruk.poeruum.localhost:4174/', '/p/kruk-kruk/']) {

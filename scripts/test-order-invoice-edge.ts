@@ -65,6 +65,50 @@ Deno.test('PDF invoices embed Estonian text and paginate long orders; credits re
   assert((await PDFDocument.load(await renderOrderInvoice(credit))).getTitle() === 'Kreeditarve TEST-2026-000002', 'Credit title incorrect')
 })
 
+Deno.test('entrepreneur confirmation and refund emails attach the matching proof and preserve signed shipping amounts', async () => {
+  const previousUrl = Deno.env.get('APP_URL')
+  Deno.env.set('APP_URL', 'https://poeruum.example.invalid')
+  try {
+    for (const credit of [false, true]) {
+      const document = fixture()
+      document.kind = credit ? 'credit' : 'invoice'
+      document.original_number = credit ? 'TEST-ORIGINAL' : null
+      document.snapshot = buildInvoiceSnapshot({
+        settings: { sellerType: 'entrepreneur', sellerFirstName: 'Liisa', sellerLastName: 'Tamm',
+          businessAddress: 'Tallinn', contactEmail: 'seller@example.invalid', orderNotificationEmail: 'orders@example.invalid' },
+        storeName: 'Ateljee', storeSlug: 'ateljee', buyer: document.snapshot.buyer,
+        delivery: 'Omniva', deliveryCents: 350,
+        items: [{ name: 'Akvarell', quantity: 3, unitGrossCents: 999, options: 'Värv: sinine' }],
+      })
+      const bytes = await renderOrderInvoice(document)
+      document.status = 'ready'
+      document.pdf_sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes))))
+        .map(byte => byte.toString(16).padStart(2, '0')).join('')
+      const admin = {
+        from: (table: string) => {
+          const query = { select: () => query, eq: () => query,
+            single: () => ({ data: table === 'order_documents' ? document : { token: 'a'.repeat(64) } }) }
+          return query
+        },
+        storage: { from: () => ({ download: () => ({ data: new Blob([new Uint8Array(bytes)]) }) }) },
+      } as unknown as SupabaseClient
+      for (const recipient of ['customer', 'seller'] as const) {
+        const email = await buildOrderDocumentEmail(admin, document.order_id,
+          credit ? `${recipient}_credit` : recipient, 'test-job', credit)
+        const label = credit ? 'Tagastustõend' : 'Müügitõend'
+        assert(email.attachments?.[0].filename === `${label}-${document.number}.pdf`, 'Wrong proof attached')
+        assert(email.to[0] === (recipient === 'customer' ? document.snapshot.buyer.email : 'orders@example.invalid'), 'Wrong proof recipient')
+        assert(email.text.includes(label) && email.html.includes(label), 'Entrepreneur email uses company document labels')
+        assert(email.text.includes(`${credit ? '-' : ''}33,47 €`), 'Email total differs from the proof')
+        assert(email.html.includes(`${credit ? '-' : ''}3,50 €`), 'Refund shipping lost its sign or became free')
+        assert(!email.html.includes('sh käibemaks'), 'Entrepreneur email includes VAT')
+        const attached = Uint8Array.from(atob(email.attachments![0].content), character => character.charCodeAt(0))
+        assert(attached.length === bytes.length && attached.every((byte, index) => byte === bytes[index]), 'Email attached a different PDF')
+      }
+    }
+  } finally { if (previousUrl === undefined) Deno.env.delete('APP_URL'); else Deno.env.set('APP_URL', previousUrl) }
+})
+
 Deno.test('PDF prices use two decimals and show signed row rounding on invoices and credits', async () => {
   const document = fixture()
   document.snapshot = buildInvoiceSnapshot({

@@ -2461,16 +2461,28 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const billingGraceHoursLeft = billingGraceDate ? Math.max(0, Math.ceil((billingGraceDate.getTime() - now.getTime()) / 3_600_000)) : 0
   const billingGraceLabel = billingGraceDate?.toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' })
   const effectiveBillingPlan: PricingPlan = isBillingDelinquent && !isBillingGraceActive ? 'flexible' : billingPlan
-  const recordedMonthlyPlatformFee = currentMonthOrders.reduce((sum, order) => order.status === 'refunded' ? sum : sum + (order.stripePlatformFee ?? 0), 0)
+  const recordedMonthlyFees = currentMonthOrders.reduce((sum, order) => {
+    if (order.status === 'refunded') return sum
+    // Keep each payment's recorded tax rounding; deriving net from the monthly
+    // gross changes the fee split when several small payments are combined.
+    return {
+      net: sum.net + Math.round((order.stripePlatformFeeNet ?? 0) * 100),
+      vat: sum.vat + Math.round((order.stripePlatformFeeVat ?? 0) * 100),
+    }
+  }, { net: 0, vat: 0 })
   const estimatedFlexibleFeeNet = Math.min(monthlyProductSales * PLATFORM_FEE_RATE, PLATFORM_FEE_NET_CAP)
-  const estimatedFlexibleFeeTotal = estimatedFlexibleFeeNet * (1 + VAT_RATE)
-  const monthlyPlatformFee = effectiveBillingPlan === 'fixed'
-    ? isFixedPlanTrialActive ? 0 : FIXED_PLAN_MONTHLY_TOTAL
-    : storeId ? recordedMonthlyPlatformFee : estimatedFlexibleFeeTotal
-  const monthlyPlatformFeeNet = monthlyPlatformFee / (1 + VAT_RATE)
-  const monthlyPlatformFeeVat = monthlyPlatformFee - monthlyPlatformFeeNet
-  const remainingPlatformFee = effectiveBillingPlan === 'fixed' ? 0 : Math.max(0, PLATFORM_FEE_GROSS_CAP - monthlyPlatformFee)
-  const platformFeeProgress = effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, monthlyPlatformFee / PLATFORM_FEE_GROSS_CAP * 100)
+  const monthlyPlatformFeeNet = effectiveBillingPlan === 'fixed'
+    ? isFixedPlanTrialActive ? 0 : FIXED_PLAN_MONTHLY_FEE
+    : storeId ? recordedMonthlyFees.net / 100 : estimatedFlexibleFeeNet
+  const monthlyPlatformFeeVat = effectiveBillingPlan === 'flexible' && storeId
+    ? recordedMonthlyFees.vat / 100 : Math.round(monthlyPlatformFeeNet * 100 * VAT_RATE) / 100
+  const monthlyPlatformFee = monthlyPlatformFeeNet + monthlyPlatformFeeVat
+  const remainingPlatformFee = effectiveBillingPlan === 'fixed' ? 0 : Math.max(0, Math.min(
+    PLATFORM_FEE_GROSS_CAP - monthlyPlatformFee, (PLATFORM_FEE_NET_CAP - monthlyPlatformFeeNet) * (1 + VAT_RATE),
+  ))
+  const platformFeeProgress = effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, Math.max(
+    monthlyPlatformFee / PLATFORM_FEE_GROSS_CAP, monthlyPlatformFeeNet / PLATFORM_FEE_NET_CAP,
+  ) * 100)
   const billingMonth = now.toLocaleDateString('et-EE', { month: 'long', year: 'numeric' })
   const manageBilling = async () => {
     if (billingInvoiceUrl) {
@@ -3074,7 +3086,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'refunded' ? 'Tagastatud' : order.refundStatus === 'requested' || order.refundStatus === 'pending' ? 'Tagastamisel' : order.refundStatus === 'failed' ? 'Tagastus vajab abi' : order.status === 'new' ? 'Uus' : 'Täidetud'}</span></header>
             <div className="order-customer"><strong>{order.customerName}</strong><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a><small>{order.delivery}</small></div>
             <ul>{order.items.map((item) => <li key={item.cartKey}><OrderItemThumbnail item={item} currentProduct={displayProducts.find((product) => product.id === item.id)} /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
-            {Boolean(order.stripeSellerNet) && <dl className="order-settlement">
+            {Boolean(order.stripeSellerNet) && order.status !== 'refunded' && !order.refundStatus && <dl className="order-settlement">
               <div><dt>Stripe’i maksetasu</dt><dd>−{formatEuro(order.stripeProcessingFee ?? 0)}</dd></div>
               <div><dt>Poeruumi teenustasu (neto)</dt><dd>−{formatEuro(order.stripePlatformFeeNet ?? 0)}</dd></div>
               {Boolean(order.stripePlatformFeeVat) && <div><dt>Käibemaks Poeruumi teenustasult</dt><dd>−{formatEuro(order.stripePlatformFeeVat ?? 0)}</dd></div>}
@@ -3456,7 +3468,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <div className="billing-current__progress"><i style={{ width: `${platformFeeProgress}%` }} /></div>
               <div><span>Toodete müük <strong>{formatEuro(monthlyProductSales)}</strong></span><span>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `${fixedPlanTrialDaysLeft} päeva tasuta` : '0% müügitasu' : remainingPlatformFee > 0 ? `Kuulaeni ${formatEuro(remainingPlatformFee)}` : 'Hinnalagi täis'}</span></div>
               {monthlyPlatformFee > 0 && <small>Netotasu {formatEuro(monthlyPlatformFeeNet)} · käibemaks 24% {formatEuro(monthlyPlatformFeeVat)}</small>}
-              <small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga.` : 'Kuutasu ei muutu koos müügimahuga.' : monthlyPlatformFee >= PLATFORM_FEE_GROSS_CAP ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
+              <small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga.` : 'Kuutasu ei muutu koos müügimahuga.' : remainingPlatformFee === 0 ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
             </div>
             <div className="billing-rules">
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg></span><p><strong>{effectiveBillingPlan === 'fixed' ? 'Müügilt 0% Poeruumile' : 'Tarne ei kuulu arvestusse'}</strong><small>{effectiveBillingPlan === 'fixed' ? 'Müügimahu kasv ei suurenda kuutasu.' : '4% arvutatakse ainult toodete summalt.'}</small></p></div>

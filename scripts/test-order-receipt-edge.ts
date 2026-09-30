@@ -1,4 +1,5 @@
 // Real Edge handlers, Supabase client and Stripe SDK; all network is mocked.
+import type { InvoiceSnapshot } from '../shared/order-invoice.ts'
 type Handler = (request: Request) => Response | Promise<Response>
 const assert = (condition: unknown, message: string) => { if (!condition) throw new Error(message) }
 
@@ -136,5 +137,101 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
   } finally {
     Deno.serve = originalServe; globalThis.fetch = originalFetch; console.error = originalError
     for (const [key,value] of previous) { if (value === undefined) Deno.env.delete(key); else Deno.env.set(key,value) }
+  }
+})
+
+Deno.test('company and entrepreneur checkout amounts match saved documents across buyer, discount and shipping choices', async () => {
+  const originalServe = Deno.serve
+  const originalFetch = globalThis.fetch
+  const values: Record<string, string> = {
+    SUPABASE_URL: 'https://pricing-test.example.invalid', POERUUM_SUPABASE_SECRET_KEY: 'test-only',
+    STRIPE_SECRET_KEY: 'sk_test_local', STRIPE_MODE: 'test', RATE_LIMIT_SALT: 'local-test-salt',
+    APP_URL: 'https://poeruum.example.invalid', STRIPE_CHECKOUT_ENABLED: 'true',
+  }
+  const previous = new Map(Object.keys(values).map(key => [key, Deno.env.get(key)]))
+  let handler: Handler | undefined
+  let settings: Record<string, unknown> = {}
+  let snapshot: InvoiceSnapshot | undefined
+  let stripeParams = new URLSearchParams()
+  let expectedTotal = 0
+  let calls = 0
+  try {
+    for (const [key, value] of Object.entries(values)) Deno.env.set(key, value)
+    Deno.serve = ((callback: Handler) => { handler = callback; return {} }) as typeof Deno.serve
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input))
+      if (url.origin === 'https://api.stripe.com' && url.pathname === '/v1/checkout/sessions' && init?.method === 'POST') {
+        stripeParams = new URLSearchParams(String(init.body)); calls++
+        return Response.json({ id: 'cs_test_pricing', url: 'https://checkout.stripe.com/c/pay/test' })
+      }
+      if (url.origin !== values.SUPABASE_URL) throw new Error(`Unexpected network: ${url.pathname}`)
+      const body = JSON.parse(String(init?.body || '{}'))
+      if (url.pathname.endsWith('/rpc/consume_rate_limit')) return Response.json([{ allowed: true }])
+      if (url.pathname.endsWith('/rpc/create_invoiced_stripe_order')) {
+        assert(body.product_subtotal_value === 31.98 && body.total_value === expectedTotal / 100, 'Database amounts differ from the discounted order')
+        snapshot = body.invoice_value
+        return Response.json({ id: 'order-pricing', order_number: 'PR-PRICING', payment_status: 'pending',
+          stripe_platform_fee_net_cents: 128, stripe_platform_fee_vat_cents: 31 })
+      }
+      if (url.pathname.endsWith('/rpc/get_or_create_order_receipt_token')) return Response.json('a'.repeat(64))
+      if (url.pathname.endsWith('/rpc/prepare_stripe_checkout')) return Response.json({ payload: body.payload_value, started_at: new Date().toISOString() })
+      if (url.pathname.endsWith('/rpc/bind_stripe_checkout')) return Response.json(null)
+      if (url.pathname.endsWith('/custom_domains')) return Response.json(null)
+      if (url.pathname.endsWith('/stores')) return Response.json({ id: 'store-pricing', name: 'Pood', slug: 'pood',
+        payment_provider: 'stripe', payment_status: 'connected', stripe_account_id: 'acct_pricing', stripe_account_mode: 'test', settings })
+      if (url.pathname.endsWith('/products')) return Response.json([
+        { id: 'discount', name: 'Soodustoode', price: 12.40, sale_price: 9.99, stock: 99, options: [{ name: 'Värv', values: ['Sinine'] }] },
+        { id: 'extra', name: 'Lisatoode', price: 2.01, stock: 99 },
+      ])
+      throw new Error(`Unexpected database request: ${url.pathname}`)
+    }
+    await import(new URL('../supabase/functions/stripe-store-checkout/index.ts?pricing-matrix', import.meta.url).href)
+    for (const seller of ['entrepreneur', 'company', 'vat-company']) {
+      for (const companyBuyer of [false, true]) {
+        for (const shipping of [
+          { type: 'pickup', threshold: 0, total: 3198, vat: 619 },
+          { type: 'courier', threshold: 0, total: 3798, vat: 735 },
+          { type: 'parcel', threshold: 0, total: 3548, vat: 687 },
+          { type: 'parcel', threshold: 31.97, total: 3198, vat: 619 },
+          { type: 'parcel', threshold: 31.98, total: 3198, vat: 619 },
+          { type: 'parcel', threshold: 31.99, total: 3548, vat: 687 },
+        ]) {
+          const registered = seller === 'vat-company'
+          settings = { sellerType: seller === 'entrepreneur' ? 'entrepreneur' : 'company',
+            sellerFirstName: 'Liisa', sellerLastName: 'Tamm', businessName: 'Pood OÜ', registryCode: '12345678',
+            businessAddress: 'Tallinn', contactEmail: 'seller@example.invalid', vatRegistered: registered,
+            vatNumber: registered ? 'EE123456789' : '',
+            deliverySettings: { pickupEnabled: true, pickupAddress: 'Tallinn', courierEnabled: true, courierPrice: 6,
+              parcelProviders: { omniva: { enabled: true, price: 3.5 } }, freeShippingFrom: shipping.threshold },
+          }
+          expectedTotal = shipping.total
+          snapshot = undefined
+          const response = await handler!(new Request(values.SUPABASE_URL, { method: 'POST', body: JSON.stringify({
+            storeId: 'store-pricing', checkoutRequestId: `pricing-matrix-request-${calls}`,
+            items: [{ id: 'discount', quantity: 3, price: 0, selectedOptions: { Värv: 'Sinine' } }, { id: 'extra', quantity: 1 }],
+            customer: { name: 'Mari Kask', email: 'buyer@example.invalid' },
+            billing: { company: companyBuyer, name: 'Ostja OÜ', registryCode: '87654321', address: 'Tartu' },
+            delivery: { type: shipping.type, provider: 'omniva', label: 'Valitud tarne' },
+          }) }))
+          assert(response.status === 200, `Checkout failed for ${seller}/${companyBuyer}/${JSON.stringify(shipping)}: ${await response.text()}`)
+          const captured = snapshot as InvoiceSnapshot | undefined
+          assert(captured?.totalCents === shipping.total && captured.vatCents === (registered ? shipping.vat : 0), 'Invoice total or VAT differs')
+          assert(captured!.netCents + captured!.vatCents === expectedTotal, 'Invoice net and VAT do not reconcile')
+          assert(captured!.seller.type === settings.sellerType && captured!.buyer.name === (companyBuyer ? 'Ostja OÜ' : 'Mari Kask'), 'Seller or buyer identity changed')
+          if (seller === 'entrepreneur') assert(captured!.seller.registryCode === '' && captured!.seller.vatNumber === '' && captured!.vatRate === null, 'Individual acquired company tax fields')
+          let stripeTotal = 0
+          for (let index = 0; stripeParams.has(`line_items[${index}][quantity]`); index++) {
+            stripeTotal += Number(stripeParams.get(`line_items[${index}][quantity]`)) * Number(stripeParams.get(`line_items[${index}][price_data][unit_amount]`))
+          }
+          assert(stripeTotal === expectedTotal, 'Stripe charges a different amount than the document')
+          assert(stripeParams.get('payment_intent_data[metadata][platform_fee_cents]') === '159', 'Seller VAT status changed the platform service fee')
+          assert(stripeParams.get('line_items[0][price_data][product_data][description]') === 'Värv: Sinine', 'Product option lost')
+        }
+      }
+    }
+    assert(calls === 36, 'Not all checkout scenarios reached Stripe')
+  } finally {
+    Deno.serve = originalServe; globalThis.fetch = originalFetch
+    for (const [key, value] of previous) { if (value === undefined) Deno.env.delete(key); else Deno.env.set(key, value) }
   }
 })
