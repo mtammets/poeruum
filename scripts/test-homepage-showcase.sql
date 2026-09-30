@@ -2,10 +2,11 @@
 begin;
 
 insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-values ('95000000-0000-4000-8000-000000000030', 'authenticated', 'authenticated', 'homepage-showcase@example.invalid', '{}', '{}', now(), now());
+values ('95000000-0000-4000-8000-000000000030', 'authenticated', 'authenticated', 'homepage-showcase@example.invalid', '{}', '{}', now(), now()),
+  ('95000000-0000-4000-8000-000000000032', 'authenticated', 'authenticated', 'homepage-draft@example.invalid', '{}', '{}', now(), now());
 insert into public.stores (id, owner_id, name, slug, is_published) values
   ('96000000-0000-4000-8000-000000000031', '95000000-0000-4000-8000-000000000030', 'Preview first', 'preview-first', true),
-  ('96000000-0000-4000-8000-000000000032', '95000000-0000-4000-8000-000000000030', 'Preview draft', 'preview-draft', false),
+  ('96000000-0000-4000-8000-000000000032', '95000000-0000-4000-8000-000000000032', 'Preview draft', 'preview-draft', false),
   ('96000000-0000-4000-8000-000000000033', null, 'Preview ownerless', 'preview-ownerless', true);
 insert into public.products (id, store_id, name, image_url, price, stock, search_visible) values
   ('preview-good', '96000000-0000-4000-8000-000000000031', 'Good', 'https://example.supabase.co/storage/v1/object/public/product-images/good.webp', 10, 2, true),

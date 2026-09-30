@@ -3,7 +3,8 @@ begin;
 create function pg_temp.verify(ok boolean, message text) returns void language plpgsql as $$
 begin if ok is distinct from true then raise exception '%',message; end if; end; $$;
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
-values('79000000-0000-4000-8000-000000000001','authenticated','authenticated','safeguards@example.invalid','{"role":"admin"}','{}',now(),now());
+values('79000000-0000-4000-8000-000000000001','authenticated','authenticated','safeguards@example.invalid','{"role":"admin"}','{}',now(),now()),
+  ('79000000-0000-4000-8000-000000000005','authenticated','authenticated','safeguards-other@example.invalid','{}','{}',now(),now());
 insert into public.stores(id,owner_id,name,slug,settings,stripe_account_id,stripe_account_mode)
 values('79000000-0000-4000-8000-000000000002','79000000-0000-4000-8000-000000000001','Safeguards','safeguards-test',
 '{"sellerType":"entrepreneur","sellerFirstName":"Liisa","sellerLastName":"Tamm","businessAddress":"Tartu","contactEmail":"liisa@example.com"}','acct_test','test');
@@ -98,7 +99,7 @@ begin
   perform pg_temp.verify((select settings->'entrepreneurPayoutAdminException'='true'::jsonb and payment_status='connected' from public.stores where id=sid),'Autosave or branding removed exception');
   -- Copied settings do not grant another store any authority, even on INSERT.
   insert into public.stores(id,owner_id,name,slug,settings)
-    select '79000000-0000-4000-8000-000000000004',owner_id,'Other seller','exception-copy-test',settings from public.stores where id=sid;
+    select '79000000-0000-4000-8000-000000000004','79000000-0000-4000-8000-000000000005','Other seller','exception-copy-test',settings from public.stores where id=sid;
   perform pg_temp.verify((select not public.seller_details_complete(settings) from public.stores where id='79000000-0000-4000-8000-000000000004'),'Exception copied to another store');
   -- Publication progresses to the real remaining prerequisite, without publishing an empty store.
   update public.stores set payment_provider='stripe',stripe_account_charges_enabled=true,stripe_account_payouts_enabled=true,shipping=array['pickup'] where id=sid;

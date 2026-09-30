@@ -132,20 +132,22 @@ const isSupabaseProductImageUrl = (value: unknown) => {
   }
 }
 
-export async function getMyStore() {
-  const client = requireSupabase()
-  const { data: userData, error: userError } = await client.auth.getUser()
-  throwIfError(userError)
-  if (!userData.user) return null
-  const { data, error } = await client
+async function getStoreForOwner(ownerId: string) {
+  const { data, error } = await requireSupabase()
     .from('stores')
     .select('*')
-    .eq('owner_id', userData.user.id)
+    .eq('owner_id', ownerId)
     .order('created_at')
     .limit(1)
     .maybeSingle()
   throwIfError(error)
   return data as StoreRecord | null
+}
+
+export async function getMyStore() {
+  const { data, error } = await requireSupabase().auth.getUser()
+  throwIfError(error)
+  return data.user ? getStoreForOwner(data.user.id) : null
 }
 
 export async function getStoreBySlug(slug: string) {
@@ -193,10 +195,19 @@ export async function createStore(input: StoreContentInput) {
   const { data: userData, error: userError } = await requireSupabase().auth.getUser()
   throwIfError(userError)
   if (!userData.user) throw new Error('Poe loomiseks logi sisse.')
+  const existing = await getStoreForOwner(userData.user.id)
+  if (existing) return existing
+
   const { data, error } = await requireSupabase().from('stores').insert({
     ...toStoreContentPayload(input),
     owner_id: userData.user.id,
   }).select().single()
+  // Another tab/request may have created the store after the initial read.
+  // Resume it without overwriting its name, settings or payment progress.
+  if (error?.code === '23505') {
+    const concurrentStore = await getStoreForOwner(userData.user.id)
+    if (concurrentStore) return concurrentStore
+  }
   throwIfError(error)
   return data as StoreRecord
 }

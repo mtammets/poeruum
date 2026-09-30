@@ -4,7 +4,8 @@ begin;
 -- Exercise the real reservation RPC: 100 x 9.99 EUR previously collected
 -- 39.00 net + 9.75 VAT, exceeding the advertised 48.36 EUR monthly ceiling.
 insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-values ('78100000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'fee-rounding@example.invalid', now(), '{}', '{}', now(), now());
+values ('78100000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'fee-rounding@example.invalid', now(), '{}', '{}', now(), now()),
+  ('78100000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'fee-rounding-entrepreneur@example.invalid', now(), '{}', '{}', now(), now());
 
 do $$
 declare
@@ -18,7 +19,7 @@ declare
 begin
   foreach type_value in array array['company', 'entrepreneur'] loop
     insert into public.stores(owner_id, name, slug, settings)
-    values ('78100000-0000-4000-8000-000000000001', 'Fee test', 'fee-rounding-' || type_value,
+    values ((case when type_value = 'company' then '78100000-0000-4000-8000-000000000001' else '78100000-0000-4000-8000-000000000002' end)::uuid, 'Fee test', 'fee-rounding-' || type_value,
       jsonb_build_object('sellerType', type_value, 'sellerFirstName', 'Liisa', 'sellerLastName', 'Tamm'))
     returning * into shop;
     insert into public.products(id, store_id, name, image_url, price, stock)

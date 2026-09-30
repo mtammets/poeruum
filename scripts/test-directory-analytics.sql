@@ -3,11 +3,13 @@ load 'safeupdate';
 begin;
 
 insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-values ('95000000-0000-4000-8000-000000000009', 'authenticated', 'authenticated', 'directory-stats@example.invalid', '{}', '{}', now(), now());
+select ('95000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid,
+  'authenticated', 'authenticated', 'directory-stats-' || n || '@example.invalid', '{}', '{}', now(), now()
+from generate_series(9, 11) n;
 insert into public.stores (id, owner_id, name, slug, is_published) values
   ('96000000-0000-4000-8000-000000000011', '95000000-0000-4000-8000-000000000009', 'Stats first', 'stats-first', true),
-  ('96000000-0000-4000-8000-000000000012', '95000000-0000-4000-8000-000000000009', 'Stats second', 'stats-second', true),
-  ('96000000-0000-4000-8000-000000000013', '95000000-0000-4000-8000-000000000009', 'Stats private', 'stats-private', false);
+  ('96000000-0000-4000-8000-000000000012', '95000000-0000-4000-8000-000000000010', 'Stats second', 'stats-second', true),
+  ('96000000-0000-4000-8000-000000000013', '95000000-0000-4000-8000-000000000011', 'Stats private', 'stats-private', false);
 insert into public.products (id, store_id, name, image_url, price, stock, search_visible) values
   ('stats-product', '96000000-0000-4000-8000-000000000011', 'Stats cup', '', 20, 1, true);
 

@@ -113,6 +113,9 @@ jobs:
       - name: Test protected store publication
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-store-publication.sql
 
+      - name: Test one store per owner and concurrent creation
+        run: node scripts/test-store-ownership.mjs
+
       - name: Test entrepreneur sellers, payment permissions and sale documents
         run: npm run test:entrepreneur-sellers
 

@@ -1216,6 +1216,35 @@ test('existing merchant never sees new-store onboarding while their store loads'
   await expect(page.getByRole('heading', { name: 'Poe nimi' })).toHaveCount(0)
 })
 
+test('a stale creation form resumes the existing store without overwriting it', async ({ page }) => {
+  const backend = await installSupabaseBackend(page)
+  let firstLookup = true
+  const writes: string[] = []
+  await page.route('**/rest/v1/stores?*', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET' && firstLookup) {
+      firstLookup = false
+      await json(route, [])
+      return
+    }
+    if (['POST', 'PATCH'].includes(request.method())) writes.push(request.method())
+    await route.fallback()
+  })
+
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('heading', { name: 'Poe nimi' })).toBeVisible()
+  await page.getByLabel('Poe nimi', { exact: true }).fill('Accidental second store')
+  await page.getByRole('button', { name: /Jätka müüja andmetega/ }).click()
+
+  await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+  await expect(page.getByRole('button', { name: 'Seaded', exact: true })).toBeVisible()
+  expect(backend.currentStore()).toEqual(store)
+  expect(writes).toEqual([])
+})
+
 test('merchant logout returns to the Poeruum homepage', async ({ page }) => {
   await installSupabaseBackend(page)
 

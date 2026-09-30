@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProductCategorySlug, getImageFallbackMimeType, refundStripeOrder, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
+import { createProductCategorySlug, createStore, getImageFallbackMimeType, refundStripeOrder, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
 import { requireSupabase } from './supabase'
 
 vi.mock('./supabase', () => ({
@@ -10,6 +10,70 @@ const store = {
   id: '10000000-0000-4000-8000-000000000001',
   is_published: true,
 } as StoreRecord
+
+describe('createStore', () => {
+  const ownerId = '10000000-0000-4000-8000-000000000002'
+  const input: StoreContentInput = {
+    name: 'New draft', slug: 'new-draft', payment_provider: 'stripe', shipping: ['pickup'], settings: {},
+  }
+  const existing = { ...store, owner_id: ownerId, name: 'Original store', settings: { onboardingStep: 'product' } }
+  const maybeSingle = vi.fn()
+  const single = vi.fn()
+  const insert = vi.fn(() => ({ select: () => ({ single }) }))
+  const eq = vi.fn(() => ({ order: () => ({ limit: () => ({ maybeSingle }) }) }))
+  const getUser = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    maybeSingle.mockReset()
+    single.mockReset()
+    getUser.mockResolvedValue({ data: { user: { id: ownerId } }, error: null })
+    vi.mocked(requireSupabase).mockReturnValue({
+      auth: { getUser },
+      from: () => ({ select: () => ({ eq }), insert }),
+    } as unknown as ReturnType<typeof requireSupabase>)
+  })
+
+  it('resumes the existing store without replacing its content with a stale draft', async () => {
+    maybeSingle.mockResolvedValue({ data: existing, error: null })
+    await expect(createStore(input)).resolves.toBe(existing)
+    expect(eq).toHaveBeenCalledWith('owner_id', ownerId)
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('creates the first store with the authenticated owner and only editable fields', async () => {
+    maybeSingle.mockResolvedValue({ data: null, error: null })
+    single.mockResolvedValue({ data: existing, error: null })
+    await expect(createStore({ ...input, owner_id: 'forged', is_published: true } as StoreContentInput)).resolves.toBe(existing)
+    expect(insert).toHaveBeenCalledWith({ ...input, owner_id: ownerId })
+  })
+
+  it('recovers the store created by another request after the initial empty read', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: null, error: null }).mockResolvedValueOnce({ data: existing, error: null })
+    single.mockResolvedValue({ data: null, error: { code: '23505', message: 'Duplicate owner' } })
+    await expect(createStore(input)).resolves.toBe(existing)
+    expect(insert).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not swallow a slug conflict with a different account', async () => {
+    maybeSingle.mockResolvedValue({ data: null, error: null })
+    single.mockResolvedValue({ data: null, error: { code: '23505', message: 'Slug already taken' } })
+    await expect(createStore(input)).rejects.toThrow('Slug already taken')
+  })
+
+  it('does not create a store when the ownership lookup fails', async () => {
+    maybeSingle.mockResolvedValue({ data: null, error: { message: 'Connection failed' } })
+    await expect(createStore(input)).rejects.toThrow('Connection failed')
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('requires authentication before looking up or creating a store', async () => {
+    getUser.mockResolvedValue({ data: { user: null }, error: null })
+    await expect(createStore(input)).rejects.toThrow('Poe loomiseks logi sisse.')
+    expect(maybeSingle).not.toHaveBeenCalled()
+    expect(insert).not.toHaveBeenCalled()
+  })
+})
 
 describe('refund confirmation', () => {
   it.each([

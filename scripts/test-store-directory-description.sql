@@ -1,9 +1,6 @@
 \set ON_ERROR_STOP on
 begin;
 
-insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-values ('95000000-0000-4000-8000-000000000020', 'authenticated', 'authenticated', 'directory-description@example.invalid', '{}', '{}', now(), now());
-
 create temp table directory_description_cases (slug text, settings jsonb, expected text);
 insert into directory_description_cases values
   ('description-specific', '{"directoryDescription":"  Kaubamaja tutvustus.  ","storeDescription":"Poe tutvustus.","seoDescription":"SEO tekst."}', 'Kaubamaja tutvustus.'),
@@ -15,8 +12,12 @@ insert into directory_description_cases values
   ('description-blank-intro', '{"directoryDescription":" \n","storeDescription":"\t ","seoDescription":"SEO tekst."}', ''),
   ('description-null', '{"directoryDescription":null,"storeDescription":null,"seoDescription":null}', ''),
   ('description-missing', '{}', '');
+alter table directory_description_cases add column owner_id uuid default gen_random_uuid();
+insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+  select owner_id, 'authenticated', 'authenticated', slug || '@example.invalid', '{}', '{}', now(), now()
+  from directory_description_cases;
 insert into public.stores (id, owner_id, name, slug, is_published, settings)
-  select gen_random_uuid(), '95000000-0000-4000-8000-000000000020', slug, slug, true, settings
+  select gen_random_uuid(), owner_id, slug, slug, true, settings
   from directory_description_cases;
 grant select on directory_description_cases to anon;
 

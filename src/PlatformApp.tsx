@@ -841,9 +841,9 @@ function PlatformFlow() {
   }, [])
 
   useEffect(() => {
-    if (stripeRequirementsLinkPending || isAuthBusy || !onlineUserId || !['login', 'forgot-password', 'account'].includes(screen)) return
+    if (!isAuthResolved || stripeRequirementsLinkPending || isAuthBusy || !onlineUserId || !['login', 'forgot-password', 'account'].includes(screen)) return
     setScreen(store ? getStoreDestination(store, storedProducts.length) : 'store')
-  }, [isAuthBusy, onlineUserId, screen, store, storedProducts.length, stripeRequirementsLinkPending])
+  }, [isAuthResolved, isAuthBusy, onlineUserId, screen, store, storedProducts.length, stripeRequirementsLinkPending])
 
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1094,7 +1094,8 @@ function PlatformFlow() {
       ...overrides,
     }
     const saved = store ? await updateStore(store.id, payload) : await createStore(payload)
-    setStore(saved)
+    if (store) setStore(saved)
+    else await applyStore(saved)
     return saved
   }
 
@@ -1818,7 +1819,7 @@ function PlatformFlow() {
     isExiting={isSetupExiting}
   >
     {returnNotice}
-    {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { await persistStore({}, 'business'); setScreen('business') } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
+    {screen === 'store' && <form className="setup-form" onSubmit={async (event) => { event.preventDefault(); setAuthError(''); try { const saved = await persistStore({}, 'business'); await openOwnedStore(saved) } catch (error) { setAuthError(error instanceof Error ? error.message : 'Poe salvestamine ebaõnnestus.') } }}>
       <h1>Poe nimi</h1>
       <label>Poe nimi<input
         required

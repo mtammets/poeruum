@@ -15,12 +15,14 @@ end;
 $$;
 
 insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-values ('95000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'directory-order@example.invalid', '{}', '{}', now(), now());
+select ('95000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid,
+  'authenticated', 'authenticated', 'directory-order-' || n || '@example.invalid', '{}', '{}', now(), now()
+from generate_series(1, 5) n;
 
 insert into public.stores (id, owner_id, name, slug, is_published, created_at) values
   ('96000000-0000-4000-8000-000000000001', '95000000-0000-4000-8000-000000000001', 'Directory first', 'directory-first', true, '2026-01-01'),
-  ('96000000-0000-4000-8000-000000000002', '95000000-0000-4000-8000-000000000001', 'Directory second', 'directory-second', true, '2026-01-02'),
-  ('96000000-0000-4000-8000-000000000003', '95000000-0000-4000-8000-000000000001', 'Directory draft', 'directory-draft', false, '2026-01-03'),
+  ('96000000-0000-4000-8000-000000000002', '95000000-0000-4000-8000-000000000002', 'Directory second', 'directory-second', true, '2026-01-02'),
+  ('96000000-0000-4000-8000-000000000003', '95000000-0000-4000-8000-000000000003', 'Directory draft', 'directory-draft', false, '2026-01-03'),
   ('96000000-0000-4000-8000-000000000004', null, 'Directory ownerless', 'directory-ownerless', true, '2026-01-04');
 
 create function pg_temp.directory_ids() returns uuid[] language sql as $$
@@ -150,7 +152,7 @@ $$;
 reset role;
 -- Even a store created earlier joins the end when it becomes public later.
 insert into public.stores (id, owner_id, name, slug, is_published, created_at) values
-  ('96000000-0000-4000-8000-000000000005', '95000000-0000-4000-8000-000000000001', 'Directory newcomer', 'directory-newcomer', true, '2025-01-01');
+  ('96000000-0000-4000-8000-000000000005', '95000000-0000-4000-8000-000000000005', 'Directory newcomer', 'directory-newcomer', true, '2025-01-01');
 set local role authenticated;
 do $$
 declare saved_ids uuid[] := current_setting('test.directory_saved_ids')::uuid[];
