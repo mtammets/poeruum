@@ -138,17 +138,20 @@ async function installBackend(page: Page) {
 
 async function installOverviewData(page: Page) {
   let mode: 'ready' | 'error' | 'zero' | 'empty' = 'ready'
+  let added = 0
+  let pendingResponse: Promise<void> | null = null
   const requestedRanges: number[] = []
-  await page.route('**/rpc/admin_homepage_analytics', (route) => {
-    if (mode === 'error') return route.fulfill({ status: 503, json: { message: 'Unavailable' } })
+  await page.route('**/rpc/admin_homepage_analytics', async (route) => {
     const days = route.request().postDataJSON().requested_days
     requestedRanges.push(days)
+    if (mode === 'error') return route.fulfill({ status: 503, json: { message: 'Unavailable' } })
     const daily = mode === 'empty' ? [] : Array.from({ length: days }, (_, i) => ({
       date: new Date(now - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10),
-      sessions: mode === 'zero' ? 0 : i + 1,
-      signup_starts: mode === 'zero' ? 0 : i % 3,
-      accounts_created: mode === 'zero' ? 0 : i % 2,
+      sessions: mode === 'zero' ? 0 : i + 1 + (i === days - 1 ? added : 0),
+      signup_starts: mode === 'zero' ? 0 : i % 3 + (i === days - 1 ? added : 0),
+      accounts_created: mode === 'zero' ? 0 : i % 2 + (i === days - 1 ? added : 0),
     }))
+    if (pendingResponse) await pendingResponse
     return route.fulfill({ json: {
       range_days: days, daily,
       sessions: daily.reduce((sum, day) => sum + day.sessions, 0),
@@ -167,8 +170,131 @@ async function installOverviewData(page: Page) {
       refund_total_cents: mode === 'ready' ? -1000 : 0,
       recent_events: mode === 'ready' ? [{ id: 'revenue-1', kind: 'transaction_fee', amount_cents: 780, currency: 'eur', description: '4% müügitasu + käibemaks', occurred_at: ago(1), store_id: 'store-3', store_name: 'Moreamoreceramics' }] : [],
     } }))
-  return { requestedRanges, setMode: (next: typeof mode) => { mode = next } }
+  return {
+    requestedRanges,
+    setMode: (next: typeof mode) => { mode = next },
+    setAdded: (value: number) => { added = value },
+    holdResponse: () => {
+      let release!: () => void
+      pendingResponse = new Promise<void>((resolve) => { release = resolve })
+      return () => { pendingResponse = null; release() }
+    },
+  }
 }
+
+test('homepage analytics refreshes silently without overlapping requests and recovers from failures', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  await page.goto('/admin')
+  const chart = page.getByRole('slider', { name: 'Külastused päevade kaupa' })
+  const headline = page.locator('.overview-traffic__headline > strong')
+  await expect(headline).toHaveText('465')
+  await chart.focus()
+  await page.keyboard.press('End')
+  backend.setAdded(5)
+  const release = backend.holdResponse()
+  await page.clock.fastForward(15_000)
+  await expect.poll(() => backend.requestedRanges.length).toBe(2)
+  await expect(headline).toHaveText('465')
+  await expect(chart).toBeFocused()
+  await expect(page.getByRole('region', { name: 'Avalehe külastatavus' })).toHaveAttribute('aria-busy', 'false')
+  await expect(page.getByRole('button', { name: '7 p', exact: true })).toBeEnabled()
+  await page.clock.fastForward(15_000)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  expect(backend.requestedRanges).toEqual([30, 30])
+  release()
+  await expect(headline).toHaveText('470')
+  await expect(chart).toBeFocused()
+  await expect(chart).toHaveAttribute('aria-valuetext', '1. okt: 35 külastused')
+  await expect(page.getByRole('button', { name: 'Alustamised' })).toContainText('35')
+  await expect(page.getByRole('button', { name: 'Uued kontod' })).toContainText('20')
+
+  backend.setMode('error')
+  await page.clock.fastForward(15_000)
+  await expect.poll(() => backend.requestedRanges.length).toBe(3)
+  await expect(headline).toHaveText('470')
+  await expect(chart).toBeVisible()
+  await expect(page.getByText('Graafik pole praegu saadaval')).toHaveCount(0)
+  backend.setMode('ready')
+  backend.setAdded(9)
+  await page.clock.fastForward(15_000)
+  await expect(headline).toHaveText('474')
+})
+
+test('homepage analytics pauses while hidden, offline or in another view and refreshes on return', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  await page.goto('/admin')
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await page.clock.fastForward(45_000)
+  expect(backend.requestedRanges).toEqual([30])
+  backend.setAdded(1)
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('466')
+  await page.evaluate(() => Object.defineProperty(navigator, 'onLine', { configurable: true, value: false }))
+  await page.clock.fastForward(30_000)
+  expect(backend.requestedRanges).toEqual([30, 30])
+  backend.setAdded(2)
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+    window.dispatchEvent(new Event('online'))
+  })
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('467')
+  await page.getByRole('link', { name: 'Kasutajad', exact: true }).click()
+  await expect(page.locator('.admin-user-row')).toHaveCount(9)
+  await page.clock.fastForward(30_000)
+  expect(backend.requestedRanges).toEqual([30, 30, 30])
+  backend.setAdded(3)
+  await page.getByRole('link', { name: 'Ülevaade', exact: true }).click()
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('468')
+  backend.setAdded(4)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('469')
+})
+
+test('homepage analytics ignores an older background response after changing periods', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  await page.goto('/admin')
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
+  const release = backend.holdResponse()
+  await page.clock.fastForward(15_000)
+  await expect.poll(() => backend.requestedRanges.length).toBe(2)
+  await page.getByRole('button', { name: '7 p', exact: true }).click()
+  await expect.poll(() => backend.requestedRanges).toEqual([30, 30, 7])
+  release()
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('28')
+  backend.setAdded(1)
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('29')
+  expect(backend.requestedRanges).toEqual([30, 30, 7, 7])
+  await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
+  backend.setAdded(2)
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.admin-analytics__kpis article').first().locator('strong')).toHaveText('30')
+  backend.setAdded(3)
+  await page.getByRole('button', { name: 'Uuenda andmeid' }).click()
+  await expect(page.locator('.admin-analytics__kpis article').first().locator('strong')).toHaveText('31')
+})
+
+test('homepage analytics retries an initial error in the background', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  backend.setMode('error')
+  await page.goto('/admin')
+  await expect(page.getByText('Graafik pole praegu saadaval')).toBeVisible()
+  backend.setMode('ready')
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
+  await expect(page.getByRole('slider', { name: 'Külastused päevade kaupa' })).toBeVisible()
+})
 
 test('dashboard charts inspect real daily values, switch metrics and request the selected period', async ({ page }) => {
   await installBackend(page)

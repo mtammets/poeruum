@@ -309,7 +309,9 @@ export default function AdminApp() {
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>(30)
   const [homepageAnalytics, setHomepageAnalytics] = useState<HomepageAnalyticsDashboard>(emptyHomepageAnalytics)
   const [analyticsError, setAnalyticsError] = useState('')
-  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false)
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true)
+  const [analyticsRefreshRevision, setAnalyticsRefreshRevision] = useState(0)
+  const loadedAnalyticsRef = useRef<{ userId: string; range: AnalyticsRange } | null>(null)
   const [liveRevenueEventId, setLiveRevenueEventId] = useState<string | null>(null)
   const [latestEmails, setLatestEmails] = useState<Map<string, LatestEmailDelivery>>(() => new Map())
   const [showcaseStore, setShowcaseStore] = useState<StoreRecord | null>(null)
@@ -402,61 +404,95 @@ export default function AdminApp() {
     setRevenueError('')
   }
 
-  const loadHomepageAnalytics = async (range: AnalyticsRange = analyticsRange) => {
-    setIsAnalyticsLoading(true)
+  const analyticsViewActive = !isManagingShowcase && (activeView === 'overview' || activeView === 'analytics')
+
+  useEffect(() => {
+    if (!session || !adminAccessGranted || !analyticsViewActive) return
+    let active = true
+    let inFlight = false
+    const controller = new AbortController()
     const client = requireSupabase()
-    const [analyticsResponse, engagementResponse] = await Promise.all([
-      client.rpc('admin_homepage_analytics', { requested_days: range }),
-      client.rpc('admin_homepage_engagement', { requested_days: range }),
-    ])
-    if (analyticsResponse.error || engagementResponse.error) {
-      setAnalyticsError('Külastatavuse andmeid ei õnnestunud laadida. Rakenda avalehe analüütika migratsioonid.')
-      setIsAnalyticsLoading(false)
-      return
+    const range = analyticsRange
+    let hasData = loadedAnalyticsRef.current?.userId === session.user.id && loadedAnalyticsRef.current.range === range
+    setIsAnalyticsLoading(!hasData)
+
+    const refresh = async () => {
+      if (!active || inFlight || document.visibilityState !== 'visible' || !navigator.onLine) return
+      inFlight = true
+      try {
+        const [analyticsResponse, engagementResponse] = await Promise.all([
+          client.rpc('admin_homepage_analytics', { requested_days: range }).abortSignal(controller.signal),
+          client.rpc('admin_homepage_engagement', { requested_days: range }).abortSignal(controller.signal),
+        ])
+        if (!active) return
+        if (analyticsResponse.error || engagementResponse.error) throw analyticsResponse.error || engagementResponse.error
+        const result = (analyticsResponse.data ?? {}) as Partial<HomepageAnalyticsDashboard>
+        const engagement = (engagementResponse.data ?? {}) as Partial<HomepageEngagementDashboard>
+        const numberValue = (value: unknown) => Number(value ?? 0)
+        setHomepageAnalytics({
+          range_days: numberValue(result.range_days) || range,
+          sessions: numberValue(result.sessions),
+          anonymous_sessions: numberValue(result.anonymous_sessions),
+          merchant_sessions: numberValue(result.merchant_sessions),
+          average_engaged_seconds: numberValue(engagement.average_engaged_seconds),
+          measured_sessions: numberValue(engagement.measured_sessions),
+          engaged_sessions: numberValue(engagement.engaged_sessions),
+          signup_starts: numberValue(result.signup_starts),
+          tracked_accounts: numberValue(result.tracked_accounts),
+          demo_opens: numberValue(result.demo_opens),
+          pricing_views: numberValue(result.pricing_views),
+          accounts_created: numberValue(result.accounts_created),
+          stores_started: numberValue(result.stores_started),
+          payments_connected: numberValue(result.payments_connected),
+          stores_published: numberValue(result.stores_published),
+          daily: (result.daily ?? []).map((point) => ({
+            date: point.date,
+            sessions: numberValue(point.sessions),
+            signup_starts: numberValue(point.signup_starts),
+            accounts_created: numberValue(point.accounts_created),
+          })),
+          sources: (engagement.sources ?? []).map((row) => ({
+            source: row.source,
+            sessions: numberValue(row.sessions),
+            measured_sessions: numberValue(row.measured_sessions),
+            engaged_sessions: numberValue(row.engaged_sessions),
+            average_engaged_seconds: numberValue(row.average_engaged_seconds),
+          })),
+          engagement_buckets: (engagement.engagement_buckets ?? []).map((row) => ({
+            bucket: row.bucket,
+            sessions: numberValue(row.sessions),
+          })),
+          devices: (result.devices ?? []).map((row) => ({ device: row.device, sessions: numberValue(row.sessions) })),
+          ctas: (result.ctas ?? []).map((row) => ({ label: row.label, sessions: numberValue(row.sessions) })),
+          faqs: (result.faqs ?? []).map((row) => ({ label: row.label, sessions: numberValue(row.sessions) })),
+        })
+        loadedAnalyticsRef.current = { userId: session.user.id, range }
+        hasData = true
+        setAnalyticsError('')
+      } catch {
+        // Keep the last successful chart during a temporary background failure.
+        if (active && !hasData) setAnalyticsError('Külastatavuse andmeid ei õnnestunud laadida. Proovime peagi uuesti.')
+      } finally {
+        inFlight = false
+        if (active) setIsAnalyticsLoading(false)
+      }
     }
-    const result = (analyticsResponse.data ?? {}) as Partial<HomepageAnalyticsDashboard>
-    const engagement = (engagementResponse.data ?? {}) as Partial<HomepageEngagementDashboard>
-    const numberValue = (value: unknown) => Number(value ?? 0)
-    setHomepageAnalytics({
-      range_days: numberValue(result.range_days) || range,
-      sessions: numberValue(result.sessions),
-      anonymous_sessions: numberValue(result.anonymous_sessions),
-      merchant_sessions: numberValue(result.merchant_sessions),
-      average_engaged_seconds: numberValue(engagement.average_engaged_seconds),
-      measured_sessions: numberValue(engagement.measured_sessions),
-      engaged_sessions: numberValue(engagement.engaged_sessions),
-      signup_starts: numberValue(result.signup_starts),
-      tracked_accounts: numberValue(result.tracked_accounts),
-      demo_opens: numberValue(result.demo_opens),
-      pricing_views: numberValue(result.pricing_views),
-      accounts_created: numberValue(result.accounts_created),
-      stores_started: numberValue(result.stores_started),
-      payments_connected: numberValue(result.payments_connected),
-      stores_published: numberValue(result.stores_published),
-      daily: (result.daily ?? []).map((point) => ({
-        date: point.date,
-        sessions: numberValue(point.sessions),
-        signup_starts: numberValue(point.signup_starts),
-        accounts_created: numberValue(point.accounts_created),
-      })),
-      sources: (engagement.sources ?? []).map((row) => ({
-        source: row.source,
-        sessions: numberValue(row.sessions),
-        measured_sessions: numberValue(row.measured_sessions),
-        engaged_sessions: numberValue(row.engaged_sessions),
-        average_engaged_seconds: numberValue(row.average_engaged_seconds),
-      })),
-      engagement_buckets: (engagement.engagement_buckets ?? []).map((row) => ({
-        bucket: row.bucket,
-        sessions: numberValue(row.sessions),
-      })),
-      devices: (result.devices ?? []).map((row) => ({ device: row.device, sessions: numberValue(row.sessions) })),
-      ctas: (result.ctas ?? []).map((row) => ({ label: row.label, sessions: numberValue(row.sessions) })),
-      faqs: (result.faqs ?? []).map((row) => ({ label: row.label, sessions: numberValue(row.sessions) })),
-    })
-    setAnalyticsError('')
-    setIsAnalyticsLoading(false)
-  }
+
+    void refresh()
+    const timer = window.setInterval(() => { void refresh() }, 15_000)
+    const refreshVisible = () => { void refresh() }
+    document.addEventListener('visibilitychange', refreshVisible)
+    window.addEventListener('focus', refreshVisible)
+    window.addEventListener('online', refreshVisible)
+    return () => {
+      active = false
+      controller.abort()
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', refreshVisible)
+      window.removeEventListener('focus', refreshVisible)
+      window.removeEventListener('online', refreshVisible)
+    }
+  }, [session?.user.id, adminAccessGranted, analyticsViewActive, analyticsRange, analyticsRefreshRevision])
 
   const loadOnlineUsers = async () => {
     let response = await requireSupabase().rpc('admin_user_presence')
@@ -612,11 +648,9 @@ export default function AdminApp() {
   const loadDashboard = async ({
     silent = false,
     refreshAuth = true,
-    includeAnalytics = !silent,
   }: {
     silent?: boolean
     refreshAuth?: boolean
-    includeAnalytics?: boolean
   } = {}) => {
     if (!silent) setIsLoading(true)
     setError('')
@@ -624,7 +658,6 @@ export default function AdminApp() {
     // without requiring the user to manually clear their existing session.
     if (refreshAuth) await requireSupabase().auth.refreshSession()
     void loadRevenue()
-    if (includeAnalytics) void loadHomepageAnalytics()
     void loadLatestEmails()
     void loadSignupAlerts()
     void loadHomepageSettings()
@@ -677,6 +710,7 @@ export default function AdminApp() {
       setRows([])
       setRevenue(emptyRevenueDashboard)
       setHomepageAnalytics(emptyHomepageAnalytics)
+      loadedAnalyticsRef.current = null
       setOnlineUserIds(new Set())
       setOnlineViews(new Map())
       setPresenceKnown(false)
@@ -832,7 +866,7 @@ export default function AdminApp() {
     </aside>
 
     <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
-      {activeView !== 'users' && activeView !== 'overview' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
+      {activeView !== 'users' && activeView !== 'overview' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
@@ -1004,10 +1038,7 @@ export default function AdminApp() {
           analyticsError={analyticsError}
           analyticsLoading={isAnalyticsLoading}
           range={analyticsRange}
-          onRangeChange={(range) => {
-            setAnalyticsRange(range)
-            void loadHomepageAnalytics(range)
-          }}
+          onRangeChange={setAnalyticsRange}
           onNavigate={navigateToView}
         />}
 
@@ -1017,7 +1048,6 @@ export default function AdminApp() {
             <label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
               const range = Number(event.target.value) as AnalyticsRange
               setAnalyticsRange(range)
-              void loadHomepageAnalytics(range)
             }} disabled={isAnalyticsLoading}>
               <option value={7}>7 päeva</option>
               <option value={30}>30 päeva</option>
