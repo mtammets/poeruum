@@ -64,6 +64,8 @@ const createFixture = async (label, { trialStarted = false } = {}) => {
     slug: `stripe-e2e-${label}-${Date.now()}-${crypto.randomUUID().slice(0, 6)}`,
     pricing_plan: 'flexible',
     trial_started_at: trialStarted ? new Date().toISOString() : null,
+    settings: { sellerType: 'company', businessName: 'Poeruum E2E OÜ', registryCode: '12345678',
+      businessAddress: 'Testi 1, Tallinn, 10111', contactEmail: email, vatRegistered: false },
   }).select().single()
   if (storeError) throw storeError
   fixture.storeId = store.id

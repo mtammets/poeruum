@@ -23,6 +23,7 @@ export type InvoiceLine = {
 
 export type InvoiceSnapshot = {
   version: 1
+  purpose?: 'platform_fee'
   currency: 'eur'
   seller: { type?: SellerType; name: string; registryCode: string; address: string; email: string; vatNumber: string }
   buyer: InvoiceBuyer

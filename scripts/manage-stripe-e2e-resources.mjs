@@ -135,6 +135,9 @@ const createResources = async () => {
         'customer.subscription.updated',
         'customer.subscription.deleted',
         'invoice.paid',
+        'invoice.created',
+        'credit_note.created',
+        'credit_note.voided',
         'invoice.payment_failed',
       ],
     })

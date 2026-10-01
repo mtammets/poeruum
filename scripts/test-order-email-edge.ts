@@ -30,7 +30,7 @@ Deno.test('order delivery webhook verifies signatures and retries failed atomic 
         return failDelivery ? Response.json({ message: 'Simulated DB failure' }, { status: 500 }) : Response.json(true)
       }
       if (url.pathname.endsWith('/rpc/record_application_error')) return Response.json(null)
-      if (url.pathname.endsWith('/rpc/claim_order_document') || url.pathname.endsWith('/order_document_cleanup')) return Response.json([])
+      if (url.pathname.endsWith('/rpc/claim_order_document') || url.pathname.endsWith('/rpc/claim_platform_fee_document') || url.pathname.endsWith('/order_document_cleanup')) return Response.json([])
       if (url.pathname.endsWith('/rpc/claim_order_email_job')) return Response.json([])
       throw new Error(`Unexpected DB call: ${url.pathname}`)
     }
@@ -74,6 +74,7 @@ Deno.test('order delivery webhook verifies signatures and retries failed atomic 
     assert((await worker(authorized())).status === 200, 'Document worker did not run')
     assert(!calls.some((call) => call.path.endsWith('/rpc/claim_order_email_job')), 'Disabled mail worker touched email jobs')
     assert(calls.some((call) => call.path.endsWith('/rpc/claim_order_document')), 'Disabled mail worker blocked invoice generation')
+    assert(calls.some((call) => call.path.endsWith('/rpc/claim_platform_fee_document')), 'Disabled mail worker blocked platform fee invoices')
     calls.length = 0
     Deno.env.set('ORDER_EMAIL_WORKER_ENABLED', 'true')
     assert((await worker(authorized())).status === 200, 'Authorized worker did not run')

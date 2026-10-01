@@ -3,6 +3,8 @@ import { hasSellerDetails, normalizeSellerSettings, sellerType as getSellerType,
 import { getAccountEmailStatus } from './lib/accountEmail'
 import { createRandomId } from './lib/randomId'
 import OrderDocumentLinks from './OrderDocumentLinks'
+import PlatformInvoiceList from './PlatformInvoiceList'
+import { estonianBillingMonth } from '../shared/platform-business.mjs'
 import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties, ReactNode } from 'react'
 import { flushSync } from 'react-dom'
@@ -316,6 +318,7 @@ export type StorefrontProps = {
   pricingPlan?: PricingPlan
   fixedPlanTrialStartedAt?: string | null
   stripeSubscriptionStatus?: string | null
+  stripeAccountMode?: 'test' | 'live' | null
   stripeRequirements?: StripeRequirementSummary | null
   billingGraceEndsAt?: string | null
   billingInvoiceUrl?: string | null
@@ -336,7 +339,7 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, paymentSetupError = null, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', accountEmailNotice, onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, paymentSetupError = null, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeAccountMode = 'live', stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', accountEmailNotice, onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const [initialSetupDraft] = useState<Product | null>(() => merchantMode && onContinueSetup && !seedProducts.length
     ? { id: createRandomId(), name: '', description: '', image: EMPTY_PRODUCT_IMAGE, gallery: [], alt: '', searchVisible: true }
     : null)
@@ -758,7 +761,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   useEffect(() => {
     if (!storeId || !merchantMode) return
     let active = true
-    const refreshOrders = () => listOrders(storeId).then((rows) => { if (active) setOrders(rows.map((row) => ({
+    const refreshOrders = () => listOrders(storeId, stripeAccountMode ?? 'live').then((rows) => { if (active) setOrders(rows.map((row) => ({
       id: row.order_number, hasInvoice: Boolean(row.invoice_snapshot), items: row.items as CartItem[], customerName: row.customer_name,
       customerEmail: row.customer_email, delivery: row.delivery, productSubtotal: Number(row.product_subtotal),
       total: Number(row.total), createdAt: row.created_at, status: row.status,
@@ -774,7 +777,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     const interval = hasPendingRefund ? window.setInterval(refreshOrders, 15_000) : undefined
     window.addEventListener('focus', refreshOrders)
     return () => { active = false; window.clearInterval(interval); window.removeEventListener('focus', refreshOrders) }
-  }, [storeId, merchantMode, hasPendingRefund])
+  }, [storeId, merchantMode, hasPendingRefund, stripeAccountMode])
 
   useEffect(() => setActivePaymentProvider(paymentProvider), [paymentProvider])
   useEffect(() => setBillingPlan(pricingPlan), [pricingPlan])
@@ -2451,8 +2454,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     : sortedOrders
   const now = new Date()
   const currentMonthOrders = orders.filter((order) => {
-    const createdAt = new Date(order.createdAt)
-    return createdAt.getFullYear() === now.getFullYear() && createdAt.getMonth() === now.getMonth()
+    return estonianBillingMonth(order.createdAt) === estonianBillingMonth(now)
   })
   const monthlyProductSales = currentMonthOrders.reduce((sum, order) => order.status === 'refunded' ? sum : sum + order.productSubtotal, 0)
   const fixedPlanTrialEndsAt = fixedPlanTrialStartedAt ? new Date(fixedPlanTrialStartedAt) : null
@@ -2488,7 +2490,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const platformFeeProgress = effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? 0 : 100 : Math.min(100, Math.max(
     monthlyPlatformFee / PLATFORM_FEE_GROSS_CAP, monthlyPlatformFeeNet / PLATFORM_FEE_NET_CAP,
   ) * 100)
-  const billingMonth = now.toLocaleDateString('et-EE', { month: 'long', year: 'numeric' })
+  const billingMonth = now.toLocaleDateString('et-EE', { month: 'long', year: 'numeric', timeZone: 'Europe/Tallinn' })
   const manageBilling = async () => {
     if (billingInvoiceUrl) {
       window.location.assign(billingInvoiceUrl)
@@ -3487,9 +3489,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : `${formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km hinnalagi`}</strong><small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `Pärast prooviperioodi on kuutasu ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Poeruumi kuutasu on ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Koos käibemaksuga maksimaalselt ${formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus.`}</small></p></div>
             </div>
             <div className="settings-info-note"><span>i</span><p>Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.</p></div>
-            {billingPlan === 'fixed' && !isBillingDelinquent && <button className="billing-manage-button" type="button" disabled={isBillingPortalBusy} onClick={() => void manageBilling()}>
+            {(billingPlan === 'fixed' || stripeSubscriptionStatus) && !isBillingDelinquent && <button className="billing-manage-button" type="button" disabled={isBillingPortalBusy} onClick={() => void manageBilling()}>
               {isBillingPortalBusy ? 'Avan Stripe’i…' : 'Halda makseviisi ja arveid'}
             </button>}
+            {storeId && <PlatformInvoiceList storeId={storeId} />}
           </div>}
           {settingsSection === 'account' && <div className="settings-panel account-panel" role="tabpanel">
             {accountEmailNotice}

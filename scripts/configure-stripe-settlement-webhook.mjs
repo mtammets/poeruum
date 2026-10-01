@@ -9,7 +9,7 @@ if (!mode || (process.env.STRIPE_MODE && process.env.STRIPE_MODE !== mode)) thro
 const baseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 if (!baseUrl) throw new Error('Supabase’i aadress puudub.')
 const configurations = [
-  { name: 'stripe-webhook', id: process.env.STRIPE_WEBHOOK_ENDPOINT_ID, events: ['charge.updated', 'charge.refunded', 'refund.created', 'refund.updated', 'refund.failed', 'charge.dispute.created', 'charge.dispute.updated', 'charge.dispute.closed', 'charge.dispute.funds_withdrawn', 'charge.dispute.funds_reinstated'] },
+  { name: 'stripe-webhook', id: process.env.STRIPE_WEBHOOK_ENDPOINT_ID, events: ['invoice.created', 'invoice.paid', 'invoice.payment_failed', 'credit_note.created', 'credit_note.voided', 'charge.updated', 'charge.refunded', 'refund.created', 'refund.updated', 'refund.failed', 'charge.dispute.created', 'charge.dispute.updated', 'charge.dispute.closed', 'charge.dispute.funds_withdrawn', 'charge.dispute.funds_reinstated'] },
   { name: 'stripe-connect-webhook', id: process.env.STRIPE_CONNECT_WEBHOOK_ENDPOINT_ID, events: ['account.updated', 'account.application.deauthorized', 'account.external_account.created', 'account.external_account.updated', 'account.external_account.deleted'] },
 ]
 const request = async (path, body) => {

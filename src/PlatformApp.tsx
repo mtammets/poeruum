@@ -1488,7 +1488,7 @@ function PlatformFlow() {
     initialPublished={false}
     pricingPlan={pricingPlan}
     fixedPlanTrialStartedAt={fixedPlanTrialStartedAt}
-    stripeSubscriptionStatus={store?.stripe_subscription_status}
+    stripeSubscriptionStatus={store?.stripe_subscription_status} stripeAccountMode={store?.stripe_account_mode}
     stripeRequirements={stripeRequirements} paymentSetupError={stripeSetupError}
     merchantMode
     ownerEmail={email}
@@ -1505,7 +1505,7 @@ function PlatformFlow() {
   </>
   if (screen === 'storefront') return <>
     {returnNotice}
-    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} paymentSetupError={stripeSetupError} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} sellerTypeLocked={Boolean(store?.stripe_account_id)} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} accountEmailNotice={accountEmailNotice} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={syncMerchantStore} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
+    <Storefront key={`merchant-storefront-${store?.id ?? 'new'}`} storeId={store?.id} initialSettings={store?.settings} seedProducts={storedProducts} storeName={storeName || 'Minu pood'} storeSlug={slug || 'minu-pood'} paymentProvider={payment} paymentsReady={paymentStatus === 'connected'} stripeRequirements={stripeRequirements} paymentSetupError={stripeSetupError} initialShipping={shipping} initialPublished={store?.is_published ?? false} pricingPlan={pricingPlan} fixedPlanTrialStartedAt={fixedPlanTrialStartedAt} stripeSubscriptionStatus={store?.stripe_subscription_status} stripeAccountMode={store?.stripe_account_mode} billingGraceEndsAt={store?.billing_grace_ends_at} billingInvoiceUrl={store?.billing_last_failed_invoice_url} billingDowngradedAt={store?.billing_downgraded_at} sellerTypeLocked={Boolean(store?.stripe_account_id)} initialSettingsSection={initialMerchantSettingsSection} onInitialSettingsSectionOpened={() => { setInitialMerchantSettingsSection(null); clearStripeRequirementsLink() }} merchantMode ownerEmail={email} accountEmailNotice={accountEmailNotice} onOwnerLogin={signInFromStore} onBackToSetup={() => setScreen('publish')} onConnectPaymentProvider={(_provider, purpose) => void startStripeConnect(purpose)} onStoreChange={syncMerchantStore} onAccountDeleted={handleAccountDeleted} onExit={leaveMerchantStore} />
     {stripeEmbeddedOverlay}
   </>
 

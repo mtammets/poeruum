@@ -27,6 +27,12 @@ Deno.serve(async (request) => {
       if (document.status === 'retry') await captureEdgeError('order-emails', new Error('Arve PDF-i koostamine vajab korduskatset.'), { document_id: document.id }, 'critical')
     }
     await cleanupOrderDocuments(admin)
+    for (let index = 0; index < 10 && Date.now() - startedAt < 30_000; index++) {
+      const document = await processOrderDocument(admin, mode, undefined, undefined, 'platform_fee')
+      if (!document) break
+      outcomes[`platform_document_${document.status}`] = (outcomes[`platform_document_${document.status}`] ?? 0) + 1
+      if (document.status === 'retry') await captureEdgeError('order-emails', new Error('Poeruumi teenustasu arve koostamine vajab korduskatset.'), { document_id: document.id }, 'critical')
+    }
     if (Deno.env.get('ORDER_EMAIL_WORKER_ENABLED') === 'false') return json({ enabled: false, outcomes })
     // One bad recipient cannot prevent later jobs from being attempted.
     for (let index = 0; index < 20 && Date.now() - startedAt < 40_000; index += 1) {

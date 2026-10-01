@@ -766,6 +766,10 @@ const installSupabaseBackend = async (
       await json(route, stripeStatusFixture)
       return
     }
+    if (url.pathname.endsWith('/functions/v1/platform-invoices')) {
+      await json(route, { documents: [], hasMore: false })
+      return
+    }
 
     if (url.pathname.endsWith('/rest/v1/orders')) {
       await json(route, options.getOrders?.() ?? [])
@@ -1111,6 +1115,43 @@ test('an unfulfilled order stays refunding until the server confirms the refund'
   await expect(dialog.getByText('Makse tagastatud', { exact: true })).toBeVisible()
   await expect(dialog.getByText('Sulle laekub', { exact: true })).toHaveCount(0)
   expect(refundRequests).toBe(1)
+})
+
+test('platform fee invoices download privately and display credits and recoverable errors', async ({ page }) => {
+  await installSupabaseBackend(page, store, connectedStripeStatus)
+  let fail = true
+  await page.route('**/functions/v1/platform-invoices', async (route) => {
+    const request = route.request()
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: {
+      'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    } })
+    expect(request.headers().authorization).toMatch(/^Bearer /)
+    const body = request.postDataJSON()
+    expect(body.storeId).toBe(STORE_ID)
+    if (fail) return json(route, { error: 'Arvete laadimine katkes.' }, 503)
+    if (body.documentId) return route.fulfill({ contentType: 'application/pdf', headers: { 'Access-Control-Allow-Origin': '*' }, body: '%PDF-1.7\nTest invoice' })
+    return json(route, { documents: [
+      { id: 'invoice-1', number: 'PF-2026-000001', kind: 'invoice', issuedAt: '2026-10-01T07:00:00Z', totalCents: 496, ready: true },
+      { id: 'credit-1', number: 'PF-2026-000002', kind: 'credit', issuedAt: '2026-10-01T08:00:00Z', totalCents: 496, ready: true },
+    ], hasMore: false })
+  })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="billing"]').click()
+  const invoices = page.getByRole('region', { name: 'Poeruumi müügitasu arved' })
+  await expect(invoices.getByRole('alert')).toHaveText('Arvete laadimine katkes.')
+  fail = false
+  await invoices.getByRole('button', { name: 'Värskenda' }).click()
+  await expect(invoices.getByRole('button', { name: /Kreeditarve PF-2026-000002/ })).toContainText('-4,96 €')
+  const download = page.waitForEvent('download')
+  await invoices.getByRole('button', { name: /^Arve PF-2026-000001/ }).click()
+  expect((await download).suggestedFilename()).toBe('Arve-PF-2026-000001.pdf')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(invoices).toBeVisible()
+  expect(await invoices.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })
 
 test('monthly fees preserve each payment’s recorded net and VAT and exclude refunded orders', async ({ page }) => {

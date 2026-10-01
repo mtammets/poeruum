@@ -33,6 +33,7 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
   const credit = document.kind === 'credit'
   const sign = credit ? -1 : 1
   const individual = snapshot.seller.type === 'entrepreneur'
+  const platformFee = snapshot.purpose === 'platform_fee'
   const title = `${orderDocumentLabel(document.kind, snapshot.seller.type)} ${document.number}`
   pdf.setTitle(title)
   pdf.setAuthor(snapshot.seller.name)
@@ -61,10 +62,10 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
   }
   paragraph(title, 23)
   if (document.stripe_mode === 'test') paragraph('NÄIDIS · Katsemakse', 11)
-  paragraph(`${credit ? 'Tagastus kinnitatud' : 'Tasutud'} · ${date(document.issued_at)}`, 11)
+  paragraph(`${platformFee ? credit ? 'Teenustasu krediteeritud' : 'Tasutud tasaarvestusega' : credit ? 'Tagastus kinnitatud' : 'Tasutud'} · ${date(document.issued_at)}`, 11)
   paragraph(`Tellimus ${document.order_number}`)
   paragraph(`${individual ? 'Dokumendi' : 'Arve'} kuupäev: ${date(document.issued_at)}`)
-  paragraph(`${credit ? 'Algse makse' : 'Makse'} kuupäev: ${date(document.paid_at)}`)
+  paragraph(`${platformFee ? 'Teenuse osutamise' : credit ? 'Algse makse' : 'Makse'} kuupäev: ${date(document.paid_at)}`)
   if (document.original_number) paragraph(`${individual ? 'Algne müügitõend' : 'Algne arve'}: ${document.original_number}`)
   y -= 16
   const seller = ['MÜÜJA', snapshot.seller.name, ...(individual ? [] : [`Registrikood: ${snapshot.seller.registryCode}`]), snapshot.seller.address,
@@ -121,11 +122,14 @@ export async function renderOrderInvoice(document: InvoiceDocument): Promise<Uin
   draw(credit ? (individual ? 'Tagastatud kokku' : 'Krediteeritud kokku') : 'Kokku tasutud', 309, y, 12)
   right(`${money(sign * snapshot.totalCents)} €`, 553, y, 12); y -= 32
   if (snapshot.vatRate === null && !individual) paragraph('Müüja ei ole käibemaksukohustuslane.')
-  paragraph(credit ? (individual ? 'Makse on tagastatud.' : 'Makse on tagastatud. Kreeditarve muudab eespool viidatud algset arvet.') : 'Tasutud. Tasuda jäänud: 0,00 €.')
-  paragraph(`Tarne: ${snapshot.delivery}`, 9)
+  paragraph(platformFee
+    ? credit ? 'Poeruumi müügitasu on krediteeritud. Kreeditarve muudab eespool viidatud algset arvet.'
+      : 'Teenustasu on müügilaekumisest tasaarvestatud. Tasuda jäänud: 0,00 €.'
+    : credit ? (individual ? 'Makse on tagastatud.' : 'Makse on tagastatud. Kreeditarve muudab eespool viidatud algset arvet.') : 'Tasutud. Tasuda jäänud: 0,00 €.')
+  if (!platformFee) paragraph(`Tarne: ${snapshot.delivery}`, 9)
   const pages = pdf.getPages()
   pages.forEach((sheet, index) => {
-    sheet.drawText(`Koostatud müüja nimel Poeruumis · ${index + 1} / ${pages.length}`, { x: 42, y: 34, size: 8, font, color: muted })
+    sheet.drawText(`${platformFee ? 'Poeruumi teenustasu arve' : 'Koostatud müüja nimel Poeruumis'} · ${index + 1} / ${pages.length}`, { x: 42, y: 34, size: 8, font, color: muted })
   })
   return pdf.save()
 }

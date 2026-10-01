@@ -51,6 +51,11 @@ jobs:
       - name: Private invoices, PDF rendering and delivery recovery
         run: npm run test:order-invoice-edge
 
+      - name: Platform fee invoices and subscription VAT accounting
+        run: |
+          npm run test:platform-invoices-edge
+          npm run test:subscription-invoices-edge
+
       - name: Merchant email activation enforcement
         run: npm run test:account-email-edge
 
@@ -118,6 +123,9 @@ jobs:
 
       - name: Test entrepreneur sellers, payment permissions and sale documents
         run: npm run test:entrepreneur-sellers
+
+      - name: Test platform VAT registration, fee invoices and credit notes
+        run: npm run test:platform-billing-db
 
       - name: Test product image access boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-product-image-access.sql

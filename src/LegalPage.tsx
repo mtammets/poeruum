@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { Brand } from './Brand'
 import { applySeoMetadata } from './lib/seo'
+import { PLATFORM_BUSINESS as PROVIDER } from '../shared/platform-business.mjs'
 import {
   FIXED_PLAN_MONTHLY_FEE,
   FIXED_PLAN_MONTHLY_TOTAL,
@@ -16,14 +17,8 @@ import './legal.css'
 
 export type LegalDocument = 'terms' | 'privacy'
 
-const DOCUMENT_VERSION = '2026-09-30'
-const DOCUMENT_DATE = '30. september 2026'
-const PROVIDER = {
-  name: 'Animaator OÜ',
-  registryCode: '17135632',
-  address: 'Alle, Pudisoo küla, Kuusalu vald, Harju maakond 74626, Eesti',
-  email: 'info@poeruum.ee',
-} as const
+const DOCUMENT_VERSION = '2026-10-01'
+const DOCUMENT_DATE = '1. oktoober 2026'
 
 type Section = { id: string; title: string; content: ReactNode }
 const Contact = () => <a href={`mailto:${PROVIDER.email}`}>{PROVIDER.email}</a>
@@ -35,6 +30,7 @@ function ProviderDetails() {
       <div><dt>Teenuse nimi</dt><dd>Poeruum</dd></div>
       <div><dt>Ärinimi</dt><dd>{PROVIDER.name}</dd></div>
       <div><dt>Registrikood</dt><dd>{PROVIDER.registryCode}</dd></div>
+      <div><dt>KMKR number</dt><dd>{PROVIDER.vatNumber}</dd></div>
       <div><dt>Aadress</dt><dd>{PROVIDER.address}</dd></div>
       <div><dt>E-post</dt><dd><Contact /></dd></div>
     </dl>
@@ -91,10 +87,11 @@ function Terms() {
       <p><strong>Kindel:</strong> uue prooviperioodi kestus on {FIXED_PLAN_TRIAL_DAYS} päeva. Seejärel on kuutasu {formatPricingEuro(FIXED_PLAN_MONTHLY_FEE)}, millele lisandub {formatPricingPercent(VAT_RATE)} käibemaks, kokku {formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus. Poeruumi müügitasu on 0%. Varem kasutatud prooviperioodi paketi uuesti aktiveerimisel ei korrata.</p>
       <p>Prooviperioodi algus ja esimese makse kuupäev sõltuvad paketi aktiveerimisest ning kuvatakse kinnitamisel. Prooviperioodi lõppedes algab korduv tasuline arveldus, kui kaupmees ei ole paketti enne tühistanud. Pakettide vahetamise jõustumise aeg kuvatakse arveldusvaates.</p>
       <p>Stripe’i maksetöötlustasud ning kaupmehe domeeni registreerimise ja tarnepakkuja tasud lisanduvad eraldi. Olemasoleva domeeni ühendamise eest Poeruum lisatasu ei küsi. Kõik hinnad on eurodes. Konkreetse tellimuse hind ja makseperiood esitatakse enne kinnitamist.</p>
-      <p><strong>Käibemaks:</strong> Animaator OÜ on Eestis registreeritud käibemaksukohustuslane. Poeruumi teenustasudele lisandub Eesti standardmääraga käibemaks, praegu {formatPricingPercent(VAT_RATE)}. Eespool on eraldi näidatud tasud ilma käibemaksuta ja koos käibemaksuga. Poeruumi enda maksustaatus ei määra kaupmehe poes müüdava kauba maksustamist.</p>
+      <p><strong>Käibemaks:</strong> Animaator OÜ on Eestis registreeritud käibemaksukohustuslane alates <time dateTime={PROVIDER.vatRegistrationDate}>1. oktoobrist 2026</time> (KMKR number {PROVIDER.vatNumber}). Sellest kuupäevast lisandub Poeruumi teenustasudele Eesti standardmääraga käibemaks, praegu {formatPricingPercent(VAT_RATE)}. Eespool on eraldi näidatud tasud ilma käibemaksuta ja koos käibemaksuga. Poeruumi enda maksustaatus ei määra kaupmehe poes müüdava kauba maksustamist.</p>
       <p>Kehtiv pakettide hinnakiri asub <a href="/#hind">Poeruumi hinnavaates</a>. Tellimise kinnitus näitab tasutavat kogusummat ja arveldusperioodi. Hinna või kohaldatava maksumäära muutusest teavitatakse tingimuste muutmise korra järgi, arvestades seadusest tulenevaid nõudeid.</p>
     </> },
     { id: 'arveldus', title: 'Maksed, tagasimaksed ja paketi lõpetamine', content: <>
+      <p>Poeruumi müügitasu arved ja kreeditarved väljastatakse elektrooniliselt ning on allalaaditavad poe arveldusvaatest. Kindla paketi kuutasu arved on kättesaadavad sama vaate kaudu Stripe’i arveldusportaalis. Kaupmees nõustub arvete sellise kättesaadavaks tegemisega.</p>
       <p>Makseid töötleb Stripe oma teenusetingimuste kohaselt. Kaupmees volitab Poeruumi korraldama kokkulepitud platvormitasude mahaarvamist müügilaekumistest ja kuutasu võtmist valitud makseviisilt. Stripe võib küsida ettevõtte, esindaja ja tegeliku kasusaaja andmeid ning piirata makseid või väljamakseid oma kontrollide või seadusest tulenevate nõuete tõttu.</p>
       <p>Kindla paketi korduv tellimus kestab tühistamiseni. Selle saab lõpetada poe arveldusvaates; lõpetamine jõustub üldjuhul käimasoleva prooviperioodi või tasutud arveldusperioodi lõpus. Pärast seda saab jätkata Paindliku paketiga. Alanud perioodi tasu üldjuhul osaliselt ei tagastata, välja arvatud seadusest tuleneva õiguse, Poeruumi rikkumise või eraldi kokkuleppe korral.</p>
       <p>Kindla paketi makse ebaõnnestumisel on makse parandamiseks seitse päeva armuaega, mille jooksul kehtib endiselt 0% Poeruumi müügitasu. Lahenduseta makse korral lõpeb Kindel pakett, tasumata kuuarve tühistatakse ja pood läheb Paindlikule paketile. Pood jääb avalikuks; müügitasu arvestatakse pärast armuaja lõppu tehtud uutelt müükidelt.</p>
@@ -330,6 +327,7 @@ export default function LegalPage({ document }: { document: LegalDocument }) {
         isPartOf: { '@type': 'WebSite', name: 'Poeruum', url: 'https://poeruum.ee/' },
         publisher: {
           '@type': 'Organization', name: PROVIDER.name, identifier: PROVIDER.registryCode,
+          vatID: PROVIDER.vatNumber,
           email: PROVIDER.email, address: PROVIDER.address,
         },
       },

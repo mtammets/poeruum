@@ -12,6 +12,8 @@ import {
 } from '../_shared/stripe-webhook.ts'
 import { handleStorePaymentEvent } from '../_shared/stripe-store-events.ts'
 import { sendBillingEmail, type BillingEmailStore } from '../_shared/billing-email.ts'
+import { platformBillingBuyer, subscriptionInvoiceAmounts } from '../../../shared/platform-billing.ts'
+import { prepareSubscriptionInvoice } from '../_shared/platform-billing.ts'
 
 type StripeRecord = Record<string, unknown>
 
@@ -67,21 +69,57 @@ const recordRevenue = async (input: {
   currency: string
   description: string
   metadata?: Record<string, unknown>
+  revenueKey?: string
+  occurredAt?: number
 }) => {
   if (!input.amountCents) return
   const { error } = await getAdminClient().from('revenue_events').upsert({
     provider: 'stripe',
-    provider_event_id: input.event.id,
+    provider_event_id: input.revenueKey ?? input.event.id,
     provider_object_id: input.objectId,
     store_id: input.store?.id ?? null,
     kind: input.kind,
     amount_cents: input.amountCents,
     currency: input.currency.toLowerCase(),
     description: input.description,
-    occurred_at: unixDate(input.event.created),
+    occurred_at: unixDate(input.occurredAt ?? input.event.created),
     metadata: { stripe_event_type: input.event.type, livemode: input.event.livemode, ...input.metadata },
   }, { onConflict: 'provider,provider_event_id', ignoreDuplicates: true })
   if (error) throw error
+}
+
+const subscriptionIdFromInvoice = (invoice: StripeRecord) => {
+  const parent = invoice.parent as { subscription_details?: { subscription?: unknown } } | null
+  return stripeId(parent?.subscription_details?.subscription ?? invoice.subscription)
+}
+
+const recordPaidSubscriptionInvoice = async (invoice: Stripe.Invoice, event: Stripe.Event, store: StoreLookup) => {
+  // Credit notes on an unpaid invoice reduce its debt, not collected revenue.
+  // When it becomes paid, book the original amount and all issued credits.
+  if (invoice.status !== 'paid') return
+  const amounts = subscriptionInvoiceAmounts(invoice as unknown as StripeRecord)
+  const mode = event.livemode ? 'live' : 'test'
+  const paidAt = invoice.status_transitions.paid_at ?? event.created
+  await recordRevenue({ event, objectId: invoice.id, store, kind: 'subscription',
+    revenueKey: `billing-invoice-paid:${mode}:${invoice.id}`, occurredAt: paidAt,
+    amountCents: amounts.net, currency: invoice.currency, description: 'Kindla paketi kuutasu',
+    metadata: { billing_reason: invoice.billing_reason, stripe_event_id: event.id,
+      net_amount_cents: amounts.net, vat_amount_cents: amounts.vat, gross_amount_cents: amounts.gross,
+      amount_paid_cents: invoice.amount_paid, account_tax_ids: invoice.account_tax_ids ?? [] },
+  })
+  for await (const credit of new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!).creditNotes.list({ invoice: invoice.id, limit: 100 })) {
+    if (credit.status !== 'issued') continue
+    const creditAmounts = subscriptionInvoiceAmounts(credit as unknown as StripeRecord)
+    // Stripe permits voiding only credits on open invoices. Those have never
+    // entered this paid-invoice ledger. Stable document keys deduplicate both
+    // event redelivery and invoice.paid/credit_note.created arriving in any order.
+    await recordRevenue({ event, objectId: credit.id, store, kind: 'subscription',
+      revenueKey: `billing-credit-note:${mode}:${credit.id}`, occurredAt: Math.max(paidAt, credit.created),
+      amountCents: -creditAmounts.net, currency: invoice.currency, description: 'Kindla paketi kreeditarve',
+      metadata: { billing_adjustment: 'credit_note', invoice_id: invoice.id, stripe_event_id: event.id,
+        net_amount_cents: -creditAmounts.net, vat_amount_cents: -creditAmounts.vat, gross_amount_cents: -creditAmounts.gross },
+    })
+  }
 }
 
 const updateStore = async (values: Record<string, unknown>, filters: { storeId?: string | null; customerId?: string | null; subscriptionId?: string | null }) => {
@@ -222,17 +260,34 @@ const handleEvent = async (event: Stripe.Event) => {
     return
   }
 
-  if (event.type === 'invoice.paid' || event.type === 'invoice.payment_failed') {
-    const parent = object.parent && typeof object.parent === 'object' ? object.parent as StripeRecord : null
-    const subscriptionDetails = parent?.subscription_details && typeof parent.subscription_details === 'object'
-      ? parent.subscription_details as StripeRecord
-      : null
-    const subscriptionId = stripeId(subscriptionDetails?.subscription ?? object.subscription)
+  if (event.type === 'invoice.created' || event.type === 'invoice.paid' || event.type === 'invoice.payment_failed') {
+    const subscriptionId = subscriptionIdFromInvoice(object)
+    // Other applications can share this Stripe account. A one-off invoice must
+    // never activate a Poeruum plan or enter its subscription revenue ledger.
+    if (!subscriptionId) return
+    const billingStore = await findStore({ subscriptionId }) ?? await findStore({ customerId: stripeId(object.customer) })
+    if (!billingStore) return
+    if (event.type === 'invoice.created') {
+      const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!)
+      const invoiceId = stripeId(object)
+      if (!invoiceId) throw new Error('Subscription invoice ID missing')
+      const draft = await stripe.invoices.retrieve(invoiceId)
+      if (draft.status !== 'draft') return
+      const { data: details, error } = await getAdminClient().from('stores').select('settings,stripe_customer_id')
+        .eq('id', billingStore.id).single()
+      if (error) throw error
+      if (!details.stripe_customer_id) throw new Error('Subscription invoice customer missing')
+      await prepareSubscriptionInvoice(stripe, {
+        invoiceId, storeId: billingStore.id, customerId: details.stripe_customer_id,
+        buyer: platformBillingBuyer(details.settings ?? {}, draft.customer_email ?? ''), mode: event.livemode ? 'live' : 'test',
+      })
+      return
+    }
     const subscription = await getSubscriptionState(subscriptionId)
     const subscriptionStatus = subscription?.status ?? (event.type === 'invoice.paid' ? 'active' : 'past_due')
     if (event.type === 'invoice.payment_failed') {
       await markStoreDelinquent({
-        storeId: metadataStoreId(object),
+        storeId: billingStore.id,
         subscriptionId,
         customerId: stripeId(object.customer),
         status: subscriptionStatus,
@@ -245,31 +300,27 @@ const handleEvent = async (event: Stripe.Event) => {
         ...(subscriptionStatus === 'active' ? clearedDelinquency : {}),
         ...(subscription?.trialStartedAt ? { trial_started_at: subscription.trialStartedAt } : {}),
       }, {
-        storeId: metadataStoreId(object),
+        storeId: billingStore.id,
         subscriptionId,
         customerId: stripeId(object.customer),
       })
     }
     if (event.type === 'invoice.paid') {
-      const store = await findStore({
-        storeId: metadataStoreId(object),
-        subscriptionId,
-        customerId: stripeId(object.customer),
-      })
-      const amountPaid = typeof object.subtotal_excluding_tax === 'number'
-        ? object.subtotal_excluding_tax
-        : typeof object.amount_paid === 'number' ? object.amount_paid : 0
-      await recordRevenue({
-        event,
-        objectId: stripeId(object),
-        store,
-        kind: 'subscription',
-        amountCents: amountPaid,
-        currency: typeof object.currency === 'string' ? object.currency : 'eur',
-        description: 'Kindla paketi kuutasu',
-        metadata: { billing_reason: object.billing_reason ?? null },
-      })
+      const invoice = await new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!).invoices.retrieve(stripeId(object)!)
+      await recordPaidSubscriptionInvoice(invoice, event, billingStore)
     }
+    return
+  }
+
+  if (event.type === 'credit_note.created' || event.type === 'credit_note.voided') {
+    const invoiceId = stripeId(object.invoice)
+    if (!invoiceId) return
+    const invoice = await new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!).invoices.retrieve(invoiceId)
+    const subscriptionId = subscriptionIdFromInvoice(invoice as unknown as StripeRecord)
+    if (!subscriptionId) return
+    const store = await findStore({ subscriptionId }) ?? await findStore({ customerId: stripeId(invoice.customer) })
+    if (!store) return
+    await recordPaidSubscriptionInvoice(invoice, event, store)
     return
   }
 

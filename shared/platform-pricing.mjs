@@ -1,6 +1,7 @@
 // Shared by the app and the generated public pages. Keep displayed prices aligned.
+import { PLATFORM_BUSINESS } from './platform-business.mjs'
 export const FIXED_PLAN_TRIAL_DAYS = 30
-export const VAT_RATE = 0.24
+export const VAT_RATE = PLATFORM_BUSINESS.vatPercent / 100
 export const PLATFORM_FEE_RATE = 0.04
 export const PLATFORM_FEE_NET_CAP = 39
 export const PLATFORM_FEE_GROSS_CAP = PLATFORM_FEE_NET_CAP * (1 + VAT_RATE)

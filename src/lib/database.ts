@@ -660,10 +660,19 @@ export async function uploadImages(storeId: string, files: File[], onPhase?: (in
   return results
 }
 
-export async function listOrders(storeId: string) {
-  const { data, error } = await requireSupabase().from('orders').select('*').eq('store_id', storeId).in('payment_status', ['unpaid', 'paid', 'refunded']).order('created_at', { ascending: false })
-  throwIfError(error)
-  return (data ?? []) as OrderRecord[]
+export async function listOrders(storeId: string, stripeMode: 'live' | 'test' = 'live') {
+  const orders: OrderRecord[] = []
+  // PostgREST caps responses; silently truncating the order list also truncates
+  // the merchant's monthly fee/VAT totals. Read all pages with a stable order.
+  const pageSize = 500
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await requireSupabase().from('orders').select('*')
+      .eq('store_id', storeId).eq('stripe_mode', stripeMode).in('payment_status', ['unpaid', 'paid', 'refunded'])
+      .order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + pageSize - 1)
+    throwIfError(error)
+    orders.push(...(data ?? []) as OrderRecord[])
+    if (!data || data.length < pageSize) return orders
+  }
 }
 
 export async function updateOrderStatus(storeId: string, orderNumber: string, status: OrderRecord['status']) {

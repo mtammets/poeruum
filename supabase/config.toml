@@ -505,3 +505,6 @@ verify_jwt = false
 
 [functions.payment-review]
 verify_jwt = true
+
+[functions.platform-invoices]
+verify_jwt = true

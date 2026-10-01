@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProductCategorySlug, createStore, getImageFallbackMimeType, refundStripeOrder, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
+import { createProductCategorySlug, createStore, getImageFallbackMimeType, listOrders, refundStripeOrder, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
 import { requireSupabase } from './supabase'
 
 vi.mock('./supabase', () => ({
@@ -10,6 +10,20 @@ const store = {
   id: '10000000-0000-4000-8000-000000000001',
   is_published: true,
 } as StoreRecord
+
+it('loads every order page for accurate monthly fees and keeps live/test orders separate', async () => {
+  const page = Array.from({ length: 500 }, (_, index) => ({ id: `order-${index}` }))
+  const range = vi.fn().mockResolvedValueOnce({ data: page }).mockResolvedValueOnce({ data: page })
+    .mockResolvedValueOnce({ data: [{ id: 'last-order' }] }).mockResolvedValueOnce({ data: [] })
+  const query = { select: vi.fn(), eq: vi.fn(), in: vi.fn(), order: vi.fn(), range }
+  for (const key of ['select', 'eq', 'in', 'order'] as const) query[key].mockReturnValue(query)
+  vi.mocked(requireSupabase).mockReturnValue({ from: () => query } as unknown as ReturnType<typeof requireSupabase>)
+  expect(await listOrders(store.id)).toHaveLength(1001)
+  expect(query.eq).toHaveBeenCalledWith('stripe_mode', 'live')
+  expect(range.mock.calls.slice(0, 3)).toEqual([[0, 499], [500, 999], [1000, 1499]])
+  await listOrders(store.id, 'test')
+  expect(query.eq).toHaveBeenCalledWith('stripe_mode', 'test')
+})
 
 describe('createStore', () => {
   const ownerId = '10000000-0000-4000-8000-000000000002'

@@ -22,13 +22,13 @@ export async function readDocumentPdf(admin: SupabaseClient, document: InvoiceDo
 }
 
 export async function processOrderDocument(admin: SupabaseClient, mode: 'test' | 'live', documentId?: string,
-  render?: (document: InvoiceDocument) => Promise<Uint8Array>): Promise<InvoiceDocument | null> {
-  const { data, error } = await admin.rpc('claim_order_document', { mode_value: mode, target_document_id: documentId ?? null })
+  render?: (document: InvoiceDocument) => Promise<Uint8Array>, family: 'order' | 'platform_fee' = 'order'): Promise<InvoiceDocument | null> {
+  const { data, error } = await admin.rpc(`claim_${family}_document`, { mode_value: mode, target_document_id: documentId ?? null })
   if (error) throw error
   const document = data?.[0] as InvoiceDocument | undefined
   if (!document) return null
   const finish = async (outcome: string, hash: string | null, message: string | null) => {
-    const { data, error } = await admin.rpc('finish_order_document', {
+    const { data, error } = await admin.rpc(`finish_${family}_document`, {
       target_document_id: document.id, token_value: document.lease_token, outcome_value: outcome,
       sha256_value: hash, error_value: message,
     })

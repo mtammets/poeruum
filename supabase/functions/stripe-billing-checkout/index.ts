@@ -2,6 +2,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@^22'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { assertStoredStripeMode, assertStripeMode } from '../_shared/stripe-mode.ts'
+import { PLATFORM_BUSINESS, platformVatPercentAt } from '../../../shared/platform-business.mjs'
+import { platformBillingBuyer } from '../../../shared/platform-billing.ts'
+import { InvoiceInputError } from '../../../shared/order-invoice.ts'
+import { platformAccountTaxId, syncBillingCustomer } from '../_shared/platform-billing.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -72,6 +76,8 @@ Deno.serve(async (request) => {
     const stripeMode = assertStripeMode(stripeSecretKey)
     assertStoredStripeMode(store.stripe_billing_mode, stripeMode, 'Poe Stripe Billing')
     const stripe = new Stripe(stripeSecretKey)
+    const buyer = platformBillingBuyer(store.settings ?? {}, user.email ?? '')
+    if (platformVatPercentAt(new Date()) !== PLATFORM_BUSINESS.vatPercent) throw new Error('Poeruumi käibemaksukohustus ei ole veel jõustunud.')
     const appUrl = returnBase(requiredEnv('APP_URL').replace(/\/$/, ''), body.returnUrl, stripeSecretKey.includes('_test_'))
     const fixedPlanTaxRateId = requiredEnv('STRIPE_FIXED_PLAN_TAX_RATE_ID')
     const fixedPlanPriceId = requiredEnv('STRIPE_FIXED_PLAN_PRICE_ID')
@@ -83,17 +89,25 @@ Deno.serve(async (request) => {
     const taxRate = await stripe.taxRates.retrieve(fixedPlanTaxRateId)
     if (taxRate.livemode !== (stripeMode === 'live') || !taxRate.active || taxRate.percentage !== 24
       || taxRate.inclusive || taxRate.country !== 'EE') throw new Error('Stripe’i käibemaksumäär ei vasta Eesti 24% standardmäärale.')
+    await platformAccountTaxId(stripe)
+    const customerId = await syncBillingCustomer(stripe, {
+      storeId: store.id, customerId: store.stripe_customer_id, buyer, mode: stripeMode,
+    })
+    const { error: customerError } = await admin.from('stores').update({
+      stripe_customer_id: customerId, stripe_billing_mode: stripeMode,
+    }).eq('id', store.id)
+    if (customerError) throw customerError
     const params: Stripe.Checkout.SessionCreateParams = {
       mode: 'subscription',
       client_reference_id: store.id,
-      customer_email: store.stripe_customer_id ? undefined : user.email,
-      customer: store.stripe_customer_id ?? undefined,
+      customer: customerId,
       line_items: [{ price: fixedPlanPriceId, quantity: 1, tax_rates: [fixedPlanTaxRateId] }],
       allow_promotion_codes: false,
       success_url: `${appUrl}/?billing=success`,
       cancel_url: `${appUrl}/?billing=cancelled`,
       metadata: { store_id: store.id, stripe_mode: stripeMode },
       subscription_data: {
+        invoice_settings: { issuer: { type: 'self' } },
         trial_period_days: store.trial_started_at ? undefined : 30,
         metadata: { store_id: store.id, stripe_mode: stripeMode },
       },
@@ -104,6 +118,7 @@ Deno.serve(async (request) => {
     if (!session.url) throw new Error('Stripe ei tagastanud arvelduslehe aadressi.')
     return json({ url: session.url })
   } catch (error) {
+    if (error instanceof InvoiceInputError) return json({ error: `Kontrolli poe müüjaandmeid: ${error.publicMessage}` }, 400)
     await captureEdgeError('stripe-billing-checkout', error)
     console.error('Stripe Billingu makse algatamine ebaõnnestus.', error)
     return json({ error: 'Arvelduse algatamine ebaõnnestus. Palun proovi uuesti.' }, 500)
