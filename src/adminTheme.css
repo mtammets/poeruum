@@ -1,0 +1,104 @@
+/* Shared admin palette and navigation, based on the users workspace. */
+:root:has(.admin-shell, .admin-auth, .admin-loading) {
+  --admin-bg: #141b17;
+  --admin-sidebar: #0d1410;
+  --admin-surface: #1d291f;
+  --admin-raised: #232f23;
+  --admin-hover: #2c3d27;
+  --admin-selected: #31432b;
+  --admin-input: #222e21;
+  --admin-ink: #f1f5ee;
+  --admin-muted: #b6c4b8;
+  --admin-subtle: #a0b19f;
+  --admin-line: #42503a;
+  --admin-line-soft: #354339;
+  --admin-line-strong: #647a51;
+  --admin-accent: #d0f578;
+  --admin-accent-hover: #dafa99;
+  --admin-accent-ink: #283a10;
+  --admin-positive: #b8e6a1;
+  --admin-positive-bg: #30462b;
+  --admin-warning: #ffd099;
+  --admin-warning-bg: #403525;
+  --admin-warning-line: #856b46;
+  --admin-danger: #ffb4a4;
+  --admin-danger-bg: #442c28;
+  --admin-danger-line: #865349;
+  --admin-info: #b5cdf5;
+  --admin-info-bg: #28394b;
+  --admin-focus: var(--admin-accent);
+  color-scheme: dark;
+}
+:root:has(.admin-shell, .admin-auth, .admin-loading),
+:root:has(.admin-shell, .admin-auth, .admin-loading) body,
+:root:has(.admin-shell, .admin-auth, .admin-loading) #root { background: var(--admin-bg); }
+.admin-shell { display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); min-height: 100dvh; background: var(--admin-bg); color: var(--admin-ink); font-weight: 450; }
+.admin-shell .admin-main { overflow-x: clip; }
+.admin-topbar { gap: 1rem; margin-bottom: 1.5rem; }
+.admin-topbar h1 { color: var(--admin-ink); font-size: 2rem; font-weight: 750; letter-spacing: -.05em; }
+.admin-topbar > button { min-height: 2.75rem; border-radius: .7rem; }
+.admin-shell :is(input, textarea)::placeholder { color: var(--admin-subtle); }
+.admin-shell :is(input, select, textarea) { accent-color: var(--admin-accent); }
+.admin-shell button:disabled { cursor: default; }
+.admin-shell :is(a, button, select, input, textarea, summary):focus-visible,
+.admin-auth :is(a, button, input):focus-visible { outline: 2px solid var(--admin-focus); outline-offset: 4px; }
+/* Public search and social previews keep the colors of the destination. */
+.admin-seo__google-preview, .admin-social-image__preview { color-scheme: light; background: #fff; color: #17231c; }
+
+.admin-shell .admin-sidebar nav a.is-active::after { width: .3rem; height: .3rem; margin-left: auto; border-radius: 50%; background: currentColor; content: ''; }
+.admin-shell .admin-sidebar { height: 100dvh; min-height: 0; padding: 2rem .875rem 1.25rem; border-right: 1px solid #303d32; background: var(--admin-sidebar); color: #eff5e9; }
+.admin-shell .admin-sidebar > a { margin-left: .75rem; }
+.admin-shell .platform-brand, .admin-auth .platform-brand { --platform-ink: #f5f7ef; --platform-green: var(--admin-accent); --platform-lime: #182b12; gap: .7rem; }
+.admin-shell .platform-brand strong { font-size: 1.2rem; }
+.admin-shell .platform-brand strong span, .admin-auth .platform-brand strong span { color: #f5f7ef; }
+.admin-shell .platform-brand__mark { width: 2.15rem; height: 2.15rem; filter: none; }
+.admin-shell .admin-sidebar nav { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; gap: .4rem; margin-top: 3.25rem; margin-bottom: 1rem; }
+.admin-shell .admin-sidebar nav :is(a, button) { position: relative; gap: .75rem; min-height: 2.9rem; padding: .7rem .85rem; border-radius: .7rem; color: #bac7b9; font-size: .875rem; font-weight: 550; transition: background 160ms ease, color 160ms ease; }
+.admin-shell .admin-sidebar nav :is(a, button) span { color: #9bad9a; }
+.admin-shell .admin-sidebar nav svg { width: 1.15rem; }
+.admin-shell .admin-sidebar nav :is(a, button):hover { background: #263226; color: #fff; }
+.admin-shell .admin-sidebar nav a.is-active { background: var(--admin-accent); color: #243413; font-weight: 750; }
+.admin-shell .admin-sidebar nav a.is-active span { color: #243413; }
+.admin-shell .admin-sidebar nav a:last-child { margin-top: 1rem; border-top: 1px solid #303c30; border-radius: 0; }
+.admin-shell .admin-sidebar__account { flex-shrink: 0; gap: .6rem; padding: 1.15rem .35rem 0; border-color: #303c30; }
+.admin-shell .admin-sidebar__account > span { width: 2.1rem; height: 2.1rem; border: 1px solid #5e7456; border-radius: 50%; background: #34432a; color: #e3edca; font-size: .8rem; }
+.admin-shell .admin-sidebar__account strong { color: #f2f6e9; font-size: .8rem; font-weight: 650; }
+.admin-shell .admin-sidebar__account small { color: #abbba2; font-size: .7rem; }
+.admin-shell .admin-sidebar__account button { color: #c2d0b9; }
+.admin-shell .admin-sidebar__account button:hover { background: #34442e; color: #fff; }
+.admin-shell .admin-main { min-height: 0; width: 100%; max-width: 112rem; padding: 1.8rem clamp(1.25rem, 2.4vw, 3rem) 1.25rem; }
+@media (max-width: 1300px) and (min-width: 681px) {
+  .admin-shell { grid-template-columns: 4.75rem minmax(0, 1fr); }
+  .admin-shell .admin-sidebar { align-items: center; padding-inline: .65rem; }
+  .admin-shell .admin-sidebar > a { margin-left: 0; }
+  .admin-shell .admin-sidebar .platform-brand { gap: 0; }
+  .admin-shell .admin-sidebar .platform-brand strong { display: none; }
+  .admin-shell .admin-sidebar nav :is(a, button) { justify-content: center; gap: 0; width: 2.9rem; padding-inline: 0; font-size: 0; }
+  .admin-shell .admin-sidebar__account { grid-template-columns: 1fr; justify-items: center; }
+  .admin-shell .admin-sidebar__account div { display: none; }
+  .admin-shell .admin-sidebar nav a.is-active::after { display: none; }
+}
+@media (max-width: 680px) {
+  .admin-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; height: auto; min-height: 100dvh; overflow: visible; }
+  .admin-shell .admin-sidebar { position: static; height: auto; padding: max(.6rem, env(safe-area-inset-top)) .65rem .6rem; border-right: 0; border-bottom: 1px solid #43503b; background: #0d1410f5; }
+  .admin-shell .admin-sidebar > a { display: flex; margin: 0; }
+  .admin-shell .admin-sidebar .platform-brand { gap: 0; }
+  .admin-shell .admin-sidebar .platform-brand strong { display: none; }
+  .admin-shell .admin-sidebar .platform-brand__mark { width: 1.9rem; height: 1.9rem; }
+  .admin-shell .admin-sidebar nav { gap: .2rem; margin: 0 .35rem 0 .6rem; overflow-y: hidden; }
+  .admin-shell .admin-sidebar nav :is(a, button) { flex: 0 0 auto; justify-content: center; gap: 0; width: 2.75rem; height: 2.75rem; min-height: 0; padding: 0; font-size: 0; }
+  .admin-shell .admin-sidebar nav a.is-active { order: -1; }
+  .admin-shell .admin-sidebar nav a:last-child { margin: 0; border: 0; }
+  .admin-shell .admin-sidebar__account { margin: 0; padding: 0 0 0 .15rem; border: 0; }
+  .admin-shell .admin-sidebar__account::before { background: #43503b; }
+  .admin-shell .admin-main { padding: .85rem .85rem max(.75rem, env(safe-area-inset-bottom)); }
+  .admin-shell .admin-sidebar nav a.is-active::after { display: none; }
+  .admin-topbar { margin-bottom: 1rem; }
+  .admin-topbar h1 { font-size: 1.7rem; line-height: 1.2; }
+  .admin-topbar > button { min-width: 2.75rem; }
+  .admin-support__list, .admin-leads__list, .admin-support__messages { max-height: none; overflow-y: visible; }
+  .admin-support__conversation { overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-shell *, .admin-shell *::before, .admin-shell *::after { animation: none !important; transition: none !important; }
+}
