@@ -523,6 +523,7 @@ test('admin route fails closed when backend configuration is absent', async ({ p
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Supabase pole ühendatud' })).toBeVisible()
   await expect(page.getByText('SEADISTUS PUUDUB')).toBeVisible()
+  // The admin surface uses its shared dark theme, including access-check screens.
   expect(await page.evaluate(() => ({
     surface: document.documentElement.dataset.appSurface,
     rootBackground: getComputedStyle(document.documentElement).backgroundColor,
@@ -531,9 +532,9 @@ test('admin route fails closed when backend configuration is absent', async ({ p
     themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content,
   }))).toEqual({
     surface: 'platform',
-    rootBackground: 'rgb(244, 242, 233)',
-    bodyBackground: 'rgb(244, 242, 233)',
-    colorScheme: 'light',
+    rootBackground: 'rgb(20, 27, 23)',
+    bodyBackground: 'rgb(20, 27, 23)',
+    colorScheme: 'dark',
     themeColor: '#f4f2e9',
   })
 })
