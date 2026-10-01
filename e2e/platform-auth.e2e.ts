@@ -1286,6 +1286,45 @@ test('a stale creation form resumes the existing store without overwriting it', 
   expect(writes).toEqual([])
 })
 
+test('merchant presence reports the visible view and stops when the tab is hidden', async ({ page }) => {
+  await installSupabaseBackend(page)
+  const touches: Array<{ target_session_id: string; current_view_value: string }> = []
+  const leaves: string[] = []
+  await page.route('**/rpc/touch_user_presence_view', async (route) => {
+    touches.push(route.request().postDataJSON())
+    await json(route, null)
+  })
+  await page.route('**/rpc/leave_user_presence', async (route) => {
+    leaves.push(route.request().postDataJSON().target_session_id)
+    await json(route, null)
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Logi sisse' }).first().click()
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('button', { name: 'Seaded', exact: true })).toBeVisible()
+  await expect.poll(() => touches.at(-1)?.current_view_value).toBe('storefront')
+  await page.clock.install()
+  const sessionId = touches.at(-1)!.target_session_id
+  const leaveCount = leaves.length
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect.poll(() => leaves.length).toBeGreaterThan(leaveCount)
+  expect(leaves.at(-1)).toBe(sessionId)
+  const touchCount = touches.length
+  await page.clock.fastForward(60_000)
+  expect(touches).toHaveLength(touchCount)
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect.poll(() => touches.length).toBeGreaterThan(touchCount)
+  expect(touches.at(-1)).toEqual({ target_session_id: sessionId, current_view_value: 'storefront' })
+})
+
 test('merchant logout returns to the Poeruum homepage', async ({ page }) => {
   await installSupabaseBackend(page)
 

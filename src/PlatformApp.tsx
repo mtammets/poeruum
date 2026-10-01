@@ -355,20 +355,31 @@ function PlatformFlow() {
     })
   }, [])
 
+  const presenceViewRef = useRef(screen)
+  useEffect(() => {
+    presenceViewRef.current = screen
+    if (!onlineUserId || !isSupabaseConfigured || document.visibilityState !== 'visible') return
+    void requireSupabase().rpc('touch_user_presence_view', {
+      target_session_id: onlinePresenceSessionIdRef.current, current_view_value: screen,
+    }).then(() => undefined)
+  }, [screen, onlineUserId])
+
   useEffect(() => {
     if (!onlineUserId || !isSupabaseConfigured) return
     const client = requireSupabase()
     const presenceSessionId = onlinePresenceSessionIdRef.current
     let active = true
     const touchPresence = () => {
-      if (active) void client.rpc('touch_user_presence', { target_session_id: presenceSessionId }).then(() => undefined)
+      if (!active || document.visibilityState !== 'visible') return
+      void client.rpc('touch_user_presence_view', { target_session_id: presenceSessionId, current_view_value: presenceViewRef.current })
+        .then(({ error }) => {
+          if (error?.code === 'PGRST202' || error?.code === '42883') void client.rpc('touch_user_presence', { target_session_id: presenceSessionId })
+        })
     }
-    const leavePresence = () => {
-      void client.rpc('leave_user_presence', { target_session_id: presenceSessionId }).then(() => undefined)
-    }
+    const leavePresence = () => { void client.rpc('leave_user_presence', { target_session_id: presenceSessionId }).then(() => undefined) }
     touchPresence()
     const heartbeat = window.setInterval(touchPresence, 30_000)
-    const handleVisibility = () => { if (document.visibilityState === 'visible') touchPresence() }
+    const handleVisibility = () => { if (document.visibilityState === 'visible') touchPresence(); else leavePresence() }
     window.addEventListener('online', touchPresence)
     window.addEventListener('pagehide', leavePresence)
     document.addEventListener('visibilitychange', handleVisibility)

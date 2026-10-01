@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import './admin.css'
 import './adminUsers.css'
 import { createRandomId } from './lib/randomId'
@@ -17,42 +17,11 @@ import AdminSupport from './AdminSupport'
 import AdminPaymentReviews from './AdminPaymentReviews'
 import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
-import { getStorefrontCanonicalUrl } from './lib/storefrontUrl'
-import { getStripeRequirementIssueCopies } from '../supabase/functions/_shared/stripe-requirement-issues.mjs'
+import AdminUsers from './AdminUsers'
+import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
 
 const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
 const AdminKaubamaja = lazy(() => import('./AdminKaubamaja'))
-
-type AdminUserRow = {
-  user_id: string
-  email: string
-  user_created_at: string
-  last_sign_in_at: string | null
-  store_id: string | null
-  store_name: string | null
-  store_slug: string | null
-  custom_hostname: string | null
-  store_created_at: string | null
-  is_published: boolean
-  payment_status: 'idle' | 'pending' | 'connected'
-  stripe_account_requirement_issues: unknown
-  pricing_plan: 'flexible' | 'fixed'
-  product_count: number
-  order_count: number
-  gross_sales: number
-  last_activity_at: string | null
-  has_store_details: boolean
-  has_payments: boolean
-  has_delivery: boolean
-  has_product: boolean
-  has_business_details: boolean
-  has_published: boolean
-  open_support_count: number
-  last_support_at: string | null
-  email_confirmed: boolean
-  email_is_disposable: boolean
-  email_review_required: boolean
-}
 
 type SetupStep = {
   key: keyof Pick<AdminUserRow, 'has_store_details' | 'has_payments' | 'has_delivery' | 'has_product' | 'has_business_details' | 'has_published'>
@@ -60,8 +29,6 @@ type SetupStep = {
   nextLabel: string
 }
 
-type UserFilter = 'temporary-email' | 'email-review' | 'all' | 'incomplete' | 'payments' | 'unpublished' | 'complete'
-type UserSort = 'attention' | 'newest' | 'oldest' | 'active' | 'progress'
 type AdminView = 'payments' | 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
@@ -165,16 +132,6 @@ type HomepageEngagementDashboard = Pick<
   'range_days' | 'average_engaged_seconds' | 'measured_sessions' | 'engaged_sessions' | 'sources' | 'engagement_buckets'
 >
 
-type LatestEmailDelivery = {
-  user_id: string
-  resend_email_id: string
-  subject: string
-  email_type: string | null
-  status: 'sent' | 'delivered' | 'failed' | 'bounced' | 'complained' | 'delivery_delayed' | 'suppressed'
-  sent_at: string
-  status_updated_at: string
-}
-
 const emptyRevenueDashboard: RevenueDashboard = {
   month_total_cents: 0,
   today_total_cents: 0,
@@ -271,24 +228,6 @@ const setupSteps: SetupStep[] = [
   { key: 'has_published', label: 'Pood avalikustatud', nextLabel: 'poe avalikustamine' },
 ]
 
-const filters: Array<{ id: UserFilter; label: string }> = [
-  { id: 'all', label: 'Kõik' },
-  { id: 'incomplete', label: 'Pooleli' },
-  { id: 'payments', label: 'Maksed puudu' },
-  { id: 'unpublished', label: 'Avaldamata' },
-  { id: 'complete', label: 'Valmis' },
-  { id: 'temporary-email', label: 'Ajutine e-post' },
-  { id: 'email-review', label: 'E-posti ülevaatus' },
-]
-
-const sortOptions: Array<{ id: UserSort; label: string }> = [
-  { id: 'attention', label: 'Vajavad tähelepanu' },
-  { id: 'newest', label: 'Uuemad ees' },
-  { id: 'oldest', label: 'Vanemad ees' },
-  { id: 'active', label: 'Hiljuti aktiivsed' },
-  { id: 'progress', label: 'Valmimad ees' },
-]
-
 const setupCount = (row: AdminUserRow) => setupSteps.filter((step) => row[step.key]).length
 const setupPercent = (row: AdminUserRow) => Math.round(setupCount(row) / setupSteps.length * 100)
 
@@ -364,8 +303,6 @@ const formatRelativeTime = (value: string | null) => {
   if (days < 30) return `${days} päeva tagasi`
   return formatDate(value)
 }
-
-const getNextStep = (row: AdminUserRow) => setupSteps.find((step) => !row[step.key])?.nextLabel ?? 'pood on valmis'
 
 const isStalled = (row: AdminUserRow) => {
   if (setupPercent(row) === 100) return false
@@ -453,27 +390,6 @@ function AdminLogin({
   </main>
 }
 
-function ProgressBar({ row }: { row: AdminUserRow }) {
-  const completed = setupCount(row)
-  const percent = setupPercent(row)
-  const progressState = percent === 100
-    ? 'is-complete'
-    : percent === 0
-      ? 'is-not-started'
-      : percent <= 33
-        ? 'is-early'
-        : percent <= 66
-          ? 'is-midway'
-          : 'is-nearly-complete'
-  return <div className={`admin-progress ${progressState}`}>
-    <div className="admin-progress__meta"><strong>{percent}%</strong><span>{completed} tehtud · {setupSteps.length - completed} teha</span></div>
-    <div className="admin-progress__track" role="progressbar" aria-label="Poe seadistuse edenemine" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${completed} sammu ${setupSteps.length}-st tehtud`}>
-      {setupSteps.map((step, index) => <span className={index < completed ? 'is-done' : undefined} key={step.key} aria-hidden="true" />)}
-    </div>
-    <small>{percent === 100 ? 'Kõik sammud tehtud' : `Järgmine samm: ${getNextStep(row)}`}</small>
-  </div>
-}
-
 export default function AdminApp() {
   const [activeView, setActiveView] = useState<AdminView>(() => getAdminView())
   const [session, setSession] = useState<Session | null>(null)
@@ -483,11 +399,11 @@ export default function AdminApp() {
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [rows, setRows] = useState<AdminUserRow[]>([])
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set())
+  const [presenceKnown, setPresenceKnown] = useState(false)
+  const [onlineViews, setOnlineViews] = useState<Map<string, string>>(() => new Map())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [filter, setFilter] = useState<UserFilter>('all')
-  const [sort, setSort] = useState<UserSort>('newest')
-  const [search, setSearch] = useState('')
+  const [userMetricsError, setUserMetricsError] = useState('')
   const [revenue, setRevenue] = useState<RevenueDashboard>(emptyRevenueDashboard)
   const [revenueError, setRevenueError] = useState('')
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>(30)
@@ -641,9 +557,12 @@ export default function AdminApp() {
   }
 
   const loadOnlineUsers = async () => {
-    const { data, error: queryError } = await requireSupabase().rpc('admin_online_users')
-    if (queryError) return
-    setOnlineUserIds(new Set((data ?? []).map((row: { user_id: string }) => row.user_id)))
+    let response = await requireSupabase().rpc('admin_user_presence')
+    if (response.error?.code === 'PGRST202' || response.error?.code === '42883') response = await requireSupabase().rpc('admin_online_users')
+    if (response.error) { setPresenceKnown(false); setOnlineUserIds(new Set()); setOnlineViews(new Map()); return }
+    setPresenceKnown(true)
+    setOnlineUserIds(new Set((response.data ?? []).map((row: { user_id: string }) => row.user_id)))
+    setOnlineViews(new Map((response.data ?? []).filter((row: { current_view?: string }) => row.current_view).map((row: { user_id: string; current_view: string }) => [row.user_id, row.current_view])))
   }
 
   const [signupAlerts, setSignupAlerts] = useState<Array<{ requests: number; first_seen_at: string; last_seen_at: string }>>([])
@@ -807,7 +726,13 @@ export default function AdminApp() {
     void loadLatestEmails()
     void loadSignupAlerts()
     void loadHomepageSettings()
-    const { data, error: queryError } = await requireSupabase().rpc('admin_dashboard_users')
+    const [usersResponse, metricsResponse] = await Promise.all([
+      requireSupabase().rpc('admin_dashboard_users'),
+      requireSupabase().rpc('admin_user_overview'),
+    ])
+    const { data, error: queryError } = usersResponse
+    const metrics = new Map<string, Partial<AdminUserRow>>((Array.isArray(metricsResponse.data) ? metricsResponse.data : []).map((row: AdminUserRow) => [row.user_id, row]))
+    setUserMetricsError(metricsResponse.error || (data ?? []).some((row: AdminUserRow) => metrics.get(row.user_id)?.metrics_version !== 1) ? 'unavailable' : '')
     if (queryError) {
       const forbidden = queryError.code === '42501' || queryError.message.toLowerCase().includes('admin access')
       setError(forbidden
@@ -817,6 +742,7 @@ export default function AdminApp() {
     } else {
       setRows(((data ?? []) as AdminUserRow[]).map((row) => ({
         ...row,
+        ...metrics.get(row.user_id),
         product_count: Number(row.product_count),
         order_count: Number(row.order_count),
         gross_sales: Number(row.gross_sales),
@@ -850,6 +776,8 @@ export default function AdminApp() {
       setRevenue(emptyRevenueDashboard)
       setHomepageAnalytics(emptyHomepageAnalytics)
       setOnlineUserIds(new Set())
+      setOnlineViews(new Map())
+      setPresenceKnown(false)
       return
     }
 
@@ -924,38 +852,20 @@ export default function AdminApp() {
         }, 350)
       })
       .subscribe()
+    // Recover missed realtime events and keep the rolling 30-day window current.
+    const refreshVisibleDashboard = () => {
+      if (document.visibilityState === 'visible') void loadDashboard({ silent: true, refreshAuth: false })
+    }
+    const refreshInterval = window.setInterval(refreshVisibleDashboard, 60_000)
+    document.addEventListener('visibilitychange', refreshVisibleDashboard)
     return () => {
+      window.clearInterval(refreshInterval)
+      document.removeEventListener('visibilitychange', refreshVisibleDashboard)
       if (dashboardRefreshTimerRef.current !== null) window.clearTimeout(dashboardRefreshTimerRef.current)
       dashboardRefreshTimerRef.current = null
       void client.removeChannel(channel)
     }
   }, [session?.user.id, adminAccessGranted])
-
-  const visibleRows = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase('et')
-    return rows
-      .filter((row) => {
-        const percent = setupPercent(row)
-        if (filter === 'incomplete' && (percent === 0 || percent === 100)) return false
-        if (filter === 'payments' && row.has_payments) return false
-        if (filter === 'unpublished' && (row.has_published || percent === 0)) return false
-        if (filter === 'temporary-email' && !row.email_is_disposable) return false
-        if (filter === 'email-review' && !row.email_review_required) return false
-        if (filter === 'complete' && percent !== 100) return false
-        return !normalizedSearch || `${row.store_name ?? ''} ${row.email} ${row.store_slug ?? ''} ${row.custom_hostname ?? ''}`.toLocaleLowerCase('et').includes(normalizedSearch)
-      })
-      .sort((left, right) => {
-        const newestFirst = new Date(right.user_created_at).getTime() - new Date(left.user_created_at).getTime()
-        if (sort === 'newest') return newestFirst
-        if (sort === 'oldest') return -newestFirst
-        const onlineDifference = Number(onlineUserIds.has(right.user_id)) - Number(onlineUserIds.has(left.user_id))
-        const recentActivityFirst = new Date(right.last_activity_at ?? right.user_created_at).getTime()
-          - new Date(left.last_activity_at ?? left.user_created_at).getTime()
-        if (sort === 'active') return onlineDifference || recentActivityFirst || newestFirst
-        if (sort === 'progress') return setupPercent(right) - setupPercent(left) || recentActivityFirst
-        return setupPercent(left) - setupPercent(right) || newestFirst
-      })
-  }, [rows, filter, search, sort, onlineUserIds])
 
   if (!authReady || isSigningOut || (session && !adminAccessGranted)) return <main className="admin-loading"><span /><p>{isSigningOut ? 'Login välja…' : 'Kontrollin administraatori ligipääsu…'}</p></main>
   if (!isSupabaseConfigured) return <main className="admin-auth"><section className="admin-auth__card"><span>SEADISTUS PUUDUB</span><h1>Supabase pole ühendatud</h1><p>Lisa lokaalsesse <code>.env</code> faili Supabase’i võtmed ja laadi leht uuesti.</p><a href="/">Tagasi Poeruumi</a></section></main>
@@ -1347,35 +1257,10 @@ export default function AdminApp() {
 
         {activeView === 'leads' && <AdminLeads />}
 
-        {activeView === 'users' && <section className="admin-users">
-          {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset (suurim arv: {Math.max(...signupAlerts.map((alert) => Number(alert.requests)))}). Vaata uued kontod üle; jagatud võrk üksi ei tähenda väärkasutust.</p></div>}
-          <header><div><h2>Kasutajad</h2></div><div className="admin-users__controls"><label className="admin-sort"><span>Järjesta</span><select value={sort} onChange={(event) => setSort(event.target.value as UserSort)} aria-label="Järjesta kasutajad">{sortOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="admin-search"><span><AdminIcon name="search" /></span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Otsi poodi või e-posti" aria-label="Otsi kasutajaid" /></label></div></header>
-          <div className="admin-filters" role="group" aria-label="Filtreeri kasutajaid">
-            {filters.map((item) => <button type="button" className={filter === item.id ? 'is-active' : ''} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} key={item.id}>{item.label}</button>)}
-          </div>
-          <div className="admin-table">
-            <div className="admin-table__head"><span>Kasutaja</span><span>Liitus</span><span>Seadistus</span><span>Staatus</span><span>Suhtlus</span><span>Viimane tegevus</span></div>
-            {isLoading && !rows.length ? <div className="admin-table__empty"><span className="admin-table__loader" /><strong>Laadin kasutajaid…</strong></div> : visibleRows.length ? visibleRows.map((row) => {
-              const percent = setupPercent(row)
-              const isOnline = onlineUserIds.has(row.user_id)
-              const latestEmail = latestEmails.get(row.user_id)
-              const [paymentIssue] = getStripeRequirementIssueCopies(row.stripe_account_requirement_issues)
-              const status = paymentIssue ? 'Maksed vajavad tegevust' : percent === 100 ? 'Valmis' : percent === 0 ? 'Alustamata' : isStalled(row) ? 'Vajab tähelepanu' : null
-              const statusClass = paymentIssue ? 'stalled' : percent === 100 ? 'complete' : percent === 0 ? 'empty' : 'stalled'
-              const storefrontUrl = row.is_published && row.store_slug
-                ? getStorefrontCanonicalUrl(row.store_slug, undefined, row.custom_hostname ?? undefined)
-                : null
-              return <article className={`admin-user-row${percent === 100 ? ' is-complete' : ''}`} key={row.user_id}>
-                <div className="admin-user-row__identity"><span className={isOnline ? 'is-online' : undefined}>{(row.store_name ?? row.email).charAt(0).toLocaleUpperCase('et')}</span><div><div className="admin-user-row__store"><strong title={row.store_name || 'Poodi pole loodud'}>{row.store_name || 'Poodi pole loodud'}</strong>{storefrontUrl && <a href={storefrontUrl} target="_blank" rel="noopener noreferrer" title={storefrontUrl} aria-label={`Ava pood ${row.store_name || row.store_slug} uuel vahelehel`}>Ava pood <span aria-hidden="true">↗</span></a>}</div><a href={`mailto:${row.email}`} title={row.email}>{row.email}</a>{(row.email_is_disposable || row.email_confirmed === false || row.email_review_required) && <div className="admin-user-row__flags">{row.email_is_disposable && <span className="admin-email-flag" title="Teadaolev ajutine meiliteenus. Märge ei tõesta väärkasutust.">Ajutine e-post</span>}{row.email_confirmed === false && <span className="admin-email-flag is-unconfirmed">Kinnitamata</span>}{row.email_review_required && <span className="admin-email-flag">Ülevaatus: 30 päeva tegevuseta</span>}</div>}</div></div>
-                <time dateTime={row.user_created_at}>{formatDate(row.user_created_at)}</time>
-                <ProgressBar row={row} />
-                <div className="admin-user-row__status">{status && <span className={`admin-status is-${statusClass}`}>{percent === 100 && !paymentIssue ? <AdminIcon name="check" /> : <i />}{status}</span>}{row.store_id && <small title={paymentIssue?.detail}>{paymentIssue?.title ?? (row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett')}</small>}</div>
-                <div className={`admin-user-row__support${latestEmail && ['failed', 'bounced', 'complained', 'suppressed'].includes(latestEmail.status) ? ' is-error' : ''}`}>{row.open_support_count > 0 ? <a href="/admin/support" onClick={(event) => navigateToView(event, 'support')}><strong>{row.open_support_count} avatud vestlus{row.open_support_count === 1 ? '' : 't'}</strong><small>{formatRelativeTime(row.last_support_at)}</small></a> : latestEmail ? <span><strong>{latestEmail.email_type === 'onboarding_reminder' ? 'Seadistuse meeldetuletus' : latestEmail.email_type === 'support_reply' ? 'Klienditoe vastus' : latestEmail.email_type === 'support_confirmation' ? 'Küsimuse kinnitus' : latestEmail.subject || 'Poeruumi kiri'}</strong><small>{latestEmail.status === 'delivered' ? 'Kohale toimetatud' : latestEmail.status === 'sent' ? 'Saatmine vastu võetud' : latestEmail.status === 'delivery_delayed' ? 'Kohaletoimetamine viibib' : latestEmail.status === 'suppressed' ? 'Saatmine blokeeritud' : latestEmail.status === 'bounced' ? 'Ei jõudnud kohale' : latestEmail.status === 'complained' ? 'Märgiti rämpspostiks' : 'Saatmine ebaõnnestus'} · {formatRelativeTime(latestEmail.status_updated_at)}</small></span> : <span>Suhtlust pole</span>}</div>
-                <div className="admin-user-row__activity"><strong className={isOnline ? 'is-online' : undefined}>{isOnline ? 'Online' : formatRelativeTime(row.last_activity_at)}</strong><small>{row.order_count ? `${row.order_count} tellimust` : row.product_count ? `${row.product_count} toodet` : 'Tellimusi pole'}</small></div>
-              </article>
-            }) : <div className="admin-table__empty"><span>⌕</span><strong>Kasutajaid ei leitud</strong><p>Muuda otsingut või vali teine filter.</p></div>}
-          </div>
-        </section>}
+        {activeView === 'users' && <>
+          {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset. Vaata uued kontod üle.</p></div>}
+          <AdminUsers rows={rows} onlineUserIds={onlineUserIds} onlineViews={onlineViews} presenceKnown={presenceKnown} latestEmails={latestEmails} isLoading={isLoading} metricsError={userMetricsError} onRetry={() => void loadDashboard()} />
+        </>}
       </>}
     </section>
   </main>

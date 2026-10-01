@@ -53,6 +53,7 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
+  const requestedConversationId = useRef(new URLSearchParams(window.location.search).get('conversation'))
 
   const loadConversations = async () => {
     const { data, error: queryError } = await requireSupabase().rpc('admin_support_conversations')
@@ -64,6 +65,9 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
       setConversations(next)
       setSelected((current) => current ? next.find((item) => item.id === current.id) ?? current : null)
       setError('')
+      const requested = next.find((item) => item.id === requestedConversationId.current)
+      requestedConversationId.current = null
+      if (requested) void openConversation(requested)
     }
     setIsLoading(false)
   }
