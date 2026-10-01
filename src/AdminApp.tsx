@@ -19,16 +19,12 @@ import AdminPaymentReviews from './AdminPaymentReviews'
 import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 import AdminUsers from './AdminUsers'
+import AdminOverview from './AdminOverview'
+import type { RevenueEvent, RevenueDashboard, AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard, AnalyticsEngagementBucket } from './lib/adminDashboard'
 import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
 
 const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
 const AdminKaubamaja = lazy(() => import('./AdminKaubamaja'))
-
-type SetupStep = {
-  key: keyof Pick<AdminUserRow, 'has_store_details' | 'has_payments' | 'has_delivery' | 'has_product' | 'has_business_details' | 'has_published'>
-  label: string
-  nextLabel: string
-}
 
 type AdminView = 'payments' | 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
@@ -56,82 +52,6 @@ const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/kaubamaja\/?$/i.test(pathname)) return 'directory'
   return 'overview'
 }
-
-type RevenueEvent = {
-  id: string
-  kind: 'subscription' | 'transaction_fee' | 'transaction_fee_refund'
-  amount_cents: number
-  currency: string
-  description: string
-  occurred_at: string
-  store_id: string | null
-  store_name: string
-}
-
-type RevenueDashboard = {
-  month_total_cents: number
-  today_total_cents: number
-  subscription_total_cents: number
-  transaction_fee_total_cents: number
-  refund_total_cents: number
-  recent_events: RevenueEvent[]
-}
-
-type AnalyticsRange = 7 | 30 | 90
-
-type AnalyticsDailyPoint = {
-  date: string
-  sessions: number
-  signup_starts: number
-  accounts_created: number
-}
-
-type AnalyticsBreakdown = {
-  label: string
-  sessions: number
-}
-
-type AnalyticsSource = {
-  source: string
-  sessions: number
-  measured_sessions: number
-  engaged_sessions: number
-  average_engaged_seconds: number
-}
-
-type AnalyticsEngagementBucket = {
-  bucket: 'under_10' | '10_29' | '30_119' | '120_plus'
-  sessions: number
-}
-
-type HomepageAnalyticsDashboard = {
-  range_days: number
-  sessions: number
-  anonymous_sessions: number
-  merchant_sessions: number
-  average_engaged_seconds: number
-  measured_sessions: number
-  engaged_sessions: number
-  signup_starts: number
-  tracked_accounts: number
-  demo_opens: number
-  pricing_views: number
-  accounts_created: number
-  stores_started: number
-  payments_connected: number
-  stores_published: number
-  daily: AnalyticsDailyPoint[]
-  sources: AnalyticsSource[]
-  engagement_buckets: AnalyticsEngagementBucket[]
-  devices: Array<{ device: 'mobile' | 'tablet' | 'desktop'; sessions: number }>
-  ctas: AnalyticsBreakdown[]
-  faqs: AnalyticsBreakdown[]
-}
-
-type HomepageEngagementDashboard = Pick<
-  HomepageAnalyticsDashboard,
-  'range_days' | 'average_engaged_seconds' | 'measured_sessions' | 'engaged_sessions' | 'sources' | 'engagement_buckets'
->
 
 const emptyRevenueDashboard: RevenueDashboard = {
   month_total_cents: 0,
@@ -220,25 +140,9 @@ const prepareSocialImage = async (file: File) => {
   return blob
 }
 
-const setupSteps: SetupStep[] = [
-  { key: 'has_store_details', label: 'Poe põhiandmed', nextLabel: 'poe põhiandmete lisamine' },
-  { key: 'has_payments', label: 'Maksed ühendatud', nextLabel: 'maksete ühendamine' },
-  { key: 'has_delivery', label: 'Tarneviis valitud', nextLabel: 'tarneviisi valimine' },
-  { key: 'has_product', label: 'Esimene toode lisatud', nextLabel: 'esimese toote lisamine' },
-  { key: 'has_business_details', label: 'Müüja andmed', nextLabel: 'müüja andmete lisamine' },
-  { key: 'has_published', label: 'Pood avalikustatud', nextLabel: 'poe avalikustamine' },
-]
-
-const setupCount = (row: AdminUserRow) => setupSteps.filter((step) => row[step.key]).length
-const setupPercent = (row: AdminUserRow) => Math.round(setupCount(row) / setupSteps.length * 100)
-
 const formatDate = (value: string | null) => value
   ? new Intl.DateTimeFormat('et-EE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value))
   : '—'
-
-const formatMoney = (cents: number, currency = 'eur') => new Intl.NumberFormat('et-EE', {
-  style: 'currency', currency: currency.toUpperCase(), minimumFractionDigits: 2,
-}).format(cents / 100)
 
 const formatPercent = (value: number, total: number) => total
   ? `${new Intl.NumberFormat('et-EE', { maximumFractionDigits: 1 }).format(value / total * 100)}%`
@@ -303,12 +207,6 @@ const formatRelativeTime = (value: string | null) => {
   if (days === 1) return 'eile'
   if (days < 30) return `${days} päeva tagasi`
   return formatDate(value)
-}
-
-const isStalled = (row: AdminUserRow) => {
-  if (setupPercent(row) === 100) return false
-  const lastActivity = row.last_activity_at ?? row.user_created_at
-  return Date.now() - new Date(lastActivity).getTime() > 7 * 86_400_000
 }
 
 type AdminIconName = 'home' | 'analytics' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue' | 'card'
@@ -407,6 +305,7 @@ export default function AdminApp() {
   const [userMetricsError, setUserMetricsError] = useState('')
   const [revenue, setRevenue] = useState<RevenueDashboard>(emptyRevenueDashboard)
   const [revenueError, setRevenueError] = useState('')
+  const [isRevenueLoading, setIsRevenueLoading] = useState(true)
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>(30)
   const [homepageAnalytics, setHomepageAnalytics] = useState<HomepageAnalyticsDashboard>(emptyHomepageAnalytics)
   const [analyticsError, setAnalyticsError] = useState('')
@@ -484,7 +383,9 @@ export default function AdminApp() {
   }
 
   const loadRevenue = async () => {
+    setIsRevenueLoading(true)
     const { data, error: queryError } = await requireSupabase().rpc('admin_revenue_dashboard')
+    setIsRevenueLoading(false)
     if (queryError) {
       setRevenueError('Tulude andmeid ei õnnestunud laadida. Rakenda tulude migratsioon.')
       return
@@ -893,11 +794,6 @@ export default function AdminApp() {
     onExit={() => setIsManagingShowcase(false)}
   />
 
-  const completedCount = rows.filter((row) => setupPercent(row) === 100).length
-  const paymentMissingCount = rows.filter((row) => row.store_id && !row.has_payments).length
-  const unpublishedCount = rows.filter((row) => setupPercent(row) > 0 && !row.has_published).length
-  const stalledCount = rows.filter(isStalled).length
-  const openSupportCount = rows.reduce((total, row) => total + row.open_support_count, 0)
   const seoIsDirty = seoDraft.seo_title !== seoSettings.seo_title
     || seoDraft.seo_description !== seoSettings.seo_description
     || seoDraft.social_title !== seoSettings.social_title
@@ -936,7 +832,7 @@ export default function AdminApp() {
     </aside>
 
     <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
-      {activeView !== 'users' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
+      {activeView !== 'users' && activeView !== 'overview' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => void loadDashboard()} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
@@ -1096,70 +992,24 @@ export default function AdminApp() {
           </section>
         </div>}
 
-        {activeView === 'overview' && <>
-        <section className={`admin-revenue${liveRevenueEventId ? ' is-live-update' : ''}`} aria-label="Poeruumi tulu">
-          <div className="admin-revenue__summary">
-            <header><span><AdminIcon name="revenue" /></span><div><small>SELLE KUU TEENUSTASUD KM-TA</small><strong>{formatMoney(revenue.month_total_cents)}</strong></div><b><i /> REAALAJAS</b></header>
-            <div className="admin-revenue__today"><span>Täna</span><strong>{formatMoney(revenue.today_total_cents)}</strong></div>
-            <dl>
-              <div><dt>Kuutasud</dt><dd>{formatMoney(revenue.subscription_total_cents)}</dd></div>
-              <div><dt>4% müügitasud</dt><dd>{formatMoney(revenue.transaction_fee_total_cents)}</dd></div>
-              <div><dt>Tagastused</dt><dd>{formatMoney(revenue.refund_total_cents)}</dd></div>
-            </dl>
-          </div>
-          <div className="admin-revenue__activity">
-            <header><div><strong>Viimased laekumised</strong><small>Enne Stripe’i maksetöötluse tasusid</small></div>{liveRevenueEventId && <span>Uus laekumine</span>}</header>
-            {revenueError ? <p className="admin-revenue__empty is-error">{revenueError}</p> : revenue.recent_events.length ? <div className="admin-revenue__events">
-              {revenue.recent_events.slice(0, 4).map((event) => <article className={event.id === liveRevenueEventId ? 'is-new' : ''} key={event.id}>
-                <i className={event.amount_cents < 0 ? 'is-refund' : event.kind === 'subscription' ? 'is-subscription' : ''}>{event.amount_cents < 0 ? '↩' : event.kind === 'subscription' ? 'K' : '%'}</i>
-                <span><strong>{event.description}</strong><small>{event.store_name} · {formatRelativeTime(event.occurred_at)}</small></span>
-                <b>{event.amount_cents > 0 ? '+' : ''}{formatMoney(event.amount_cents, event.currency)}</b>
-              </article>)}
-            </div> : <p className="admin-revenue__empty">Esimene kinnitatud kuutasu või müügitasu ilmub siia automaatselt.</p>}
-          </div>
-        </section>
-
-        <section className="admin-kpis" aria-label="Kokkuvõte">
-          <article><span>KÕIK KASUTAJAD</span><strong>{rows.length}</strong><small>Poeruumi kontot</small><i className="is-neutral"><AdminIcon name="users" /></i></article>
-          <article><span>VALMIS POED</span><strong>{completedCount}</strong><small>{rows.length ? `${Math.round(completedCount / rows.length * 100)}% kasutajatest` : 'Andmed puuduvad'}</small><i className="is-positive"><AdminIcon name="check" /></i></article>
-          <article><span>MAKSED PUUDU</span><strong>{paymentMissingCount}</strong><small>vajavad ühendamist</small><i className="is-warning"><AdminIcon name="arrow" /></i></article>
-          <article><span>VAJAVAD TÄHELEPANU</span><strong>{stalledCount}</strong><small>üle 7 päeva muutuseta</small><i className="is-danger"><AdminIcon name="alert" /></i></article>
-        </section>
-
-        <nav className="admin-overview-shortcuts" aria-label="Admini kiirlingid">
-          <a href="/admin/users" onClick={(event) => navigateToView(event, 'users')}>
-            <span><AdminIcon name="users" /></span>
-            <div><small>KASUTAJAD</small><strong>Halda kasutajaid</strong><p>Otsi kontosid, jälgi poodide edenemist ja leia tähelepanu vajavad kasutajad.</p></div>
-            <b>{rows.length}<i>→</i></b>
-          </a>
-          <a href="/admin/analytics" onClick={(event) => navigateToView(event, 'analytics')}>
-            <span><AdminIcon name="analytics" /></span>
-            <div><small>KÜLASTATAVUS</small><strong>Vaata konversioonilehtrit</strong><p>Jälgi avalehe külastusi, poe loomise alustamisi ja teekonda avaldatud poeni.</p></div>
-            <b>{homepageAnalytics.sessions}<i>→</i></b>
-          </a>
-          <a href="/admin/support" onClick={(event) => navigateToView(event, 'support')}>
-            <span><AdminIcon name="message" /></span>
-            <div><small>KLIENDITUGI</small><strong>Ava vestlused</strong><p>Vasta küsimustele ja vaata kogu kliendisuhtlust ühes kohas.</p></div>
-            <b className={openSupportCount ? 'has-unread' : undefined}>{openSupportCount}<i>→</i></b>
-          </a>
-          <a href="/admin/leads" onClick={(event) => navigateToView(event, 'leads')}>
-            <span><AdminIcon name="leads" /></span>
-            <div><small>KLIENDIOTSING</small><strong>Leia uusi kasutajaid</strong><p>Uuri OpenAI abil avalikke allikaid, vaata kontaktid üle ja saada kinnitatud kirjamall.</p></div>
-            <b><i>→</i></b>
-          </a>
-        </nav>
-
-        <section className="admin-setup-overview">
-          <header><div><h2>Seadistuse seis</h2></div><small>{unpublishedCount} alustatud poodi on veel avaldamata</small></header>
-          <div className="admin-setup-overview__bars">
-            {setupSteps.map((step) => {
-              const count = rows.filter((row) => row[step.key]).length
-              const percent = rows.length ? Math.round(count / rows.length * 100) : 0
-              return <div key={step.key}><span><strong>{step.label}</strong><small>{count} kasutajat</small></span><i><b style={{ width: `${percent}%` }} /></i><em>{percent}%</em></div>
-            })}
-          </div>
-        </section>
-        </>}
+        {activeView === 'overview' && <AdminOverview
+          rows={rows}
+          usersLoading={isLoading}
+          onlineCount={presenceKnown ? onlineUserIds.size : null}
+          revenue={revenue}
+          revenueError={revenueError}
+          revenueLoading={isRevenueLoading}
+          liveRevenueEventId={liveRevenueEventId}
+          analytics={homepageAnalytics}
+          analyticsError={analyticsError}
+          analyticsLoading={isAnalyticsLoading}
+          range={analyticsRange}
+          onRangeChange={(range) => {
+            setAnalyticsRange(range)
+            void loadHomepageAnalytics(range)
+          }}
+          onNavigate={navigateToView}
+        />}
 
         {activeView === 'analytics' && <section className="admin-analytics">
           <header className="admin-analytics__header">

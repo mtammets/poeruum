@@ -136,6 +136,132 @@ async function installBackend(page: Page) {
   }
 }
 
+async function installOverviewData(page: Page) {
+  let mode: 'ready' | 'error' | 'zero' | 'empty' = 'ready'
+  const requestedRanges: number[] = []
+  await page.route('**/rpc/admin_homepage_analytics', (route) => {
+    if (mode === 'error') return route.fulfill({ status: 503, json: { message: 'Unavailable' } })
+    const days = route.request().postDataJSON().requested_days
+    requestedRanges.push(days)
+    const daily = mode === 'empty' ? [] : Array.from({ length: days }, (_, i) => ({
+      date: new Date(now - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10),
+      sessions: mode === 'zero' ? 0 : i + 1,
+      signup_starts: mode === 'zero' ? 0 : i % 3,
+      accounts_created: mode === 'zero' ? 0 : i % 2,
+    }))
+    return route.fulfill({ json: {
+      range_days: days, daily,
+      sessions: daily.reduce((sum, day) => sum + day.sessions, 0),
+      signup_starts: daily.reduce((sum, day) => sum + day.signup_starts, 0),
+      accounts_created: daily.reduce((sum, day) => sum + day.accounts_created, 0),
+    } })
+  })
+  await page.route('**/rpc/admin_homepage_engagement', (route) => route.fulfill({ json: {} }))
+  await page.route('**/rpc/admin_revenue_dashboard', (route) => mode === 'error'
+    ? route.fulfill({ status: 503, json: { message: 'Unavailable' } })
+    : route.fulfill({ json: {
+      month_total_cents: mode === 'ready' ? 37540 : 0,
+      today_total_cents: mode === 'ready' ? 2120 : 0,
+      subscription_total_cents: mode === 'ready' ? 29900 : 0,
+      transaction_fee_total_cents: mode === 'ready' ? 8640 : 0,
+      refund_total_cents: mode === 'ready' ? -1000 : 0,
+      recent_events: mode === 'ready' ? [{ id: 'revenue-1', kind: 'transaction_fee', amount_cents: 780, currency: 'eur', description: '4% müügitasu + käibemaks', occurred_at: ago(1), store_id: 'store-3', store_name: 'Moreamoreceramics' }] : [],
+    } }))
+  return { requestedRanges, setMode: (next: typeof mode) => { mode = next } }
+}
+
+test('dashboard charts inspect real daily values, switch metrics and request the selected period', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  await page.goto('/admin')
+  const chart = page.getByRole('slider', { name: 'Külastused päevade kaupa' })
+  await expect(chart).toBeVisible()
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
+  await expect(page.locator('.overview-stores__legend')).toContainText('Avalikud4')
+  await expect(page.locator('.overview-stores__legend')).toContainText('Seadistamisel4')
+  await expect(page.locator('.overview-stores__legend')).toContainText('Pood loomata1')
+  await chart.focus()
+  await page.keyboard.press('Home')
+  await expect(chart).toHaveAttribute('aria-valuenow', '1')
+  await expect(chart).toHaveAttribute('aria-valuetext', '2. sept: 1 külastused')
+  await page.keyboard.press('ArrowRight')
+  await expect(page.locator('.overview-chart__readout')).toHaveText('3. sept2külastused')
+  await page.keyboard.press('End')
+  await expect(chart).toHaveAttribute('aria-valuetext', '1. okt: 30 külastused')
+  await page.getByRole('button', { name: 'Alustamised', exact: false }).click()
+  const starts = page.getByRole('slider', { name: 'Alustamised päevade kaupa' })
+  await expect(starts).toBeVisible()
+  await starts.focus()
+  await page.keyboard.press('End')
+  await expect(starts).toHaveAttribute('aria-valuetext', '1. okt: 2 alustamised')
+  await page.getByRole('button', { name: '7 p', exact: true }).click()
+  await expect(starts).toHaveAttribute('aria-valuemax', '7')
+  expect(backend.requestedRanges).toEqual([30, 7])
+  await page.getByRole('button', { name: 'Külastused', exact: false }).click()
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('28')
+  await expect(page.locator('.overview-income__amount')).toHaveText('375,40 €')
+  await expect(page.locator('.overview-income__breakdown')).toContainText('Tagastused−10 €')
+  await expect(page.getByText('Moreamoreceramics', { exact: true })).not.toBeVisible()
+  await page.locator('.overview-receipts summary').click()
+  await expect(page.getByText('Moreamoreceramics', { exact: true })).toBeVisible()
+  await expect(page.locator('.overview-receipts')).toContainText('+7,80 €')
+  await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
+  await expect(page).toHaveURL(/\/admin\/analytics$/)
+  await expect(page.getByRole('combobox', { name: 'Ajavahemik' })).toHaveValue('7')
+})
+
+test('dashboard distinguishes failed data, measured zeroes and missing daily data', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  backend.setMode('error')
+  await page.goto('/admin')
+  await expect(page.getByText('Graafik pole praegu saadaval')).toBeVisible()
+  await expect(page.getByText('Tulu pole praegu saadaval')).toBeVisible()
+  await expect(page.locator('.overview-income__amount')).toHaveText('—')
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('—')
+  await expect(page.getByRole('slider')).toHaveCount(0)
+  backend.setMode('zero')
+  await page.reload()
+  await expect(page.locator('.overview-income__amount')).toHaveText('0 €')
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('0')
+  const chart = page.getByRole('slider', { name: 'Külastused päevade kaupa' })
+  await chart.focus()
+  await page.keyboard.press('End')
+  await expect(chart).toHaveAttribute('aria-valuetext', '1. okt: 0 külastused')
+  backend.setMode('empty')
+  await page.reload()
+  await expect(page.getByText('Päevased andmed puuduvad')).toBeVisible()
+  await expect(page.getByRole('slider')).toHaveCount(0)
+  await page.locator('.overview-receipts summary').click()
+  await expect(page.getByText('Laekumisi veel pole')).toBeVisible()
+})
+
+test.describe('dashboard on touchscreens', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  test('tap selects a day and the whole page scrolls at narrow widths', async ({ page }) => {
+    await installBackend(page)
+    await installOverviewData(page)
+    await page.goto('/admin')
+    const chart = page.getByRole('slider', { name: 'Külastused päevade kaupa' })
+    await expect(chart).toBeVisible()
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 })
+      await chart.scrollIntoViewIfNeeded()
+      const box = (await chart.boundingBox())!
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+      await expect(chart).toHaveAttribute('aria-valuenow', '16')
+      await expect(page.locator('.overview-chart__readout')).toContainText('16')
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+      const support = page.locator('.overview-attention__item').last()
+      await support.scrollIntoViewIfNeeded()
+      await expect(support).toBeInViewport()
+      expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500)
+    }
+    await page.locator('.overview-attention__item').last().tap()
+    await expect(page).toHaveURL(/\/admin\/support$/)
+  })
+})
+
 test('overview separates publication, sales, payments and support, with history in details', async ({ page }) => {
   await installBackend(page)
   await page.setViewportSize({ width: 1680, height: 1100 })
