@@ -324,14 +324,38 @@ test('rows expand in place on a row click, isolate controls, and recover unavail
   await expect(page.getByRole('button', { name: 'Moreamoreceramics: üksikasjad' })).toBeFocused()
 })
 
-test('only the user list scrolls while navigation, controls and column headings stay in place', async ({ page }) => {
+test('the whole page scrolls on mobile while desktop keeps navigation and controls in place', async ({ page }) => {
   await installBackend(page)
   await page.goto('/admin/users')
   const list = page.getByRole('region', { name: 'Kasutajate nimekiri', exact: true })
   await expect(page.locator('.admin-user-row')).toHaveCount(9)
   for (const [width, height] of [[1440, 900], [1024, 768], [390, 844], [390, 640], [844, 390]]) {
     await page.setViewportSize({ width, height })
+    await page.evaluate(() => window.scrollTo(0, 0))
     await list.evaluate((element) => { element.scrollTop = 0 })
+    if (width <= 680) {
+      await page.locator('.admin-user-row').first().hover()
+      await page.mouse.wheel(0, 700)
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+      expect(await list.evaluate((element) => element.scrollTop)).toBe(0)
+      await expect(page.locator('.admin-users__metrics')).not.toBeInViewport()
+      await expect(page.locator('.admin-sidebar')).not.toBeInViewport()
+      await page.screenshot({ path: `output/admin-users-mobile-scroll-${height}.png`, animations: 'disabled' })
+      await page.getByRole('button', { name: 'URGITS', exact: true }).scrollIntoViewIfNeeded()
+      await expect(page.getByRole('button', { name: 'URGITS', exact: true })).toBeInViewport()
+      await page.getByRole('button', { name: 'URGITS: üksikasjad' }).click()
+      const detail = page.getByRole('region', { name: 'URGITS: ülevaade' })
+      await detail.locator('summary').filter({ hasText: 'Viimane kiri' }).click()
+      await detail.getByText('Kinnita oma Poeruumi konto', { exact: true }).scrollIntoViewIfNeeded()
+      await expect(detail.getByText('Kinnita oma Poeruumi konto', { exact: true })).toBeInViewport()
+      expect(await list.evaluate((element) => element.scrollTop)).toBe(0)
+      await page.keyboard.press('Escape')
+      await page.getByRole('searchbox').fill('ceramics')
+      await expect(page.locator('.admin-user-row')).toHaveCount(1)
+      await expect(page.getByRole('button', { name: 'Moreamoreceramics', exact: true })).toBeInViewport()
+      await page.getByRole('searchbox').fill('')
+      continue
+    }
     const fixed = page.locator('.admin-sidebar, .admin-users > header, .admin-users__metrics, .admin-users__toolbar')
     const before = await fixed.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top))
     const box = (await list.boundingBox())!

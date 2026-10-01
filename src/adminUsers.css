@@ -162,8 +162,11 @@
   .admin-users__metric-label svg { display: none; }
 }
 @media (max-width: 680px) {
-  .admin-shell--users { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .admin-shell--users .admin-sidebar { height: auto; padding: max(.6rem, env(safe-area-inset-top)) .65rem .6rem; border-right: 0; border-bottom: 1px solid #43503b; background: #0d1410f5; }
+  :root:has(.admin-shell--users),
+  :root:has(.admin-shell--users) body,
+  :root:has(.admin-shell--users) #root { overflow: visible; overscroll-behavior-y: auto; }
+  .admin-shell--users { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; height: auto; min-height: 100dvh; overflow: visible; }
+  .admin-shell--users .admin-sidebar { position: static; height: auto; padding: max(.6rem, env(safe-area-inset-top)) .65rem .6rem; border-right: 0; border-bottom: 1px solid #43503b; background: #0d1410f5; }
   .admin-shell--users .admin-sidebar > a { display: flex; margin: 0; }
   .admin-shell--users .admin-sidebar .platform-brand { gap: 0; }
   .admin-shell--users .admin-sidebar .platform-brand strong { display: none; }
@@ -190,7 +193,7 @@
   .admin-users__filter-menu > summary { min-height: 2.75rem; max-width: 10rem; font-size: .75rem; }
   .admin-users .admin-sort { min-height: 2.75rem; max-width: 60%; }
   .admin-users .admin-sort select { width: 100%; }
-  .admin-users .admin-table { overflow: auto; scroll-padding-block: .75rem; }
+  .admin-users .admin-table { flex: none; overflow: clip; overscroll-behavior: auto; scroll-padding-block: .75rem; }
   .admin-users .admin-table__head { display: none; }
   .admin-users .admin-user-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.15rem .75rem; min-width: 0; padding: 1.15rem; }
   .admin-users .admin-user-row__identity { grid-column: 1 / -1; padding-right: 1.5rem; }
