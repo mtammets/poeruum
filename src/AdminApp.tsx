@@ -280,7 +280,7 @@ function AdminLogin({
       <form onSubmit={signIn}>
         <label>E-post<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label>
         <PasswordInput label="Parool" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
-        <Turnstile key={`admin-login-${captchaResetKey}`} action="admin_login" onToken={setCaptchaToken} />
+        <Turnstile key={`admin-login-${captchaResetKey}`} action="admin_login" onToken={setCaptchaToken} size="responsive" theme="dark" />
         {(error || accessError) && <p className="admin-auth__error" role="alert">{error || accessError}</p>}
         <button type="submit" disabled={isBusy}>{isBusy ? 'Login sisse…' : 'Logi sisse'}<span aria-hidden="true">→</span></button>
       </form>
@@ -330,6 +330,29 @@ export default function AdminApp() {
   const [seoError, setSeoError] = useState('')
   const [seoNotice, setSeoNotice] = useState('')
   const dashboardRefreshTimerRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
+    const previousContent = viewport?.content
+    if (viewport) {
+      const baseContent = viewport.content
+        .split(',')
+        .map((part) => part.trim())
+        .filter((part) => !/^(maximum-scale|user-scalable)\s*=/i.test(part))
+        .join(', ')
+      viewport.content = `${baseContent}, maximum-scale=1.0, user-scalable=no`
+    }
+
+    // Safari can ignore viewport zoom limits; cancel its native pinch gesture too.
+    const preventZoom = (event: Event) => event.preventDefault()
+    document.addEventListener('gesturestart', preventZoom, { passive: false })
+    document.addEventListener('gesturechange', preventZoom, { passive: false })
+    return () => {
+      if (viewport && previousContent !== undefined) viewport.content = previousContent
+      document.removeEventListener('gesturestart', preventZoom)
+      document.removeEventListener('gesturechange', preventZoom)
+    }
+  }, [])
 
   useEffect(() => {
     const view = adminViewConfig[activeView]

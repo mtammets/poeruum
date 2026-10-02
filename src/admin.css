@@ -287,7 +287,7 @@
 .admin-auth__card > span { color: var(--admin-muted); font-size: .875rem; font-weight: 850; letter-spacing: .13em; }
 .admin-auth__card h1 { margin: .65rem 0 .4rem; font-family: Manrope, sans-serif; font-size: 1.7rem; letter-spacing: -.05em; }
 .admin-auth__card > p { margin: 0 0 1.5rem; color: var(--admin-muted); font-size: .9rem; line-height: 1.55; }
-.admin-auth__card form { display: grid; gap: .9rem; }
+.admin-auth__card form { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: .9rem; }
 .admin-auth__card label, .admin-auth__card .password-control { display: grid; gap: .4rem; color: var(--admin-ink); font-size: .875rem; font-weight: 750; }
 .admin-auth__card input { width: 100%; padding: .8rem .85rem; border: 1px solid var(--admin-line); border-radius: .65rem; outline: 0; background: var(--admin-raised); color: var(--admin-ink); font: inherit; }
 .admin-auth__card input:focus { border-color: var(--admin-line); box-shadow: 0 0 0 3px #265f4314; }

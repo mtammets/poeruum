@@ -32,6 +32,14 @@
 :root:has(.admin-shell, .admin-auth, .admin-loading),
 :root:has(.admin-shell, .admin-auth, .admin-loading) body,
 :root:has(.admin-shell, .admin-auth, .admin-loading) #root { background: var(--admin-bg); }
+/* Allow scrolling in both directions without native pinch or double-tap zoom. */
+:root:has(.admin-shell, .admin-auth, .admin-loading),
+:where(.admin-shell, .admin-auth, .admin-loading),
+:where(.admin-shell, .admin-auth) :where(*) { touch-action: pan-x pan-y; }
+@media (any-pointer: coarse) {
+  /* Keep focus from automatically zooming small admin fields on phones. */
+  :is(.admin-shell, .admin-auth) :is(input, select, textarea) { font-size: 16px !important; }
+}
 .admin-shell { display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); min-height: 100dvh; background: var(--admin-bg); color: var(--admin-ink); font-weight: 450; }
 .admin-shell .admin-main { overflow-x: clip; }
 .admin-topbar { gap: 1rem; margin-bottom: 1.5rem; }
