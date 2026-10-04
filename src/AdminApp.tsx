@@ -20,6 +20,8 @@ import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 import AdminUsers from './AdminUsers'
 import AdminOverview from './AdminOverview'
+import useHomepageVisitFeedback from './useHomepageVisitFeedback'
+import { VisitBadge, VisitNumber, VisitSoundToggle } from './VisitFeedback'
 import type { RevenueEvent, RevenueDashboard, AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard, AnalyticsEngagementBucket } from './lib/adminDashboard'
 import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
 
@@ -428,6 +430,12 @@ export default function AdminApp() {
   }
 
   const analyticsViewActive = !isManagingShowcase && (activeView === 'overview' || activeView === 'analytics')
+  const visitFeedback = useHomepageVisitFeedback({
+    count: homepageAnalytics.sessions,
+    accountCount: homepageAnalytics.accounts_created,
+    scope: `${session?.user.id}:${analyticsRange}`,
+    active: Boolean(session && adminAccessGranted && analyticsViewActive && !isAnalyticsLoading && !analyticsError && homepageAnalytics.range_days === analyticsRange),
+  })
 
   useEffect(() => {
     if (!session || !adminAccessGranted || !analyticsViewActive) return
@@ -863,7 +871,7 @@ export default function AdminApp() {
   const analyticsFunnelSteps = [
     { label: 'Avalehe külastus', detail: 'Lehesessioonid', value: homepageAnalytics.sessions },
     { label: 'Poe loomise algus', detail: 'CTA vajutajad', value: homepageAnalytics.signup_starts },
-    { label: 'Konto loodud', detail: 'Uued kontod', value: homepageAnalytics.accounts_created },
+    { label: 'Konto loodud', detail: 'Uued kontod', value: homepageAnalytics.accounts_created, notice: visitFeedback.accountNotice },
     { label: 'Pood seadistamisel', detail: 'Poe andmed loodud', value: homepageAnalytics.stores_started },
     { label: 'Maksed ühendatud', detail: 'Stripe valmis', value: homepageAnalytics.payments_connected },
     { label: 'Pood avaldatud', detail: 'Valmis poed', value: homepageAnalytics.stores_published },
@@ -1060,6 +1068,7 @@ export default function AdminApp() {
           analytics={homepageAnalytics}
           analyticsError={analyticsError}
           analyticsLoading={isAnalyticsLoading}
+          visitFeedback={visitFeedback}
           range={analyticsRange}
           onRangeChange={setAnalyticsRange}
           onNavigate={navigateToView}
@@ -1068,19 +1077,19 @@ export default function AdminApp() {
         {activeView === 'analytics' && <section className="admin-analytics">
           <header className="admin-analytics__header">
             <div><span>AVALEHT → AVALDATUD POOD</span><h2>Konversioon ja külastajate tegevus</h2><p>Anonüümne koondvaade; lehesessioone ei seota kasutajakontodega.</p></div>
-            <label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
+            <div className="admin-analytics__controls"><VisitSoundToggle feedback={visitFeedback} /><label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
               const range = Number(event.target.value) as AnalyticsRange
               setAnalyticsRange(range)
             }} disabled={isAnalyticsLoading}>
               <option value={7}>7 päeva</option>
               <option value={30}>30 päeva</option>
               <option value={90}>90 päeva</option>
-            </select></label>
+            </select></label></div>
           </header>
 
           {analyticsError ? <div className="admin-analytics__error" role="alert">{analyticsError}</div> : <>
             <div className="admin-analytics__kpis" aria-label="Külastatavuse kokkuvõte">
-              <article><span>KÜLASTUSED</span><strong>{homepageAnalytics.sessions}</strong><small>{homepageAnalytics.anonymous_sessions} anonüümset · {homepageAnalytics.merchant_sessions} kaupmehe sessiooni</small></article>
+              <article className={visitFeedback.notice ? 'has-new-visits' : undefined}><span>KÜLASTUSED</span><div className="admin-analytics__visit-total"><strong><VisitNumber value={new Intl.NumberFormat('et-EE').format(homepageAnalytics.sessions)} notice={visitFeedback.notice} /></strong><VisitBadge notice={visitFeedback.notice} /></div><small>{homepageAnalytics.anonymous_sessions} anonüümset · {homepageAnalytics.merchant_sessions} kaupmehe sessiooni</small></article>
               <article><span>KESKMINE AKTIIVNE AEG</span><strong>{homepageAnalytics.measured_sessions ? formatDuration(homepageAnalytics.average_engaged_seconds) : '—'}</strong><small>{homepageAnalytics.measured_sessions} mõõdetud sessiooni · ainult nähtaval ja fookuses olnud aeg</small></article>
               <article><span>KAASATUD KÜLASTUSED</span><strong>{formatPercent(homepageAnalytics.engaged_sessions, homepageAnalytics.measured_sessions)}</strong><small>{homepageAnalytics.engaged_sessions} / {homepageAnalytics.measured_sessions} mõõdetud sessiooni vähemalt 10 sekundit</small></article>
               <article><span>POE LOOMISE ALGUS</span><strong>{homepageAnalytics.signup_starts}</strong><small>{formatPercent(homepageAnalytics.signup_starts, homepageAnalytics.sessions)} külastustest</small></article>
@@ -1094,10 +1103,10 @@ export default function AdminApp() {
                 {analyticsFunnelSteps.map((step, index) => {
                   const previous = analyticsFunnelSteps[index - 1]?.value ?? step.value
                   const width = homepageAnalytics.sessions ? Math.min(100, Math.max(4, step.value / homepageAnalytics.sessions * 100)) : 0
-                  return <article key={step.label}>
+                  return <article key={step.label} className={step.notice ? 'has-new-accounts' : undefined}>
                     <span><i>{index + 1}</i><span><strong>{step.label}</strong><small>{step.detail}</small></span></span>
                     <div><i style={{ width: `${width}%` }} /></div>
-                    <b>{step.value}<small>{index ? formatPercent(step.value, previous) : '100%'}</small></b>
+                    <b><VisitNumber value={String(step.value)} notice={step.notice ?? null} /><VisitBadge notice={step.notice ?? null} /><small>{index ? formatPercent(step.value, previous) : '100%'}</small></b>
                   </article>
                 })}
               </div>

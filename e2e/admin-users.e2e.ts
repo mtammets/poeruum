@@ -139,6 +139,7 @@ async function installBackend(page: Page) {
 async function installOverviewData(page: Page) {
   let mode: 'ready' | 'error' | 'zero' | 'empty' = 'ready'
   let added = 0
+  let addedAccounts = 0
   let pendingResponse: Promise<void> | null = null
   const requestedRanges: number[] = []
   await page.route('**/rpc/admin_homepage_analytics', async (route) => {
@@ -149,7 +150,7 @@ async function installOverviewData(page: Page) {
       date: new Date(now - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10),
       sessions: mode === 'zero' ? 0 : i + 1 + (i === days - 1 ? added : 0),
       signup_starts: mode === 'zero' ? 0 : i % 3 + (i === days - 1 ? added : 0),
-      accounts_created: mode === 'zero' ? 0 : i % 2 + (i === days - 1 ? added : 0),
+      accounts_created: mode === 'zero' ? 0 : i % 2 + (i === days - 1 ? addedAccounts : 0),
     }))
     if (pendingResponse) await pendingResponse
     return route.fulfill({ json: {
@@ -174,6 +175,7 @@ async function installOverviewData(page: Page) {
     requestedRanges,
     setMode: (next: typeof mode) => { mode = next },
     setAdded: (value: number) => { added = value },
+    setAddedAccounts: (value: number) => { addedAccounts = value },
     holdResponse: () => {
       let release!: () => void
       pendingResponse = new Promise<void>((resolve) => { release = resolve })
@@ -181,6 +183,213 @@ async function installOverviewData(page: Page) {
     },
   }
 }
+
+async function installFeedbackAudio(page: Page) {
+  await page.addInitScript(() => {
+    const native = window.AudioContext
+    const stats = { contexts: 0, tones: 0, closed: 0, notes: [] as { frequency: number; at: number }[] }
+    ;(window as any).__visitAudio = stats
+    window.AudioContext = class extends native {
+      constructor() { super(); stats.contexts++ }
+      createOscillator() {
+        const oscillator = super.createOscillator()
+        const start = oscillator.start.bind(oscillator)
+        oscillator.start = (when?: number) => {
+          stats.tones++
+          stats.notes.push({ frequency: oscillator.frequency.value, at: when ?? 0 })
+          start(when)
+        }
+        return oscillator
+      }
+      close() { stats.closed++; return super.close() }
+    }
+  })
+  return () => page.evaluate(() => (window as any).__visitAudio as {
+    contexts: number; tones: number; closed: number; notes: { frequency: number; at: number }[]
+  })
+}
+
+test('homepage visits highlight increases, clear the badge, and ignore unchanged totals and period changes', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  await page.goto('/admin')
+  const headline = page.locator('.overview-traffic__headline > strong')
+  const badge = page.locator('.visit-feedback__badge')
+  const panel = page.getByRole('region', { name: 'Avalehe külastatavus' })
+  await expect(headline).toHaveText('465')
+  await expect(badge).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Külastuste ja uute kontode heli' })).toHaveAttribute('aria-pressed', 'false')
+  backend.setAdded(1)
+  await page.clock.fastForward(15_000)
+  await expect(headline).toHaveText('466')
+  await expect(badge).toHaveText('+1 uus külastus')
+  await expect(panel).toHaveClass(/has-new-visits/)
+  await expect(headline.locator('.visit-feedback__number')).toHaveClass(/is-new/)
+  await page.clock.fastForward(3300)
+  await expect(badge).toHaveCount(0)
+  await expect(panel).not.toHaveClass(/has-new-visits/)
+  await page.clock.fastForward(15_000)
+  await expect.poll(() => backend.requestedRanges.length).toBe(3)
+  await expect(badge).toHaveCount(0)
+  backend.setAdded(5)
+  await page.clock.fastForward(15_000)
+  await expect(badge).toHaveText('+4 uut külastust')
+  await page.getByRole('button', { name: '90 p', exact: true }).click()
+  await expect(headline).toHaveText('4100')
+  await expect(badge).toHaveCount(0)
+  backend.setAdded(0)
+  await page.clock.fastForward(15_000)
+  await expect(headline).toHaveText('4095')
+  await expect(badge).toHaveCount(0)
+  backend.setAdded(2)
+  await page.clock.fastForward(15_000)
+  await expect(badge).toHaveText('+2 uut külastust')
+})
+
+test('homepage visit sound is opt-in, plays once per update, follows navigation and stops when muted', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  const stats = await installFeedbackAudio(page)
+  await page.goto('/admin')
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
+  backend.setAdded(1)
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.visit-feedback__badge')).toBeVisible()
+  expect(await stats()).toMatchObject({ contexts: 0, tones: 0, closed: 0 })
+  const toggle = page.getByRole('button', { name: 'Külastuste ja uute kontode heli' })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  expect(await stats()).toMatchObject({ contexts: 1, tones: 2 })
+  backend.setAdded(4)
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.visit-feedback__badge')).toHaveText('+3 uut külastust')
+  expect(await stats()).toMatchObject({ tones: 4 })
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.visit-feedback__badge')).toHaveCount(0)
+  expect(await stats()).toMatchObject({ tones: 4 })
+  await page.getByRole('button', { name: '90 p', exact: true }).click()
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('4099')
+  expect(await stats()).toMatchObject({ tones: 4 })
+  await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  backend.setAdded(5)
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.admin-analytics__kpis .visit-feedback__badge')).toHaveText('+1 uus külastus')
+  expect(await stats()).toMatchObject({ tones: 6 })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  expect(await stats()).toMatchObject({ closed: 1 })
+  backend.setAdded(6)
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.admin-analytics__kpis article').first().locator('strong')).toHaveText('4101')
+  expect(await stats()).toMatchObject({ tones: 6 })
+})
+
+test('new accounts have their own badge and melody, with sequential sounds for simultaneous visits', async ({ page }, testInfo) => {
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  const stats = await installFeedbackAudio(page)
+  await page.goto('/admin')
+  const headline = page.locator('.overview-traffic__headline > strong')
+  const accounts = page.getByRole('button', { name: /Uued kontod/ })
+  const accountBadge = page.locator('.visit-feedback__badge[data-kind="account"]')
+  const toggle = page.getByRole('button', { name: 'Külastuste ja uute kontode heli' })
+  await expect(headline).toHaveText('465')
+  await expect(accounts.locator('strong')).toHaveText('15')
+  await expect(accountBadge).toHaveCount(0)
+  backend.setAddedAccounts(1)
+  await page.clock.fastForward(15_000)
+  await expect(accounts.locator('strong')).toHaveText('16')
+  await expect(accounts).toHaveClass(/has-new-accounts/)
+  await expect(accountBadge).toHaveText('+1 uus konto')
+  await expect(headline).toHaveText('465')
+  expect(await stats()).toMatchObject({ contexts: 0, tones: 0 })
+  await page.locator('.overview-traffic').screenshot({ path: testInfo.outputPath('new-account-desktop.png') })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  backend.setAddedAccounts(3)
+  await page.clock.fastForward(15_000)
+  await expect(accountBadge).toHaveText('+2 uut kontot')
+  const accountSound = await stats()
+  expect(accountSound.tones).toBe(5)
+  expect(accountSound.notes.slice(0, 2).map(note => note.frequency)).toEqual([660, 880])
+  expect(accountSound.notes.slice(2).map(note => Math.round(note.frequency))).toEqual([523, 659, 784])
+  await page.clock.fastForward(3300)
+  await expect(accountBadge).toHaveCount(0)
+  await page.clock.fastForward(15_000)
+  expect(await stats()).toMatchObject({ tones: 5 })
+  await page.getByRole('button', { name: '90 p', exact: true }).click()
+  await expect(accounts.locator('strong')).toHaveText('48')
+  await expect(accountBadge).toHaveCount(0)
+  expect(await stats()).toMatchObject({ tones: 5 })
+
+  backend.setAdded(2)
+  backend.setAddedAccounts(4)
+  await page.clock.fastForward(15_000)
+  await expect(accountBadge).toHaveText('+1 uus konto')
+  await expect(page.locator('.visit-feedback__badge[data-kind="visit"]')).toHaveText('+2 uut külastust')
+  const combinedSound = await stats()
+  expect(combinedSound.tones).toBe(10)
+  const notes = combinedSound.notes.slice(-5)
+  expect(notes.map(note => Math.round(note.frequency))).toEqual([660, 880, 523, 659, 784])
+  expect(notes[2].at).toBeGreaterThan(notes[1].at + .24)
+  await accounts.click()
+  await expect(headline).toHaveText('49')
+  await expect(page.locator('.overview-traffic__headline .visit-feedback__badge')).toHaveText('+1 uus konto')
+  expect(await stats()).toMatchObject({ tones: 10 })
+
+  await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  // A rolling-window decrease in visits must not swallow a new account.
+  backend.setAdded(0)
+  backend.setAddedAccounts(5)
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.admin-analytics__funnel .visit-feedback__badge')).toHaveText('+1 uus konto')
+  expect(await stats()).toMatchObject({ tones: 13 })
+  backend.setAddedAccounts(0)
+  await page.clock.fastForward(15_000)
+  await expect(accountBadge).toHaveCount(0)
+  expect(await stats()).toMatchObject({ tones: 13 })
+  await toggle.click()
+  backend.setAddedAccounts(1)
+  await page.clock.fastForward(15_000)
+  await expect(accountBadge).toHaveText('+1 uus konto')
+  expect(await stats()).toMatchObject({ tones: 13, closed: 1 })
+})
+
+test('homepage visit feedback remains usable on mobile with reduced motion and unavailable audio', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await installBackend(page)
+  const backend = await installOverviewData(page)
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: class { constructor() { throw new Error('Unavailable audio') } } })
+  })
+  await page.goto('/admin')
+  await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
+  const toggle = page.getByRole('button', { name: 'Külastuste ja uute kontode heli' })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByRole('alert')).toHaveText('Heli ei saanud sisse lülitada. Proovi uuesti.')
+  expect((await page.getByRole('alert').boundingBox())!.x).toBeGreaterThanOrEqual(0)
+  backend.setAdded(2)
+  await page.clock.fastForward(15_000)
+  await expect(page.locator('.visit-feedback__badge')).toHaveText('+2 uut külastust')
+  expect(await page.locator('.overview-traffic__headline .visit-feedback__number').evaluate(el => getComputedStyle(el).animationName)).toBe('none')
+  expect(await page.locator('.visit-feedback__badge').evaluate(el => getComputedStyle(el).animationName)).toBe('none')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: testInfo.outputPath('visits-mobile.png') })
+  backend.setAddedAccounts(1)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  const accountBadge = page.locator('.visit-feedback__badge[data-kind="account"]')
+  await expect(accountBadge).toHaveText('+1 uus konto')
+  expect(await accountBadge.evaluate(el => getComputedStyle(el).animationName)).toBe('none')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.locator('.overview-traffic').screenshot({ path: testInfo.outputPath('new-account-mobile.png') })
+  await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
+  await expect(toggle).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+})
 
 test('homepage analytics refreshes silently without overlapping requests and recovers from failures', async ({ page }) => {
   await installBackend(page)
@@ -192,6 +401,7 @@ test('homepage analytics refreshes silently without overlapping requests and rec
   await chart.focus()
   await page.keyboard.press('End')
   backend.setAdded(5)
+  backend.setAddedAccounts(5)
   const release = backend.holdResponse()
   await page.clock.fastForward(15_000)
   await expect.poll(() => backend.requestedRanges.length).toBe(2)

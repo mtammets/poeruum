@@ -2,6 +2,8 @@ import { useId, useState, type CSSProperties, type MouseEvent } from 'react'
 import AdminUserIcon, { type IconName } from './AdminUserIcon'
 import type { AdminUserRow } from './lib/adminUserOverview'
 import type { AnalyticsDailyPoint, AnalyticsRange, HomepageAnalyticsDashboard, RevenueDashboard } from './lib/adminDashboard'
+import type { HomepageVisitFeedback } from './useHomepageVisitFeedback'
+import { VisitBadge, VisitNumber, VisitSoundToggle } from './VisitFeedback'
 import './adminOverview.css'
 
 type OverviewDestination = 'users' | 'analytics' | 'support'
@@ -16,6 +18,7 @@ type Props = {
   analytics: HomepageAnalyticsDashboard
   analyticsError: string
   analyticsLoading: boolean
+  visitFeedback: HomepageVisitFeedback
   range: AnalyticsRange
   onRangeChange: (range: AnalyticsRange) => void
   onNavigate: (event: MouseEvent<HTMLAnchorElement>, view: OverviewDestination) => void
@@ -103,9 +106,10 @@ function DailyChart({ daily, metric }: { daily: AnalyticsDailyPoint[]; metric: t
   </div>
 }
 
-export default function AdminOverview({ rows, usersLoading, onlineCount, revenue, revenueError, revenueLoading, liveRevenueEventId, analytics, analyticsError, analyticsLoading, range, onRangeChange, onNavigate }: Props) {
+export default function AdminOverview({ rows, usersLoading, onlineCount, revenue, revenueError, revenueLoading, liveRevenueEventId, analytics, analyticsError, analyticsLoading, visitFeedback, range, onRangeChange, onNavigate }: Props) {
   const [metricKey, setMetricKey] = useState<Metric>('sessions')
   const metric = metrics.find((item) => item.key === metricKey)!
+  const metricNotice = (key: Metric) => key === 'sessions' ? visitFeedback.notice : key === 'accounts_created' ? visitFeedback.accountNotice : null
   const published = rows.filter((row) => row.is_published).length
   const settingUp = rows.filter((row) => row.store_id && !row.is_published).length
   const withoutStore = rows.length - published - settingUp
@@ -126,16 +130,16 @@ export default function AdminOverview({ rows, usersLoading, onlineCount, revenue
   const viewLink = (view: OverviewDestination, label: string) => <a className="overview-open" href={`/admin/${view}`} aria-label={label} onClick={(event) => onNavigate(event, view)}><AdminUserIcon name="arrow" /></a>
 
   return <div className="admin-overview">
-    <section className="overview-panel overview-traffic" aria-label="Avalehe külastatavus" aria-busy={analyticsLoading}>
+    <section className={`overview-panel overview-traffic${visitFeedback.notice ? ' has-new-visits' : ''}${visitFeedback.accountNotice ? ' has-new-accounts' : ''}`} aria-label="Avalehe külastatavus" aria-busy={analyticsLoading}>
       <header className="overview-panel__header">
         <h2>Avalehe külastatavus</h2>
-        <div className="overview-range" role="group" aria-label="Külastatavuse periood">{([7, 30, 90] as const).map((days) => <button type="button" key={days} aria-pressed={range === days} disabled={analyticsLoading} onClick={() => onRangeChange(days)}>{days} p</button>)}</div>
+        <div className="overview-traffic__controls"><VisitSoundToggle feedback={visitFeedback} /><div className="overview-range" role="group" aria-label="Külastatavuse periood">{([7, 30, 90] as const).map((days) => <button type="button" key={days} aria-pressed={range === days} disabled={analyticsLoading} onClick={() => onRangeChange(days)}>{days} p</button>)}</div></div>
       </header>
-      <div className="overview-traffic__headline"><strong>{analyticsKnown ? number.format(analytics[metricKey]) : '—'}</strong><span>{metric.label.toLocaleLowerCase('et')}<br /><small>{range} päeva</small></span>{viewLink('analytics', 'Ava külastatavuse üksikasjad')}</div>
+      <div className="overview-traffic__headline"><strong><VisitNumber value={analyticsKnown ? number.format(analytics[metricKey]) : '—'} notice={metricNotice(metricKey)} /></strong><span>{metric.label.toLocaleLowerCase('et')}<br /><small>{range} päeva</small></span><VisitBadge notice={metricNotice(metricKey)} />{viewLink('analytics', 'Ava külastatavuse üksikasjad')}</div>
       {analyticsLoading ? <div className="overview-chart__empty" role="status"><span className="overview-loading" />Laen graafikut…</div>
         : analyticsError ? <div className="overview-chart__empty is-error" role="alert"><AdminUserIcon name="alert" /><span>Graafik pole praegu saadaval</span></div>
           : <DailyChart key={`${range}-${metricKey}`} daily={analytics.daily} metric={metric} />}
-      <div className="overview-metrics" role="group" aria-label="Graafiku näitaja">{metrics.map((item) => <button type="button" key={item.key} aria-pressed={metricKey === item.key} onClick={() => setMetricKey(item.key)} style={{ '--chart-color': item.color } as CSSProperties}><span><i />{item.label}</span><strong>{analyticsKnown ? number.format(analytics[item.key]) : '—'}</strong></button>)}</div>
+      <div className="overview-metrics" role="group" aria-label="Graafiku näitaja">{metrics.map((item) => <button type="button" key={item.key} className={item.key === 'accounts_created' && visitFeedback.accountNotice ? 'has-new-accounts' : undefined} aria-pressed={metricKey === item.key} onClick={() => setMetricKey(item.key)} style={{ '--chart-color': item.color } as CSSProperties}><span><i />{item.label}</span><span className="overview-metrics__value"><strong><VisitNumber value={analyticsKnown ? number.format(analytics[item.key]) : '—'} notice={metricNotice(item.key)} /></strong>{item.key !== metricKey && <VisitBadge notice={metricNotice(item.key)} />}</span></button>)}</div>
     </section>
 
     <section className={`overview-panel overview-income${liveRevenueEventId ? ' is-live-update' : ''}`} aria-label="Poeruumi teenustasud" aria-busy={revenueLoading}>
