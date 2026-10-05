@@ -45,6 +45,9 @@ jobs:
       - name: Order receipt Edge authorization and checkout test
         run: npm run test:order-receipt-edge
 
+      - name: Campaign copy Edge authorization and limits
+        run: npm run test:campaign-copy-edge
+
       - name: Signed payment event crash recovery
         run: npm run test:payment-recovery-edge
 
@@ -70,6 +73,9 @@ jobs:
 
       - name: Production directory highlights
         run: npm run test:directory-highlights-server
+
+      - name: Production campaign routing and assets
+        run: npm run test:campaign-server
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -147,6 +153,9 @@ jobs:
 
       - name: Test private business card drafts and concurrent saves
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-business-card-drafts.sql
+
+      - name: Test private campaign versions and admin access
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-admin-campaigns.sql
 
       - name: Test abandoned draft cleanup boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-abandoned-draft-cleanup.sql

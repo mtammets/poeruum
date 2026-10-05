@@ -10,6 +10,9 @@ verify_jwt = false
 [functions.product-description]
 verify_jwt = true
 
+[functions.admin-campaign-copy]
+verify_jwt = true
+
 [functions.stripe-webhook]
 verify_jwt = false
 

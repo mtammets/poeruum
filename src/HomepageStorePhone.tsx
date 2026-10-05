@@ -5,7 +5,7 @@ import './homepageStorePhone.css'
 
 export type StorefrontPreviewData = { store: PublicStoreRecord; products: Product[] }
 
-function previewDocument(data: StorefrontPreviewData) {
+export function previewDocument(data: StorefrontPreviewData, capture = false) {
   // Boot the same application in its own window so viewport styles, scrolling,
   // and document effects behave exactly as they do in a mobile storefront.
   const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"]'), (node) => node.outerHTML).join('')
@@ -13,10 +13,10 @@ function previewDocument(data: StorefrontPreviewData) {
     .filter((script) => script.src || (import.meta.env.DEV && script.textContent?.includes('/@react-refresh')))
     .map((script) => script.outerHTML).join('')
   const payload = JSON.stringify(data).replace(/</g, '\\u003c')
-  return `<!doctype html><html lang="et" data-storefront-preview="true" data-app-surface="storefront"><head>
+  return `<!doctype html><html lang="et" data-campaign-capture="${capture}" data-storefront-preview="true" data-app-surface="storefront"><head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow"><base href="${window.location.origin}/">
-    ${styles}</head><body><div id="root"></div>
+    ${styles}${capture ? '<style>*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}::-webkit-scrollbar{display:none}</style>' : ''}</head><body><div id="root"></div>
     <script type="application/json" id="storefront-preview-data">${payload}</script>${scripts}</body></html>`
 }
 

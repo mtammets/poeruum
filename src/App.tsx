@@ -313,6 +313,7 @@ export type StorefrontProps = {
   merchantMode?: boolean
   adminShowcaseMode?: boolean
   embeddedPreview?: boolean
+  previewSellerDetailsComplete?: boolean
   previewImageSelection?: { productId: string; index: number } | null
   previewSearch?: { query: string; selectedProductId?: string } | null
   pricingPlan?: PricingPlan
@@ -339,7 +340,7 @@ export type StorefrontProps = {
   onInitialSettingsSectionOpened?: () => void
 }
 
-export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, paymentSetupError = null, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeAccountMode = 'live', stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', accountEmailNotice, onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
+export function Storefront({ storeId, seedProducts = products, seedCategories, storeName = 'POERUUM', storeSlug, theme = 'midnight', paymentProvider = 'stripe', paymentsReady = true, paymentSetupError = null, sellerTypeLocked = false, initialShipping, initialPublished = true, merchantMode = false, adminShowcaseMode = false, embeddedPreview = false, previewSellerDetailsComplete, previewImageSelection = null, previewSearch = null, pricingPlan = 'flexible', fixedPlanTrialStartedAt: initialFixedPlanTrialStartedAt, stripeSubscriptionStatus = null, stripeAccountMode = 'live', stripeRequirements = null, billingGraceEndsAt = null, billingInvoiceUrl = null, billingDowngradedAt = null, initialProductSlug = null, onConnectPaymentProvider, onStoreChange, onAccountDeleted, ownerEmail = '', accountEmailNotice, onOwnerLogin, onBackToSetup, onContinueSetup, onInitialVisualReady, onExit, initialSettings = {}, initialSettingsSection = null, onInitialSettingsSectionOpened }: StorefrontProps = {}) {
   const [initialSetupDraft] = useState<Product | null>(() => merchantMode && onContinueSetup && !seedProducts.length
     ? { id: createRandomId(), name: '', description: '', image: EMPTY_PRODUCT_IMAGE, gallery: [], alt: '', searchVisible: true }
     : null)
@@ -2423,8 +2424,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   )
   const storeInitial = editableStoreName.trim().charAt(0).toLocaleUpperCase('et') || 'P'
   const displayedContactEmail = isDemoExperience ? DEMO_SELLER.contactEmail : contactEmail
-  const sellerDetailsComplete = isDemoExperience
-    || hasSellerDetails(JSON.parse(settingsSnapshot))
+  const sellerDetailsComplete = embeddedPreview && previewSellerDetailsComplete !== undefined
+    ? previewSellerDetailsComplete : isDemoExperience || hasSellerDetails(JSON.parse(settingsSnapshot))
   const changeStorePublication = async (published: boolean) => {
     if (!storeId || isPublicationBusy) return
     if (published && !sellerDetailsComplete) {

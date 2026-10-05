@@ -27,8 +27,9 @@ import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
 
 const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
 const AdminKaubamaja = lazy(() => import('./AdminKaubamaja'))
+const AdminCampaigns = lazy(() => import('./AdminCampaigns'))
 
-type AdminView = 'payments' | 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory'
+type AdminView = 'payments' | 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory' | 'campaigns'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
@@ -41,6 +42,7 @@ const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
   users: { path: '/admin/users', title: 'Kasutajad' },
   'business-card': { path: '/admin/business-card', title: 'Visiitkaart' },
   directory: { path: '/admin/kaubamaja', title: 'Kaubamaja' },
+  campaigns: { path: '/admin/campaigns', title: 'Kampaaniad' },
 }
 
 const getAdminView = (pathname = window.location.pathname): AdminView => {
@@ -52,6 +54,7 @@ const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/users\/?$/i.test(pathname)) return 'users'
   if (/^\/admin\/business-card\/?$/i.test(pathname)) return 'business-card'
   if (/^\/admin\/kaubamaja\/?$/i.test(pathname)) return 'directory'
+  if (/^\/admin\/campaigns\/?$/i.test(pathname)) return 'campaigns'
   return 'overview'
 }
 
@@ -211,7 +214,7 @@ const formatRelativeTime = (value: string | null) => {
   return formatDate(value)
 }
 
-type AdminIconName = 'home' | 'analytics' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue' | 'card'
+type AdminIconName = 'home' | 'analytics' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue' | 'card' | 'campaigns'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
@@ -221,6 +224,7 @@ function AdminIcon({ name }: { name: AdminIconName }) {
     leads: <><path d="M4 18.5V14l4-2 3 1.5 4-5 5-2.5" /><path d="m16.5 5.5 3.5.5-.5 3.5" /><circle cx="6" cy="7" r="2.5" /></>,
     users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.4-3.5 2.2-5.3 5.5-5.3s5.1 1.8 5.5 5.3" /><circle cx="17" cy="9" r="2.2" /><path d="M15.5 14.2c3.1-.4 4.8 1.2 5 4" /></>,
     store: <><path d="M4 9h16l-1-4H5L4 9Z"/><path d="M5 9v10h14V9M9 19v-5h6v5"/><path d="M4 9a3 3 0 0 0 5 2 3 3 0 0 0 6 0 3 3 0 0 0 5-2"/></>,
+    campaigns: <><path d="m4 10 14-5v14L4 14v-4ZM7 15l1 5h3l-1-4M21 9v6" /></>,
     card: <><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8" cy="10" r="1.5" /><path d="M5.5 15c.3-1.7 1.2-2.5 2.5-2.5s2.2.8 2.5 2.5M14 10h4M14 14h4" /></>,
     message: <><path d="M4.5 5.5h15v10h-10l-5 3.5V5.5Z"/><path d="M8 9h8M8 12h5"/></>,
     logout: <><path d="M10 5H5v14h5M14 8l4 4-4 4M9 12h9" /></>,
@@ -883,6 +887,7 @@ export default function AdminApp() {
       <nav aria-label="Administraatori menüü">
         <a className={activeView === 'overview' ? 'is-active' : undefined} href="/admin" aria-current={activeView === 'overview' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'overview')}><span><AdminIcon name="home" /></span>Ülevaade</a>
         <a className={activeView === 'analytics' ? 'is-active' : undefined} href="/admin/analytics" aria-current={activeView === 'analytics' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'analytics')}><span><AdminIcon name="analytics" /></span>Külastatavus</a>
+        <a className={activeView === 'campaigns' ? 'is-active' : undefined} href="/admin/campaigns" aria-current={activeView === 'campaigns' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'campaigns')}><span><AdminIcon name="campaigns" /></span>Kampaaniad</a>
         <a className={activeView === 'seo' ? 'is-active' : undefined} href="/admin/seo" aria-current={activeView === 'seo' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'seo')}><span><AdminIcon name="seo" /></span>SEO</a>
         <a className={activeView === 'business-card' ? 'is-active' : undefined} href="/admin/business-card" aria-current={activeView === 'business-card' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'business-card')}><span><AdminIcon name="card" /></span>Visiitkaart</a>
         <a className={activeView === 'leads' ? 'is-active' : undefined} href="/admin/leads" aria-current={activeView === 'leads' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'leads')}><span><AdminIcon name="leads" /></span>Kliendiotsing</a>
@@ -897,11 +902,13 @@ export default function AdminApp() {
     </aside>
 
     <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
-      {activeView !== 'users' && activeView !== 'overview' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
+      {activeView !== 'users' && activeView !== 'overview' && activeView !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'payments' && activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
-      {error && activeView !== 'business-card' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
+      {activeView === 'campaigns' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin kampaaniate loojat…</div>}><AdminCampaigns key={session.user.id} userId={session.user.id} /></Suspense>}
+
+      {error && activeView !== 'business-card' && activeView !== 'campaigns' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
         {activeView === 'payments' && <AdminPaymentReviews />}

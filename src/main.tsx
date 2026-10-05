@@ -22,6 +22,7 @@ const PlatformApp = lazy(() => import('./PlatformApp'))
 const Kaubamaja = lazy(() => import('./Kaubamaja'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
 const OrderReceiptPage = lazy(() => import('./OrderReceiptPage'))
+const CampaignStoreFrame = lazy(() => import('./campaigns/CampaignStoreFrame'))
 const StorefrontPreviewFrame = lazy(() => import('./StorefrontPreviewFrame'))
 const StripeConnectReturn = lazy(() => import('./StripeConnectReturn'))
 const isStripeConnectReturn = window.location.pathname === '/stripe/connect/return'
@@ -85,7 +86,7 @@ const isRemovedAdminHomepagePath = isPlatformSurface && !isStoreDirectorySurface
 if (isRemovedAdminHomepagePath) {
   window.history.replaceState({}, '', `/admin${window.location.search}${window.location.hash}`)
 }
-const isAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support|business-card|kaubamaja|payments))?\/?$/i.test(window.location.pathname)
+const isAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support|business-card|kaubamaja|payments|campaigns))?\/?$/i.test(window.location.pathname)
 const isOutreachUnsubscribePath = isPlatformSurface && !isStoreDirectorySurface && /^\/loobu\/?$/i.test(window.location.pathname)
 const isAboutPoeruumPath = isPlatformSurface && !isStoreDirectorySurface && /^\/mis-on-poeruum\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformSurface && !isStoreDirectorySurface
@@ -246,6 +247,6 @@ if (!isEmbeddedStorePreview && !isStripeConnectReturn) registerGlobalErrorMonito
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><ErrorBoundary>{isEmbeddedStorePreview
-    ? <Suspense fallback={null}><StorefrontPreviewFrame /></Suspense>
+    ? <Suspense fallback={null}>{document.documentElement.dataset.campaignCapture === 'true' ? <CampaignStoreFrame /> : <StorefrontPreviewFrame />}</Suspense>
     : <Root />}</ErrorBoundary></StrictMode>,
 )

@@ -15,6 +15,7 @@ const CSP = [
   "style-src-attr 'unsafe-inline'",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
+  "media-src 'self' blob:",
   [
     "connect-src 'self'",
     'https://foctericixquaogwboqg.supabase.co',

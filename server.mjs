@@ -37,7 +37,7 @@ const storeCache = new Map()
 let storeDirectoryCache = { value: null, expires: 0 }
 
 const securityHeaders = {
-  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://checkout.stripe.com; script-src 'self' https://challenges.cloudflare.com https://connect-js.stripe.com https://js.stripe.com; style-src 'self' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://connect-js.stripe.com https://api.stripe.com https://*.stripe.com https://ariregister.rik.ee https://aks.geoportaal.ee https://www.omniva.ee; frame-src https://challenges.cloudflare.com https://connect-js.stripe.com https://js.stripe.com https://*.stripe.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
+  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://checkout.stripe.com; script-src 'self' https://challenges.cloudflare.com https://connect-js.stripe.com https://js.stripe.com; style-src 'self' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://connect-js.stripe.com https://api.stripe.com https://*.stripe.com https://ariregister.rik.ee https://aks.geoportaal.ee https://www.omniva.ee; frame-src https://challenges.cloudflare.com https://connect-js.stripe.com https://js.stripe.com https://*.stripe.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
@@ -326,7 +326,7 @@ function renderStoreDirectory(template, stores) {
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
 }
 
-const mime = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2' }
+const mime = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2', '.m4a': 'audio/mp4', '.mp4': 'video/mp4' }
 const send = (res, status, body, headers = {}) => {
   res.writeHead(status, { ...securityHeaders, ...headers })
   res.end(body)
@@ -346,7 +346,7 @@ createServer(async (req, res) => {
     }
     const assetPath = path.normalize(decodedPathname).replace(/^(\.\.(\/|\\|$))+/, '')
     const file = path.join(dist, assetPath)
-    const isStaticAsset = ['/assets/', '/images/', '/data/'].some((prefix) => url.pathname.startsWith(prefix))
+    const isStaticAsset = ['/assets/', '/images/', '/data/', '/campaigns/'].some((prefix) => url.pathname.startsWith(prefix))
       || ['/favicon.ico', '/manifest.webmanifest'].includes(url.pathname)
     if (isStaticAsset && !url.pathname.endsWith('/') && file.startsWith(dist)) {
       const fileStat = await stat(file).catch(() => null)
@@ -452,7 +452,7 @@ createServer(async (req, res) => {
     if (!slug) {
       const isPlatformRequest = host === platformHost || host === `www.${platformHost}` || host.endsWith('.onrender.com')
       if (isPlatformRequest) {
-        const isAdminRequest = /^\/admin(?:\/(?:analytics|homepage|seo|leads|users|support|kaubamaja|payments))?\/?$/i.test(url.pathname)
+        const isAdminRequest = /^\/admin(?:\/(?:analytics|homepage|seo|leads|users|support|kaubamaja|payments|campaigns))?\/?$/i.test(url.pathname)
         const isUnsubscribeRequest = /^\/loobu\/?$/i.test(url.pathname)
         if (isAdminRequest || isUnsubscribeRequest) {
           const body = await templatePromise
