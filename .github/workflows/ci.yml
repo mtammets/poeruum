@@ -36,6 +36,9 @@ jobs:
       - name: Type-check Edge Functions
         run: npm run check:edge
 
+      - name: Admin push authorization, encryption and delivery
+        run: npm run test:admin-push-edge
+
       - name: Unit tests
         run: npm run test
 
@@ -76,6 +79,9 @@ jobs:
 
       - name: Production campaign routing and assets
         run: npm run test:campaign-server
+
+      - name: Push service worker and production assets
+        run: node scripts/test-admin-push-worker.mjs
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -162,6 +168,9 @@ jobs:
 
       - name: Test Stripe requirement notification boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-stripe-requirement-notifications.sql
+
+      - name: Test admin push queue, leases and access revocation
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-admin-push.sql
 
       - name: Test first rate-limit request
         shell: bash

@@ -4,6 +4,8 @@ import type { AdminUserRow } from './lib/adminUserOverview'
 import type { AnalyticsDailyPoint, AnalyticsRange, HomepageAnalyticsDashboard, RevenueDashboard } from './lib/adminDashboard'
 import type { HomepageVisitFeedback } from './useHomepageVisitFeedback'
 import { VisitBadge, VisitNumber, VisitSoundToggle } from './VisitFeedback'
+import AdminPushToggle from './AdminPushToggle'
+import type { AdminPushFeedback } from './useAdminPush'
 import './adminOverview.css'
 
 type OverviewDestination = 'users' | 'analytics' | 'support'
@@ -19,6 +21,7 @@ type Props = {
   analyticsError: string
   analyticsLoading: boolean
   visitFeedback: HomepageVisitFeedback
+  pushFeedback: AdminPushFeedback
   range: AnalyticsRange
   onRangeChange: (range: AnalyticsRange) => void
   onNavigate: (event: MouseEvent<HTMLAnchorElement>, view: OverviewDestination) => void
@@ -106,7 +109,7 @@ function DailyChart({ daily, metric }: { daily: AnalyticsDailyPoint[]; metric: t
   </div>
 }
 
-export default function AdminOverview({ rows, usersLoading, onlineCount, revenue, revenueError, revenueLoading, liveRevenueEventId, analytics, analyticsError, analyticsLoading, visitFeedback, range, onRangeChange, onNavigate }: Props) {
+export default function AdminOverview({ rows, usersLoading, onlineCount, revenue, revenueError, revenueLoading, liveRevenueEventId, analytics, analyticsError, analyticsLoading, visitFeedback, pushFeedback, range, onRangeChange, onNavigate }: Props) {
   const [metricKey, setMetricKey] = useState<Metric>('sessions')
   const metric = metrics.find((item) => item.key === metricKey)!
   const metricNotice = (key: Metric) => key === 'sessions' ? visitFeedback.notice : key === 'accounts_created' ? visitFeedback.accountNotice : null
@@ -133,7 +136,7 @@ export default function AdminOverview({ rows, usersLoading, onlineCount, revenue
     <section className={`overview-panel overview-traffic${visitFeedback.notice ? ' has-new-visits' : ''}${visitFeedback.accountNotice ? ' has-new-accounts' : ''}`} aria-label="Avalehe külastatavus" aria-busy={analyticsLoading}>
       <header className="overview-panel__header">
         <h2>Avalehe külastatavus</h2>
-        <div className="overview-traffic__controls"><VisitSoundToggle feedback={visitFeedback} /><div className="overview-range" role="group" aria-label="Külastatavuse periood">{([7, 30, 90] as const).map((days) => <button type="button" key={days} aria-pressed={range === days} disabled={analyticsLoading} onClick={() => onRangeChange(days)}>{days} p</button>)}</div></div>
+        <div className="overview-traffic__controls"><VisitSoundToggle feedback={visitFeedback} /><AdminPushToggle push={pushFeedback} /><div className="overview-range" role="group" aria-label="Külastatavuse periood">{([7, 30, 90] as const).map((days) => <button type="button" key={days} aria-pressed={range === days} disabled={analyticsLoading} onClick={() => onRangeChange(days)}>{days} p</button>)}</div></div>
       </header>
       <div className="overview-traffic__headline"><strong><VisitNumber value={analyticsKnown ? number.format(analytics[metricKey]) : '—'} notice={metricNotice(metricKey)} /></strong><span>{metric.label.toLocaleLowerCase('et')}<br /><small>{range} päeva</small></span><VisitBadge notice={metricNotice(metricKey)} />{viewLink('analytics', 'Ava külastatavuse üksikasjad')}</div>
       {analyticsLoading ? <div className="overview-chart__empty" role="status"><span className="overview-loading" />Laen graafikut…</div>

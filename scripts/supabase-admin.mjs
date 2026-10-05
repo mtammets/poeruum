@@ -74,6 +74,8 @@ if (action === 'leads') {
   process.exit(0)
 }
 if (action === 'functions') {
+  run(['functions', 'deploy', 'admin-push', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'admin-push-dispatch', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   if (process.env.OUTREACH_AUTOMATION_SECRET?.trim()) syncLeadSecrets()
   run(['functions', 'deploy', 'delete-account', '--project-ref', process.env.SUPABASE_PROJECT_REF])
   run(['functions', 'deploy', 'stripe-webhook', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])

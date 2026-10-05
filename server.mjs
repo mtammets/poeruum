@@ -326,7 +326,7 @@ function renderStoreDirectory(template, stores) {
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
 }
 
-const mime = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2', '.m4a': 'audio/mp4', '.mp4': 'video/mp4' }
+const mime = { '.webmanifest': 'application/manifest+json; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2', '.m4a': 'audio/mp4', '.mp4': 'video/mp4' }
 const send = (res, status, body, headers = {}) => {
   res.writeHead(status, { ...securityHeaders, ...headers })
   res.end(body)
@@ -347,14 +347,14 @@ createServer(async (req, res) => {
     const assetPath = path.normalize(decodedPathname).replace(/^(\.\.(\/|\\|$))+/, '')
     const file = path.join(dist, assetPath)
     const isStaticAsset = ['/assets/', '/images/', '/data/', '/campaigns/'].some((prefix) => url.pathname.startsWith(prefix))
-      || ['/favicon.ico', '/manifest.webmanifest'].includes(url.pathname)
+      || ['/favicon.ico', '/manifest.webmanifest', '/admin.webmanifest', '/admin-push-sw.js'].includes(url.pathname)
     if (isStaticAsset && !url.pathname.endsWith('/') && file.startsWith(dist)) {
       const fileStat = await stat(file).catch(() => null)
       if (fileStat?.isFile()) {
         const body = await readFile(file)
         return send(res, 200, req.method === 'HEAD' ? null : body, {
           'Content-Type': mime[path.extname(file)] || 'application/octet-stream',
-          'Cache-Control': url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+          'Cache-Control': url.pathname === '/admin-push-sw.js' ? 'no-cache' : url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
         })
       }
     }

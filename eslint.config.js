@@ -33,6 +33,10 @@ export default tseslint.config(
     },
   },
   {
+    files: ['public/admin-push-sw.js'],
+    languageOptions: { globals: globals.serviceworker },
+  },
+  {
     files: ['scripts/**/*.mjs', 'server.mjs', 'eslint.config.js', 'vite.config.ts', 'playwright*.config.ts'],
     languageOptions: {
       globals: globals.node,

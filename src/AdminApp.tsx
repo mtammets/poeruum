@@ -20,6 +20,9 @@ import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 import AdminUsers from './AdminUsers'
 import AdminOverview from './AdminOverview'
 import useHomepageVisitFeedback from './useHomepageVisitFeedback'
+import useAdminPush from './useAdminPush'
+import AdminPushToggle from './AdminPushToggle'
+import { disableAdminPush } from './lib/adminPush'
 import { VisitBadge, VisitNumber, VisitSoundToggle } from './VisitFeedback'
 import type { RevenueEvent, RevenueDashboard, AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard, AnalyticsEngagementBucket } from './lib/adminDashboard'
 import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
@@ -405,6 +408,7 @@ export default function AdminApp() {
   const logOut = async () => {
     setIsSigningOut(true)
     try {
+      await disableAdminPush().catch(() => undefined)
       await requireSupabase().auth.signOut({ scope: 'local' })
     } finally {
       window.location.replace('/')
@@ -434,6 +438,7 @@ export default function AdminApp() {
   }
 
   const analyticsViewActive = !isManagingShowcase && (activeView === 'overview' || activeView === 'analytics')
+  const pushFeedback = useAdminPush(session && adminAccessGranted ? session.user.id : null)
   const visitFeedback = useHomepageVisitFeedback({
     count: homepageAnalytics.sessions,
     accountCount: homepageAnalytics.accounts_created,
@@ -1065,7 +1070,7 @@ export default function AdminApp() {
           </section>
         </div>}
 
-        {activeView === 'overview' && <AdminOverview
+        {activeView === 'overview' && <AdminOverview pushFeedback={pushFeedback}
           rows={rows}
           usersLoading={isLoading}
           onlineCount={presenceKnown ? onlineUserIds.size : null}
@@ -1085,7 +1090,7 @@ export default function AdminApp() {
         {activeView === 'analytics' && <section className="admin-analytics">
           <header className="admin-analytics__header">
             <div><span>AVALEHT → AVALDATUD POOD</span><h2>Konversioon ja külastajate tegevus</h2><p>Anonüümne koondvaade; lehesessioone ei seota kasutajakontodega.</p></div>
-            <div className="admin-analytics__controls"><VisitSoundToggle feedback={visitFeedback} /><label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
+            <div className="admin-analytics__controls"><VisitSoundToggle feedback={visitFeedback} /><AdminPushToggle push={pushFeedback} /><label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
               const range = Number(event.target.value) as AnalyticsRange
               setAnalyticsRange(range)
             }} disabled={isAnalyticsLoading}>

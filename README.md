@@ -94,6 +94,8 @@ andmete elutsükkel failis [DATA_RETENTION.md](DATA_RETENTION.md).
 
 Ostuarvete töövoog, ligipääs ja juurutusjärjekord: [ostuarvete juhend](docs/order-invoices.md).
 
+Admini telefoni märguanded ja seadistamine: [push-teavituste juhend](docs/admin-push.md).
+
 ## Deploy
 
 Render käivitab `npm run build`, mis ehitab rakenduse ja genereerib SEO-varad,
