@@ -25,6 +25,12 @@ allowed; the AI response contract remains strict. Preview, JPGs and MP4s use
 the same scene geometry. Guides and selection handles are DOM overlays and are
 never exported.
 
+The phone's “Liikumine” selector offers still, a gentle 6% push-in (default), or
+the same push-in with up to 1.4 degrees of tilt. Motion follows timeline time
+continuously across actions and holds through the outro fade. It affects the
+Reel phone only. Editor handles follow its visible pose; edits are converted back
+to the base layout so scrubbing/resizing cannot accumulate animation transforms.
+
 Vertical safe guides use conservative working margins of 269 px at the top,
 672 px at the bottom and 65 px at each side of a 1080 × 1920 frame, for both
 Reels and Stories. These are guides for key copy/logo/CTA, not a promise that

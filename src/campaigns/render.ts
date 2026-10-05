@@ -1,6 +1,7 @@
 import { contentDuration, mediaSource } from './phoneContent'
 import type { CampaignDocument, CampaignMedia } from './model'
 import { sceneElements, sceneKey, type SceneKey } from './layout'
+import { animateElement } from './motion'
 
 export type CampaignAssets = { images: HTMLImageElement[]; mark: HTMLImageElement }
 export type FrameOptions = { format: 'reel' | 'post' | 'story'; index?: number; time?: number; phoneFrame?: CanvasImageSource }
@@ -134,7 +135,8 @@ export function drawCampaignFrame(canvas: HTMLCanvasElement, doc: CampaignDocume
   const end = animated ? Math.max(0, Math.min(1, (time - (contentDuration(doc) - .3)) / .65)) : 0
   const drawScene = (scene: SceneKey, opacity: number) => {
     if (opacity <= 0) return
-    for (const element of sceneElements(doc, scene)) {
+    for (const base of sceneElements(doc, scene)) {
+      const element = animateElement(base, doc, scene, time)
       if (!element.visible || (element.text !== undefined && !element.text.trim())) continue
       ctx.save(); ctx.globalAlpha = opacity
       ctx.translate(element.x, element.y); ctx.rotate(element.rotation * Math.PI / 180); ctx.scale(element.scale, element.scale)

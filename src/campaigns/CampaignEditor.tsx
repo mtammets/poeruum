@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import CampaignPreview from './CampaignPreview'
 import CanvasEditorOverlay from './CanvasEditorOverlay'
 import { campaignCopyLimits, type CampaignDocument } from './model'
+import { animateElement, phoneMotions, removePhoneMotion, type PhoneMotion } from './motion'
 import { fitToSafeArea, outsideSafeArea, safeArea, SAFE_ZONE_SOURCE, sceneElements, sceneHeight, sceneKey, setElement, transformOf,
   type CampaignFormat, type CampaignLayouts, type LayerId, type LayerTransform } from './layout'
 
@@ -20,6 +21,8 @@ export default function CampaignEditor({ document: doc, format, disabled, onChan
   const scene = sceneKey(format, index, end), activeDoc = transient ?? doc
   const elements = sceneElements(activeDoc, scene), safe = safeArea(scene), height = sceneHeight(scene)
   const current = elements.find((element) => element.id === selected)
+  const visibleElements = elements.map((element) => animateElement(element, activeDoc, scene, time))
+  const visibleCurrent = visibleElements.find((element) => element.id === selected)
   const duration = campaignDuration(doc), intro = contentDuration(doc)
   const locked = disabled || playing || showVideo
 
@@ -46,6 +49,11 @@ export default function CampaignEditor({ document: doc, format, disabled, onChan
   }
   function changeTransform(patch: Partial<LayerTransform>) {
     if (current) commit(setElement(doc, scene, current.id, { ...transformOf(current), ...patch }))
+  }
+  function fromCanvas(next: CampaignDocument) {
+    const phone = next.layouts?.[scene]?.phone
+    return phone && phone !== doc.layouts?.[scene]?.phone
+      ? setElement(next, scene, 'phone', removePhoneMotion(phone, doc, scene, time)) : next
   }
   function changeText(value: string) {
     if (!current) return
@@ -79,7 +87,7 @@ export default function CampaignEditor({ document: doc, format, disabled, onChan
         {showVideo && videoUrl ? <video className="campaigns__video" src={videoUrl} controls playsInline /> :
           <CampaignPreview document={activeDoc} format={format} index={index} time={time} playing={playing} onTimeUpdate={setPlayhead}>
             {!playing && guides && <div className="campaign-editor__safe" aria-hidden="true" style={{ left: `${safe.x / 1080 * 100}%`, top: `${safe.y / height * 100}%`, width: `${safe.width / 1080 * 100}%`, height: `${safe.height / height * 100}%` }} />}
-            {!locked && <CanvasEditorOverlay document={doc} scene={scene} elements={elements} selected={selected} onSelect={setSelected} onPreview={setTransient} onCommit={commit} />}
+            {!locked && <CanvasEditorOverlay document={doc} scene={scene} elements={visibleElements} time={time} selected={selected} onSelect={setSelected} onPreview={(next) => setTransient(next ? fromCanvas(next) : null)} onCommit={(next) => commit(fromCanvas(next))} />}
           </CampaignPreview>}
         {format === 'reel' && <>
           <div className="campaigns__playback">
@@ -109,9 +117,13 @@ export default function CampaignEditor({ document: doc, format, disabled, onChan
             <label>Suurus %<input type="number" aria-label="Elemendi suurus" min="15" max="300" value={Math.round(current.scale * 100)} onChange={(e) => { if (e.target.value) changeTransform({ scale: Math.max(.15, Math.min(3, Number(e.target.value) / 100)) }) }} /></label>
             <label>Pööre °<input type="number" aria-label="Elemendi pööre" min="-180" max="180" value={Math.round(current.rotation)} onChange={(e) => { if (e.target.value) changeTransform({ rotation: Math.max(-180, Math.min(180, Number(e.target.value))) }) }} /></label>
           </div>
-          <div className="campaign-editor__align"><button type="button" onClick={() => changeTransform({ x: 540 })}>Keskenda</button><button type="button" onClick={() => changeTransform(fitToSafeArea(current, scene))}>Turvaalasse</button></div>
+          <div className="campaign-editor__align"><button type="button" onClick={() => changeTransform({ x: 540 })}>Keskenda</button><button type="button" onClick={() => {
+            const fitted = fitToSafeArea(visibleCurrent ?? current, scene)
+            changeTransform(current.id === 'phone' ? removePhoneMotion(fitted, doc, scene, time) : fitted)
+          }}>Turvaalasse</button></div>
+          {current.id === 'phone' && format === 'reel' && <label>Liikumine<select aria-label="Telefoni liikumine" value={doc.phoneMotion ?? 'zoom'} onChange={(e) => onChange({ ...doc, phoneMotion: e.target.value as PhoneMotion })}>{phoneMotions.map((motion) => <option key={motion.id} value={motion.id}>{motion.name}</option>)}</select></label>}
           {editableText && <label>Tekst<textarea aria-label="Elemendi tekst" rows={2} maxLength={current.id === 'cta' ? campaignCopyLimits.cta : current.id === 'support' ? campaignCopyLimits.support : 72} value={current.text ?? ''} onChange={(e) => changeText(e.target.value)} /></label>}
-          {guides && current.visible && outsideSafeArea(current, scene) && <small>{current.id === 'phone' || current.id.startsWith('photo') ? 'Pildi serv ulatub turvaalast välja.' : 'Tekst või logo võib jääda Instagrami nuppude alla.'}</small>}
+          {guides && current.visible && outsideSafeArea(visibleCurrent ?? current, scene) && <small>{current.id === 'phone' || current.id.startsWith('photo') ? 'Pildi serv ulatub turvaalast välja.' : 'Tekst või logo võib jääda Instagrami nuppude alla.'}</small>}
         </fieldset>}
         <div className="campaign-editor__footer">
           <button type="button" className="campaigns__text-button" disabled={locked} onClick={() => {

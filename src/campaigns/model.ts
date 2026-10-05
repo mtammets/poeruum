@@ -2,6 +2,7 @@ import { actionLabels, actionTimeline, campaignDuration, contentDuration, parseP
 import { createRandomId } from '../lib/randomId'
 import { campaignCopyLimits, parseCampaignBrief, type CampaignBrief, type CampaignCopy } from '../../supabase/functions/_shared/campaign-schema'
 import { parseLayouts, type CampaignLayouts } from './layout'
+import { phoneMotions, type PhoneMotion } from './motion'
 export { campaignCopyLimits } from '../../supabase/functions/_shared/campaign-schema'
 export type { CampaignCopy }
 
@@ -15,6 +16,7 @@ export type CampaignMedia = { src: string; alt: string; kind: 'screen' | 'photo'
 export type CampaignDocument = CampaignBrief & {
   version: 1; id: string; name: string; template: Template; copy: CampaignCopy; media: CampaignMedia[]; variation: number
   phoneContent?: PhoneContent
+  phoneMotion?: PhoneMotion
   layouts?: CampaignLayouts
   endCopy?: { headline: string; slogan: string }
 }
@@ -54,6 +56,7 @@ export function campaignLink(doc: CampaignDocument, medium = 'organic_social') {
 export function validateCampaign(value: unknown, allowIncomplete = false): CampaignDocument | null {
   if (!value || typeof value !== 'object') return null
   const d = value as CampaignDocument
+  if (d.phoneMotion !== undefined && !phoneMotions.some((motion) => motion.id === d.phoneMotion)) return null
   const phoneContent = d.phoneContent === undefined ? undefined : parsePhoneContent(d.phoneContent, allowIncomplete)
   if (phoneContent === null || new TextEncoder().encode(JSON.stringify(value)).length > 3_950_000) return null
   const brief = parseCampaignBrief(d), copy = parseDocumentCopy(d.copy), layouts = parseLayouts(d.layouts)
@@ -65,7 +68,7 @@ export function validateCampaign(value: unknown, allowIncomplete = false): Campa
     || !d.media.every((m) => m && ['photo', 'screen'].includes(m.kind) && typeof m.alt === 'string' && m.alt.length <= 200
       && typeof m.src === 'string' && m.src.length < 1_200_000 && (Boolean(phoneContent?.snapshot.products.some((p) => m.src === `campaign-product:${p.id}`)) || /^\/campaigns\/screen-[012]\.jpg$/.test(m.src) || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(m.src)))) return null
   return { version: 1, id: d.id, name: d.name.trim(), template: d.template, variation: d.variation, media: d.media, ...brief, copy,
-    ...(phoneContent ? { phoneContent } : {}), ...(d.layouts === undefined ? {} : { layouts }), ...(d.endCopy === undefined ? {} : { endCopy: { headline: d.endCopy.headline, slogan: d.endCopy.slogan } }) }
+    ...(phoneContent ? { phoneContent } : {}), ...(d.phoneMotion === undefined ? {} : { phoneMotion: d.phoneMotion }), ...(d.layouts === undefined ? {} : { layouts }), ...(d.endCopy === undefined ? {} : { endCopy: { headline: d.endCopy.headline, slogan: d.endCopy.slogan } }) }
 }
 
 // Authored drafts may intentionally omit copy. AI responses remain strict and

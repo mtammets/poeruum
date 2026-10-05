@@ -1,17 +1,23 @@
 import { useRef, useState, type PointerEvent } from 'react'
 import type { CampaignDocument } from './model'
 import { sceneHeight, setElement, transformOf, type LayerId, type SceneElement, type SceneKey } from './layout'
+import { phoneMotionAt } from './motion'
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n))
 type Drag = { pointer: number; startX: number; startY: number; element: SceneElement; doc: CampaignDocument; corner?: [number, number]; latest: CampaignDocument }
 
-export default function CanvasEditorOverlay({ document, scene, elements, selected, onSelect, onPreview, onCommit }: {
+export default function CanvasEditorOverlay({ document, scene, elements, time = 0, selected, onSelect, onPreview, onCommit }: {
   document: CampaignDocument; scene: SceneKey; elements: SceneElement[]; selected: LayerId | null
+  time?: number
   onSelect: (id: LayerId | null) => void; onPreview: (doc: CampaignDocument | null) => void; onCommit: (doc: CampaignDocument) => void
 }) {
   const root = useRef<HTMLDivElement>(null), drag = useRef<Drag | null>(null)
   const [centerGuide, setCenterGuide] = useState(false)
   const height = sceneHeight(scene)
+  const clampScale = (scale: number, id: LayerId) => {
+    const zoom = id === 'phone' ? phoneMotionAt(document, scene, time).scale : 1
+    return clamp(scale, .15 * zoom, 3 * zoom)
+  }
   const start = (event: PointerEvent, element: SceneElement, corner?: [number, number]) => {
     if (event.button !== 0) return
     event.preventDefault(); event.stopPropagation(); onSelect(element.id)
@@ -37,7 +43,7 @@ export default function CanvasEditorOverlay({ document, scene, elements, selecte
         const cos = Math.cos(angle), sin = Math.sin(angle)
         const vx = sx * element.width * cos - sy * element.height * sin
         const vy = sx * element.width * sin + sy * element.height * cos
-        next.scale = clamp(element.scale + (dx * vx + dy * vy) / (vx * vx + vy * vy), .15, 3)
+        next.scale = clampScale(element.scale + (dx * vx + dy * vy) / (vx * vx + vy * vy), element.id)
         next.x += vx * (next.scale - element.scale) / 2
         next.y += vy * (next.scale - element.scale) / 2
       } else {
@@ -74,7 +80,7 @@ export default function CanvasEditorOverlay({ document, scene, elements, selecte
             if (!['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'].includes(event.key)) return
             event.preventDefault(); event.stopPropagation()
             const change = (['ArrowUp', 'ArrowRight'].includes(event.key) ? 1 : -1) * (event.shiftKey ? .1 : .01)
-            onCommit(setElement(document, scene, element.id, { ...transformOf(element), scale: clamp(element.scale + change, .15, 3) }))
+            onCommit(setElement(document, scene, element.id, { ...transformOf(element), scale: clampScale(element.scale + change, element.id) }))
           }} />)}
       </>}
     </div>)}

@@ -57,6 +57,7 @@ test('admin creates a complete campaign ZIP with playable MP4s, edits and restor
   // Check the encoded file's screen content, not movement of the phone frame:
   // the product photo must scroll away into real dark product details, then back.
   const blackPixels = []
+  const phoneWidths: number[] = []
   for (const time of [.6, 2.6, 4.3, 5.7, 8.5, 10.5]) {
     blackPixels.push(await page.locator('video').evaluate(async (video: HTMLVideoElement, time) => {
       await new Promise<void>((resolve, reject) => {
@@ -72,11 +73,19 @@ test('admin creates a complete campaign ZIP with playable MP4s, edits and restor
       for (let i = 0; i < pixels.length; i += 4) if (Math.max(pixels[i], pixels[i + 1], pixels[i + 2]) < 30) black++
       return black / (80 * 100)
     }, time))
+    phoneWidths.push(await page.locator('video').evaluate((video: HTMLVideoElement) => {
+      const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1
+      const ctx = canvas.getContext('2d')!; ctx.drawImage(video, 0, 914, 1080, 1, 0, 0, 1080, 1)
+      const pixels = ctx.getImageData(0, 0, 1080, 1).data, edges: number[] = []
+      for (let x = 100; x < 980; x++) if (Math.max(pixels[x * 4], pixels[x * 4 + 1], pixels[x * 4 + 2]) < 95) edges.push(x)
+      return edges.length ? edges.at(-1)! - edges[0] : 0
+    }))
     await page.locator('video').screenshot({ path: testInfo.outputPath(`reel-${time}.png`) })
   }
   expect(blackPixels[1]).toBeGreaterThan(.6)
   expect(blackPixels[1] - blackPixels[0]).toBeGreaterThan(.35)
   expect(blackPixels[1] - blackPixels[2]).toBeGreaterThan(.35)
+  expect(phoneWidths[4] - phoneWidths[0]).toBeGreaterThan(25)
   const downloading = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Laadi ZIP' }).click()
   const download = await downloading
@@ -181,6 +190,8 @@ test('canvas dragging, resize, undo, visibility and per-format layouts survive s
   await expect(inspector.getByRole('checkbox', { name: 'Näita: Logo', exact: true })).not.toBeChecked()
   await expect(inspector.getByRole('checkbox', { name: 'Näita: Pealkiri', exact: true })).not.toBeChecked()
   await expect(page.getByRole('spinbutton', { name: 'Elemendi suurus', exact: true })).toHaveValue('130')
+  await expect(page.getByRole('combobox', { name: 'Telefoni liikumine', exact: true })).toHaveValue('zoom')
+  await page.getByRole('combobox', { name: 'Telefoni liikumine', exact: true }).selectOption('float')
   await page.getByRole('button', { name: 'Esita', exact: true }).click()
   await expect.poll(async () => Number(await page.getByRole('slider', { name: 'Videokaader' }).inputValue())).toBeGreaterThan(.3)
   await page.getByRole('button', { name: 'Peata', exact: true }).click()
@@ -217,6 +228,7 @@ test('canvas dragging, resize, undo, visibility and per-format layouts survive s
   expect(versions[0].document.copy.headlines[0]).toBe('')
   expect(versions[0].document.endCopy.slogan).toBe('Oma pood. Oma moodi.')
   expect(versions[0].document.layouts.reel.phone.scale).toBeGreaterThan(1.3)
+  expect(versions[0].document.phoneMotion).toBe('float')
   await page.getByRole('tab', { name: 'Postitused', exact: true }).click()
   await page.getByRole('spinbutton', { name: 'Elemendi suurus', exact: true }).fill('95')
   await page.getByRole('button', { name: 'Postitus 2', exact: true }).click()
@@ -224,6 +236,10 @@ test('canvas dragging, resize, undo, visibility and per-format layouts survive s
   await page.getByRole('tab', { name: 'Story’d', exact: true }).click()
   await expect(page.getByRole('spinbutton', { name: 'Elemendi suurus', exact: true })).toHaveValue('102')
   await page.reload()
+  await expect(page.getByRole('spinbutton', { name: 'Elemendi suurus', exact: true })).toHaveValue(scale)
+  await expect(page.getByRole('combobox', { name: 'Telefoni liikumine', exact: true })).toHaveValue('float')
+  await page.getByRole('combobox', { name: 'Telefoni liikumine', exact: true }).selectOption('still')
+  await page.getByRole('slider', { name: 'Videokaader' }).fill('8')
   await expect(page.getByRole('spinbutton', { name: 'Elemendi suurus', exact: true })).toHaveValue(scale)
   await page.getByRole('tab', { name: 'Postitused', exact: true }).click()
   await expect(page.getByRole('spinbutton', { name: 'Elemendi suurus', exact: true })).toHaveValue('95')
