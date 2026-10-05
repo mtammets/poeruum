@@ -82,11 +82,11 @@ const appSurface = isPlatformSurface ? 'platform' : 'storefront'
 document.documentElement.dataset.appSurface = appSurface
 document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   ?.setAttribute('content', appSurface === 'platform' ? '#f4f2e9' : '#000000')
-const isRemovedAdminHomepagePath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin\/homepage\/?$/i.test(window.location.pathname)
-if (isRemovedAdminHomepagePath) {
+const isRemovedAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin\/(?:homepage|payments)\/?$/i.test(window.location.pathname)
+if (isRemovedAdminPath) {
   window.history.replaceState({}, '', `/admin${window.location.search}${window.location.hash}`)
 }
-const isAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support|business-card|kaubamaja|payments|campaigns))?\/?$/i.test(window.location.pathname)
+const isAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support|business-card|kaubamaja|campaigns))?\/?$/i.test(window.location.pathname)
 const isOutreachUnsubscribePath = isPlatformSurface && !isStoreDirectorySurface && /^\/loobu\/?$/i.test(window.location.pathname)
 const isAboutPoeruumPath = isPlatformSurface && !isStoreDirectorySurface && /^\/mis-on-poeruum\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformSurface && !isStoreDirectorySurface

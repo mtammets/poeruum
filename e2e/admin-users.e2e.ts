@@ -546,6 +546,59 @@ test('dashboard charts inspect real daily values, switch metrics and request the
   await expect(page.getByRole('combobox', { name: 'Ajavahemik' })).toHaveValue('7')
 })
 
+test('revenue keeps amounts and receipts visible during background refreshes', async ({ page }) => {
+  await installBackend(page)
+  await installOverviewData(page)
+  await page.goto('/admin')
+  const income = page.getByRole('region', { name: 'Poeruumi teenustasud' })
+  const amount = income.locator('.overview-income__amount')
+  await expect(amount).toHaveText('375,40 €')
+  await income.locator('.overview-receipts summary').click()
+  const receipt = income.locator('.overview-receipts li')
+  await expect(receipt).toHaveCount(1)
+  const previousText = await income.innerText()
+  const previousComposition = await income.locator('.overview-income__composition').innerHTML()
+  const pending: Route[] = []
+  await page.route('**/rpc/admin_revenue_dashboard', route => { pending.push(route) })
+
+  await page.clock.fastForward(60_000)
+  await expect.poll(() => pending.length).toBe(1)
+  await expect(income).toHaveAttribute('aria-busy', 'false')
+  expect(await income.innerText()).toBe(previousText)
+  expect(await income.locator('.overview-income__composition').innerHTML()).toBe(previousComposition)
+  await expect(receipt).toBeVisible()
+  await expect(income).not.toHaveClass(/is-live-update/)
+  await pending[0].fulfill({ json: {
+    month_total_cents: 38540, today_total_cents: 3120,
+    subscription_total_cents: 29900, transaction_fee_total_cents: 9640, refund_total_cents: -1000,
+    recent_events: [{ id: 'revenue-2', kind: 'transaction_fee', amount_cents: 1000, currency: 'eur',
+      description: 'Müügitasu', occurred_at: ago(0), store_id: 'store-3', store_name: 'Moreamoreceramics' }],
+  } })
+  await expect(amount).toHaveText('385,40 €')
+  await expect(receipt).toContainText('+10 €')
+
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await expect.poll(() => pending.length).toBe(2)
+  await expect(amount).toHaveText('385,40 €')
+  const failedResponse = page.waitForResponse(response => response.url().includes('/rpc/admin_revenue_dashboard') && response.status() === 503)
+  await pending[1].fulfill({ status: 503, json: { message: 'Unavailable' } })
+  await failedResponse
+  await page.clock.runFor(100)
+  await expect(income.getByRole('alert')).toHaveCount(0)
+  await expect(amount).toHaveText('385,40 €')
+  await expect(receipt).toBeVisible()
+
+  await page.clock.fastForward(60_000)
+  await expect.poll(() => pending.length).toBe(3)
+  await expect(amount).toHaveText('385,40 €')
+  await pending[2].fulfill({ json: {
+    month_total_cents: 0, today_total_cents: 0, subscription_total_cents: 0,
+    transaction_fee_total_cents: 0, refund_total_cents: 0, recent_events: [],
+  } })
+  await expect(amount).toHaveText('0 €')
+  await expect(income.getByText('Laekumisi veel pole')).toBeVisible()
+})
+
 test('dashboard distinguishes failed data, measured zeroes and missing daily data', async ({ page }) => {
   await installBackend(page)
   const backend = await installOverviewData(page)

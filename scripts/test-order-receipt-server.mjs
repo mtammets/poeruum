@@ -35,7 +35,7 @@ try {
       let body = ''; res.on('data', (chunk) => { body += chunk }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }))
     }); req.on('error', reject); req.end()
   })
-  assert.equal(adminResponse.status, 200, 'Payment review must load directly on the production server')
+  assert.equal(adminResponse.status, 200, 'The removed payment review URL must load the app shell for the admin overview redirect')
   assert.equal(adminResponse.headers['cache-control'], 'private, no-store')
   assert.match(adminResponse.headers['x-robots-tag'], /noindex/)
   assert.match(adminResponse.body, /id="root"/)
