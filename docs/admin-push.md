@@ -16,6 +16,11 @@ Allikad on `public/images/admin-app-icon.svg` ja
 `public/images/poeruum-app-icon.svg`; taust täidab mõlemal kogu ikooni. PNG-failid saab uuesti luua käsuga `node scripts/generate-app-icons.mjs`.
 Kaupmeeste poodidele seda platvormi ikooni ei lisata.
 
+Admini `apple-touch-icon` viitab otse vektorist genereeritud 1024 × 1024 PNG-le,
+et Safari ei eelistaks manifesti suurematele ikoonidele väikest 180-pikslist faili.
+Ikoonifaili teravust saab kontrollida brauseris, kuid iOS-i avaekraani lisatavat
+efekti ja lõpptulemust tuleb kontrollida päris seadmes.
+
 ## Juurutus
 
 1. `node scripts/configure-admin-push.mjs prepare` genereerib võtmed ignoreeritud
