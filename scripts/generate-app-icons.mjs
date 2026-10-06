@@ -5,7 +5,7 @@ import { chromium } from '@playwright/test'
 // Both variants use BrandMark paths with a background filling the canvas.
 const variants = [
   { source: 'poeruum-app-icon.svg', name: 'poeruum-app-icon', sizes: [180] },
-  { source: 'admin-app-icon.svg', name: 'admin-icon', sizes: [180, 192, 512, 1024] },
+  { source: 'admin-app-icon.svg', name: 'admin-icon', sizes: [180, 192, 512] },
 ]
 const browser = await chromium.launch()
 try {

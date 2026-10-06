@@ -89,9 +89,7 @@ if (isRemovedAdminPath) {
 const isAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support|business-card|kaubamaja|campaigns|settings))?\/?$/i.test(window.location.pathname)
 if (isPlatformSurface && !getRequestedStoreSlug(window.location)) {
   const icon = document.createElement('link')
-  icon.rel = 'apple-touch-icon'; icon.type = 'image/png'
-  icon.sizes = isAdminPath ? '1024x1024' : '180x180'
-  icon.href = isAdminPath ? '/images/admin-icon-1024.png' : '/images/poeruum-app-icon-180.png'
+  icon.rel = 'apple-touch-icon'; icon.sizes = '180x180'; icon.href = isAdminPath ? '/images/admin-icon-180.png' : '/images/poeruum-app-icon-180.png'
   const favicon = document.createElement('link')
   favicon.rel = 'icon'; favicon.type = 'image/svg+xml'; favicon.href = isAdminPath ? '/images/admin-app-icon.svg' : '/images/poeruum-app-icon.svg'
   const name = document.createElement('meta')
