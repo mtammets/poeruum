@@ -1,5 +1,9 @@
 import { requireSupabase } from './supabase'
 
+export type AdminPushPreferences = { visits: boolean; accounts: boolean }
+export type AdminPushStatus = { enabled: boolean; preferences: AdminPushPreferences }
+export const defaultPushPreferences: AdminPushPreferences = { visits: true, accounts: true }
+
 export function needsHomeScreen() {
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
   return ios && !window.matchMedia('(display-mode: standalone)').matches && !(navigator as Navigator & { standalone?: boolean }).standalone

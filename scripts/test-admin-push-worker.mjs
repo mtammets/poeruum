@@ -40,14 +40,18 @@ await new Promise((resolve) => probe.close(resolve))
 const server = spawn(process.execPath, ['server.mjs'], { env: { ...process.env, PORT: String(port), VITE_SUPABASE_URL: '', VITE_SUPABASE_PUBLISHABLE_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] })
 try {
   await Promise.race([once(server.stdout, 'data'), once(server, 'exit').then(() => { throw new Error('Server failed to start') })])
-  for (const path of ['/admin-push-sw.js', '/admin.webmanifest', '/images/admin-icon-192.png', '/images/admin-icon-512.png']) {
+  for (const path of ['/admin/settings', '/admin/settings/', '/admin-push-sw.js', '/admin.webmanifest', '/images/admin-icon-192.png', '/images/admin-icon-512.png']) {
     const response = await new Promise((resolve, reject) => {
       const req = request({ hostname: '127.0.0.1', port, path, headers: { Host: 'poeruum.ee' } }, (res) => {
         const chunks = []; res.on('data', (chunk) => chunks.push(chunk)); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }))
       }); req.on('error', reject); req.end()
     })
     assert.equal(response.status, 200, `${path} must be served in production`)
-    if (path.endsWith('.js')) {
+    if (path.startsWith('/admin/settings')) {
+      assert.match(response.headers['content-type'], /text\/html/)
+      assert.equal(response.headers['cache-control'], 'private, no-store')
+      assert.equal(response.headers['x-robots-tag'], 'noindex, nofollow')
+    } else if (path.endsWith('.js')) {
       assert.match(response.headers['content-type'], /javascript/)
       assert.equal(response.headers['cache-control'], 'no-cache')
       assert.match(response.body.toString(), /notificationclick/)

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { adminPushRequest, applicationServerKey, currentPushSubscription, disableAdminPush, needsHomeScreen, supportsAdminPush } from './lib/adminPush'
+import { defaultPushPreferences, type AdminPushPreferences, type AdminPushStatus } from './lib/adminPush'
 
 type PushConfig = { available: boolean; publicKey: string | null }
 export default function useAdminPush(userId: string | null) {
   const [enabled, setEnabled] = useState(false)
+  const [preferences, setPreferences] = useState(defaultPushPreferences)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -29,6 +31,7 @@ export default function useAdminPush(userId: string | null) {
     registration.current = null
     initializationError.current = ''
     setEnabled(false)
+    setPreferences(defaultPushPreferences)
     setError('')
     setMessage('')
     if (!userId || !supported || homeScreen) { setLoading(false); return }
@@ -49,8 +52,8 @@ export default function useAdminPush(userId: string | null) {
         registration.current = ready
         const subscription = await ready.pushManager.getSubscription()
         if (subscription && Notification.permission === 'granted') {
-          const status = await adminPushRequest({ action: 'status', endpoint: subscription.endpoint })
-          if (active) setEnabled(Boolean(status.enabled))
+          const status = await adminPushRequest<AdminPushStatus>({ action: 'status', endpoint: subscription.endpoint })
+          if (active) { setEnabled(status.enabled); setPreferences(status.preferences) }
         }
       } catch (error) {
         if (active) initializationError.current = error instanceof Error ? error.message : 'Märguannete seadeid ei saanud laadida.'
@@ -61,7 +64,7 @@ export default function useAdminPush(userId: string | null) {
   }, [userId, supported, homeScreen])
 
   const toggle = async () => {
-    if (busy) return
+    if (busy || loading) return
     setError(''); setMessage('')
     if (homeScreen) {
       setMessage('Ava Safari jagamismenüü ja vali „Lisa avaekraanile” (Add to Home Screen). Ava Poeruum tekkinud ikoonist, logi adminisse ning luba siin märguanded.')
@@ -93,9 +96,10 @@ export default function useAdminPush(userId: string | null) {
         subscription = await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(settings.publicKey) })
         created = subscription
       }
-      await adminPushRequest({ action: 'subscribe', subscription: subscription.toJSON() })
+      const status = await adminPushRequest<AdminPushStatus>({ action: 'subscribe', subscription: subscription.toJSON(), preferences })
+      setPreferences(status.preferences)
       setEnabled(true)
-      setMessage('Külastuste ja uute kontode märguanded on selles seadmes sees ka lukustatud ekraaniga.')
+      setMessage('Märguanded on selles seadmes lubatud ka lukustatud ekraaniga. Vali allpool, milliseid teavitusi soovid.')
     } catch (error) {
       if (created) await created.unsubscribe().catch(() => undefined)
       setError(error instanceof Error ? error.message : 'Märguannete lubamine ebaõnnestus.')
@@ -114,6 +118,19 @@ export default function useAdminPush(userId: string | null) {
     finally { setBusy(false) }
   }
 
-  return { enabled, busy, loading, message, error, toggle, test, dismiss: () => { setMessage(''); setError('') } }
+  const updatePreference = async (kind: keyof AdminPushPreferences, value: boolean) => {
+    if (busy || loading || !enabled) return
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const subscription = await currentPushSubscription()
+      if (!subscription) { setEnabled(false); throw new Error('Lülita märguanded uuesti sisse.') }
+      const status = await adminPushRequest<AdminPushStatus>({ action: 'preferences', endpoint: subscription.endpoint, preferences: { ...preferences, [kind]: value } })
+      setPreferences(status.preferences)
+      setMessage('Märguannete valikud on salvestatud.')
+    } catch (error) { setError(error instanceof Error ? error.message : 'Märguannete valikuid ei saanud salvestada.') }
+    finally { setBusy(false) }
+  }
+
+  return { enabled, preferences, busy, loading, message, error, toggle, test, updatePreference, dismiss: () => { setMessage(''); setError('') } }
 }
 export type AdminPushFeedback = ReturnType<typeof useAdminPush>

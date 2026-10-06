@@ -1,11 +1,13 @@
 # Admini telefoni märguanded
 
-Ülevaate ja analüütika **Märguanded** lubab selles seadmes uute avalehe külastuste
-ja uute kontode teavitused. **Proovi** saadab serverist prooviteavituse.
+Admini menüüriba hammasratas avab **Seaded** (`/admin/settings`).
+**Märguanded selles seadmes** lubab teavitused. **Avalehe külastused** ja
+**Uued kontod** saab eraldi sisse või välja lülitada. Valikud salvestatakse
+automaatselt selle seadme tellimusele. **Saada prooviteavitus** kontrollib tarnet.
 Märguannete heli juhitakse telefoni või brauseri seadetes.
 
 iPhone’is ava `/admin` Safaris, vali jagamismenüüst **Lisa avaekraanile**, ava
-tekkinud ikoon, logi sisse ning luba **Märguanded**. Vajalik on iOS 16.4 või uuem.
+tekkinud ikoon, logi sisse ning ava **Seaded** ning luba **Märguanded selles seadmes**. Vajalik on iOS 16.4 või uuem.
 Heli ja kuvamist juhivad ka telefoni märguannete ning Focusi seaded.
 
 ## Juurutus
@@ -13,7 +15,7 @@ Heli ja kuvamist juhivad ka telefoni märguannete ning Focusi seaded.
 1. `node scripts/configure-admin-push.mjs prepare` genereerib võtmed ignoreeritud
    `.env` faili, kui kohalikke ega serverivõtmeid veel pole. Olemasolevaid võtmeid
    ei vahetata; privaatvõti ei tohi jõuda brauserisse.
-2. Rakenda `202610050002_admin_push.sql` tavapärase migratsioonivooga.
+2. Rakenda `202610050002_admin_push.sql` ja `202610060001_admin_push_preferences.sql` tavapärase migratsioonivooga.
 3. `node scripts/configure-admin-push.mjs apply` salvestab võtmed Edge’i ja
    kontrollib olemasolevat Vaulti/cron’i seadistust.
 4. Juuruta `admin-push` ja `admin-push-dispatch` käsuga
@@ -32,7 +34,9 @@ olemasolevaid serverivõtmeid teistsuguste kohalike võtmetega asendamast.
 ## Töövoog
 
 INSERT-triggerid lisavad uued `page_view` sündmused ja mitte-admini `auth.users`
-kontod iga lubatud seadme järjekorda. Varasemaid sündmusi liitumisel ei saadeta.
+kontod vastava liigiga nõustunud seadmete järjekorda. Liigi väljalülitamine
+eemaldab ka selle seadme vastava liigi ootel tööd; juba saadetud teavitust
+tagasi kutsuda ei saa. Mõlema liigi väljalülitamine säilitab seadme tellimuse. Varasemaid sündmusi liitumisel ei saadeta.
 `pg_net` äratab saatja pärast commit'i; minutiline cron taastab katkenud saatmised.
 Töödel on kaheminutiline lease, kasvav retry-viivitus, kuni viis katset ning tund
 maksimaalset vanust. Saatmisel on kaheksasekundiline timeout. Sama töö kordused
@@ -57,7 +61,7 @@ psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test
 
 SQL-test on transaktsioonis ja keelab fixture'ite võrgusaatmise. Brauseritestid
 simuleerivad seadme permission/subscription API-sid; need ei tõenda iOS-i tarnet.
-Päris iPhone’is: luba märguanded, vajuta **Proovi**, lukusta telefon ning ava
+Päris iPhone’is: luba märguanded, vajuta **Saada prooviteavitus**, lukusta telefon ning ava
 teisest seadmest Poeruumi avaleht. Kontrolli lukuekraani teadet ja selle vajutusest
 admini avanemist. Seejärel lülita märguanded välja ja korda külastust; uut teadet
 enam tulla ei tohi. Internetiühendus ja Focusi seaded võivad tarnet mõjutada.

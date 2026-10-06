@@ -110,3 +110,20 @@
 @media (prefers-reduced-motion: reduce) {
   .admin-shell *, .admin-shell *::before, .admin-shell *::after { animation: none !important; transition: none !important; }
 }
+
+/* Keep settings beside the account controls, visible when mobile navigation scrolls. */
+.admin-shell .admin-sidebar__account { grid-template-columns: auto minmax(0, 1fr) auto; }
+.admin-sidebar__settings { grid-row: 1; grid-column: 1 / -1; justify-self: end; }
+.admin-sidebar__settings { display: grid; width: 2rem; height: 2.5rem; place-items: center; border-radius: .6rem; color: #c2d0b9; text-decoration: none; }
+.admin-sidebar__settings svg { width: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.admin-sidebar__settings:hover { background: #34442e; color: #fff; }
+.admin-sidebar__settings[aria-current="page"] { background: var(--admin-accent); color: var(--admin-accent-ink); }
+.admin-sidebar__settings:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 2px; }
+@media (max-width: 1300px) and (min-width: 681px) {
+  .admin-shell .admin-sidebar__account { grid-template-columns: 1fr; }
+  .admin-sidebar__settings { grid-row: auto; grid-column: auto; justify-self: center; }
+}
+@media (max-width: 680px) {
+  .admin-shell .admin-sidebar__account { display: flex; gap: .15rem; }
+  .admin-sidebar__settings { flex-shrink: 0; width: 2.75rem; height: 2.75rem; }
+}

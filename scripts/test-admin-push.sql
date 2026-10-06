@@ -4,6 +4,10 @@ select to_regclass('public.admin_push_subscriptions') is null as needs_migration
 \if :needs_migration
   \ir ../supabase/migrations/202610050002_admin_push.sql
 \endif
+select not exists(select 1 from information_schema.columns where table_schema='public' and table_name='admin_push_subscriptions' and column_name='visits_enabled') as needs_preferences_migration \gset
+\if :needs_preferences_migration
+  \ir ../supabase/migrations/202610060001_admin_push_preferences.sql
+\endif
 create function pg_temp.verify(ok boolean, message text) returns void language plpgsql as $$
 begin if ok is distinct from true then raise exception '%', message; end if; end; $$;
 create extension if not exists plpgsql_check with schema extensions;
@@ -30,6 +34,28 @@ select pg_temp.verify(not has_table_privilege('authenticated','public.admin_push
 select pg_temp.verify(not has_table_privilege('anon','public.admin_push_jobs','select'), 'Jobs exposed anonymously');
 select pg_temp.verify(not has_function_privilege('authenticated','public.claim_admin_push_job()','execute'), 'Browser can claim notifications');
 select pg_temp.verify(not has_function_privilege('anon','public.dispatch_admin_push()','execute'), 'Anonymous dispatch allowed');
+-- Muting each category affects only that device and removes its queued work.
+update public.admin_push_subscriptions set visits_enabled=false where id='92000000-0000-4000-8000-000000000001';
+update public.admin_push_subscriptions set accounts_enabled=false where id='92000000-0000-4000-8000-000000000002';
+select pg_temp.verify((select count(*)=1 from public.admin_push_jobs where kind='visit'), 'Muted visits remain queued or affect another device');
+select pg_temp.verify((select count(*)=1 from public.admin_push_jobs where kind='account'), 'Muted accounts remain queued or affect another device');
+insert into public.homepage_analytics_events(session_id,event_name,device_type) values ('push-preferences-test','page_view','mobile');
+insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
+('91000000-0000-4000-8000-000000000004','authenticated','authenticated','push-preferences@example.invalid','{}','{}');
+select pg_temp.verify((select count(*)=2 from public.admin_push_jobs where kind='visit'), 'Visit preference ignored on enqueue');
+select pg_temp.verify((select count(*)=2 from public.admin_push_jobs where kind='account'), 'Account preference ignored on enqueue');
+select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where kind='visit' and subscription_id='92000000-0000-4000-8000-000000000001'), 'Muted device receives new visits');
+select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where kind='account' and subscription_id='92000000-0000-4000-8000-000000000002'), 'Muted device receives new accounts');
+update public.admin_push_subscriptions set accounts_enabled=false where id='92000000-0000-4000-8000-000000000001';
+select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where subscription_id='92000000-0000-4000-8000-000000000001'), 'Both categories disabled but jobs remain');
+select pg_temp.verify((select count(*)=2 from public.admin_push_subscriptions), 'Category change removed a device');
+-- Also cover a delayed enqueue racing with the preference update.
+insert into public.admin_push_jobs(subscription_id,event_id,kind) values ('92000000-0000-4000-8000-000000000001',gen_random_uuid(),'account');
+update public.admin_push_jobs set available_at=now()+interval '1 minute' where subscription_id='92000000-0000-4000-8000-000000000002';
+select pg_temp.verify(not exists(select 1 from public.claim_admin_push_job()), 'Worker claimed a disabled category');
+update public.admin_push_jobs set available_at=now();
+update public.admin_push_subscriptions set visits_enabled=true,accounts_enabled=true;
+select pg_temp.verify((select count(*)=2 from public.admin_push_jobs), 'Re-enabling backfilled past events');
 do $$ declare first_job record; second_job record; reclaimed record;
 begin
   select * into first_job from public.claim_admin_push_job();

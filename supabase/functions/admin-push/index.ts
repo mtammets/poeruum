@@ -24,13 +24,27 @@ Deno.serve(async (request) => {
     if (!input || typeof input !== 'object') return json({ error: 'Vigane päring.' }, 400)
     const config = vapidConfig()
     if (input.action === 'config') return json({ available: Boolean(config), publicKey: config?.publicKey ?? null })
-    if (!['status', 'subscribe', 'unsubscribe', 'test'].includes(input.action)) return json({ error: 'Tundmatu toiming.' }, 400)
+    if (!['status', 'subscribe', 'unsubscribe', 'test', 'preferences'].includes(input.action)) return json({ error: 'Tundmatu toiming.' }, 400)
+    const preferences = input.preferences
+    if ((input.action === 'preferences' || (input.action === 'subscribe' && preferences !== undefined))
+      && (!preferences || typeof preferences.visits !== 'boolean' || typeof preferences.accounts !== 'boolean')) {
+      return json({ error: 'Märguannete valikud on vigased.' }, 400)
+    }
+    const preferenceFields = preferences && ['subscribe', 'preferences'].includes(input.action)
+      ? { visits_enabled: preferences.visits, accounts_enabled: preferences.accounts } : {}
     const subscription = input.action === 'subscribe' ? parsePushSubscription(input.subscription) : null
     const endpoint = subscription?.endpoint ?? input.endpoint
     if (!validPushEndpoint(endpoint) || (input.action === 'subscribe' && !subscription)) return json({ error: 'Seadme märguannete andmed on vigased.' }, 400)
-    const { data: existing, error: readError } = await admin.from('admin_push_subscriptions').select('id, endpoint, p256dh, auth').eq('endpoint', endpoint).eq('user_id', user.id).maybeSingle()
+    const { data: existing, error: readError } = await admin.from('admin_push_subscriptions').select('id, endpoint, p256dh, auth, visits_enabled, accounts_enabled').eq('endpoint', endpoint).eq('user_id', user.id).maybeSingle()
     if (readError) throw new Error('Subscription lookup failed')
-    if (input.action === 'status') return json({ enabled: Boolean(existing) })
+    const savedPreferences = { visits: existing?.visits_enabled ?? true, accounts: existing?.accounts_enabled ?? true }
+    if (input.action === 'status') return json({ enabled: Boolean(existing), preferences: savedPreferences })
+    if (input.action === 'preferences') {
+      if (!existing) return json({ error: 'Luba esmalt selles seadmes märguanded.' }, 404)
+      const { error } = await admin.from('admin_push_subscriptions').update(preferenceFields).eq('id', existing.id).eq('user_id', user.id)
+      if (error) throw new Error('Preferences update failed')
+      return json({ enabled: true, preferences: { visits: preferences.visits, accounts: preferences.accounts } })
+    }
     if (input.action === 'unsubscribe') {
       const { error } = await admin.from('admin_push_subscriptions').delete().eq('endpoint', endpoint).eq('user_id', user.id)
       if (error) throw new Error('Subscription removal failed')
@@ -42,13 +56,13 @@ Deno.serve(async (request) => {
         const { count, error: countError } = await admin.from('admin_push_subscriptions').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
         if (countError) throw new Error('Subscription count failed')
         if ((count ?? 0) >= 20) return json({ error: 'Seadmete limiit on täis. Lülita mõnes teises seadmes märguanded välja.' }, 409)
-        const { error } = await admin.from('admin_push_subscriptions').insert({ user_id: user.id, endpoint, ...subscription.keys })
+        const { error } = await admin.from('admin_push_subscriptions').insert({ user_id: user.id, endpoint, ...subscription.keys, ...preferenceFields })
         if (error) return json({ error: 'Seadme sidumine ebaõnnestus. Lülita brauseri märguanded välja ja proovi uuesti.' }, 409)
       } else {
-        const { error } = await admin.from('admin_push_subscriptions').update(subscription.keys).eq('id', existing.id).eq('user_id', user.id)
+        const { error } = await admin.from('admin_push_subscriptions').update({ ...subscription.keys, ...preferenceFields }).eq('id', existing.id).eq('user_id', user.id)
         if (error) throw new Error('Subscription update failed')
       }
-      return json({ enabled: true })
+      return json({ enabled: true, preferences: preferences ? { visits: preferences.visits, accounts: preferences.accounts } : savedPreferences })
     }
     if (!existing) return json({ error: 'Luba esmalt selles seadmes märguanded.' }, 404)
     const outcome = await sendAdminPush({ endpoint: existing.endpoint, keys: { p256dh: existing.p256dh, auth: existing.auth } }, pushNotice('test', crypto.randomUUID()))

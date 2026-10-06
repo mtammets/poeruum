@@ -21,7 +21,7 @@ import AdminUsers from './AdminUsers'
 import AdminOverview from './AdminOverview'
 import useHomepageVisitFeedback from './useHomepageVisitFeedback'
 import useAdminPush from './useAdminPush'
-import AdminPushToggle from './AdminPushToggle'
+import AdminSettings from './AdminSettings'
 import { disableAdminPush } from './lib/adminPush'
 import { VisitBadge, VisitNumber } from './VisitFeedback'
 import type { RevenueEvent, RevenueDashboard, AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard, AnalyticsEngagementBucket } from './lib/adminDashboard'
@@ -31,7 +31,7 @@ const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
 const AdminKaubamaja = lazy(() => import('./AdminKaubamaja'))
 const AdminCampaigns = lazy(() => import('./AdminCampaigns'))
 
-type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory' | 'campaigns'
+type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory' | 'campaigns' | 'settings'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
 
 const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
@@ -44,6 +44,7 @@ const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
   'business-card': { path: '/admin/business-card', title: 'Visiitkaart' },
   directory: { path: '/admin/kaubamaja', title: 'Kaubamaja' },
   campaigns: { path: '/admin/campaigns', title: 'Kampaaniad' },
+  settings: { path: '/admin/settings', title: 'Seaded' },
 }
 
 const getAdminView = (pathname = window.location.pathname): AdminView => {
@@ -55,6 +56,7 @@ const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/business-card\/?$/i.test(pathname)) return 'business-card'
   if (/^\/admin\/kaubamaja\/?$/i.test(pathname)) return 'directory'
   if (/^\/admin\/campaigns\/?$/i.test(pathname)) return 'campaigns'
+  if (/^\/admin\/settings\/?$/i.test(pathname)) return 'settings'
   return 'overview'
 }
 
@@ -214,10 +216,11 @@ const formatRelativeTime = (value: string | null) => {
   return formatDate(value)
 }
 
-type AdminIconName = 'home' | 'analytics' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue' | 'card' | 'campaigns'
+type AdminIconName = 'home' | 'analytics' | 'seo' | 'leads' | 'users' | 'store' | 'message' | 'logout' | 'refresh' | 'check' | 'arrow' | 'alert' | 'search' | 'revenue' | 'card' | 'campaigns' | 'settings'
 
 function AdminIcon({ name }: { name: AdminIconName }) {
   const paths: Record<AdminIconName, React.ReactNode> = {
+    settings: <><path d="m9.5 3-.6 2.3-2 .9-2.2-.7-2.5 4.3 1.6 1.7v2.3L2.2 15.5l2.5 4.3 2.2-.7 2 .9.6 2.3h5l.6-2.3 2-.9 2.2.7 2.5-4.3-1.6-1.7v-2.3l1.6-1.7-2.5-4.3-2.2.7-2-.9-.6-2.3h-5Z" transform="translate(0 -1)" /><circle cx="12" cy="11.5" r="3" /></>,
     home: <><path d="M4 11.5 12 5l8 6.5" /><path d="M6.5 10.5V20h11v-9.5M10 20v-5h4v5" /></>,
     analytics: <><path d="M5 19V11M12 19V5M19 19v-8" /><path d="M3 19h18" /></>,
     seo: <><circle cx="11" cy="11" r="7" /><path d="M4 11h14M11 4a11 11 0 0 1 0 14M11 4a11 11 0 0 0 0 14M16.5 16.5 21 21" /></>,
@@ -905,17 +908,19 @@ export default function AdminApp() {
         <a className={activeView === 'directory' ? 'is-active' : undefined} href="/admin/kaubamaja" aria-current={activeView === 'directory' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'directory')}><span><AdminIcon name="store" /></span>Kaubamaja</a>
         <a href="http://127.0.0.1:4185/previews/payments.html" target="_blank" rel="noopener noreferrer" aria-label="Maksete eelvaade (kohalik server, avaneb uuel vahelehel)" title="Kohalik eelvaade · käivita npm run dev"><span><AdminIcon name="arrow" /></span>Maksete eelvaade</a>
       </nav>
-      <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
+      <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><a className="admin-sidebar__settings" href="/admin/settings" aria-label="Seaded" title="Seaded" aria-current={activeView === 'settings' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'settings')}><AdminIcon name="settings" /></a><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
     </aside>
 
     <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
-      {activeView !== 'users' && activeView !== 'overview' && activeView !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
+      {activeView !== 'users' && activeView !== 'overview' && activeView !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && activeView !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
       {activeView === 'campaigns' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin kampaaniate loojat…</div>}><AdminCampaigns key={session.user.id} userId={session.user.id} /></Suspense>}
 
-      {error && activeView !== 'business-card' && activeView !== 'campaigns' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
+      {activeView === 'settings' && <AdminSettings push={pushFeedback} />}
+
+      {error && activeView !== 'settings' && activeView !== 'business-card' && activeView !== 'campaigns' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
         {activeView === 'directory' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin Kaubamaja…</div>}><AdminKaubamaja /></Suspense>}
@@ -1070,7 +1075,7 @@ export default function AdminApp() {
           </section>
         </div>}
 
-        {activeView === 'overview' && <AdminOverview pushFeedback={pushFeedback}
+        {activeView === 'overview' && <AdminOverview
           rows={rows}
           usersLoading={isLoading}
           onlineCount={presenceKnown ? onlineUserIds.size : null}
@@ -1090,7 +1095,7 @@ export default function AdminApp() {
         {activeView === 'analytics' && <section className="admin-analytics">
           <header className="admin-analytics__header">
             <div><span>AVALEHT → AVALDATUD POOD</span><h2>Konversioon ja külastajate tegevus</h2><p>Anonüümne koondvaade; lehesessioone ei seota kasutajakontodega.</p></div>
-            <div className="admin-analytics__controls"><AdminPushToggle push={pushFeedback} /><label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
+            <div className="admin-analytics__controls"><label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
               const range = Number(event.target.value) as AnalyticsRange
               setAnalyticsRange(range)
             }} disabled={isAnalyticsLoading}>

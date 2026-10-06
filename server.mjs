@@ -452,7 +452,7 @@ createServer(async (req, res) => {
     if (!slug) {
       const isPlatformRequest = host === platformHost || host === `www.${platformHost}` || host.endsWith('.onrender.com')
       if (isPlatformRequest) {
-        const isAdminRequest = /^\/admin(?:\/(?:analytics|homepage|seo|leads|users|support|kaubamaja|payments|campaigns))?\/?$/i.test(url.pathname)
+        const isAdminRequest = /^\/admin(?:\/(?:analytics|homepage|seo|leads|users|support|kaubamaja|payments|campaigns|settings))?\/?$/i.test(url.pathname)
         const isUnsubscribeRequest = /^\/loobu\/?$/i.test(url.pathname)
         if (isAdminRequest || isUnsubscribeRequest) {
           const body = await templatePromise

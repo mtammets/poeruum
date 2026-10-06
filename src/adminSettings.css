@@ -1,0 +1,24 @@
+.admin-notification-settings { max-width: 46rem; padding: 1.75rem; border: 1px solid var(--admin-line); border-radius: 1.1rem; background: var(--admin-surface); }
+.admin-notification-settings h2 { margin: 0; font-size: 1.25rem; }
+.admin-notification-settings h3 { margin: 0; font-size: .95rem; font-weight: 650; }
+.admin-notification-settings p { margin: .4rem 0 0; color: var(--admin-muted); font-size: .85rem; line-height: 1.6; }
+.admin-notification-settings header { padding-bottom: 1.4rem; }
+.admin-notification-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; padding: 1.2rem 0; border-top: 1px solid var(--admin-line); }
+.admin-notification-settings__switch { display: flex; flex-shrink: 0; align-items: center; width: 3rem; height: 2.75rem; padding: 0 .3rem; border: 0; border-radius: 999px; background: transparent; cursor: pointer; position: relative; }
+.admin-notification-settings__switch::before { content: ''; position: absolute; inset: .55rem 0; border: 1px solid var(--admin-line-strong); border-radius: inherit; background: var(--admin-bg); }
+.admin-notification-settings__switch span { position: relative; width: 1.15rem; height: 1.15rem; border-radius: 50%; background: var(--admin-muted); transition: transform 150ms ease; }
+.admin-notification-settings__switch[aria-checked="true"]::before { background: var(--admin-accent); border-color: var(--admin-accent); }
+.admin-notification-settings__switch[aria-checked="true"] span { background: var(--admin-accent-ink); transform: translateX(1.2rem); }
+.admin-notification-settings button:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
+.admin-notification-settings button:disabled { cursor: default; opacity: .5; }
+.admin-notification-settings fieldset { min-width: 0; margin: 1rem 0 0; padding: 0; border: 0; }
+.admin-notification-settings legend { padding: 0 0 .8rem; color: var(--admin-muted); font-size: .8rem; font-weight: 650; }
+.admin-notification-settings fieldset:disabled h3, .admin-notification-settings fieldset:disabled p { opacity: .55; }
+.admin-notification-settings footer { padding-top: 1rem; border-top: 1px solid var(--admin-line); }
+.admin-notification-settings__test { margin-top: 1rem; min-height: 2.75rem; padding: .6rem 1rem; border: 1px solid var(--admin-line-strong); border-radius: .65rem; color: var(--admin-ink); background: transparent; font: inherit; font-size: .85rem; cursor: pointer; }
+.admin-notification-settings__test:hover { background: var(--admin-hover); }
+.admin-notification-settings__notice { display: flex; align-items: flex-start; gap: .75rem; margin-top: 1.25rem; padding: 1rem; border: 1px solid var(--admin-line); border-radius: .75rem; background: var(--admin-bg); color: var(--admin-ink); font-size: .85rem; line-height: 1.6; }
+.admin-notification-settings__notice.is-error { border-color: #c68274; }
+.admin-notification-settings__notice button { margin-left: auto; padding: 0 .35rem; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+@media (max-width: 680px) { .admin-notification-settings { padding: 1.1rem; } }
+@media (prefers-reduced-motion: reduce) { .admin-notification-settings__switch span { transition: none; } }

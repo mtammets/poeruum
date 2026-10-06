@@ -228,7 +228,7 @@ test('new accounts and simultaneous visits retain distinct visual badges', async
   const headline = page.locator('.overview-traffic__headline > strong')
   const accounts = page.getByRole('button', { name: /Uued kontod/ })
   const accountBadge = page.locator('.visit-feedback__badge[data-kind="account"]')
-  const toggle = page.getByRole('button', { name: 'Telefoni märguanded' })
+  const settings = page.getByRole('link', { name: 'Seaded', exact: true })
   await expect(headline).toHaveText('465')
   await expect(accounts.locator('strong')).toHaveText('15')
   await expect(accountBadge).toHaveCount(0)
@@ -239,7 +239,7 @@ test('new accounts and simultaneous visits retain distinct visual badges', async
   await expect(accountBadge).toHaveText('+1 uus konto')
   await expect(headline).toHaveText('465')
   await page.locator('.overview-traffic').screenshot({ path: testInfo.outputPath('new-account-desktop.png') })
-  await expect(toggle).toHaveCount(1)
+  await expect(settings).toHaveCount(1)
   backend.setAddedAccounts(3)
   await page.clock.fastForward(15_000)
   await expect(accountBadge).toHaveText('+2 uut kontot')
@@ -260,7 +260,7 @@ test('new accounts and simultaneous visits retain distinct visual badges', async
   await expect(page.locator('.overview-traffic__headline .visit-feedback__badge')).toHaveText('+1 uus konto')
 
   await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
-  await expect(toggle).toHaveCount(1)
+  await expect(settings).toHaveCount(1)
   // A rolling-window decrease in visits must not swallow a new account.
   backend.setAdded(0)
   backend.setAddedAccounts(5)
@@ -274,16 +274,15 @@ test('new accounts and simultaneous visits retain distinct visual badges', async
   await expect(accountBadge).toHaveText('+1 uus konto')
 })
 
-test('homepage visit feedback and the single notification control remain usable on mobile with reduced motion', async ({ page }, testInfo) => {
+test('homepage visit feedback and settings navigation remain usable on mobile with reduced motion', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await installBackend(page)
   const backend = await installOverviewData(page)
   await page.goto('/admin')
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
-  const toggle = page.getByRole('button', { name: 'Telefoni märguanded' })
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  await expect(toggle).toHaveCount(1)
+  const settings = page.getByRole('link', { name: 'Seaded', exact: true })
+  await expect(settings).toHaveCount(1)
   await expect(page.getByRole('button', { name: 'Külastuste ja uute kontode heli' })).toHaveCount(0)
   backend.setAdded(2)
   await page.clock.fastForward(15_000)
@@ -300,7 +299,7 @@ test('homepage visit feedback and the single notification control remain usable 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   await page.locator('.overview-traffic').screenshot({ path: testInfo.outputPath('new-account-mobile.png') })
   await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
-  await expect(toggle).toBeVisible()
+  await expect(settings).toBeInViewport()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
 

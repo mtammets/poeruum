@@ -50,6 +50,7 @@ Deno.test('admin push API authenticates, scopes device operations to the owner a
   type Handler = (request: Request) => Promise<Response>
   let handler: Handler | undefined, role = 'merchant', rateAllowed = true
   let databaseCalls = 0, deviceExists = false
+  let preferences = { visits_enabled: true, accounts_enabled: true }
   const owner = '10000000-0000-4000-8000-000000000001'
   try {
     Deno.serve = ((callback: Handler) => { handler = callback; return {} }) as typeof Deno.serve
@@ -62,12 +63,13 @@ Deno.test('admin push API authenticates, scopes device operations to the owner a
         databaseCalls++
         if (init?.method === 'POST') {
           const body = JSON.parse(String(init.body)); assert(body.user_id === owner, 'Client controls subscription owner')
-          deviceExists = true; return json(null, 201)
+          deviceExists = true; preferences = { visits_enabled: body.visits_enabled ?? true, accounts_enabled: body.accounts_enabled ?? true }; return json(null, 201)
         }
         assert(url.searchParams.get('user_id') === `eq.${owner}`, 'Device operation is not scoped to its owner')
+        if (init?.method === 'PATCH') { preferences = { ...preferences, ...JSON.parse(String(init.body)) }; return json(null) }
         if (init?.method === 'DELETE') { deviceExists = false; return json(null) }
         if (init?.method === 'HEAD') return Promise.resolve(new Response(null, { headers: { 'Content-Range': '0-0/0' } }))
-        return json(deviceExists ? { id: 'device', endpoint: subscription.endpoint, ...subscription.keys } : null)
+        return json(deviceExists ? { id: 'device', endpoint: subscription.endpoint, ...subscription.keys, ...preferences } : null)
       }
       throw new Error('Unexpected request')
     }
@@ -81,8 +83,19 @@ Deno.test('admin push API authenticates, scopes device operations to the owner a
     assert((await call({ action: 'subscribe', subscription: { ...subscription, endpoint: 'https://127.0.0.1/internal' } })).status === 400, 'SSRF subscription accepted')
     assert((await call({ action: 'subscribe', subscription, user_id: 'someone-else' })).status === 200 && deviceExists, 'Subscription failed')
     assert((await (await call({ action: 'status', endpoint: subscription.endpoint })).json()).enabled, 'Saved device not restored')
+    assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: 'false', accounts: true } })).status === 400, 'Non-boolean preference accepted')
+    assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: false } })).status === 400, 'Missing preference accepted')
+    assert((await call({ action: 'subscribe', subscription, preferences: null })).status === 400, 'Malformed subscribe preferences accepted')
+    assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: false, accounts: true }, user_id: 'someone-else' })).status === 200, 'Preference update failed')
+    let status = await (await call({ action: 'status', endpoint: subscription.endpoint })).json()
+    assert(status.enabled && !status.preferences.visits && status.preferences.accounts, 'Preferences not restored independently')
+    await call({ action: 'subscribe', subscription })
+    status = await (await call({ action: 'status', endpoint: subscription.endpoint })).json()
+    assert(!status.preferences.visits && status.preferences.accounts, 'Legacy subscription refresh overwrote preferences')
+    assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: false, accounts: false } })).status === 200 && deviceExists, 'Both categories disabled removed subscription')
     assert((await call({ action: 'unsubscribe', endpoint: subscription.endpoint })).status === 200 && !deviceExists, 'Unsubscribe failed')
     assert((await call({ action: 'test', endpoint: subscription.endpoint })).status === 404, 'Test sent to unowned device')
+    assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: true, accounts: true } })).status === 404, 'Preferences updated an unowned device')
     rateAllowed = false
     assert((await call({ action: 'config' })).status === 429, 'Rate limit ignored')
   } finally { globalThis.fetch = originalFetch; Deno.serve = originalServe; restore() }
