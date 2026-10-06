@@ -23,7 +23,7 @@ import useHomepageVisitFeedback from './useHomepageVisitFeedback'
 import useAdminPush from './useAdminPush'
 import AdminPushToggle from './AdminPushToggle'
 import { disableAdminPush } from './lib/adminPush'
-import { VisitBadge, VisitNumber, VisitSoundToggle } from './VisitFeedback'
+import { VisitBadge, VisitNumber } from './VisitFeedback'
 import type { RevenueEvent, RevenueDashboard, AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard, AnalyticsEngagementBucket } from './lib/adminDashboard'
 import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
 
@@ -1090,7 +1090,7 @@ export default function AdminApp() {
         {activeView === 'analytics' && <section className="admin-analytics">
           <header className="admin-analytics__header">
             <div><span>AVALEHT → AVALDATUD POOD</span><h2>Konversioon ja külastajate tegevus</h2><p>Anonüümne koondvaade; lehesessioone ei seota kasutajakontodega.</p></div>
-            <div className="admin-analytics__controls"><VisitSoundToggle feedback={visitFeedback} /><AdminPushToggle push={pushFeedback} /><label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
+            <div className="admin-analytics__controls"><AdminPushToggle push={pushFeedback} /><label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
               const range = Number(event.target.value) as AnalyticsRange
               setAnalyticsRange(range)
             }} disabled={isAnalyticsLoading}>

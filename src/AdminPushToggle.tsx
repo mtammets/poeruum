@@ -5,7 +5,7 @@ import './visitFeedback.css'
 export default function AdminPushToggle({ push }: { push: AdminPushFeedback }) {
   const messageId = useId()
   return <div className="admin-push">
-    <button type="button" className="visit-sound__toggle" aria-label="Telefoni märguanded" aria-pressed={push.enabled}
+    <button type="button" className="admin-push__toggle" aria-label="Telefoni märguanded" aria-pressed={push.enabled}
       aria-describedby={push.message || push.error ? messageId : undefined} disabled={push.busy || push.loading}
       title={push.enabled ? 'Lülita selle seadme märguanded välja' : 'Saa märguandeid ka lukustatud ekraaniga'} onClick={() => void push.toggle()}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>

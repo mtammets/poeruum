@@ -1,10 +1,8 @@
-.visit-sound { position: relative; flex-shrink: 0; }
-.visit-sound__toggle { display: inline-flex; min-height: 2.55rem; align-items: center; justify-content: center; gap: .4rem; padding: .45rem .65rem; border: 1px solid var(--admin-line); border-radius: 999px; background: var(--admin-bg); color: var(--admin-muted); font: 650 .75rem Manrope, sans-serif; cursor: pointer; }
-.visit-sound__toggle[aria-pressed="true"] { border-color: var(--admin-accent); background: var(--admin-accent); color: var(--admin-accent-ink); }
-.visit-sound__toggle:hover { border-color: var(--admin-positive); }
-.visit-sound__toggle:focus-visible { outline: 2px solid var(--admin-positive); outline-offset: 3px; }
-.visit-sound__toggle svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.visit-sound__error { position: absolute; z-index: 5; right: 0; top: calc(100% + .5rem); width: 15rem; padding: .7rem; border: 1px solid var(--admin-line); border-radius: .6rem; background: var(--admin-surface); color: var(--admin-ink); font-size: .75rem; box-shadow: 0 6px 24px #17231c1a; }
+.admin-push__toggle { display: inline-flex; min-height: 2.55rem; align-items: center; justify-content: center; gap: .4rem; padding: .45rem .65rem; border: 1px solid var(--admin-line); border-radius: 999px; background: var(--admin-bg); color: var(--admin-muted); font: 650 .75rem Manrope, sans-serif; cursor: pointer; }
+.admin-push__toggle[aria-pressed="true"] { border-color: var(--admin-accent); background: var(--admin-accent); color: var(--admin-accent-ink); }
+.admin-push__toggle:hover { border-color: var(--admin-positive); }
+.admin-push__toggle:focus-visible { outline: 2px solid var(--admin-positive); outline-offset: 3px; }
+.admin-push__toggle svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .overview-traffic__controls { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
 .admin-push { position: relative; display: inline-flex; align-items: center; gap: .4rem; }
 .admin-push button:disabled { opacity: .6; cursor: wait; }
@@ -34,7 +32,6 @@
 }
 @media (max-width: 680px) {
   .overview-traffic__controls { gap: .4rem; }
-  .overview-traffic .visit-sound__error { right: auto; left: 0; }
   .overview-traffic__headline { flex-wrap: wrap; }
   .admin-analytics__header .admin-analytics__controls { gap: .4rem; }
 }

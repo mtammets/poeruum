@@ -1,8 +1,8 @@
 # Admini telefoni märguanded
 
 Ülevaate ja analüütika **Märguanded** lubab selles seadmes uute avalehe külastuste
-ja uute kontode teavitused. **Proovi** saadab serverist prooviteavituse. **Heli**
-juhib endiselt ainult nähtava adminilehe heli.
+ja uute kontode teavitused. **Proovi** saadab serverist prooviteavituse.
+Märguannete heli juhitakse telefoni või brauseri seadetes.
 
 iPhone’is ava `/admin` Safaris, vali jagamismenüüst **Lisa avaekraanile**, ava
 tekkinud ikoon, logi sisse ning luba **Märguanded**. Vajalik on iOS 16.4 või uuem.

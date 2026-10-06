@@ -3,7 +3,7 @@ import AdminUserIcon, { type IconName } from './AdminUserIcon'
 import type { AdminUserRow } from './lib/adminUserOverview'
 import type { AnalyticsDailyPoint, AnalyticsRange, HomepageAnalyticsDashboard, RevenueDashboard } from './lib/adminDashboard'
 import type { HomepageVisitFeedback } from './useHomepageVisitFeedback'
-import { VisitBadge, VisitNumber, VisitSoundToggle } from './VisitFeedback'
+import { VisitBadge, VisitNumber } from './VisitFeedback'
 import AdminPushToggle from './AdminPushToggle'
 import type { AdminPushFeedback } from './useAdminPush'
 import './adminOverview.css'
@@ -136,7 +136,7 @@ export default function AdminOverview({ rows, usersLoading, onlineCount, revenue
     <section className={`overview-panel overview-traffic${visitFeedback.notice ? ' has-new-visits' : ''}${visitFeedback.accountNotice ? ' has-new-accounts' : ''}`} aria-label="Avalehe külastatavus" aria-busy={analyticsLoading}>
       <header className="overview-panel__header">
         <h2>Avalehe külastatavus</h2>
-        <div className="overview-traffic__controls"><VisitSoundToggle feedback={visitFeedback} /><AdminPushToggle push={pushFeedback} /><div className="overview-range" role="group" aria-label="Külastatavuse periood">{([7, 30, 90] as const).map((days) => <button type="button" key={days} aria-pressed={range === days} disabled={analyticsLoading} onClick={() => onRangeChange(days)}>{days} p</button>)}</div></div>
+        <div className="overview-traffic__controls"><AdminPushToggle push={pushFeedback} /><div className="overview-range" role="group" aria-label="Külastatavuse periood">{([7, 30, 90] as const).map((days) => <button type="button" key={days} aria-pressed={range === days} disabled={analyticsLoading} onClick={() => onRangeChange(days)}>{days} p</button>)}</div></div>
       </header>
       <div className="overview-traffic__headline"><strong><VisitNumber value={analyticsKnown ? number.format(analytics[metricKey]) : '—'} notice={metricNotice(metricKey)} /></strong><span>{metric.label.toLocaleLowerCase('et')}<br /><small>{range} päeva</small></span><VisitBadge notice={metricNotice(metricKey)} />{viewLink('analytics', 'Ava külastatavuse üksikasjad')}</div>
       {analyticsLoading ? <div className="overview-chart__empty" role="status"><span className="overview-loading" />Laen graafikut…</div>
