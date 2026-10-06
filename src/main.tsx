@@ -73,6 +73,15 @@ const isStoreDirectorySurface = isStoreDirectoryHostname(window.location.hostnam
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
 const isPlatformSurface = isStoreDirectorySurface
   || (isPlatformHostname(window.location.hostname) && !isStorefrontSubdomain)
+if (isPlatformSurface && !getRequestedStoreSlug(window.location)) {
+  const icon = document.createElement('link')
+  icon.rel = 'apple-touch-icon'; icon.sizes = '180x180'; icon.href = '/images/poeruum-app-icon-180.png'
+  const favicon = document.createElement('link')
+  favicon.rel = 'icon'; favicon.type = 'image/svg+xml'; favicon.href = '/images/poeruum-app-icon.svg'
+  const name = document.createElement('meta')
+  name.name = 'apple-mobile-web-app-title'; name.content = isStoreDirectorySurface ? 'Kaubamaja' : 'Poeruum'
+  document.head.append(icon, favicon, name)
+}
 // Start alongside the lazy platform chunk, before the landing page mounts.
 if (isSupabaseConfigured && isPlatformSurface && !isStoreDirectorySurface
   && window.location.pathname === '/' && !hasAppReturnState && !getRequestedStoreSlug(window.location)) {

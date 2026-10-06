@@ -19,10 +19,8 @@ export default function useAdminPush(userId: string | null) {
   useEffect(() => {
     const manifest = document.createElement('link')
     manifest.rel = 'manifest'; manifest.href = '/admin.webmanifest'
-    const icon = document.createElement('link')
-    icon.rel = 'apple-touch-icon'; icon.href = '/images/admin-icon-192.png'
-    document.head.append(manifest, icon)
-    return () => { manifest.remove(); icon.remove() }
+    document.head.append(manifest)
+    return () => { manifest.remove() }
   }, [])
 
   useEffect(() => {

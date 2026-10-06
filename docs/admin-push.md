@@ -10,6 +10,11 @@ iPhone’is ava `/admin` Safaris, vali jagamismenüüst **Lisa avaekraanile**, a
 tekkinud ikoon, logi sisse ning ava **Seaded** ning luba **Märguanded selles seadmes**. Vajalik on iOS 16.4 või uuem.
 Heli ja kuvamist juhivad ka telefoni märguannete ning Focusi seaded.
 
+Avaekraani ikoon on ühine adminile, Poeruumi avalehele ja Kaubamajale.
+Selle allikas on `public/images/poeruum-app-icon.svg`; roheline taust täidab kogu
+ikooni. PNG-failid saab uuesti luua käsuga `node scripts/generate-app-icons.mjs`.
+Kaupmeeste poodidele seda platvormi ikooni ei lisata.
+
 ## Juurutus
 
 1. `node scripts/configure-admin-push.mjs prepare` genereerib võtmed ignoreeritud
