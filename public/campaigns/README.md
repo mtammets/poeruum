@@ -76,3 +76,13 @@ a detached iframe). The final soundtrack repeats/trims AAC packets to the select
 video duration. No server browser, microphone or screen-recording permission is
 required. Capture errors are explicit and retryable; they never substitute a
 different store's footage.
+
+Campaign photography (2026-10-06)
+
+photos/poeruum-visiitkaardid.png shows both sides of the existing business card.
+photos/poeruum-plakat-mererand.png shows the poster on a seaside pier at dusk.
+photos/poeruum-plakat-vahemeri.png shows the poster on a sunny Mediterranean terrace.
+These are original AI-generated campaign images made with built-in imagegen,
+not photographs credited to a named photographer. The prompts and business-card
+artwork references are stored in docs/campaigns/image-prompts/ at the repository
+root. The images are standalone assets and do not change the campaign defaults.

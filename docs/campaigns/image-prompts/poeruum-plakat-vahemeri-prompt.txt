@@ -1,0 +1,24 @@
+Tool: built-in image_gen.imagegen
+
+Use case: ads-marketing.
+Create ONE original, artistic, premium fashion-editorial advertising photograph for Poeruum. Portrait 4:5, high resolution. A beautiful slender young ADULT woman holding a large Poeruum poster in a warm Mediterranean country. Make it feel like a meticulously art-directed professional location shoot: extraordinary composition, luminous natural light, tactile realism and an effortless human moment. No photographer attribution or signature.
+
+Reference role: the attached business card is ONLY a reference for the Poeruum logo, forest-green typography, ivory paper and headline. Adapt the graphic into a large physical poster.
+
+SETTING:
+A sun-warmed southern Italian coastal terrace, terracotta stone paving, an aged apricot-colored limewash wall and a simple deep cobalt-blue doorway at the far edge of the composition. The terrace opens to a clear turquoise Mediterranean sea and distant hazy coastline. The spare architecture forms striking clean color planes; no postcard clutter, other people, furniture, plants or decorative props. Summer air, gentle sea breeze, the relaxed sophistication of a luxury travel editorial.
+
+SUBJECT AND ACTION:
+One clearly adult woman aged approximately 25–28, naturally beautiful, healthy slim build, expressive brown eyes, long loosely waved dark-brown hair moving lightly in the breeze, realistic skin texture and very understated makeup. She wears a beautifully cut, understated sleeveless rust-terracotta linen midi dress and simple flat leather sandals. Elegant and natural, not sexually posed. She is caught in a relaxed mid-step stance, weight on one leg, a subtle warm smile and direct, engaging gaze. Her full figure is visible. She physically holds an oversized LANDSCAPE cream poster with both hands, from just below her shoulders to mid-thigh, a little casually tilted by about 3 degrees. Two believable hands grip the side edges without covering any text. Her face and shoulders are clearly visible above the sign and lower dress and legs below. The paper is thick matte stock, slightly bowed by her grip and breeze, with beautifully subtle fibers. All four corners remain visible.
+
+COMPOSITION AND LIGHT:
+Confident asymmetric framing, carefully balanced warm terracotta and cool cobalt/turquoise. The poster is the hero, spanning approximately 75–80 percent of the photograph width, completely readable on a phone. Allow breathing space around her head and feet. Camera at chest level, normal 50mm perspective, beautiful medium-format photographic detail. Soft, luminous late-afternoon Mediterranean sunshine, gently diffused through a high thin cloud, with reflected light filling her face. A fine golden rim catches her moving hair. Warm clean highlights, rich but softly defined shadows. Physically consistent light, subtle correct contact shadows under sandals, no unnatural blocky human shadows on walls. Natural depth, restrained analogue color, delicate film grain. Sophisticated editorial atmosphere, not a generic stock photograph or artificial 3D mockup.
+
+POSTER DESIGN:
+Warm ivory #f8f5ec, exceptionally large bold dark forest-green #244d3c sans-serif lettering, left aligned and elegantly spaced. EXACT headline, in exactly two lines:
+"Lihtsaim viis"
+"oma e-poeni."
+Keep spelling, hyphen and final period exact. At the lower left reproduce the reference's lime shopping-bag mark inside a dark-green rounded square, followed by "poeruum.ee". This is the only text in the photograph. Omit the reference QR code and "ALUSTA TASUTA". Ink looks realistically printed on the poster and follows its very gentle paper curve. Keep all words fully visible and tack sharp.
+
+AVOID:
+Any previous actor or setting; cold weather; dark overcoats; stiff sales poses; huge artificial smiles; plastic skin; exaggerated body proportions; celebrity likenesses; sunglasses hiding the face; additional people; extra fingers; disconnected shadows; floating poster; warped lettering; added slogans; photographer signatures; watermark. The result must communicate warm weather, human beauty, artistic photographic craft and the Poeruum message instantly.

@@ -1,0 +1,15 @@
+Tool: built-in image_gen.imagegen
+
+Create ONE polished photorealistic advertising image showing the two sides of the Poeruum business card, using the two provided clean PDF renders as the exact printed artwork. Portrait 4:5 composition, high resolution.
+
+Reference roles: image 1 is the FRONT print artwork; image 2 is the BACK print artwork. These are finished artwork to preserve, not inspiration to redesign. The physical cards are landscape 85 x 55 mm, identical size and proportions, with square-cut corners, thick matte uncoated stock, subtle realistic paper edges. Reproduce the source typography, branding, bag icon, QR matrix, line breaks, relative placement, colors, and all text faithfully as printed surfaces on the cards.
+
+Art direction: a premium, quiet Scandinavian editorial product photograph, highly clear and immediately understandable, with the cards as the only subjects. A warm ivory seamless tabletop with a very subtle natural surface texture. Soft directional sunlight from upper left creates elegant, believable shadows falling to lower right. Restrained forest green, warm cream and lime palette taken from the brand. Near-overhead camera with a subtle 3D angle; both card faces must be fully legible, sharp, and large. No extreme perspective. Arrange a neat small stack of three cards in the upper-left/upper-middle area, with the dark green FRONT face on top, rotated about -7 degrees. Arrange one cream BACK card in the lower-right/lower-middle area, rotated about +5 degrees. The cream card can overlap only a small blank lower-right corner of the green stack; all words, logos, the website and QR code must remain fully visible. Balanced generous outer margins and sculptural depth, but the two faces occupy most of the frame. Sophisticated natural studio lighting, true photographic paper, crisp printed details, no glossy plastic.
+
+FRONT face: deep green #244d3c, centered lime shopping bag icon in its rounded green square, white bold "Poeruum", slim white vertical separator, white "KAUBAMAJA". Small centered footer "KAUBAMAJA.POERUUM.EE". Match image 1 precisely.
+BACK face: warm cream #f8f5ec, small top-left "ALUSTA TASUTA"; large dark green headline with EXACTLY these two lines:
+"Lihtsaim viis"
+"oma e-poeni."
+At bottom-left, the original bag icon followed by "poeruum.ee"; bottom-right the original black QR matrix on its white square and dark green offset bottom/right edge. Match image 2 precisely; preserve the QR pattern rather than inventing one.
+
+Do not add any extra advertising headline, captions, labels, price, badges, decorative text, UI, browser or desktop elements, hands, people, props, plants, flowers, pencils, or watermarks. This is a single finished social media promotional photograph of the user's existing business cards, with no additional text outside their original printed artwork.

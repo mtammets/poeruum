@@ -1,0 +1,29 @@
+Tool: built-in image_gen.imagegen
+
+Use case: ads-marketing.
+Create ONE completely new, arresting fine-art advertising PHOTOGRAPH for Poeruum, portrait 4:5. Original photographic art direction with the craft and visual authorship expected of a major international fashion campaign. Do not imitate or credit any named photographer. The photograph must feel like a real, daring location shoot, not stock imagery or an obvious AI poster mockup.
+
+BRAND REFERENCE: the attached image is only the existing Poeruum print artwork. Take its forest-green type, ivory paper, lime shopping-bag icon and exact headline. Do NOT recreate its business-card format. No reference to any previously generated woman, limestone building or sunny courtyard.
+
+NEW LOCATION / CONCEPT:
+A windswept Baltic shoreline at blue hour, on a broad low dark stone pier at the water's edge. Vast cold cobalt and slate-blue sea, restrained low horizon, a luminous strip of fading dusk under deep cloud. The remote coastline falls into gentle haze. No buildings, other people, props or visual clutter. The image has the quiet strangeness of a large cream piece of paper meeting a monumental blue landscape. A subtle glint of moisture in the stone, restrained rather than theatrical.
+
+NEW ACTOR:
+One charismatic adult man approximately 55, weathered natural face, short silver hair slightly disordered by wind, subtle salt-and-pepper stubble, individual and believable rather than conventionally model-perfect. Wearing a dark ink-blue wool overcoat, charcoal trousers and worn dark boots. Full body visible. He stands in a calm, grounded, slightly asymmetrical stance facing camera, with a thoughtful direct gaze. His overcoat edge moves a little in the sea breeze. No broad commercial smile, no fashion accessories or clothing logos.
+
+ACTION:
+He is visibly holding one oversized landscape ivory paper poster, approximately 125 x 85 cm, in front of his body from lower chest to above his knees. Both hands anatomically correct and visibly grip the left and right edges, the lettering stays unobstructed. His head and shoulders appear above the poster, boots and lower legs below. The paper is thick matte stock, with a very slight natural bow from the wind and tiny realistic edge irregularities. All four corners visible. Poster nearly faces camera for perfect readability. Physically plausible scale and grip, no floating panel.
+
+LIGHT / PHOTOGRAPHIC ART DIRECTION:
+Cold blue-hour ambient light and one exquisitely soft, restrained warm off-camera photographic key light from near the lens, as in a carefully produced outdoor editorial shoot. His skin retains natural warmth against the cold sea; the ivory poster glows through tonal contrast, but is definitely matte printed paper, not self-illuminated. No direct sun, no hard silhouettes, no geometric shadows. Soft believable contact shading beneath his boots. Rich deep blues with detail, luminous cream, forest-green letters, a tiny lime accent. Gentle sea mist, subtle medium-format film grain, impeccable restrained color grading, pores and wool texture, no plastic skin, no artificial HDR. Quiet cinematic power and an original, memorable sense of place.
+
+COMPOSITION:
+Use a normal-lens perspective at approximately chest height. The man is slightly right of center; the diagonal edge of the pier and open water create deliberate asymmetrical visual tension. Poster occupies about 75–80% of image width and is the immediate visual anchor, large enough to read on a phone. Breathing room around head, hands and boots. Sea and sky remain simple and secondary. The distant water may have delicate long-exposure softness, while man, poster and letters are tack sharp. Gallery-quality editorial photograph.
+
+EXACT PHYSICAL POSTER ART:
+Warm ivory #f8f5ec. Very large, bold dark forest-green #244d3c sans-serif type, left aligned with clean margins, EXACTLY two lines:
+"Lihtsaim viis"
+"oma e-poeni."
+Keep the Estonian words exact, including the hyphen and final period. Below, a small faithful Poeruum lime shopping-bag icon inside its dark-green rounded square, followed by "poeruum.ee". No other text. Omit the reference's QR code and "ALUSTA TASUTA". The typography is ink printed on the paper, correctly following only its very gentle physical curve. No text outside the poster.
+
+Avoid: the previous sunny courtyard scene, any woman, pale stone wall, architecture, daytime sunlight, extra people, cliche dramatic waves, storm effects, theatrical smoke, overly orange skin, celebrity resemblance, famous-photographer attribution or signature, watermark, incorrect lettering, extra fingers, warped board, disconnected shadows, decorative props.
