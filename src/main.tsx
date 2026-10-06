@@ -73,15 +73,6 @@ const isStoreDirectorySurface = isStoreDirectoryHostname(window.location.hostnam
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
 const isPlatformSurface = isStoreDirectorySurface
   || (isPlatformHostname(window.location.hostname) && !isStorefrontSubdomain)
-if (isPlatformSurface && !getRequestedStoreSlug(window.location)) {
-  const icon = document.createElement('link')
-  icon.rel = 'apple-touch-icon'; icon.sizes = '180x180'; icon.href = '/images/poeruum-app-icon-180.png'
-  const favicon = document.createElement('link')
-  favicon.rel = 'icon'; favicon.type = 'image/svg+xml'; favicon.href = '/images/poeruum-app-icon.svg'
-  const name = document.createElement('meta')
-  name.name = 'apple-mobile-web-app-title'; name.content = isStoreDirectorySurface ? 'Kaubamaja' : 'Poeruum'
-  document.head.append(icon, favicon, name)
-}
 // Start alongside the lazy platform chunk, before the landing page mounts.
 if (isSupabaseConfigured && isPlatformSurface && !isStoreDirectorySurface
   && window.location.pathname === '/' && !hasAppReturnState && !getRequestedStoreSlug(window.location)) {
@@ -96,6 +87,15 @@ if (isRemovedAdminPath) {
   window.history.replaceState({}, '', `/admin${window.location.search}${window.location.hash}`)
 }
 const isAdminPath = isPlatformSurface && !isStoreDirectorySurface && /^\/admin(?:\/(?:analytics|seo|leads|users|support|business-card|kaubamaja|campaigns|settings))?\/?$/i.test(window.location.pathname)
+if (isPlatformSurface && !getRequestedStoreSlug(window.location)) {
+  const icon = document.createElement('link')
+  icon.rel = 'apple-touch-icon'; icon.sizes = '180x180'; icon.href = isAdminPath ? '/images/admin-icon-180.png' : '/images/poeruum-app-icon-180.png'
+  const favicon = document.createElement('link')
+  favicon.rel = 'icon'; favicon.type = 'image/svg+xml'; favicon.href = isAdminPath ? '/images/admin-app-icon.svg' : '/images/poeruum-app-icon.svg'
+  const name = document.createElement('meta')
+  name.name = 'apple-mobile-web-app-title'; name.content = isAdminPath ? 'Poeruum Admin' : isStoreDirectorySurface ? 'Kaubamaja' : 'Poeruum'
+  document.head.append(icon, favicon, name)
+}
 const isOutreachUnsubscribePath = isPlatformSurface && !isStoreDirectorySurface && /^\/loobu\/?$/i.test(window.location.pathname)
 const isAboutPoeruumPath = isPlatformSurface && !isStoreDirectorySurface && /^\/mis-on-poeruum\/?$/i.test(window.location.pathname)
 const legalDocument: LegalDocument | null = isPlatformSurface && !isStoreDirectorySurface
