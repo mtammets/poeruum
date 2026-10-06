@@ -87,6 +87,14 @@ describe('business-card print PDF', () => {
 })
 
 describe('shared print and editor layout', () => {
+  it.each(['', ' \n\t '])('does not report overflow for empty text in a small box: %j', (text) => {
+    const element = createCardElement('text', { text, height: .5 })
+    const layout = layoutText(element)
+    expect(layout).toMatchObject({ lines: [], height: 0, overflow: false, unsupportedCharacters: [] })
+    expect(layout.lineHeight).toBeGreaterThan(0)
+    expect(layoutText({ ...element, text: 'Nähtav tekst' }).overflow).toBe(true)
+  })
+
   it('uses the embedded font widths, wraps long URLs and preserves explicit empty lines', async () => {
     const element = createCardElement('text', { text: 'ÕÄÖÜ AV\n\nhttps://poeruum.ee/pood/minu-pikk-aadress', width: 28, height: 60, fontSize: 12 })
     const layout = layoutText(element)

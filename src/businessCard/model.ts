@@ -120,11 +120,12 @@ export function getCardIssues(doc: CardDocument): CardIssue[] {
   const issues: CardIssue[] = []
   for (const side of ['front', 'back'] as const) {
     for (const el of doc.sides[side].elements) {
+      // Empty text has no printed content, including outside the safe area.
+      if (el.type === 'text' && !el.text?.trim()) continue
       const bounds = elementBounds(el)
       const issue = (message: string, severity: CardIssue['severity'] = 'warning') => issues.push({ side, elementId: el.id, message, severity })
       if (bounds.right <= 0 || bounds.left >= doc.width || bounds.bottom <= 0 || bounds.top >= doc.height) issue('Element jääb kaardist välja.', 'error')
       else if ((el.type === 'text' || el.type === 'qr') && (bounds.left < 3 || bounds.top < 3 || bounds.right > doc.width - 3 || bounds.bottom > doc.height - 3)) issue('Element on lõikeservale liiga lähedal.')
-      if (el.type === 'text' && !el.text?.trim()) issue('Tekst on tühi.')
       if (el.type === 'image') {
         const ppi = Math.min((el.pixelWidth ?? 0) / el.width, (el.pixelHeight ?? 0) / el.height) * 25.4
         if (ppi < 300) issue(`Pildi kvaliteet on trükiks madal (${Math.round(ppi)} ppi).`)

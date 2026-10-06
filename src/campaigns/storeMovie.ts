@@ -1,6 +1,6 @@
 import { previewDocument } from '../HomepageStorePhone'
 import { actionTimeline, materializeSnapshot, type PhoneContent } from './phoneContent'
-import type { CaptureState } from './captureTypes'
+import type { CaptureState, StoreCapture } from './captureTypes'
 
 const W = 780, H = 1608
 const ease = (t: number) => { const p = Math.max(0, Math.min(1, t)); return p * p * (3 - 2 * p) }
@@ -25,9 +25,15 @@ function captureStates(content: PhoneContent) {
   }
   return states
 }
-type Cache = { key: string; promise: Promise<Map<string, HTMLCanvasElement>>; abort: AbortController; users: number; ready: boolean }
+type Cache = { key: string; promise: Promise<Map<string, StoreCapture>>; abort: AbortController; users: number; ready: boolean }
 let cache: Cache | undefined
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+function retainCanvas(canvas: HTMLCanvasElement) {
+  // A canvas owned by a removed iframe loses its backing store in Chromium.
+  const retained = document.createElement('canvas'); retained.width = canvas.width; retained.height = canvas.height
+  retained.getContext('2d')!.drawImage(canvas, 0, 0)
+  return retained
+}
 async function capture(content: PhoneContent, states: Map<string, CaptureState>, signal: AbortSignal) {
   const frame = document.createElement('iframe')
   frame.title = 'Kampaania poe salvestamine'; frame.setAttribute('aria-hidden', 'true'); frame.tabIndex = -1
@@ -43,17 +49,17 @@ async function capture(content: PhoneContent, states: Map<string, CaptureState>,
       if (performance.now() - start > 20_000) throw new Error('Poe vaate laadimine aegus. Proovi eelvaadet uuesti laadida.')
       await delay(50)
     }
-    const result = new Map<string, HTMLCanvasElement>()
+    const result = new Map<string, StoreCapture>()
     for (const [key, state] of states) {
       signal.throwIfAborted()
       // Bound each capture too: fonts/images must never leave the editor waiting indefinitely.
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
-        const canvas = await Promise.race([frame.contentWindow.campaignCapture!(state), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Poe pildi loomine aegus. Proovi uuesti.')), 15_000) })])
+        const captured = await Promise.race([frame.contentWindow.campaignCapture!(state), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Poe pildi loomine aegus. Proovi uuesti.')), 15_000) })])
         signal.throwIfAborted()
-        // A canvas owned by a removed iframe loses its backing store in Chromium.
-        const retained = document.createElement('canvas'); retained.width = canvas.width; retained.height = canvas.height
-        retained.getContext('2d')!.drawImage(canvas, 0, 0); result.set(key, retained)
+        result.set(key, { page: retainCanvas(captured.page), ...(captured.carousel ? { carousel: {
+          image: retainCanvas(captured.carousel.image), overlay: retainCanvas(captured.carousel.overlay),
+        } } : {}) })
       } finally { clearTimeout(timer) }
     }
     return result
@@ -71,15 +77,16 @@ export async function loadStoreMovie(content: PhoneContent, signal: AbortSignal)
   let released = false
   const release = () => { if (released) return; released = true; signal.removeEventListener('abort', release); if (--entry.users === 0 && !entry.ready) entry.abort.abort() }
   signal.addEventListener('abort', release, { once: true })
-  let frames: Map<string, HTMLCanvasElement>
+  let frames: Map<string, StoreCapture>
   try { frames = await entry.promise; signal.throwIfAborted() } catch (error) { release(); throw error }
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d', { alpha: false })!, timeline = actionTimeline(content.actions)
-  const get = (state: CaptureState) => {
+  const getCapture = (state: CaptureState) => {
     const image = frames.get(stateKey(state))
     if (!image) throw new Error('Valitud poe kaader puudub. Laadi eelvaade uuesti.')
     return image
   }
+  const get = (state: CaptureState) => getCapture(state).page
   function frameAt(time: number) {
     const stepIndex = Math.max(0, timeline.findIndex((s) => time < s.end)), step = timeline[stepIndex]
     // After the last action, hold its resulting product while the outro fades in.
@@ -92,10 +99,14 @@ export async function loadStoreMovie(content: PhoneContent, signal: AbortSignal)
       const travel = p < .32 ? ease(p / .32) : p > .68 ? 1 - ease((p - .68) / .32) : 1
       draw(target, 0, Math.min(H * .93, target.height - H) * travel)
     } else if (step.type === 'swipe') {
-      const slide = ease(p / .4), from = get(stateFor(previousId, previous?.type === 'gallery' ? previous.imageIndex : 0))
-      draw(from, -W * slide); draw(target, W * (1 - slide))
-      // Store header stays in place, like the real horizontally scrolling carousel.
-      ctx.drawImage(slide < .5 ? from : target, 0, 0, W, 230, 0, 0, W, 230)
+      const slide = ease(p / .4)
+      const from = getCapture(stateFor(previousId, previous?.type === 'gallery' ? previous.imageIndex : 0)).carousel
+      const to = getCapture(stateFor(step.productId)).carousel
+      if (!from || !to) throw new Error('Poe vahetuskaader puudub. Laadi eelvaade uuesti.')
+      draw(from.image, -W * slide); draw(to.image, W * (1 - slide))
+      // The live carousel changes the active product halfway through the swipe.
+      // Composite only its transparent controls, never a strip of the old photo.
+      draw(slide < .5 ? from.overlay : to.overlay)
     } else if (step.type === 'gallery') {
       draw(target); ctx.globalAlpha = ease((p - .12) / .18); draw(get(stateFor(step.productId, step.imageIndex))); ctx.globalAlpha = 1
     } else if (step.type === 'search') {

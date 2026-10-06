@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import { toSvg } from 'html-to-image'
 import { Storefront } from '../App'
 import type { StorefrontPreviewData } from '../HomepageStorePhone'
-import './captureTypes'
+import type { StoreCapture } from './captureTypes'
 import '../platform.css'
 
 const data = JSON.parse(document.getElementById('storefront-preview-data')?.textContent || 'null') as StorefrontPreviewData & { store: { sellerDetailsComplete?: boolean } }
@@ -13,6 +13,29 @@ function embeddedFont() {
     const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(blob)
   }))
 }
+async function rasterize(xml: Document, height: number) {
+  xml.documentElement.setAttribute('height', String(height))
+  xml.documentElement.setAttribute('viewBox', `0 0 390 ${height}`)
+  const image = new Image()
+  image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(xml))
+  await image.decode()
+  const canvas = document.createElement('canvas'); canvas.width = 780; canvas.height = height * 2
+  canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
+function carouselLayer(xml: Document, overlay: boolean) {
+  const layer = xml.cloneNode(true) as Document
+  const root = layer.querySelector<HTMLElement>('.app-shell')!, stage = layer.querySelector<HTMLElement>('.story-stage')!
+  // Preserve computed geometry while separating the moving full-height photo
+  // from the stationary progress, header, gallery and buy controls.
+  for (const child of [...root.children]) if (child !== stage && !child.matches('style')) child.remove()
+  for (const child of [...stage.children]) if (!child.matches('style') && child.matches('.story-track') === overlay) child.remove()
+  root.style.background = 'transparent'
+  stage.style.background = 'transparent'
+  return rasterize(layer, 804)
+}
+
 export default function CampaignStoreFrame() {
   const [state, setState] = useState({ productId: data.products[0].id, imageIndex: 0, search: null as { query: string; selectedProductId?: string } | null })
   const [ready, setReady] = useState(false)
@@ -35,12 +58,12 @@ export default function CampaignStoreFrame() {
       } })
       const xml = new DOMParser().parseFromString(decodeURIComponent(svg.slice(svg.indexOf(',') + 1)), 'image/svg+xml')
       xml.querySelectorAll<HTMLElement>('.story-slide').forEach((slide) => { slide.style.transform = `translateX(${-track.scrollLeft}px)` })
-      const image = new Image()
-      image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(xml))
-      await image.decode()
-      const canvas = document.createElement('canvas'); canvas.width = 780; canvas.height = height * 2
-      canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height)
-      return canvas
+      const capture: StoreCapture = { page: await rasterize(xml, height) }
+      if (!next.search) {
+        const [image, overlay] = await Promise.all([carouselLayer(xml, false), carouselLayer(xml, true)])
+        capture.carousel = { image, overlay }
+      }
+      return capture
     }
     return () => { delete window.campaignCapture }
   }, [ready])

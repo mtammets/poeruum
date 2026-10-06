@@ -1656,8 +1656,24 @@ function PlatformFlow() {
       </div>
     </section>
     <footer className="platform-footer">
-      <div><Brand /><p>Lihtne e-pood Eesti väikeettevõtjale.</p></div>
-      <div><a href="/mis-on-poeruum/">Mis on Poeruum?</a><a href="https://kaubamaja.poeruum.ee/">Kaubamaja</a><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span></div>
+      <div className="platform-footer__identity">
+        <div className="platform-footer__brand"><Brand /><p>Lihtne e-pood Eesti väikeettevõtjale.</p></div>
+        <nav className="platform-footer__social" aria-label="Poeruum sotsiaalmeedias">
+          <span>Jälgi Poeruumi</span>
+          <div className="platform-footer__social-links">
+            <a target="_blank" rel="noopener noreferrer" aria-label="Poeruum Instagramis (avaneb uuel vahelehel)" title="Instagram">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg>
+            </a>
+            <a target="_blank" rel="noopener noreferrer" aria-label="Poeruum Facebookis (avaneb uuel vahelehel)" title="Facebook">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 21v-8h3l.5-3H14V8.5c0-1 .4-1.5 1.7-1.5H18V4.2c-.7-.1-1.7-.2-2.8-.2C12.5 4 11 5.6 11 8.3V10H8v3h3v8" /></svg>
+            </a>
+            <a target="_blank" rel="noopener noreferrer" aria-label="Poeruum YouTube’is (avaneb uuel vahelehel)" title="YouTube">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="4" /><path d="m10 9 5 3-5 3Z" fill="currentColor" stroke="none" /></svg>
+            </a>
+          </div>
+        </nav>
+      </div>
+      <div className="platform-footer__links"><a href="/mis-on-poeruum/">Mis on Poeruum?</a><a href="https://kaubamaja.poeruum.ee/">Kaubamaja</a><a href="/kasutustingimused">Kasutustingimused</a><a href="/privaatsus">Privaatsus</a><span>© 2026 Poeruum</span></div>
     </footer>
   </main>
 

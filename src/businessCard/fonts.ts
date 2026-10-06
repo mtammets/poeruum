@@ -53,6 +53,7 @@ export function layoutText(element: CardElement): CardTextLayout {
   const scale = size / font.unitsPerEm
   const lineHeight = (font.ascent - font.descent + font.lineGap) * scale
   const text = (element.text ?? '').normalize('NFC').replace(/\r\n?/g, '\n').replace(/\t/g, '    ')
+  if (!text.trim()) return { lines: [], height: 0, lineHeight, overflow: false, unsupportedCharacters: [] }
   const measure = (value: string) => font.layout(value, CARD_FONT_FEATURES).glyphs.reduce((sum, glyph) => sum + glyph.advanceWidth, 0) * scale
   const lines: string[] = []
   for (const paragraph of text.split('\n')) {

@@ -119,11 +119,18 @@ describe('print preflight', () => {
     expect(getCardIssues(cardWith(image))).toEqual([])
   })
 
-  it('warns about empty text and QR codes too small to print reliably', () => {
-    const text = createCardElement('text', { text: ' \n ' })
+  it.each(['', ' \n\t '])('ignores invisible text boxes without changing the draft: %j', (text) => {
+    const elements = [10, 0, 100].map((x) => createCardElement('text', { text, x, height: .5 }))
+    const card = cardWith(...elements)
+    const original = structuredClone(card)
+    expect(getCardIssues(card)).toEqual([])
+    expect(card).toEqual(original)
+  })
+
+  it('still warns about QR codes too small to print reliably alongside empty text', () => {
+    const text = createCardElement('text', { text: '' })
     const qr = createCardElement('qr', { width: 12, height: 12 })
     expect(getCardIssues(cardWith(text, qr))).toEqual([
-      expect.objectContaining({ elementId: text.id, message: 'Tekst on tühi.' }),
       expect.objectContaining({ elementId: qr.id, message: 'QR-kood on trükiks liiga väike.' }),
     ])
   })

@@ -165,6 +165,29 @@ test('uploaded images remain embedded and preflight links back to their print-qu
   await expect(page.getByLabel('Laius (mm)', { exact: true })).toHaveValue('70')
 })
 
+test('empty text boxes on the back do not block downloading the print PDF', async ({ page }) => {
+  await mountEditor(page)
+  await page.getByRole('tab', { name: 'Tagakülg', exact: true }).click()
+  for (const name of ['Pealkiri', 'Kontakt']) {
+    await page.getByRole('group', { name: 'Tagakülje kujundus' }).getByRole('button', { name, exact: true }).press('Enter')
+    await page.getByRole('textbox', { name: 'Tekst', exact: true }).fill(name === 'Pealkiri' ? '' : ' \n ')
+    await page.getByLabel('Kõrgus (mm)', { exact: true }).fill('0.5')
+  }
+  await page.getByRole('button', { name: 'Ekspordi PDF', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Trüki-PDF', exact: true })
+  await expect(dialog.locator('.bc-export-issues')).toHaveCount(0)
+  await expect(dialog.getByRole('checkbox')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Laadi PDF alla', exact: true })).toBeEnabled()
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Laadi PDF alla', exact: true }).click()
+  const download = await downloadPromise
+  const pdf = await PDFDocument.load(await readFile((await download.path())!))
+  expect(pdf.getPageCount()).toBe(2)
+  // Export must keep editable placeholders in the saved design.
+  expect(await page.evaluate(() => window.__businessCardDocument?.sides.back.elements
+    .filter((element) => element.type === 'text').map((element) => element.text))).toEqual(['', ' \n '])
+})
+
 test('QR content and square print dimensions can be edited independently on the back', async ({ page }) => {
   await mountEditor(page)
   await page.getByRole('tab', { name: 'Tagakülg', exact: true }).click()
