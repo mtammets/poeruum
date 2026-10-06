@@ -80,7 +80,6 @@ export default function useAdminPush(userId: string | null) {
       if (enabled) {
         await disableAdminPush()
         setEnabled(false)
-        setMessage('Märguanded on selles seadmes välja lülitatud.')
         return
       }
       // iOS requires this call directly in the click gesture, before any network await.
@@ -97,7 +96,6 @@ export default function useAdminPush(userId: string | null) {
       const status = await adminPushRequest<AdminPushStatus>({ action: 'subscribe', subscription: subscription.toJSON(), preferences })
       setPreferences(status.preferences)
       setEnabled(true)
-      setMessage('Märguanded on selles seadmes lubatud ka lukustatud ekraaniga. Vali allpool, milliseid teavitusi soovid.')
     } catch (error) {
       if (created) await created.unsubscribe().catch(() => undefined)
       setError(error instanceof Error ? error.message : 'Märguannete lubamine ebaõnnestus.')
@@ -111,7 +109,7 @@ export default function useAdminPush(userId: string | null) {
       const subscription = await currentPushSubscription()
       if (!subscription) { setEnabled(false); throw new Error('Lülita märguanded uuesti sisse.') }
       await adminPushRequest({ action: 'test', endpoint: subscription.endpoint })
-      setMessage('Prooviteavitus on saadetud. Kui seda ei kuvata, kontrolli telefoni märguannete ja keskendumisrežiimi seadeid.')
+      setMessage('Prooviteavitus on saadetud.')
     } catch (error) { setError(error instanceof Error ? error.message : 'Prooviteavituse saatmine ebaõnnestus.') }
     finally { setBusy(false) }
   }
@@ -124,7 +122,6 @@ export default function useAdminPush(userId: string | null) {
       if (!subscription) { setEnabled(false); throw new Error('Lülita märguanded uuesti sisse.') }
       const status = await adminPushRequest<AdminPushStatus>({ action: 'preferences', endpoint: subscription.endpoint, preferences: { ...preferences, [kind]: value } })
       setPreferences(status.preferences)
-      setMessage('Märguannete valikud on salvestatud.')
     } catch (error) { setError(error instanceof Error ? error.message : 'Märguannete valikuid ei saanud salvestada.') }
     finally { setBusy(false) }
   }

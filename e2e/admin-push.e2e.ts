@@ -145,7 +145,6 @@ test('notification categories save independently and survive navigation and relo
   await expect(accounts).toHaveAttribute('aria-checked', 'true')
   await accounts.click()
   await expect(accounts).toHaveAttribute('aria-checked', 'false')
-  await expect(page.getByText('Mõlemad liigid on välja lülitatud.', { exact: false })).toBeVisible()
   await expect(device).toHaveAttribute('aria-checked', 'true')
   await visits.click()
   await expect(visits).toHaveAttribute('aria-checked', 'true')
