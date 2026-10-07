@@ -95,6 +95,8 @@ Rakendamise kontrollis lõi ajastajaga sama päring 8. ja 9. septembri väljaand
 
 ## Projekti seadistamine
 
+Klienditoe vestluse käsitsi kustutamine vajab `support-actions` funktsiooni uut `delete` tegevust. Paigalda funktsioon enne prügikastinupuga brauserirakendust; eraldi migratsiooni pole vaja. Õigusi, manuste eemaldamist ja korduskatseid kontrollib `npm run test:support-delete-edge`. Kustutamine on lubatud ainult administraatorile ja eemaldab kogu valitud vestluse koos sõnumitega, sõltumata sellest, kas see algas rakenduses või e-kirjana.
+
 1. Loo Supabase'is uus projekt.
 2. Täida lokaalne `.env` fail. Brauserivõtmete kõrval on seal eraldi CLI ja serveripoolse halduse võtmed.
 3. Kontrolli võtmeid käsuga `npm run supabase:check`.

@@ -9,12 +9,15 @@ const labels = { visits: 'Külastused', orders: 'Tellimused', sales: 'Müük' }
 const formatValue = (value: number, metric: StoreAnalyticsMetric) => metric === 'sales' ? euro.format(value) : number.format(value)
 const dateLabel = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString('et-EE', { day: 'numeric', month: 'short', timeZone: 'Europe/Tallinn' })
 
-function AnalyticsIcon({ name }: { name: 'chart' | 'close' | 'refresh' | 'arrow' | 'bag' | 'eye' }) {
+function AnalyticsIcon({ name }: { name: 'chart' | 'close' | 'refresh' | 'arrow' | 'bag' | 'eye' | 'trend-up' | 'trend-down' | 'trend-flat' }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {name === 'chart' && <><path d="M4 4v16h16" /><path d="m7 14 4-4 4 2 5-7" /></>}
     {name === 'close' && <path d="m6 6 12 12M18 6 6 18" />}
     {name === 'refresh' && <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6 6a8 8 0 0 1 13 3M18 18A8 8 0 0 1 5 15" /></>}
     {name === 'arrow' && <path d="m9 5 7 7-7 7" />}
+    {name === 'trend-up' && <path d="m6 18 12-12M6 6h12v12" />}
+    {name === 'trend-down' && <path d="m6 6 12 12M6 18h12V6" />}
+    {name === 'trend-flat' && <path d="M4 12h16m-6-6 6 6-6 6" />}
     {name === 'bag' && <><path d="M5 8h14l1 12H4L5 8Z" /><path d="M9 9V6a3 3 0 0 1 6 0v3" /></>}
     {name === 'eye' && <><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="2.5" /></>}
   </svg>
@@ -24,7 +27,7 @@ function Trend({ current, previous, available }: { current: number; previous: nu
   const trend = storeAnalyticsTrend(current, previous, available)
   return trend && <span className={`store-stats__trend is-${trend.direction}`} title="Võrreldes eelmise sama pika perioodiga sama kellaajani"
     aria-label={`${trend.label} võrreldes eelmise perioodiga`}>
-    {!trend.label.includes('→') && <span aria-hidden="true">{trend.direction === 'up' ? '↗' : trend.direction === 'down' ? '↘' : '→'}</span>}{trend.label}
+    {!trend.label.includes('→') && <AnalyticsIcon name={trend.direction === 'up' ? 'trend-up' : trend.direction === 'down' ? 'trend-down' : 'trend-flat'} />}{trend.label}
   </span>
 }
 
@@ -131,7 +134,7 @@ export default function StoreAnalytics({ storeId, storeName, onClose }: { storeI
     } }}>
     <header className="store-stats__header">
       <span className="store-stats__mark"><AnalyticsIcon name="chart" /></span>
-      <div><span className="store-stats__store">{storeName}</span><h2 id={titleId}>Kogu pood</h2></div>
+      <div><span className="store-stats__store">{storeName}</span><h2 id={titleId}>Statistika</h2></div>
       <button type="button" className="store-stats__icon-button" onClick={onClose} aria-label="Sulge statistika" autoFocus><AnalyticsIcon name="close" /></button>
     </header>
     <div className="store-stats__content">
@@ -151,7 +154,7 @@ export default function StoreAnalytics({ storeId, storeName, onClose }: { storeI
           : <div className="store-stats__chart-placeholder" role="status">{loading ? 'Laen statistikat…' : 'Graafik pole saadaval'}</div>}
         <div className="store-stats__metrics">
           {(['orders', 'sales'] as const).map((key) => <button type="button" key={key} aria-pressed={metric === key} onClick={() => setMetric(key)} aria-label={`${labels[key]}: ${value(key)}. Kuva graafikul`}>
-            <span>{labels[key]}<span aria-hidden="true">↗</span></span><strong>{value(key)}</strong>
+            <span>{labels[key]}<AnalyticsIcon name="chart" /></span><strong>{value(key)}</strong>
             {matching && <Trend current={matching.current[key]} previous={matching.previous[key]} available={matching.comparison_available} />}
           </button>)}
         </div>

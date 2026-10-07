@@ -39,6 +39,9 @@ jobs:
       - name: Admin push authorization, encryption and delivery
         run: npm run test:admin-push-edge
 
+      - name: Support deletion authorization and attachment cleanup
+        run: npm run test:support-delete-edge
+
       - name: Unit tests
         run: npm run test
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { requireSupabase } from './lib/supabase'
 
 export type AdminSupportConversation = {
@@ -52,6 +52,16 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<AdminSupportConversation | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const deleteDialog = useRef<HTMLDialogElement>(null)
+  const deleteTrigger = useRef<HTMLButtonElement | null>(null)
+  const deleteTitleId = useId()
+  const deleteDescriptionId = useId()
+  const selectedId = useRef<string | null>(null)
+  const deletedIds = useRef(new Set<string>())
+  const filtersRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
   const requestedConversationId = useRef(new URLSearchParams(window.location.search).get('conversation'))
 
@@ -61,9 +71,9 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
       setError(queryError.code === '42883' ? 'Rakenda klienditoe andmebaasimigratsioon.' : 'Klienditoe vestlusi ei õnnestunud laadida.')
       setConversations([])
     } else {
-      const next = (data ?? []) as AdminSupportConversation[]
+      const next = ((data ?? []) as AdminSupportConversation[]).filter((item) => !deletedIds.current.has(item.id))
       setConversations(next)
-      setSelected((current) => current ? next.find((item) => item.id === current.id) ?? current : null)
+      setSelected((current) => current ? next.find((item) => item.id === current.id) ?? null : null)
       setError('')
       const requested = next.find((item) => item.id === requestedConversationId.current)
       requestedConversationId.current = null
@@ -76,11 +86,13 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
     const { data, error: queryError } = await requireSupabase().from('support_messages')
       .select('id,sender_kind,body,source,is_internal,attachment_path,attachment_name,delivery_status,created_at')
       .eq('conversation_id', conversation.id).order('created_at')
+    if (selectedId.current !== conversation.id || deletedIds.current.has(conversation.id)) return
     if (queryError) setError('Vestluse sisu ei õnnestunud laadida.')
     else setMessages((data ?? []) as SupportMessage[])
   }
 
   const openConversation = async (conversation: AdminSupportConversation) => {
+    selectedId.current = conversation.id
     setSelected(conversation); setError(''); setReply(''); setIsInternal(false)
     await Promise.all([
       loadMessages(conversation),
@@ -90,6 +102,18 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
   }
 
   useEffect(() => { void loadConversations() }, [])
+  useEffect(() => {
+    if (!deleteTarget) return
+    const element = deleteDialog.current!
+    const trigger = deleteTrigger.current
+    element.showModal()
+    return () => {
+      element.close()
+      window.requestAnimationFrame(() => {
+        if (!element.open && !deleteDialog.current?.open && trigger?.isConnected) trigger.focus({ preventScroll: true })
+      })
+    }
+  }, [deleteTarget])
   useEffect(() => {
     const channel = requireSupabase().channel('admin-support-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'support_messages' }, () => {
@@ -148,9 +172,28 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
     else window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
   }
 
+  const deleteConversation = async () => {
+    if (!deleteTarget || isDeleting) return
+    const id = deleteTarget.id
+    setIsDeleting(true); setDeleteError('')
+    try {
+      await invoke({ action: 'delete', conversation_id: id })
+      deletedIds.current.add(id)
+      selectedId.current = null
+      setConversations((current) => current.filter((item) => item.id !== id))
+      setSelected(null); setMessages([]); setReply(''); setIsInternal(false); setError('')
+      setDeleteTarget(null)
+      onCountsChanged?.()
+      void loadConversations()
+      window.requestAnimationFrame(() => filtersRef.current?.querySelector<HTMLButtonElement>('button.is-active')?.focus())
+    } catch (deleteFailure) {
+      setDeleteError(deleteFailure instanceof Error ? deleteFailure.message : 'Vestlust ei õnnestunud kustutada.')
+    } finally { setIsDeleting(false) }
+  }
+
   return <section className="admin-support" id="klienditugi">
     <header><div><span>KLIENDITUGI</span><h2>Vestlused</h2><p>Poeruumi kasutajate küsimused ja aadressile info@poeruum.ee saabunud kirjad.</p></div><b>{unreadCount ? `${unreadCount} uut` : 'Kõik loetud'}</b></header>
-    <div className="admin-support__filters">{([
+    <div className="admin-support__filters" ref={filtersRef}>{([
       ['active', 'Aktiivsed'], ['open', 'Vajavad vastust'], ['waiting_user', 'Ootavad kasutajat'], ['resolved', 'Lahendatud'],
     ] as Array<[Filter, string]>).map(([value, label]) => <button className={filter === value ? 'is-active' : ''} type="button" onClick={() => setFilter(value)} key={value}>{label}<span>{value === 'active' ? conversations.filter((item) => item.status !== 'resolved').length : conversations.filter((item) => item.status === value).length}</span></button>)}</div>
     <div className="admin-support__workspace">
@@ -160,7 +203,7 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
         </button>) : <p className="admin-support__empty">Selles vaates pole vestlusi.</p>}
       </div>
       {selected ? <div className="admin-support__conversation">
-        <header><div><small>{selected.origin === 'email' ? 'E-kiri aadressile info@poeruum.ee' : categoryLabel[selected.category] || 'Küsimus'}</small><h3>{selected.subject}</h3><p>{selected.origin === 'email' ? selected.contact_name || 'Väline saatja' : selected.store_name || 'Poodi pole loodud'} · <a href={`mailto:${selected.email}`}>{selected.email}</a>{selected.origin === 'app' && <> · {selected.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</>}</p></div><select value={selected.status} disabled={isSending} onChange={(event) => void setStatus(event.target.value as AdminSupportConversation['status'])}><option value="open">Vajab vastust</option><option value="waiting_user">Ootab kasutajat</option><option value="resolved">Lahendatud</option></select></header>
+        <header><div><small>{selected.origin === 'email' ? 'E-kiri aadressile info@poeruum.ee' : categoryLabel[selected.category] || 'Küsimus'}</small><h3>{selected.subject}</h3><p>{selected.origin === 'email' ? selected.contact_name || 'Väline saatja' : selected.store_name || 'Poodi pole loodud'} · <a href={`mailto:${selected.email}`}>{selected.email}</a>{selected.origin === 'app' && <> · {selected.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</>}</p></div><div className="admin-support__actions"><select aria-label="Vestluse olek" value={selected.status} disabled={isSending} onChange={(event) => void setStatus(event.target.value as AdminSupportConversation['status'])}><option value="open">Vajab vastust</option><option value="waiting_user">Ootab kasutajat</option><option value="resolved">Lahendatud</option></select><button type="button" className="admin-support__delete" aria-label="Kustuta vestlus" title="Kustuta vestlus" disabled={isSending} onClick={(event) => { deleteTrigger.current = event.currentTarget; event.currentTarget.focus({ preventScroll: true }); setDeleteError(''); setDeleteTarget(selected) }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" /></svg></button></div></header>
         <div className="admin-support__messages" ref={messagesRef}>{messages.map((message) => <article className={`is-${message.sender_kind}${message.is_internal ? ' is-internal' : ''}`} key={message.id}>
           <span>{message.is_internal ? 'Sisemine märkus' : message.sender_kind === 'admin' ? 'Poeruumi tugi' : contactLabel(selected)}<time>{formatTime(message.created_at)}</time></span><p>{message.body}</p>
           {message.attachment_path && <button type="button" onClick={() => void openAttachment(message)}>📎 {message.attachment_name || 'Ava manus'}</button>}
@@ -169,5 +212,12 @@ export default function AdminSupport({ onCountsChanged }: { onCountsChanged?: ()
         <form className={isInternal ? 'is-internal' : ''} onSubmit={sendReply}><textarea rows={4} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={isInternal ? 'Lisa märkus, mida saatja ei näe…' : 'Kirjuta saatjale vastus…'} /><div><label><input type="checkbox" checked={isInternal} onChange={(event) => setIsInternal(event.target.checked)} /> Sisemine märkus</label>{error && <p>{error}</p>}<button type="submit" disabled={isSending || !reply.trim()}>{isSending ? 'Saadan…' : isInternal ? 'Lisa märkus' : 'Saada vastus'} →</button></div></form>
       </div> : <div className="admin-support__placeholder"><span>✉</span><strong>Vali vestlus</strong><p>Siin näed kogu vestlust ning saatja või poe konteksti.</p></div>}
     </div>
+    {deleteTarget && <dialog ref={deleteDialog} className="admin-support__delete-dialog" role="alertdialog" aria-labelledby={deleteTitleId} aria-describedby={deleteDescriptionId} onCancel={(event) => { event.preventDefault(); if (!isDeleting) setDeleteTarget(null) }}>
+      <h2 id={deleteTitleId}>Kustuta vestlus?</h2>
+      <p className="admin-support__delete-subject">{deleteTarget.subject}</p>
+      <p id={deleteDescriptionId}>Vestlus, sõnumid ja manused kustutatakse jäädavalt.</p>
+      {deleteError && <p className="admin-support__delete-error" role="alert">{deleteError}</p>}
+      <div><button type="button" autoFocus disabled={isDeleting} onClick={() => setDeleteTarget(null)}>Loobu</button><button type="button" className="is-danger" disabled={isDeleting} onClick={() => void deleteConversation()}>{isDeleting ? 'Kustutan…' : 'Kustuta'}</button></div>
+    </dialog>}
   </section>
 }

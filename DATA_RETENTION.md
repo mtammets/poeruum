@@ -23,6 +23,8 @@ Rakenduse avalik privaatsuspoliitika ja tehniline kustutamisloogika kasutavad j�
 
 Andmebaasi `pg_cron` käivitab `data-retention-reaper` funktsiooni iga päev kell 02:15 UTC. Funktsioon eemaldab esmalt aegunud tugimanused Storage API kaudu, kustutab tugivestlused ja rakendab seejärel ülejäänud andmebaasi säilitusreeglid.
 
+Administraator saab klienditoe vestluse varem käsitsi kustutada, näiteks rämpskirja eemaldamiseks. `support-actions` kontrollib administraatori rolli, eemaldab vestluse manused Storage API kaudu ning kustutab vestluse koos sõnumitega. Teistes vestlustes kasutusel olevad manused säilivad. Kustutamine vajab kasutajaliideses kinnitust; saatjale teadet ei saadeta.
+
 Konto kustutamisel peab väliste ressursside eemaldamine õnnestuma enne autentimiskonto kustutamist. Tellimustest eemaldatakse isikut tuvastavad kontakt- ja tarneväljad enne poe muutmist ligipääsmatuks tombstone-kirjeks. Tombstone kustutatakse pärast viimase tellimus- ja finantskirje säilitustähtaja lõppu.
 
 Õigusnõude või ametliku säilituskohustuse korral saab automaatse kustutamise konkreetse tellimuse või finantssündmuse jaoks peatada väljaga `retention_hold_until`. Pikenduse alus ja uus tähtaeg tuleb eraldi dokumenteerida; rakenduses ei ole selleks praegu kasutajaliidest.

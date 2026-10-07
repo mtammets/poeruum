@@ -62,7 +62,7 @@ test('merchant opens, explores and refreshes statistics without polling', async 
   await expect(trigger).toBeVisible()
   expect(api.calls).toHaveLength(0)
   await trigger.click()
-  const dialog = page.getByRole('dialog', { name: 'Kogu pood' })
+  const dialog = page.getByRole('dialog', { name: 'Statistika' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('248', { exact: true })).toBeVisible()
   expect(api.calls).toEqual([{ requested_days: 7, target_store_id: storeId }])

@@ -59,6 +59,7 @@
     "test:order-invoice-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-order-invoice-edge.ts",
     "test:account-email-db": "node scripts/test-account-email-policy.mjs",
     "test:account-email-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-account-email-edge.ts",
+    "test:support-delete-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-support-delete-edge.ts",
     "test:seller-preview": "node node_modules/@playwright/test/cli.js test --config playwright.seller-preview.config.ts",
     "test:entrepreneur-sellers": "node scripts/test-entrepreneur-sellers.mjs",
     "test:platform-billing-db": "node scripts/test-platform-billing-db.mjs",

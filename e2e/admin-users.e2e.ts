@@ -1303,6 +1303,77 @@ test('reply opens the exact support conversation without sending a message', asy
   expect(messagesSent).toEqual([])
 })
 
+for (const width of [390, 1440]) {
+  test(`support deletion confirms the target, preserves failed requests and removes only that conversation at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await installBackend(page)
+    const spamId = '10000000-0000-4000-8000-000000000081'
+    const keepId = '10000000-0000-4000-8000-000000000082'
+    let rows = [
+      { id: spamId, user_id: null, email: 'sender@example.invalid', contact_name: 'Väline saatja', origin: 'email', store_name: null,
+        subject: 'Kahtlane autoriõiguse teavitus', status: 'open', category: 'question', last_message_at: ago(1), created_at: ago(2), last_message_preview: 'Kahtlane kiri', is_unread: true },
+      { id: keepId, user_id: users[4].user_id, email: users[4].email, contact_name: null, origin: 'app', store_name: users[4].store_name,
+        subject: 'Päris kliendi küsimus', status: 'open', category: 'question', last_message_at: ago(3), created_at: ago(4), last_message_preview: 'Palun abi.', is_unread: false },
+    ]
+    const actions: Record<string, unknown>[] = []
+    let fail = true
+    let finishDelete: (() => Promise<void>) | undefined
+    await page.route('**/rpc/admin_support_conversations', (route) => route.fulfill({ json: rows }))
+    await page.route('**/rpc/mark_support_conversation_read', (route) => route.fulfill({ json: null }))
+    await page.route('**/support_messages?*', (route) => route.fulfill({ json: [{
+      id: 'message-test', sender_kind: 'user', body: new URL(route.request().url()).searchParams.get('conversation_id') === `eq.${spamId}` ? 'Kahtlane kiri' : 'Palun abi.',
+      source: 'email', is_internal: false, created_at: ago(1),
+    }] }))
+    await page.route('**/functions/v1/support-actions', (route) => {
+      const body = route.request().postDataJSON()
+      actions.push(body)
+      if (fail) return route.fulfill({ status: 500, json: { error: 'Kustutamine ebaõnnestus.' } })
+      finishDelete = async () => {
+        rows = rows.filter((row) => row.id !== body.conversation_id)
+        await route.fulfill({ json: { ok: true } })
+      }
+    })
+    await page.goto(`/admin/support?conversation=${spamId}`)
+    await expect(page.getByRole('heading', { name: 'Kahtlane autoriõiguse teavitus' })).toBeVisible()
+    const draft = page.getByPlaceholder('Kirjuta saatjale vastus…')
+    await draft.fill('Salvestamata mustand')
+    const trigger = page.getByRole('button', { name: 'Kustuta vestlus', exact: true })
+    await trigger.click()
+    const confirmation = page.getByRole('alertdialog', { name: 'Kustuta vestlus?' })
+    await expect(confirmation).toBeVisible()
+    await expect(confirmation).toContainText('Kahtlane autoriõiguse teavitus')
+    await expect(confirmation.getByRole('button', { name: 'Loobu' })).toBeFocused()
+    await expect.poll(() => confirmation.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await page.screenshot({ path: `output/support-delete-${width}.png`, animations: 'disabled' })
+    await page.keyboard.press('Escape')
+    await expect(confirmation).not.toBeVisible()
+    await expect(trigger).toBeFocused()
+    expect(actions).toEqual([])
+    await trigger.click()
+    await confirmation.getByRole('button', { name: 'Kustuta', exact: true }).click()
+    await expect(confirmation.getByRole('alert')).toBeVisible()
+    await expect(page.locator('.admin-support__list > button')).toHaveCount(2)
+    await confirmation.getByRole('button', { name: 'Loobu' }).click()
+    await expect(draft).toHaveValue('Salvestamata mustand')
+    fail = false
+    await trigger.click()
+    await confirmation.getByRole('button', { name: 'Kustuta', exact: true }).click()
+    await expect(confirmation.getByRole('button', { name: 'Kustutan…' })).toBeDisabled()
+    await expect(confirmation.getByRole('button', { name: 'Loobu' })).toBeDisabled()
+    await expect.poll(() => Boolean(finishDelete)).toBe(true)
+    await finishDelete!()
+    await expect(confirmation).not.toBeVisible()
+    await expect(page.locator('.admin-support__list > button')).toHaveCount(1)
+    await expect(page.getByRole('heading', { name: 'Kahtlane autoriõiguse teavitus' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: 'Aktiivsed 1', exact: true })).toBeFocused()
+    await page.locator('.admin-support__list > button').click()
+    await expect(page.getByRole('heading', { name: 'Päris kliendi küsimus' })).toBeVisible()
+    await expect(page.locator('.admin-support__messages')).toHaveText(/Palun abi\./)
+    await expect(draft).toBeEmpty()
+    expect(actions).toEqual([{ action: 'delete', conversation_id: spamId }, { action: 'delete', conversation_id: spamId }])
+  })
+}
+
 test('realtime changes actual sales and presence without treating record updates as a sign-in', async ({ page }) => {
   const backend = await installBackend(page)
   await page.goto('/admin/users')

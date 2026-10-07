@@ -270,6 +270,23 @@
 .admin-support__conversation { display: grid; grid-template-rows: auto minmax(10rem, 1fr) auto; min-width: 0; min-height: 0; overflow: hidden; }
 .admin-support__conversation > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--admin-line-soft); }
 .admin-support__conversation > header > div { min-width: 0; }
+.admin-support__conversation > header > div:first-child { flex: 1; overflow-wrap: anywhere; }
+.admin-support__actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
+.admin-support__delete { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--admin-line); border-radius: .55rem; background: transparent; color: var(--admin-muted); cursor: pointer; }
+.admin-support__delete svg { width: 18px; height: 18px; }
+.admin-support__delete:hover { color: var(--admin-danger); border-color: var(--admin-danger-line); background: var(--admin-danger-bg); }
+.admin-support__delete:disabled { opacity: .5; cursor: default; }
+.admin-support__delete:focus-visible, .admin-support__delete-dialog button:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
+.admin-support__delete-dialog { width: min(27rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); box-sizing: border-box; padding: 1.5rem; overflow-y: auto; border: 1px solid var(--admin-line); border-radius: 1rem; background: var(--admin-surface); color: var(--admin-ink); box-shadow: 0 24px 80px #0005; }
+.admin-support__delete-dialog::backdrop { background: #0008; }
+.admin-support__delete-dialog h2 { margin: 0 0 .8rem; font: 650 1.25rem/1.3 Manrope, sans-serif; letter-spacing: -.03em; }
+.admin-support__delete-dialog p { margin: .65rem 0; color: var(--admin-muted); font-size: .875rem; line-height: 1.5; overflow-wrap: anywhere; }
+.admin-support__delete-dialog .admin-support__delete-subject { color: var(--admin-ink); font-weight: 650; }
+.admin-support__delete-dialog .admin-support__delete-error { color: var(--admin-danger); }
+.admin-support__delete-dialog > div { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1.4rem; }
+.admin-support__delete-dialog button { min-height: 44px; padding: .6rem 1rem; border: 1px solid var(--admin-line); border-radius: .6rem; background: var(--admin-raised); color: var(--admin-ink); font: inherit; font-size: .875rem; font-weight: 650; cursor: pointer; }
+.admin-support__delete-dialog button.is-danger { background: var(--admin-danger-bg); border-color: var(--admin-danger-line); color: var(--admin-danger); }
+.admin-support__delete-dialog button:disabled { opacity: .55; cursor: wait; }
 .admin-support__conversation > header small { color: var(--admin-muted); font-size: .6875rem; }
 .admin-support__conversation > header h3 { margin: .2rem 0 .25rem; font-family: Manrope, sans-serif; font-size: 1rem; letter-spacing: -.025em; }
 .admin-support__conversation > header p { margin: 0; color: var(--admin-muted); font-size: .75rem; }
@@ -448,6 +465,9 @@
   .admin-support__workspace { display: block; height: auto; max-height: none; }
   .admin-support__list { max-height: 22rem; border-right: 0; }
   .admin-support__conversation { min-height: 34rem; border-top: 1px solid var(--admin-line); }
+  .admin-support__conversation > header { flex-wrap: wrap; }
+  .admin-support__conversation > header > div:first-child { flex-basis: 100%; }
+  .admin-support__actions { width: 100%; justify-content: space-between; }
   .admin-support__placeholder { display: none; }
   .admin-leads__automation > header { align-items: stretch; flex-direction: column; }
   .admin-leads__switch { align-self: flex-start; }

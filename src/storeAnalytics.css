@@ -45,6 +45,7 @@
 .store-stats__headline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .store-stats__headline > strong { display: block; padding-top: 3px; font-size: clamp(48px, 6vw, 78px); line-height: 1.2; font-weight: 550; letter-spacing: -.065em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .store-stats__trend { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; color: var(--stats-muted); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.store-stats__trend svg { width: 12px; height: 12px; }
 .store-stats__trend.is-up { color: #cbdc89; }
 .store-stats__trend.is-down { color: #ecb6a5; }
 .store-stats__headline .store-stats__trend { padding: 5px 9px; background: #ffffff06; border: 1px solid #ffffff0c; border-radius: 999px; }
@@ -63,7 +64,9 @@
 .store-stats__metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 24px; }
 .store-stats__metrics > button { display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 0; min-height: 109px; padding: 16px; border: 1px solid #ffffff14; border-radius: 15px; background: #ffffff03; color: inherit; text-align: left; transition: background 180ms, border-color 180ms; }
 .store-stats__metrics > button[aria-pressed='true'] { border-color: #e5f25a55; background: #e5f25a08; }
-.store-stats__metrics > button > span:first-child { display: flex; justify-content: space-between; color: var(--stats-muted); font-size: 11px; }
+.store-stats__metrics > button > span:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--stats-muted); font-size: 11px; }
+.store-stats__metrics > button > span:first-child > svg { width: 16px; height: 16px; opacity: .7; }
+.store-stats__metrics > button[aria-pressed='true'] > span:first-child > svg { color: var(--stats-accent); opacity: 1; }
 .store-stats__metrics > button > strong { font-weight: 550; font-size: clamp(19px,2.5vw,28px); line-height: 1.2; letter-spacing: -.035em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .store-stats__history { margin: 15px 0 0; color: var(--stats-muted); font-size: 11px; }
 .store-stats__section { margin-top: 32px; }

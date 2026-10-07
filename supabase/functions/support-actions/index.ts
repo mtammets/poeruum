@@ -153,6 +153,43 @@ Deno.serve(async (request) => {
 
     const conversationId = textValue(input.conversation_id, 60)
     if (!/^[0-9a-f-]{36}$/i.test(conversationId)) return json({ error: 'Vestlust ei leitud.' }, 400)
+    if (action === 'delete') {
+      if (!isAdmin) return json({ error: 'Administraatori ligipääs puudub.' }, 403)
+      // Read paths from this conversation only; never accept storage paths from the caller.
+      const paths = new Set<string>()
+      for (let offset = 0; ; offset += 100) {
+        const { data, error } = await admin.from('support_messages').select('attachment_path')
+          .eq('conversation_id', conversationId).not('attachment_path', 'is', null)
+          .order('id').range(offset, offset + 99)
+        if (error) throw error
+        for (const row of data ?? []) if (row.attachment_path) paths.add(row.attachment_path)
+        if ((data?.length ?? 0) < 100) break
+      }
+      const attachments = [...paths]
+      for (let index = 0; index < attachments.length; index += 100) {
+        const batch = attachments.slice(index, index + 100)
+        // An app upload can be referenced in another conversation; keep shared files.
+        const shared = new Set<string>()
+        for (let offset = 0; ; offset += 100) {
+          const { data, error } = await admin.from('support_messages').select('attachment_path')
+            .neq('conversation_id', conversationId).in('attachment_path', batch)
+            .order('id').range(offset, offset + 99)
+          if (error) throw error
+          for (const row of data ?? []) shared.add(row.attachment_path)
+          if ((data?.length ?? 0) < 100) break
+        }
+        const unshared = batch.filter((path) => !shared.has(path))
+        if (unshared.length) {
+          const { error } = await admin.storage.from('support-attachments').remove(unshared)
+          if (error) throw error
+        }
+      }
+      // Messages cascade with the conversation. Preserve the record on storage errors
+      // so the administrator can retry; repeated successful deletes are harmless.
+      const { error } = await admin.from('support_conversations').delete().eq('id', conversationId)
+      if (error) throw error
+      return json({ ok: true })
+    }
     const { data: conversation, error: conversationError } = await admin.from('support_conversations').select('*').eq('id', conversationId).single()
     if (conversationError || !conversation) return json({ error: 'Vestlust ei leitud.' }, 404)
 
