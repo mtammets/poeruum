@@ -39,6 +39,7 @@ import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Tur
 import { SETTINGS_SECTIONS, SettingsSectionIcon } from './StorefrontSettingsNav'
 import { SupportContext } from './SupportContext'
 import StorefrontCart from './StorefrontCart'
+import { useStoreAnalyticsTracking } from './lib/storeAnalyticsTracking'
 import {
   formatStripeRequirementDeadline,
   stripeRequirementIssueCopies,
@@ -69,6 +70,7 @@ import {
 } from './storefrontModel'
 
 const StoreQrDialog = lazy(() => import('./StoreQrDialog'))
+const StoreAnalytics = lazy(() => import('./StoreAnalytics'))
 const formatEuro = (value: number) => `${value.toFixed(2).replace('.', ',')} €`
 const DEMO_SELLER = {
   businessName: 'Poeruumi Näidispood',
@@ -400,6 +402,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(true)
   const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSettingsSection ?? 'store')
   const [isOrdersOpen, setIsOrdersOpen] = useState(false)
+  const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
   const [orders, setOrders] = useState<StoreOrder[]>([])
   const [orderLayout, setOrderLayout] = useState<'grid' | 'list'>('grid')
   const [orderSearch, setOrderSearch] = useState('')
@@ -1523,7 +1526,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [displayProducts.length])
 
   useEffect(() => {
-    if (!isLoginOpen && !isEditOpen && !isAddOpen && !imageUpload && !isSearchVisible && !isDeleteOpen && !isPasswordChangeOpen && !isEmailChangeOpen && !isAccountDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isAboutOpen && !legalView && !isBillingCardOpen) return
+    if (!isLoginOpen && !isEditOpen && !isAddOpen && !imageUpload && !isSearchVisible && !isDeleteOpen && !isPasswordChangeOpen && !isEmailChangeOpen && !isAccountDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isStatisticsOpen && !isAboutOpen && !legalView && !isBillingCardOpen) return
     // On phones the product details editor is a regular document page. Let the
     // browser own vertical scrolling instead of combining a fixed body with a
     // nested fixed scroller (an unreliable combination in iOS Safari).
@@ -1546,7 +1549,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       document.body.style.overflow = previous.overflow
       window.scrollTo(0, scrollY)
     }
-  }, [isLoginOpen, isEditOpen, isAddOpen, Boolean(imageUpload), addProductStep, isSearchVisible, isDeleteOpen, isPasswordChangeOpen, isEmailChangeOpen, isAccountDeleteOpen, isShareOpen, isSettingsOpen, isOrdersOpen, isAboutOpen, legalView, isBillingCardOpen])
+  }, [isLoginOpen, isEditOpen, isAddOpen, Boolean(imageUpload), addProductStep, isSearchVisible, isDeleteOpen, isPasswordChangeOpen, isEmailChangeOpen, isAccountDeleteOpen, isShareOpen, isSettingsOpen, isOrdersOpen, isStatisticsOpen, isAboutOpen, legalView, isBillingCardOpen])
 
   useEffect(() => {
     const isProductEditorOpen = isAddOpen && addProductStep === 'details'
@@ -1756,6 +1759,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [onInitialVisualReady])
 
   const activeProduct = displayProducts[activeIndex]
+  useStoreAnalyticsTracking(storeId, Boolean(isSeoStorefront && !isLoggedIn && !merchantMode && !embeddedPreview && !adminShowcaseMode && !isShowcasePreview), activeProduct?.id)
   useProductTitleFit(editProductNameRef, activeProduct?.name, isEditOpen)
   const activeProductHasSale = activeProduct !== undefined && activeProduct.salePrice !== undefined && activeProduct.price !== undefined && activeProduct.salePrice < activeProduct.price
   const activeProductDiscount = activeProductHasSale ? Math.round((1 - activeProduct.salePrice! / activeProduct.price!) * 100) : 0
@@ -2740,6 +2744,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <section className="empty-storefront__intro">
               <h1>Lisa esimene toode</h1>
               <p>Pildista või vali foto galeriist.</p>
+              {merchantMode && storeId && !onContinueSetup && !adminShowcaseMode && <button className="empty-storefront__statistics" type="button" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); setIsStatisticsOpen(true) }}>Poe statistika</button>}
             </section>
             <button
               className={`empty-storefront__product-card${isProductDropActive ? ' is-drop-active' : ''}`}
@@ -2834,6 +2839,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             {!adminShowcaseMode && activeProduct && <button className="admin-orders" type="button" onClick={() => setIsOrdersOpen(true)} aria-label={`Tellimused${newOrderCount ? `, ${newOrderCount} uut` : ''}`}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg>
               {newOrderCount > 0 && <span>{newOrderCount}</span>}
+            </button>}
+            {merchantMode && storeId && !adminShowcaseMode && <button className="admin-statistics" type="button" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); setIsStatisticsOpen(true) }} aria-label="Poe statistika" title="Statistika" aria-haspopup="dialog">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16"/><path d="m7 14 4-4 4 2 5-7"/></svg>
             </button>}
             {merchantMode && activeProduct && <button className="admin-preview" type="button" onClick={() => { setIsLoggedIn(false); setIsCustomerPreview(true) }} aria-label="Vaata poodi kliendina">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
@@ -3572,6 +3580,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </div>
         </section>
       </div>}
+      {isStatisticsOpen && isAdminMode && merchantMode && storeId && <Suspense fallback={null}><StoreAnalytics storeId={storeId} storeName={editableStoreName} onClose={() => setIsStatisticsOpen(false)} /></Suspense>}
       {isStoreQrOpen && isSettingsOpen && isLoggedIn && <Suspense fallback={null}><StoreQrDialog url={`https://${storePublicUrl}`} storeName={editableStoreName} logo={storeLogo} accent={storeAccent} onClose={() => setIsStoreQrOpen(false)} /></Suspense>}
       {activeProduct && isShareOpen && <div className="overlay share-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsShareOpen(false)}>
         <section className={`share-sheet${isShareDragging ? ' is-dragging' : ''}`} style={shareDragY ? { transform: `translateY(${shareDragY}px)` } : undefined} role="dialog" aria-modal="true" aria-label="Jaga toodet">

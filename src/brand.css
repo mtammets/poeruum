@@ -492,10 +492,26 @@
 
 .admin-settings,
 .admin-orders,
+.admin-statistics,
 .admin-preview {
   width: 2.75rem;
   height: 2.75rem;
   background: rgba(15, 15, 15, 0.68);
+}
+
+.empty-storefront__statistics {
+  min-height: 44px;
+  padding: 8px 16px;
+  margin-top: 16px;
+  border: 1px solid #ffffff38;
+  border-radius: 999px;
+  color: #fff;
+  background: #ffffff09;
+}
+
+@media (max-height: 580px) {
+  .app-shell[data-merchant='true'] .admin-global-actions { display: flex; }
+  .app-shell[data-merchant='true'] .admin-global-actions .admin-add-product { width: 2.75rem; height: 2.75rem; }
 }
 
 .merchant-preview-return {

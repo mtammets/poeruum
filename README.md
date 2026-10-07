@@ -96,6 +96,13 @@ Ostuarvete töövoog, ligipääs ja juurutusjärjekord: [ostuarvete juhend](docs
 
 Admini telefoni märguanded ja seadistamine: [push-teavituste juhend](docs/admin-push.md).
 
+Kaupmehe poe statistika avaneb haldusriba graafikunupust. Ülevaade küsib andmeid
+ainult avamisel, 7/30 päeva valimisel ja käsitsi värskendamisel. Külastuste
+mõõtmine vajab migratsiooni `202610070003_store_analytics.sql` ning avalikku
+`store-analytics` Edge Functionit (`verify_jwt = false`); need tuleb juurutada
+enne uut kasutajaliidest. Tavapärane `supabase:functions:deploy` sisaldab uut
+funktsiooni. Ligipääsu ja müügiarvutusi kontrollib `scripts/test-store-analytics.sql`.
+
 ## Deploy
 
 Render käivitab `npm run build`, mis ehitab rakenduse ja genereerib SEO-varad,

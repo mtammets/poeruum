@@ -1,5 +1,17 @@
 # Supabase'i käivitamine
 
+## Kaupmehe poe statistika
+
+Kaupmehe tööriistariba graafikunupp avab poe omaniku 7 või 30 päeva ülevaate: külastused, tasutud tellimused, müük, vaadatuimad tooted ja liikluse allikad. Andmed loetakse vaate avamisel, perioodi vahetamisel ning värskendusnupust; pidevat reaalajaühendust ei kasutata. Telefonis avaneb täisekraanivaade, suuremal ekraanil parempoolne paneel. Graafikud toetavad hiirt, puudutust ja klaviatuuri ning arvestavad vähendatud animatsioonide eelistusega.
+
+Vajalikud on migratsioon `202610070003_store_analytics.sql` ja Edge Function `store-analytics` (`verify_jwt = false`). Paigalda need enne brauserirakenduse avaldamist. Funktsioon kasutab olemasolevaid `SUPABASE_URL`, `POERUUM_SUPABASE_SECRET_KEY` ja `RATE_LIMIT_SALT` saladusi. `merchant_store_analytics(store_id, 7|30)` kontrollib poe omanikku; anonüümne kasutaja ega teise poe omanik aruannet lugeda ei saa. Sündmuste tabel ei ole brauserist loetav.
+
+Avalik pood saadab külastuse ja iga vaadatud toote kohta ühe sündmuse külastuse jooksul. Tunnus säilib ainult lehe mälus; uuesti laadimine, 30 minutit tegevusetust või Eesti kuupäeva vahetumine alustab uut külastust. Sisselogitud kasutajad, kaupmehe eelvaated ning tootmise vastu töötav kohalik arendus jäävad mõõtmisest välja. Salvestatakse kindel allikakategooria, mitte viitaja URL või kampaaniatekst. Server kontrollib avaldatud poe ja HTTPS-päritolu vastavust (alamdomeen või aktiivne oma domeen), sündmuse sisu ja toote kuulumist poodi ning eemaldab kordused. Päringupiirang on 120 päringut minutis IP-räsi kohta, kuni 20 sündmust / 16 KiB.
+
+Päevad lähtuvad Eesti ajast. Mõõtmiseelseid külastusi kuvatakse teadmata väärtusena ja võrdlus ilmub alles piisava ajaloo kogunemisel. Tellimused ning müük kasutavad pärisrežiimi tasutud Stripe'i makseid; tagastused vähendavad müüki ja täielikult tagastatud tellimused jäetakse tellimuste arvust välja. Müügisumma sisaldab tarnet. `poeruum-store-analytics-retention` kustutab iga päev kell 03:25 UTC üle 180 Eesti kalendripäeva vanused ning omanikuta poodide sündmused. SQL-kontrollid asuvad failis `scripts/test-store-analytics.sql`, brauserikontrollid failis `e2e/store-analytics.e2e.ts`.
+
+Migratsioon ja funktsioon paigaldati tootmises 7. oktoobril 2026. Kontrolliti migratsiooni registrit, õigusi, aktiivset säilitustähtaja ajastajat ning Urgitsi omaniku 7 ja 30 päeva aruandeid kirjutusteta tehingus. Võõra omaniku päring lükati tagasi. Avalik API kinnitas CORS-i (`204`), vigase sisendi (`400`), tundmatu poe ja ebaturvalise päritolu tõrjumise (`403`) ning anonüümse aruandepäringu keelu (`401`). Kontroll ei lisanud külastussündmusi. Avalikel poodidel algab külastuste kogumine brauserirakenduse muudatuse avaldamisel; kohalik statistika saab juba serverist aruannet lugeda.
+
 ## Admini visuaalne külastatavuse ülevaade
 
 `/admin/analytics` kasutab olemasolevaid `admin_homepage_analytics` ja `admin_homepage_engagement` aruandeid. Ühes töölauavaates on 7/30/90 päeva trend, mõõdetud külastajate huvi, uute kontode hetkeseisud, allikad/poe loomise nupud/KKK ning seadmed. Pikemad selgitused ja jaotused avanevad klõpsates. Graafik toetab hiirt, puudutust ja klaviatuuri; null ning mõõtmata väärtus on erinevad olekud. Konto edenemise osakaalud arvutatakse perioodi uutest kontodest, mitte anonüümsetest külastustest. Neid ei esitata inimese kaupa jälgitava konversioonilehtrina.

@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="et">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Poe statistika test</title></head>
+  <body><script type="module">
+    import { mountStoreAnalyticsHarness } from './store-analytics-harness.tsx'
+    const merchant = new URLSearchParams(location.search).get('merchant') !== 'false'
+    history.replaceState(null, '', '/?from=kaubamaja')
+    mountStoreAnalyticsHarness(merchant)
+  </script></body>
+</html>
