@@ -224,6 +224,195 @@ async function installAttractionData(page: Page) {
   }
 }
 
+async function installTrafficData(page: Page) {
+  let mode: 'ready' | 'zero' | 'unmeasured' | 'error' = 'ready'
+  let added = 0
+  const ranges: number[] = []
+  const dailyCounts = [14, 21, 18, 16, 22, 7, 9, 24, 20, 26, 31, 13, 12, 28, 36, 32, 27, 18, 22, 34, 30, 39, 28, 19, 23, 41, 35, 31, 45, 57]
+  await page.route('**/rpc/admin_homepage_analytics', (route) => {
+    const days = route.request().postDataJSON().requested_days
+    ranges.push(days)
+    if (mode === 'error') return route.fulfill({ status: 503, json: { message: 'Unavailable' } })
+    const daily = Array.from({ length: days }, (_, i) => ({ date: new Date(now - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10), sessions: mode === 'zero' ? 0 : dailyCounts[i % 30] + (i === days - 1 ? added : 0), signup_starts: mode === 'zero' ? 0 : i % 3, accounts_created: mode === 'zero' ? 0 : i % 5 === 0 ? 1 : 0 }))
+    const sessions = daily.reduce((sum, row) => sum + row.sessions, 0)
+    return route.fulfill({ json: { range_days: days, daily, sessions, anonymous_sessions: Math.max(0, sessions - 56), merchant_sessions: mode === 'zero' ? 0 : 56,
+      signup_starts: mode === 'zero' ? 0 : 25, tracked_accounts: 4, accounts_created: mode === 'zero' ? 0 : 6, stores_started: mode === 'zero' ? 0 : 5, payments_connected: mode === 'zero' ? 0 : 2, stores_published: mode === 'zero' ? 0 : 1, demo_opens: mode === 'zero' ? 0 : 7, pricing_views: mode === 'zero' ? 0 : 18,
+      devices: mode === 'zero' ? [] : [{ device: 'mobile', sessions: 464 }, { device: 'desktop', sessions: 240 }, { device: 'tablet', sessions: 20 }],
+      ctas: mode === 'zero' ? [] : [{ label: 'hero', sessions: 17 }, { label: 'nav', sessions: 6 }, { label: 'pricing_fixed', sessions: 2 }],
+      faqs: mode === 'zero' ? [] : [{ label: 'pricing', sessions: 12 }, { label: 'payments', sessions: 8 }, { label: 'shipping', sessions: 3 }],
+    } })
+  })
+  await page.route('**/rpc/admin_homepage_engagement', (route) => {
+    const empty = mode === 'zero' || mode === 'unmeasured'
+    return route.fulfill({ json: { measured_sessions: empty ? 0 : 724, engaged_sessions: empty ? 0 : 138, average_engaged_seconds: empty ? 0 : 16,
+      engagement_buckets: empty ? [] : [{ bucket: 'under_10', sessions: 586 }, { bucket: '10_29', sessions: 80 }, { bucket: '30_119', sessions: 45 }, { bucket: '120_plus', sessions: 13 }],
+      sources: mode === 'zero' ? [] : ['google.com', 'Otse', 'facebook.com', 'instagram.com', 'uudiskiri', 'bing.com'].map((source, i) => ({ source, sessions: [330, 180, 92, 72, 30, 20][i], measured_sessions: empty ? 0 : 20, engaged_sessions: empty ? 0 : 5, average_engaged_seconds: empty ? 0 : 12 + i * 5 })),
+    } })
+  })
+  return { ranges, total: dailyCounts.reduce((sum, count) => sum + count, 0), setAdded: (n: number) => { added = n }, setMode: (next: typeof mode) => { mode = next } }
+}
+
+test('visual traffic dashboard shows real metrics, explores charts, and reveals definitions on demand', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installTrafficData(page)
+  await page.goto('/admin/analytics')
+  await expect(page.locator('.traffic-hero__headline > strong')).toHaveText(String(backend.total))
+  await expect(page.getByRole('button', { name: 'Vähemalt 10 sekundit aktiivsed: 19,1%' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Keskmine aktiivne aeg: 16 s' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Neist avaldatud poega kontod: 1, 16,7%' })).toBeVisible()
+  await expect(page.locator('.traffic-ranking > button')).toHaveCount(4)
+  await expect(page.getByRole('button', { name: 'Mobiil: 64,1%' })).toBeVisible()
+  // No explanatory paragraphs compete with the charts in the main view.
+  await expect(page.locator('.traffic-dashboard p')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Kontode edenemise selgitus' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toHaveAccessibleName('Uute kontode edenemine')
+  await expect(dialog).toContainText('ei tõenda sammude läbimise järjekorda')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Kontode edenemise selgitus' })).toBeFocused()
+  const metricPicker = page.getByRole('group', { name: 'Trendi näitaja' })
+  await metricPicker.getByRole('button', { name: 'Alustamised' }).click()
+  await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('25')
+  const chart = page.getByRole('slider', { name: 'Alustamised päevade kaupa' })
+  await chart.focus()
+  await page.keyboard.press('Home')
+  await expect(chart).toHaveAttribute('aria-valuetext', '2. sept: 0 alustamised')
+  await page.keyboard.press('ArrowRight')
+  await expect(chart).toHaveAttribute('aria-valuetext', '3. sept: 1 alustamised')
+  await page.getByRole('group', { name: 'Jaotuse valik' }).getByRole('button', { name: 'Küsimused' }).click()
+  await expect(page.locator('.traffic-ranking__name').first()).toHaveText('Hind')
+  await page.getByRole('button', { name: 'Hind: 12, 52,2%' }).click()
+  await expect(dialog).toContainText('Üks sessioon võib avada mitu küsimust')
+  await dialog.getByRole('button', { name: 'Sulge üksikasjad' }).click()
+  await page.getByRole('group', { name: 'Jaotuse valik' }).getByRole('button', { name: 'Alustamised' }).click()
+  await expect(page.locator('.traffic-ranking__name').first()).toHaveText('Avalehe algus')
+  await page.getByRole('group', { name: 'Ajavahemik' }).getByRole('button', { name: '90 päeva' }).click()
+  await expect(chart).toHaveAttribute('aria-valuemax', '90')
+  expect(backend.ranges.at(-1)).toBe(90)
+})
+
+test('visual traffic dashboard refreshes on events and preserves a stale snapshot on failure', async ({ page }) => {
+  const realtime = await installBackend(page)
+  const backend = await installTrafficData(page)
+  await page.goto('/admin/analytics')
+  const headline = page.locator('.traffic-hero__headline > strong')
+  await expect(headline).toHaveText(String(backend.total))
+  await expect(page.getByRole('button', { name: 'Reaalajaühendus aktiivne Uuenda andmeid' })).toBeVisible()
+  await page.clock.runFor(350)
+  const baseline = backend.ranges.length
+  backend.setAdded(1)
+  for (let i = 0; i < 5; i++) realtime.emit('admin_homepage_refresh')
+  await page.clock.runFor(250)
+  await expect(headline).toHaveText(String(backend.total + 1))
+  expect(backend.ranges.length).toBe(baseline + 1)
+  await expect(page.locator('.traffic-hero .visit-feedback__badge')).toHaveText('+1 uus külastus')
+  backend.setMode('error')
+  realtime.emit('admin_homepage_refresh')
+  await page.clock.runFor(250)
+  await expect(page.getByRole('button', { name: /Värskendamine ebaõnnestus/ })).toBeVisible()
+  await expect(headline).toHaveText(String(backend.total + 1))
+  backend.setMode('ready')
+  backend.setAdded(2)
+  realtime.disconnect()
+  await page.clock.runFor(2500)
+  await expect(headline).toHaveText(String(backend.total + 2))
+  await expect(page.getByRole('button', { name: 'Reaalajaühendus aktiivne Uuenda andmeid' })).toBeVisible()
+})
+
+test('visual traffic dashboard distinguishes zero, unmeasured engagement, and failed requests', async ({ page }) => {
+  const realtime = await installBackend(page)
+  const backend = await installTrafficData(page)
+  backend.setMode('error')
+  await page.goto('/admin/analytics')
+  await expect(page.getByRole('alert')).toContainText('Andmed pole saadaval')
+  await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('—')
+  backend.setMode('unmeasured')
+  await page.getByRole('button', { name: 'Proovi uuesti', exact: true }).click()
+  await expect(page.locator('.traffic-hero__headline > strong')).toHaveText(String(backend.total))
+  await expect(page.getByRole('button', { name: 'Vähemalt 10 sekundit aktiivsed: —' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Keskmine aktiivne aeg: teadmata' })).toBeVisible()
+  await expect(page.locator('.traffic-ring__value')).toHaveCount(0)
+  backend.setMode('zero')
+  await page.clock.runFor(350)
+  realtime.emit('admin_homepage_refresh')
+  await page.clock.runFor(250)
+  await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('0')
+  await expect(page.locator('.traffic-ring__segment')).toHaveCount(0)
+  await expect(page.getByRole('slider', { name: 'Külastused päevade kaupa' })).toBeVisible()
+  await expect(page.locator('.traffic-chart__line')).not.toHaveAttribute('d', /NaN|Infinity/)
+})
+
+test('visual traffic dashboard catches a realtime event that arrives during an unfinished request', async ({ page }) => {
+  const realtime = await installBackend(page)
+  const backend = await installOverviewData(page)
+  await page.goto('/admin/analytics')
+  const headline = page.locator('.traffic-hero__headline > strong')
+  await expect(headline).toHaveText('465')
+  await page.clock.runFor(350)
+  const initialRequests = backend.requestedRanges.length
+  const release = backend.holdResponse()
+  backend.setAdded(1)
+  realtime.emit('admin_homepage_refresh')
+  await page.clock.runFor(250)
+  await expect.poll(() => backend.requestedRanges.length).toBe(initialRequests + 1)
+  backend.setAdded(2)
+  realtime.emit('admin_homepage_refresh')
+  await page.clock.runFor(250)
+  expect(backend.requestedRanges.length).toBe(initialRequests + 1)
+  release()
+  await expect(headline).toHaveText('466')
+  await page.clock.runFor(250)
+  await expect(headline).toHaveText('467')
+  expect(backend.requestedRanges.length).toBe(initialRequests + 2)
+})
+
+test('visual traffic dashboard fits desktop screens with a ninety-day chart and opens keyboard-safe details', async ({ page }) => {
+  await installBackend(page)
+  await installTrafficData(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/admin/analytics')
+  await expect(page.locator('.traffic-ranking > button')).toHaveCount(4)
+  await page.getByRole('group', { name: 'Ajavahemik' }).getByRole('button', { name: '90 päeva' }).click()
+  await expect(page.getByRole('slider')).toHaveAttribute('aria-valuemax', '90')
+  for (const [width, height] of [[1920, 1080], [1440, 900], [1366, 768], [1280, 720], [1024, 768], [1280, 640]]) {
+    await page.setViewportSize({ width, height })
+    const dimensions = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
+      cards: [...document.querySelectorAll('.traffic-card')].map(el => ({ height: el.clientHeight, scroll: el.scrollHeight, bottom: el.getBoundingClientRect().bottom })),
+    }))
+    expect(dimensions.width).toBeLessThanOrEqual(width)
+    expect(dimensions.height).toBeLessThanOrEqual(height)
+    for (const card of dimensions.cards) { expect(card.scroll).toBeLessThanOrEqual(card.height + 1); expect(card.bottom).toBeLessThanOrEqual(height) }
+    await page.getByRole('button', { name: 'Kuidas andmeid lugeda' }).click()
+    await expect(page.getByRole('dialog')).toBeInViewport()
+    await page.keyboard.press('Tab')
+    expect(await page.evaluate(() => document.querySelector('dialog')!.contains(document.activeElement))).toBe(true)
+    await page.keyboard.press('Escape')
+    await page.screenshot({ path: `output/traffic-desktop-${width}.png`, fullPage: true })
+  }
+})
+
+test.describe('visual traffic on touchscreens', () => {
+  test.use({ hasTouch: true })
+  test('charts, metric switches and disclosures work without horizontal overflow', async ({ page }) => {
+    await installBackend(page)
+    const backend = await installTrafficData(page)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/admin/analytics')
+    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText(String(backend.total))
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 })
+      await page.getByRole('slider').tap()
+      await expect(page.locator('.traffic-chart__readout time')).toBeVisible()
+      await page.getByRole('button', { name: 'Huvi üksikasjad' }).tap()
+      await expect(page.getByRole('dialog')).toContainText('Mõõtmata aeg ei tähenda null sekundit')
+      await page.getByRole('button', { name: 'Sulge üksikasjad' }).tap()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+      await page.screenshot({ path: `output/traffic-mobile-${width}.png`, fullPage: true })
+    }
+  })
+})
+
 test('store attraction shows actual clicks and CTR, supports selection, and switches periods', async ({ page }) => {
   await installBackend(page)
   await installOverviewData(page)
@@ -463,7 +652,7 @@ test('new accounts and simultaneous visits retain distinct visual badges', async
   backend.setAdded(0)
   backend.setAddedAccounts(5)
   await page.clock.fastForward(15_000)
-  await expect(page.locator('.admin-analytics__funnel .visit-feedback__badge')).toHaveText('+1 uus konto')
+  await expect(page.locator('.traffic-stages .visit-feedback__badge')).toHaveText('+1 uus konto')
   backend.setAddedAccounts(0)
   await page.clock.fastForward(15_000)
   await expect(accountBadge).toHaveCount(0)
@@ -508,20 +697,22 @@ test('homepage analytics refreshes silently without overlapping requests and rec
   const chart = page.getByRole('slider', { name: 'Külastused päevade kaupa' })
   const headline = page.locator('.overview-traffic__headline > strong')
   await expect(headline).toHaveText('465')
+  await page.clock.runFor(350)
+  const initialRequests = backend.requestedRanges.length
   await chart.focus()
   await page.keyboard.press('End')
   backend.setAdded(5)
   backend.setAddedAccounts(5)
   const release = backend.holdResponse()
   await page.clock.fastForward(15_000)
-  await expect.poll(() => backend.requestedRanges.length).toBe(2)
+  await expect.poll(() => backend.requestedRanges.length).toBe(initialRequests + 1)
   await expect(headline).toHaveText('465')
   await expect(chart).toBeFocused()
   await expect(page.getByRole('region', { name: 'Avalehe külastatavus' })).toHaveAttribute('aria-busy', 'false')
   await expect(page.getByRole('group', { name: 'Külastatavuse periood', exact: true }).getByRole('button', { name: '7 p', exact: true })).toBeEnabled()
   await page.clock.fastForward(15_000)
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
-  expect(backend.requestedRanges).toEqual([30, 30])
+  expect(backend.requestedRanges.length).toBe(initialRequests + 1)
   release()
   await expect(headline).toHaveText('470')
   await expect(chart).toBeFocused()
@@ -531,7 +722,7 @@ test('homepage analytics refreshes silently without overlapping requests and rec
 
   backend.setMode('error')
   await page.clock.fastForward(15_000)
-  await expect.poll(() => backend.requestedRanges.length).toBe(3)
+  await expect.poll(() => backend.requestedRanges.length).toBe(initialRequests + 2)
   await expect(headline).toHaveText('470')
   await expect(chart).toBeVisible()
   await expect(page.getByText('Graafik pole praegu saadaval')).toHaveCount(0)
@@ -546,12 +737,14 @@ test('homepage analytics pauses while hidden, offline or in another view and ref
   const backend = await installOverviewData(page)
   await page.goto('/admin')
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
+  await page.clock.runFor(350)
+  const initialRequests = backend.requestedRanges.length
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
     document.dispatchEvent(new Event('visibilitychange'))
   })
   await page.clock.fastForward(45_000)
-  expect(backend.requestedRanges).toEqual([30])
+  expect(backend.requestedRanges.length).toBe(initialRequests)
   backend.setAdded(1)
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
@@ -560,7 +753,7 @@ test('homepage analytics pauses while hidden, offline or in another view and ref
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('466')
   await page.evaluate(() => Object.defineProperty(navigator, 'onLine', { configurable: true, value: false }))
   await page.clock.fastForward(30_000)
-  expect(backend.requestedRanges).toEqual([30, 30])
+  expect(backend.requestedRanges.length).toBe(initialRequests + 1)
   backend.setAdded(2)
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
@@ -570,7 +763,7 @@ test('homepage analytics pauses while hidden, offline or in another view and ref
   await page.getByRole('link', { name: 'Kasutajad', exact: true }).click()
   await expect(page.locator('.admin-user-row')).toHaveCount(9)
   await page.clock.fastForward(30_000)
-  expect(backend.requestedRanges).toEqual([30, 30, 30])
+  expect(backend.requestedRanges.length).toBe(initialRequests + 2)
   backend.setAdded(3)
   await page.getByRole('link', { name: 'Ülevaade', exact: true }).click()
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('468')
@@ -584,24 +777,26 @@ test('homepage analytics ignores an older background response after changing per
   const backend = await installOverviewData(page)
   await page.goto('/admin')
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('465')
+  await page.clock.runFor(350)
+  const initialRequests = backend.requestedRanges.length
   const release = backend.holdResponse()
   await page.clock.fastForward(15_000)
-  await expect.poll(() => backend.requestedRanges.length).toBe(2)
+  await expect.poll(() => backend.requestedRanges.length).toBe(initialRequests + 1)
   await page.getByRole('group', { name: 'Külastatavuse periood', exact: true }).getByRole('button', { name: '7 p', exact: true }).click()
-  await expect.poll(() => backend.requestedRanges).toEqual([30, 30, 7])
+  await expect.poll(() => backend.requestedRanges.at(-1)).toBe(7)
   release()
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('28')
   backend.setAdded(1)
   await page.clock.fastForward(15_000)
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('29')
-  expect(backend.requestedRanges).toEqual([30, 30, 7, 7])
+  expect(backend.requestedRanges.slice(backend.requestedRanges.indexOf(7)).every((days) => days === 7)).toBe(true)
   await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
   backend.setAdded(2)
   await page.clock.fastForward(15_000)
-  await expect(page.locator('.admin-analytics__kpis article').first().locator('strong')).toHaveText('30')
+  await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('30')
   backend.setAdded(3)
-  await page.getByRole('button', { name: 'Uuenda andmeid' }).click()
-  await expect(page.locator('.admin-analytics__kpis article').first().locator('strong')).toHaveText('31')
+  await page.getByRole('button', { name: /Uuenda andmeid/ }).click()
+  await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('31')
 })
 
 test('homepage analytics retries an initial error in the background', async ({ page }) => {
@@ -642,7 +837,7 @@ test('dashboard charts inspect real daily values, switch metrics and request the
   await expect(starts).toHaveAttribute('aria-valuetext', '1. okt: 2 alustamised')
   await page.getByRole('group', { name: 'Külastatavuse periood', exact: true }).getByRole('button', { name: '7 p', exact: true }).click()
   await expect(starts).toHaveAttribute('aria-valuemax', '7')
-  expect(backend.requestedRanges).toEqual([30, 7])
+  expect([...new Set(backend.requestedRanges)]).toEqual([30, 7])
   await page.getByRole('button', { name: 'Külastused', exact: false }).click()
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('28')
   await expect(page.locator('.overview-income__amount')).toHaveText('375,40 €')
@@ -653,7 +848,7 @@ test('dashboard charts inspect real daily values, switch metrics and request the
   await expect(page.locator('.overview-receipts')).toContainText('+7,80 €')
   await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
   await expect(page).toHaveURL(/\/admin\/analytics$/)
-  await expect(page.getByRole('combobox', { name: 'Ajavahemik' })).toHaveValue('7')
+  await expect(page.getByRole('group', { name: 'Ajavahemik' }).getByRole('button', { name: '7 päeva' })).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('revenue keeps amounts and receipts visible during background refreshes', async ({ page }) => {

@@ -1,0 +1,179 @@
+.traffic-dashboard { --traffic-lilac: #c3b1ed; --traffic-blue: #9ed8e4; display: flex; flex-direction: column; gap: .9rem; min-width: 0; }
+.traffic-dashboard *, .traffic-dashboard *::before, .traffic-dashboard *::after, .traffic-dialog * { box-sizing: border-box; }
+.traffic-dashboard svg, .traffic-dialog svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.traffic-dashboard button, .traffic-dialog button { color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.traffic-dashboard button { border: 0; background: transparent; }
+.traffic-topbar { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 1rem; min-height: 2.75rem; }
+.traffic-topbar h1 { margin: 0; font: 600 clamp(1.45rem, 2.1vw, 2rem)/1.15 Manrope, sans-serif; letter-spacing: -.055em; }
+.traffic-topbar__actions { display: flex; align-items: center; gap: .45rem; }
+.traffic-range { display: flex; gap: .15rem; padding: .2rem; border: 1px solid var(--admin-line); border-radius: 99px; }
+.traffic-range button { min-height: 2rem; min-width: 3rem; padding: .35rem .7rem; border-radius: 99px; color: var(--admin-muted); font-size: .75rem; font-weight: 650; transition: background 180ms, color 180ms; }
+.traffic-range button[aria-pressed="true"] { background: var(--admin-accent); color: var(--admin-accent-ink); }
+.traffic-icon-button { display: grid; flex-shrink: 0; place-items: center; width: 2rem; height: 2rem; padding: .4rem; border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--admin-muted); }
+.traffic-icon-button:hover { background: var(--admin-raised); color: var(--admin-ink); }
+.traffic-topbar .traffic-icon-button { width: 2.4rem; height: 2.4rem; }
+.traffic-connection.is-live { color: var(--admin-accent); }
+.traffic-connection.is-stale { color: var(--admin-warning); }
+.traffic-connection.is-loading { animation: traffic-loading 1.5s ease-in-out infinite; }
+.traffic-grid { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: minmax(21rem, 1.1fr) minmax(19rem, 1fr); gap: .9rem; }
+.traffic-card { display: flex; position: relative; min-width: 0; min-height: 0; flex-direction: column; padding: clamp(1rem, 1.4vw, 1.5rem); border: 1px solid var(--admin-line); border-radius: 1.35rem; background: var(--admin-surface); }
+.traffic-card > header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: .6rem; min-height: 2rem; }
+.traffic-card h2 { margin: 0; font: 600 1rem/1.3 Manrope, sans-serif; letter-spacing: -.035em; }
+.traffic-card > header > .traffic-icon-button { color: var(--admin-subtle); }
+.traffic-tabs { display: flex; flex-shrink: 0; align-items: center; gap: .2rem; }
+.traffic-tabs button { display: grid; place-items: center; width: 2rem; height: 2rem; padding: .45rem; border-radius: .65rem; color: var(--admin-subtle); transition: color 180ms, background 180ms; }
+.traffic-tabs button[aria-pressed="true"] { background: color-mix(in srgb, var(--traffic-color, var(--admin-accent)) 13%, transparent); color: var(--traffic-color, var(--admin-accent)); }
+.traffic-tabs button:hover { background: var(--admin-raised); color: var(--admin-ink); }
+.traffic-hero { grid-column: span 8; background: radial-gradient(ellipse at 65% 85%, #d0f57807, transparent 70%), var(--admin-surface); transition: border-color 250ms, box-shadow 250ms; }
+.traffic-hero.has-new-visits { border-color: var(--admin-positive); box-shadow: 0 0 0 3px #d0f57818; }
+.traffic-hero__headline { display: flex; flex-shrink: 0; align-items: center; gap: .65rem; padding-top: .2rem; }
+.traffic-hero__headline > strong { font: 500 clamp(3rem, 6.6vh, 5.3rem)/1.08 Manrope, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.07em; }
+.traffic-hero__headline > .traffic-icon-button { margin-left: auto; border: 1px solid var(--admin-line); }
+.traffic-chart { display: flex; flex: 1; min-height: 0; flex-direction: column; padding-top: .15rem; }
+.traffic-chart__readout { display: flex; flex-shrink: 0; align-items: center; gap: .6rem; height: 1.45rem; color: var(--admin-subtle); font-size: .7rem; }
+.traffic-chart__readout b { color: var(--traffic-color); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.traffic-chart__readout > span:first-child { display: none; }
+.traffic-chart__readout > span:last-child { margin-left: auto; }
+.traffic-chart__plot { position: relative; flex: 1; min-height: 3rem; margin: 0 .35rem 0 2.2rem; cursor: crosshair; touch-action: pan-y; }
+.traffic-chart__plot > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; stroke: none; }
+.traffic-chart__grid { position: absolute; inset: 6.25% 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+.traffic-chart__grid span { position: relative; height: 1px; background: var(--admin-line-soft); text-indent: -2.2rem; color: var(--admin-subtle); font: 400 .65rem/0 Manrope, sans-serif; font-variant-numeric: tabular-nums; }
+.traffic-chart__line { filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--traffic-color) 18%, transparent)); }
+.traffic-chart__cursor { position: absolute; inset-block: 0; width: 1px; background: var(--admin-muted); opacity: .5; pointer-events: none; }
+.traffic-chart__point { position: absolute; z-index: 1; width: .6rem; height: .6rem; border: 2px solid var(--admin-surface); border-radius: 50%; background: var(--traffic-color); box-shadow: 0 0 0 .25rem color-mix(in srgb, var(--traffic-color) 15%, transparent); transform: translate(-50%, -50%); pointer-events: none; }
+.traffic-chart.is-arriving .traffic-chart__point { animation: traffic-arrival 900ms ease-out; }
+.traffic-chart__dates { display: flex; flex-shrink: 0; justify-content: space-between; gap: .5rem; margin: .2rem .35rem .45rem 2.2rem; color: var(--admin-subtle); font-size: .65rem; }
+.traffic-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex-shrink: 0; gap: .5rem; padding-top: .55rem; border-top: 1px solid var(--admin-line-soft); }
+.traffic-totals button { display: flex; min-width: 0; align-items: center; gap: .4rem; padding: .3rem .4rem; border-radius: .5rem; color: var(--admin-muted); text-align: left; }
+.traffic-totals button:hover, .traffic-totals button[aria-pressed="true"] { background: var(--admin-raised); color: var(--admin-ink); }
+.traffic-totals i { flex-shrink: 0; width: .35rem; height: .35rem; border-radius: 50%; background: var(--traffic-color); }
+.traffic-totals span { font-size: .7rem; }
+.traffic-totals b { margin-left: auto; font: 550 1.05rem Manrope, sans-serif; font-variant-numeric: tabular-nums; }
+.traffic-engagement { grid-column: span 4; background: radial-gradient(ellipse at 25% 45%, #d0f57808, transparent 70%), var(--admin-surface); }
+.traffic-engagement__body { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; gap: clamp(.6rem, 1.5vw, 2rem); }
+.traffic-ring { position: relative; display: block; flex-shrink: 0; aspect-ratio: 1; padding: 0; border-radius: 50%; }
+.traffic-ring > svg { display: block; width: 100%; height: 100%; stroke-width: 13; }
+.traffic-ring__track { stroke: var(--admin-line-soft); }
+.traffic-ring__value { stroke: var(--admin-accent); stroke-linecap: round; transition: stroke-dasharray 650ms cubic-bezier(.2, .8, .2, 1); }
+.traffic-ring__segment { stroke-linecap: butt; transition: stroke-dasharray 650ms, stroke-dashoffset 650ms; }
+.traffic-ring > span { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem; }
+.traffic-ring strong { font: 500 clamp(1.5rem, 2.4vw, 2.8rem)/1.15 Manrope, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.06em; }
+.traffic-ring small { color: var(--admin-muted); font-size: .75rem; }
+.traffic-ring--engagement { width: min(60%, 23vh, 15rem); }
+.traffic-time { display: flex; min-width: 0; align-items: flex-start; flex-direction: column; gap: .55rem; padding: .5rem 0; text-align: left; }
+.traffic-time > svg { color: var(--admin-accent); }
+.traffic-time strong { font: 500 clamp(1.4rem, 2.25vw, 2.5rem)/1.15 Manrope, sans-serif; letter-spacing: -.055em; }
+.traffic-time span { color: var(--admin-muted); font-size: .7rem; }
+.traffic-duration { flex-shrink: 0; width: 100%; padding: .5rem 0 0; text-align: left; }
+.traffic-duration__bar { display: flex; height: .45rem; gap: 2px; overflow: hidden; border-radius: 99px; background: var(--admin-line-soft); }
+.traffic-duration__bar > i { height: 100%; border-radius: 99px; transition: width 650ms ease; }
+.traffic-duration__legend { display: grid; grid-template-columns: repeat(4, 1fr); gap: .3rem; margin-top: .7rem; }
+.traffic-duration__legend > span { display: flex; align-items: center; gap: .3rem; color: var(--admin-muted); font-size: .6rem; white-space: nowrap; }
+.traffic-duration__legend i { flex-shrink: 0; width: .3rem; height: .3rem; border-radius: 50%; }
+.traffic-activation { grid-column: span 5; }
+.traffic-activation__headline { display: flex; align-items: center; gap: .65rem; margin-top: .2rem; }
+.traffic-activation__headline > span:first-child { display: flex; align-items: center; gap: .45rem; color: var(--admin-accent); }
+.traffic-activation__headline strong { font: 500 clamp(1.7rem, 3.7vh, 2.7rem)/1.15 Manrope, sans-serif; letter-spacing: -.05em; }
+.traffic-activation__headline > span:last-child { color: var(--admin-muted); font-size: .7rem; }
+.traffic-stages { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; margin-top: .8rem; }
+.traffic-stages > button { position: relative; display: flex; min-height: 0; flex-direction: column; align-items: center; gap: .25rem; padding: 0; border-radius: .65rem; }
+.traffic-stages__track { display: flex; position: relative; flex: 1; width: 100%; min-height: 2rem; align-items: flex-end; justify-content: center; border: 1px solid color-mix(in srgb, var(--traffic-color) 13%, transparent); border-radius: .65rem; background: color-mix(in srgb, var(--traffic-color) 3%, transparent); }
+.traffic-stages__track i { position: absolute; inset: auto 0 0; border-top: 2px solid var(--traffic-color); border-radius: .6rem; background: linear-gradient(180deg, color-mix(in srgb, var(--traffic-color) 26%, transparent), color-mix(in srgb, var(--traffic-color) 6%, transparent)); transition: height 650ms cubic-bezier(.2, .8, .2, 1); }
+.traffic-stages__track i[style*="height: 0%"] { border: 0; }
+.traffic-stages__track svg { position: relative; width: 1.25rem; height: 1.25rem; margin-block: .6rem; color: var(--traffic-color); }
+.traffic-stages > button:hover .traffic-stages__track { background: color-mix(in srgb, var(--traffic-color) 10%, transparent); }
+.traffic-stages > button > strong { font: 500 clamp(1.5rem, 3.3vh, 2.5rem)/1.15 Manrope, sans-serif; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+.traffic-stages__label { color: var(--admin-muted); font-size: .7rem; }
+.traffic-stages .visit-feedback__badge { position: absolute; top: -.5rem; right: -.4rem; z-index: 1; }
+.traffic-stages .has-new-accounts .traffic-stages__track { box-shadow: 0 0 0 3px #9ed8e422; }
+.traffic-acquisition { grid-column: span 4; }
+.traffic-ranking { display: flex; flex: 1; min-height: 0; flex-direction: column; justify-content: center; margin-top: .4rem; }
+.traffic-ranking > button { display: grid; position: relative; flex: 1; min-height: 0; grid-template-columns: 1.4rem minmax(0, 1fr) auto; align-content: center; align-items: center; gap: .35rem .55rem; padding: .4rem 0; text-align: left; }
+.traffic-ranking__position { color: var(--admin-subtle); font-size: .65rem; font-variant-numeric: tabular-nums; opacity: .7; }
+.traffic-ranking__name { overflow: hidden; color: var(--admin-muted); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.traffic-ranking b { font: 550 1rem/1.2 Manrope, sans-serif; font-variant-numeric: tabular-nums; }
+.traffic-ranking__bar { grid-column: 2 / -1; height: .25rem; border-radius: 9px; background: var(--admin-line-soft); }
+.traffic-ranking__bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #738f53, var(--admin-accent)); transition: width 650ms ease; }
+.traffic-ranking > button:hover .traffic-ranking__name { color: var(--admin-ink); }
+.traffic-more { display: flex; flex-shrink: 0; align-items: center; align-self: flex-end; gap: .4rem; min-height: 1.4rem; padding: 0; color: var(--admin-subtle); font-size: .7rem !important; }
+.traffic-more svg { width: 1rem; height: 1rem; }
+.traffic-devices { grid-column: span 3; }
+.traffic-devices__body { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; gap: .55rem; }
+.traffic-ring--devices { width: min(67%, 19vh, 12rem); }
+.traffic-ring--devices strong { font-size: clamp(1.25rem, 1.6vw, 2rem); }
+.traffic-ring--devices > span > svg { width: 1.2rem; height: 1.2rem; color: var(--admin-muted); margin-bottom: .3rem; }
+.traffic-device-picker { display: grid; flex: 1; gap: .5rem; }
+.traffic-device-picker > button { display: flex; align-items: center; gap: .4rem; min-height: 2rem; padding: .3rem; border-radius: .5rem; color: var(--admin-muted); }
+.traffic-device-picker > button[aria-pressed="true"] { color: var(--traffic-color); background: color-mix(in srgb, var(--traffic-color) 8%, transparent); }
+.traffic-device-picker svg { width: 1rem; height: 1rem; }
+.traffic-device-picker b { font-size: .75rem; font-weight: 550; font-variant-numeric: tabular-nums; }
+.traffic-discovery { display: grid; flex-shrink: 0; grid-template-columns: 1fr 1fr; gap: .5rem; padding-top: .65rem; border-top: 1px solid var(--admin-line-soft); }
+.traffic-discovery button { display: flex; align-items: center; gap: .5rem; padding: .1rem .3rem; color: var(--admin-muted); }
+.traffic-discovery button + button { border-left: 1px solid var(--admin-line-soft); padding-left: .8rem; }
+.traffic-discovery strong { font: 550 1.1rem Manrope, sans-serif; color: var(--admin-ink); }
+.traffic-empty { display: flex; flex: 1; min-height: 4rem; align-items: center; justify-content: center; gap: .5rem; color: var(--admin-subtle); }
+.traffic-error { display: flex; flex-shrink: 0; align-items: center; gap: .65rem; padding: .4rem .7rem; border: 1px solid var(--admin-warning-line); border-radius: .65rem; color: var(--admin-warning); font-size: .8rem; }
+.traffic-error .traffic-icon-button { margin-left: auto; }
+.traffic-grid.is-pending .traffic-card { opacity: .65; }
+.traffic-dialog { width: min(32rem, calc(100vw - 2rem)); max-height: min(80dvh, 44rem); margin: auto; padding: 0; overflow-y: auto; border: 1px solid var(--admin-line); border-radius: 1.3rem; background: var(--admin-bg); color: var(--admin-ink); box-shadow: 0 1.5rem 6rem #0005; }
+.traffic-dialog::backdrop { background: #07100c99; backdrop-filter: blur(6px); }
+.traffic-dialog > header { display: flex; position: sticky; z-index: 1; top: 0; align-items: center; justify-content: space-between; gap: .7rem; padding: 1.1rem 1.25rem; background: var(--admin-bg); border-bottom: 1px solid var(--admin-line-soft); }
+.traffic-dialog h2 { margin: 0; font: 600 1.1rem Manrope, sans-serif; letter-spacing: -.035em; }
+.traffic-dialog__body { padding: .4rem 1.25rem 1.2rem; }
+.traffic-dialog p { margin: .8rem 0 0; color: var(--admin-muted); font-size: .8rem; line-height: 1.65; }
+.traffic-dialog dl { margin: 0; }
+.traffic-dialog dl > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 0; border-bottom: 1px solid var(--admin-line-soft); font-size: .85rem; }
+.traffic-dialog dt { min-width: 0; overflow-wrap: anywhere; color: var(--admin-muted); }
+.traffic-dialog dd { flex-shrink: 0; margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+.traffic-dialog small { display: block; margin-top: .2rem; color: var(--admin-subtle); font-size: .7rem; }
+.traffic-dialog__number { display: block; margin-top: 1rem; font: 500 3.5rem Manrope, sans-serif; letter-spacing: -.06em; }
+.traffic-dialog :is(button, a):focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
+@keyframes traffic-loading { 50% { opacity: .3; } }
+@keyframes traffic-arrival { 0% { box-shadow: 0 0 0 .6rem #d0f57855; } 100% { box-shadow: 0 0 0 .25rem #d0f57822; } }
+@media (min-width: 1001px) and (min-height: 640px) {
+  .admin-shell .admin-main--analytics { height: 100dvh; padding-block: 1rem; }
+  .admin-main--analytics .traffic-dashboard { height: 100%; }
+  .traffic-grid { grid-template-rows: minmax(0, 1.1fr) minmax(0, 1fr); }
+}
+@media (max-width: 1150px) and (min-width: 1001px) {
+  .traffic-card { padding: .9rem; }
+  .traffic-activation { grid-column: span 4; }
+  .traffic-devices { grid-column: span 4; }
+  .traffic-duration__legend { gap: .15rem; }
+  .traffic-duration__legend > span { font-size: .55rem; }
+  .traffic-duration__legend i { display: none; }
+}
+@media (max-width: 1000px) {
+  .traffic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 23rem 19rem 19rem; }
+  .traffic-hero { grid-column: 1 / -1; }
+  .traffic-engagement, .traffic-activation, .traffic-acquisition, .traffic-devices { grid-column: span 1; }
+  .traffic-ring--engagement, .traffic-ring--devices { width: min(60%, 10rem); }
+}
+@media (max-width: 680px) {
+  .traffic-dashboard { gap: .7rem; }
+  .traffic-topbar { align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .traffic-topbar h1 { font-size: 1.45rem; }
+  .traffic-topbar__actions { gap: .1rem; }
+  .traffic-topbar .traffic-icon-button { width: 2rem; height: 2rem; }
+  .traffic-range button { min-width: 2.4rem; min-height: 2rem; padding-inline: .4rem; }
+  .traffic-range button span { display: none; }
+  .traffic-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 21rem 16rem 18rem 18rem 16rem; gap: .7rem; }
+  .traffic-card { grid-column: 1; border-radius: 1.1rem; padding: 1rem; }
+  .traffic-card h2 { font-size: .95rem; }
+  .traffic-hero__headline > strong { font-size: 3.3rem; }
+  .traffic-totals { gap: .15rem; }
+  .traffic-totals button { flex-wrap: wrap; gap: .25rem; padding-inline: .2rem; }
+  .traffic-totals span { font-size: .65rem; }
+  .traffic-totals b { width: 100%; padding-left: .6rem; font-size: 1.05rem; }
+  .traffic-ring strong { font-size: 1.8rem; }
+  .traffic-engagement__body { gap: 1.5rem; }
+  .traffic-time strong { font-size: 1.8rem; }
+  .traffic-stages { gap: .5rem; }
+  .traffic-stages > button > strong { font-size: 1.7rem; }
+  .traffic-ring--devices { width: 8rem; }
+  .traffic-devices__body { gap: 1rem; }
+  .traffic-device-picker { flex: 0 1 6rem; }
+  .traffic-duration__legend > span { font-size: .6rem; }
+  .traffic-dialog > header, .traffic-dialog__body { padding-inline: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) { .traffic-dashboard *, .traffic-dialog * { animation: none !important; transition: none !important; } }

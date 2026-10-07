@@ -1,5 +1,15 @@
 # Supabase'i käivitamine
 
+## Admini visuaalne külastatavuse ülevaade
+
+`/admin/analytics` kasutab olemasolevaid `admin_homepage_analytics` ja `admin_homepage_engagement` aruandeid. Ühes töölauavaates on 7/30/90 päeva trend, mõõdetud külastajate huvi, uute kontode hetkeseisud, allikad/poe loomise nupud/KKK ning seadmed. Pikemad selgitused ja jaotused avanevad klõpsates. Graafik toetab hiirt, puudutust ja klaviatuuri; null ning mõõtmata väärtus on erinevad olekud. Konto edenemise osakaalud arvutatakse perioodi uutest kontodest, mitte anonüümsetest külastustest. Neid ei esitata inimese kaupa jälgitava konversioonilehtrina.
+
+Migratsioon `202610070002_homepage_analytics_realtime.sql` lisab administraatorile loetava `admin_homepage_refresh` loenduri Realtime'i publikatsiooni. Avalehe sündmuse lisandumine/kustutamine, aktiivse aja tegelik muutus ning olemasolev kontode/poodide värskendussignaal käivitavad koondaruande uuesti lugemise. Korduv sündmus või muutumatu aktiivne aeg ei tekita uut signaali. Külastajate algandmeid ei avaldata. Brauser koondab lähestikused sündmused, väldib kattuvaid päringuid, kontrollib päringu ajal saabunud signaale uuesti ning taastab ühendamisel vahepealsed muutused. 15 sekundi kontroll jääb taastumiseks ja kalendriakna uuendamiseks.
+
+`scripts/test-homepage-realtime.sql` kontrollib lokaalses tagasipööratavas tehingus sündmusi, kumulatiivse aktiivse aja korduskatseid, kontode signaali, publikatsiooni ja administraatori õigusi. Brauseritestid failis `e2e/admin-users.e2e.ts` kontrollivad perioode, graafikut, reaalaja taastumist, puutekasutust, modaali fookust ning kerimiseta töölauapaigutust alates 1280 × 640 ja 1024 × 768. Paigalda migratsioon enne brauserirakenduse muudatust.
+
+Migratsioon paigaldati tootmises 7. oktoobril 2026. Kontrolliti migratsiooni registrit, nelja päästikut, Realtime'i publikatsiooni ja RLS-i; algandmete tabel ei ole publikatsioonis. Uus visuaalne vaade vajab brauserirakenduse muudatuse avaldamist.
+
 ## Kaubamaja avalehe tootevalik
 
 Avaleht kuvab enne poeloendit kuni kaheksa päris toodet olemasolevast `storefront_seo_catalog()` kataloogist. Valik võtab admini määratud poodide järjekorras igast poest ühe toote korraga ning jätkab järgmise ringiga, kuni kaheksa kohta on täis või sobivad tooted otsas. Kuvatakse ainult avalikud, pildi ja hinnaga tooted, mille laoseis ei ole 0. Puuduv laopiirang ja nullhind on lubatud. Kaupmehe tootemuudatused kajastuvad automaatselt; eraldi sisestamist ega andmebaasimuudatust pole vaja.

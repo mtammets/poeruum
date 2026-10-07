@@ -19,12 +19,12 @@ import { applySeoMetadata } from './lib/seo'
 import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 import AdminUsers from './AdminUsers'
 import AdminOverview from './AdminOverview'
+import AdminAnalytics from './AdminAnalytics'
 import useHomepageVisitFeedback from './useHomepageVisitFeedback'
 import useAdminPush from './useAdminPush'
 import AdminSettings from './AdminSettings'
 import { disableAdminPush } from './lib/adminPush'
-import { VisitBadge, VisitNumber } from './VisitFeedback'
-import type { RevenueEvent, RevenueDashboard, AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard, AnalyticsEngagementBucket } from './lib/adminDashboard'
+import type { RevenueEvent, RevenueDashboard, AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard } from './lib/adminDashboard'
 import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
 
 const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
@@ -151,57 +151,6 @@ const formatDate = (value: string | null) => value
   ? new Intl.DateTimeFormat('et-EE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value))
   : '—'
 
-const formatPercent = (value: number, total: number) => total
-  ? `${new Intl.NumberFormat('et-EE', { maximumFractionDigits: 1 }).format(value / total * 100)}%`
-  : '0%'
-
-const formatDuration = (value: number) => {
-  const seconds = Math.max(0, Math.round(value))
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  if (!minutes) return `${remainingSeconds} s`
-  if (!remainingSeconds) return `${minutes} min`
-  return `${minutes} min ${remainingSeconds} s`
-}
-
-const analyticsCtaLabels: Record<string, string> = {
-  hero: 'Hero „Alusta tasuta“',
-  nav: 'Menüü „Loo pood“',
-  mobile_nav: 'Mobiilimenüü „Loo pood“',
-  pricing_flexible: 'Paindlik pakett',
-  pricing_fixed: 'Kindel pakett',
-}
-
-const analyticsFaqLabels: Record<string, string> = {
-  pricing: 'Kui palju Poeruum maksab?',
-  plan_features: 'Kas paketid erinevad?',
-  requirements: 'Mida vajan poe avamiseks?',
-  payments: 'Kuidas kliendid maksta saavad?',
-  shipping: 'Milliseid tarneviise saab kasutada?',
-  custom_domain: 'Kas saan kasutada oma domeeni?',
-  google: 'Kas pood on Google’is leitav?',
-  mobile_setup: 'Kas poe saab telefonis valmis teha?',
-  buyer_account: 'Kas ostjal peab olema konto?',
-  order_notice: 'Kuidas saan tellimusest teada?',
-  refunds: 'Kas saan makse tagastada?',
-  design: 'Kui palju saan kujundust muuta?',
-  change_plan: 'Kas saan paketti vahetada?',
-  support: 'Kust saan abi?',
-}
-
-const analyticsDeviceLabels: Record<string, string> = {
-  mobile: 'Mobiil',
-  tablet: 'Tahvel',
-  desktop: 'Arvuti',
-}
-
-const analyticsEngagementBucketLabels: Record<AnalyticsEngagementBucket['bucket'], string> = {
-  under_10: 'Alla 10 sekundi',
-  '10_29': '10–29 sekundit',
-  '30_119': '30 sekundit – 2 minutit',
-  '120_plus': 'Vähemalt 2 minutit',
-}
-
 const formatRelativeTime = (value: string | null) => {
   if (!value) return 'Pole aktiivne olnud'
   const elapsed = Date.now() - new Date(value).getTime()
@@ -319,6 +268,8 @@ export default function AdminApp() {
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>(30)
   const [homepageAnalytics, setHomepageAnalytics] = useState<HomepageAnalyticsDashboard>(emptyHomepageAnalytics)
   const [analyticsError, setAnalyticsError] = useState('')
+  const [analyticsStale, setAnalyticsStale] = useState(false)
+  const [analyticsLive, setAnalyticsLive] = useState(false)
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true)
   const [analyticsRefreshRevision, setAnalyticsRefreshRevision] = useState(0)
   const loadedAnalyticsRef = useRef<{ userId: string; range: AnalyticsRange } | null>(null)
@@ -453,14 +404,26 @@ export default function AdminApp() {
     if (!session || !adminAccessGranted || !analyticsViewActive) return
     let active = true
     let inFlight = false
+    let queued = false
+    let refreshTimer: number | undefined
     const controller = new AbortController()
     const client = requireSupabase()
     const range = analyticsRange
     let hasData = loadedAnalyticsRef.current?.userId === session.user.id && loadedAnalyticsRef.current.range === range
     setIsAnalyticsLoading(!hasData)
+    setAnalyticsLive(false)
+    setAnalyticsStale(false)
+    if (!hasData) setAnalyticsError('')
 
     const refresh = async () => {
-      if (!active || inFlight || document.visibilityState !== 'visible' || !navigator.onLine) return
+      if (!active || inFlight || document.visibilityState !== 'visible') return
+      if (!navigator.onLine) {
+        setAnalyticsLive(false)
+        setAnalyticsStale(true)
+        setIsAnalyticsLoading(false)
+        if (!hasData) setAnalyticsError('Külastatavuse laadimiseks on vaja võrguühendust.')
+        return
+      }
       inFlight = true
       try {
         const [analyticsResponse, engagementResponse] = await Promise.all([
@@ -512,28 +475,52 @@ export default function AdminApp() {
         loadedAnalyticsRef.current = { userId: session.user.id, range }
         hasData = true
         setAnalyticsError('')
+        setAnalyticsStale(false)
       } catch {
         // Keep the last successful chart during a temporary background failure.
         if (active && !hasData) setAnalyticsError('Külastatavuse andmeid ei õnnestunud laadida. Proovime peagi uuesti.')
+        if (active) setAnalyticsStale(true)
       } finally {
         inFlight = false
         if (active) setIsAnalyticsLoading(false)
+        if (active && queued) { queued = false; schedule() }
       }
     }
 
+    const schedule = () => {
+      if (refreshTimer !== undefined) return
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined
+        if (inFlight) queued = true
+        else void refresh()
+      }, 150)
+    }
+    const channel = client.channel(`admin-homepage-${session.user.id}-${range}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'admin_homepage_refresh' }, schedule)
+      .subscribe((status) => {
+        if (!active) return
+        setAnalyticsLive(status === 'SUBSCRIBED')
+        // Catch anything committed before the subscription was acknowledged.
+        if (status === 'SUBSCRIBED') schedule()
+      })
     void refresh()
     const timer = window.setInterval(() => { void refresh() }, 15_000)
     const refreshVisible = () => { void refresh() }
     document.addEventListener('visibilitychange', refreshVisible)
     window.addEventListener('focus', refreshVisible)
     window.addEventListener('online', refreshVisible)
+    const onOffline = () => { setAnalyticsLive(false); setAnalyticsStale(true) }
+    window.addEventListener('offline', onOffline)
     return () => {
       active = false
       controller.abort()
       window.clearInterval(timer)
+      window.clearTimeout(refreshTimer)
       document.removeEventListener('visibilitychange', refreshVisible)
       window.removeEventListener('focus', refreshVisible)
       window.removeEventListener('online', refreshVisible)
+      window.removeEventListener('offline', onOffline)
+      void client.removeChannel(channel)
     }
   }, [session?.user.id, adminAccessGranted, analyticsViewActive, analyticsRange, analyticsRefreshRevision])
 
@@ -879,18 +866,6 @@ export default function AdminApp() {
     || seoDraft.social_title !== seoSettings.social_title
     || seoDraft.social_description !== seoSettings.social_description
     || seoDraft.search_indexing_enabled !== seoSettings.search_indexing_enabled
-  const analyticsMaxDailyValue = Math.max(
-    1,
-    ...homepageAnalytics.daily.flatMap((point) => [point.sessions, point.signup_starts, point.accounts_created]),
-  )
-  const analyticsFunnelSteps = [
-    { label: 'Avalehe külastus', detail: 'Lehesessioonid', value: homepageAnalytics.sessions },
-    { label: 'Poe loomise algus', detail: 'CTA vajutajad', value: homepageAnalytics.signup_starts },
-    { label: 'Konto loodud', detail: 'Uued kontod', value: homepageAnalytics.accounts_created, notice: visitFeedback.accountNotice },
-    { label: 'Pood seadistamisel', detail: 'Poe andmed loodud', value: homepageAnalytics.stores_started },
-    { label: 'Maksed ühendatud', detail: 'Stripe valmis', value: homepageAnalytics.payments_connected },
-    { label: 'Pood avaldatud', detail: 'Valmis poed', value: homepageAnalytics.stores_published },
-  ]
 
   return <main className={`admin-shell${activeView === 'users' ? ' admin-shell--users' : ''}`}>
     <aside className="admin-sidebar">
@@ -911,8 +886,8 @@ export default function AdminApp() {
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><a className="admin-sidebar__settings" href="/admin/settings" aria-label="Seaded" title="Seaded" aria-current={activeView === 'settings' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'settings')}><AdminIcon name="settings" /></a><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
     </aside>
 
-    <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : activeView === 'overview' ? ' admin-main--overview' : ''}`}>
-      {activeView !== 'users' && activeView !== 'overview' && activeView !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && activeView !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
+    <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : activeView === 'overview' ? ' admin-main--overview' : activeView === 'analytics' ? ' admin-main--analytics' : ''}`}>
+      {activeView !== 'users' && activeView !== 'overview' && activeView !== 'analytics' && activeView !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && activeView !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
@@ -1091,97 +1066,10 @@ export default function AdminApp() {
           onNavigate={navigateToView}
         />}
 
-        {activeView === 'analytics' && <section className="admin-analytics">
-          <header className="admin-analytics__header">
-            <div><span>AVALEHT → AVALDATUD POOD</span><h2>Konversioon ja külastajate tegevus</h2><p>Anonüümne koondvaade; lehesessioone ei seota kasutajakontodega.</p></div>
-            <div className="admin-analytics__controls"><label><span>Ajavahemik</span><select value={analyticsRange} onChange={(event) => {
-              const range = Number(event.target.value) as AnalyticsRange
-              setAnalyticsRange(range)
-            }} disabled={isAnalyticsLoading}>
-              <option value={7}>7 päeva</option>
-              <option value={30}>30 päeva</option>
-              <option value={90}>90 päeva</option>
-            </select></label></div>
-          </header>
-
-          {analyticsError ? <div className="admin-analytics__error" role="alert">{analyticsError}</div> : <>
-            <div className="admin-analytics__kpis" aria-label="Külastatavuse kokkuvõte">
-              <article className={visitFeedback.notice ? 'has-new-visits' : undefined}><span>KÜLASTUSED</span><div className="admin-analytics__visit-total"><strong><VisitNumber value={new Intl.NumberFormat('et-EE').format(homepageAnalytics.sessions)} notice={visitFeedback.notice} /></strong><VisitBadge notice={visitFeedback.notice} /></div><small>{homepageAnalytics.anonymous_sessions} anonüümset · {homepageAnalytics.merchant_sessions} kaupmehe sessiooni</small></article>
-              <article><span>KESKMINE AKTIIVNE AEG</span><strong>{homepageAnalytics.measured_sessions ? formatDuration(homepageAnalytics.average_engaged_seconds) : '—'}</strong><small>{homepageAnalytics.measured_sessions} mõõdetud sessiooni · ainult nähtaval ja fookuses olnud aeg</small></article>
-              <article><span>KAASATUD KÜLASTUSED</span><strong>{formatPercent(homepageAnalytics.engaged_sessions, homepageAnalytics.measured_sessions)}</strong><small>{homepageAnalytics.engaged_sessions} / {homepageAnalytics.measured_sessions} mõõdetud sessiooni vähemalt 10 sekundit</small></article>
-              <article><span>POE LOOMISE ALGUS</span><strong>{homepageAnalytics.signup_starts}</strong><small>{formatPercent(homepageAnalytics.signup_starts, homepageAnalytics.sessions)} külastustest</small></article>
-              <article><span>NÄIDISPOE AVAMISED</span><strong>{homepageAnalytics.demo_opens}</strong><small>{formatPercent(homepageAnalytics.demo_opens, homepageAnalytics.sessions)} külastustest</small></article>
-              <article><span>AVALDATUD POED</span><strong>{homepageAnalytics.stores_published}</strong><small>{formatPercent(homepageAnalytics.stores_published, homepageAnalytics.accounts_created)} perioodi uutest kontodest</small></article>
-            </div>
-
-            <section className="admin-analytics__funnel">
-              <header><div><span>KONVERSIOONILEHTER</span><h3>Külastusest avaldatud poeni</h3></div><small>Konto ja poe sammud kasutavad olemasolevaid adminiandmeid.</small></header>
-              <div>
-                {analyticsFunnelSteps.map((step, index) => {
-                  const previous = analyticsFunnelSteps[index - 1]?.value ?? step.value
-                  const width = homepageAnalytics.sessions ? Math.min(100, Math.max(4, step.value / homepageAnalytics.sessions * 100)) : 0
-                  return <article key={step.label} className={step.notice ? 'has-new-accounts' : undefined}>
-                    <span><i>{index + 1}</i><span><strong>{step.label}</strong><small>{step.detail}</small></span></span>
-                    <div><i style={{ width: `${width}%` }} /></div>
-                    <b><VisitNumber value={String(step.value)} notice={step.notice ?? null} /><VisitBadge notice={step.notice ?? null} /><small>{index ? formatPercent(step.value, previous) : '100%'}</small></b>
-                  </article>
-                })}
-              </div>
-              <p>Lehtri esimesed sammud on anonüümsed sündmused. Konto ja poe sammud näitavad samal ajavahemikul loodud kontode praegust seisu, mitte üksikisiku jälitamist.</p>
-            </section>
-
-            <section className="admin-analytics__trend">
-              <header><div><span>PÄEVANE TREND</span><h3>Külastused ja aktiveerumine</h3></div><div className="admin-analytics__legend"><span><i className="is-session" />Külastused</span><span><i className="is-start" />Poe loomise algus</span><span><i className="is-account" />Kontod</span></div></header>
-              <div className="admin-analytics__chart-scroll">
-                <div className="admin-analytics__chart" style={{ minWidth: `${Math.max(32, homepageAnalytics.daily.length * 1.35)}rem` }}>
-                  {homepageAnalytics.daily.map((point, index) => <article key={point.date} title={`${formatDate(point.date)}: ${point.sessions} külastust, ${point.signup_starts} alustamist, ${point.accounts_created} kontot`}>
-                    <div>
-                      <i className="is-session" style={{ height: `${point.sessions / analyticsMaxDailyValue * 100}%` }} />
-                      <i className="is-start" style={{ height: `${point.signup_starts / analyticsMaxDailyValue * 100}%` }} />
-                      <i className="is-account" style={{ height: `${point.accounts_created / analyticsMaxDailyValue * 100}%` }} />
-                    </div>
-                    {(index === 0 || index === homepageAnalytics.daily.length - 1 || (homepageAnalytics.daily.length <= 30 && index % 7 === 0)) && <time dateTime={point.date}>{new Intl.DateTimeFormat('et-EE', { day: 'numeric', month: 'short' }).format(new Date(`${point.date}T12:00:00Z`))}</time>}
-                  </article>)}
-                </div>
-              </div>
-            </section>
-
-            <div className="admin-analytics__breakdowns">
-              <section>
-                <header><div><span>LIIKLUSE ALLIKAD</span><h3>Kust külastajad tulid?</h3></div><small>Keskmine aktiivne aeg allika kohta</small></header>
-                <div className="admin-analytics__rows">
-                  {homepageAnalytics.sources.length ? homepageAnalytics.sources.map((row) => <article key={row.source}><span><strong>{row.source}</strong><i><b style={{ width: `${homepageAnalytics.sessions ? Math.min(100, row.sessions / homepageAnalytics.sessions * 100) : 0}%` }} /></i></span><b>{row.measured_sessions ? formatDuration(row.average_engaged_seconds) : '—'}<small>{row.sessions} sessiooni · {formatPercent(row.engaged_sessions, row.measured_sessions)} kaasatud</small></b></article>) : <p>Allikaid veel pole.</p>}
-                </div>
-              </section>
-              <section>
-                <header><div><span>AKTIIVSE AJA JAOTUS</span><h3>Kui kauaks avalehele jäädi?</h3></div></header>
-                <div className="admin-analytics__rows">
-                  {homepageAnalytics.measured_sessions ? homepageAnalytics.engagement_buckets.map((row) => <article key={row.bucket}><span><strong>{analyticsEngagementBucketLabels[row.bucket]}</strong><i><b style={{ width: `${Math.min(100, row.sessions / homepageAnalytics.measured_sessions * 100)}%` }} /></i></span><b>{row.sessions}<small>{formatPercent(row.sessions, homepageAnalytics.measured_sessions)}</small></b></article>) : <p>Aktiivse aja andmeid veel pole.</p>}
-                </div>
-              </section>
-              <section>
-                <header><div><span>CTA-D</span><h3>Mis pani poe loomist alustama?</h3></div></header>
-                <div className="admin-analytics__rows">
-                  {homepageAnalytics.ctas.length ? homepageAnalytics.ctas.map((row) => <article key={row.label}><span><strong>{analyticsCtaLabels[row.label] ?? row.label}</strong><i><b style={{ width: `${homepageAnalytics.signup_starts ? Math.min(100, row.sessions / homepageAnalytics.signup_starts * 100) : 0}%` }} /></i></span><b>{row.sessions}<small>{formatPercent(row.sessions, homepageAnalytics.signup_starts)}</small></b></article>) : <p>CTA vajutusi veel pole.</p>}
-                </div>
-              </section>
-              <section>
-                <header><div><span>SEADMED</span><h3>Kuidas avalehte vaadati?</h3></div></header>
-                <div className="admin-analytics__device-grid">
-                  {homepageAnalytics.devices.length ? homepageAnalytics.devices.map((row) => <article key={row.device}><strong>{analyticsDeviceLabels[row.device] ?? row.device}</strong><b>{row.sessions}</b><small>{formatPercent(row.sessions, homepageAnalytics.sessions)}</small></article>) : <p>Seadmete andmeid veel pole.</p>}
-                </div>
-              </section>
-              <section>
-                <header><div><span>KKK</span><h3>Millised küsimused huvitasid?</h3></div></header>
-                <div className="admin-analytics__rows">
-                  {homepageAnalytics.faqs.length ? homepageAnalytics.faqs.map((row) => <article key={row.label}><span><strong>{analyticsFaqLabels[row.label] ?? row.label}</strong></span><b>{row.sessions}</b></article>) : <p>KKK avamisi veel pole.</p>}
-                </div>
-              </section>
-            </div>
-
-            <footer className="admin-analytics__privacy">Avalehe sündmused kogunevad alates analüütika kasutuselevõtust; varasemaid külastusi tagasiulatuvalt ei lisata. Aktiivne aeg suureneb ainult siis, kui avaleht on nähtav ja brauseriaknal on fookus, ning ühe sessiooni ülempiir on 30 minutit. Toorandmed kustutatakse 90 päeva järel. Sessioonitunnus tekib juhuslikult lehe avamisel, püsib ainult brauseri mälus ning seda ei seota konto, e-posti ega IP-aadressiga.</footer>
-          </>}
-        </section>}
+        {activeView === 'analytics' && <AdminAnalytics data={homepageAnalytics} range={analyticsRange}
+          loading={isAnalyticsLoading} error={analyticsError} stale={analyticsStale} live={analyticsLive}
+          feedback={visitFeedback} onRangeChange={setAnalyticsRange}
+          onRefresh={() => setAnalyticsRefreshRevision((value) => value + 1)} />}
 
         {activeView === 'support' && <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />}
 

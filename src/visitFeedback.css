@@ -1,26 +1,23 @@
 .overview-traffic__controls { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
-.overview-traffic, .admin-analytics__kpis article { transition: border-color 220ms, box-shadow 220ms; }
-.overview-traffic.has-new-visits, .admin-analytics__kpis article.has-new-visits { border-color: var(--admin-positive); box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent) 28%, transparent); }
+.overview-traffic, .traffic-hero { transition: border-color 220ms, box-shadow 220ms; }
+.overview-traffic.has-new-visits, .traffic-hero.has-new-visits { border-color: var(--admin-positive); box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent) 28%, transparent); }
 .overview-traffic.has-new-accounts { border-color: #9ed8e4; box-shadow: 0 0 0 3px #9ed8e430; }
-.overview-metrics button.has-new-accounts, .admin-analytics__funnel article.has-new-accounts { border-color: #9ed8e4; background: #9ed8e413; }
+.overview-metrics button.has-new-accounts, .traffic-stages > button.has-new-accounts { border-color: #9ed8e4; background: #9ed8e413; }
 .overview-metrics__value { display: inline-flex; align-items: center; gap: .4rem; }
 .visit-feedback__number { display: inline-block; color: inherit; font: inherit; letter-spacing: inherit; font-variant-numeric: tabular-nums; }
 .visit-feedback__number[data-kind="account"] { --feedback-color: #9ed8e4; }
 .visit-feedback__number.is-new { animation: visit-number-arrive 650ms cubic-bezier(.16, 1, .3, 1); }
 .overview-traffic .visit-feedback__badge, .admin-analytics .visit-feedback__badge { display: inline-flex; flex-shrink: 0; align-items: center; padding: .3rem .6rem; border-radius: 999px; background: var(--admin-accent); color: var(--admin-accent-ink); font: 750 .85rem/1.3 Manrope, sans-serif; letter-spacing: 0; white-space: nowrap; animation: visit-badge-arrive 400ms ease-out; }
 .overview-traffic .visit-feedback__badge[data-kind="account"], .admin-analytics .visit-feedback__badge[data-kind="account"] { background: #9ed8e4; color: #173a42; }
-.overview-metrics .visit-feedback__badge, .admin-analytics__funnel .visit-feedback__badge { padding: .2rem .4rem; font-size: .7rem; }
-.admin-analytics__kpis .visit-feedback__number { color: inherit; font: inherit; letter-spacing: inherit; }
-.admin-analytics__visit-total { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
-.admin-analytics__header .admin-analytics__controls { display: flex; align-items: flex-end; flex-wrap: wrap; justify-content: flex-end; gap: .75rem; }
+.overview-metrics .visit-feedback__badge, .traffic-stages .visit-feedback__badge { padding: .2rem .4rem; font-size: .7rem; }
+.traffic-hero .visit-feedback__number { color: inherit; font: inherit; letter-spacing: inherit; }
 @keyframes visit-number-arrive { 0% { color: var(--feedback-color, var(--admin-positive)); transform: translateY(.12em) scale(.94); } 45% { color: var(--feedback-color, var(--admin-positive)); transform: translateY(-.03em) scale(1.04); } 100% { transform: none; } }
 @keyframes visit-badge-arrive { from { opacity: 0; transform: translateY(.4rem); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .visit-feedback__number.is-new, .visit-feedback__badge { animation: none !important; }
-  .overview-traffic, .admin-analytics__kpis article { transition: none; }
+  .overview-traffic, .traffic-hero { transition: none; }
 }
 @media (max-width: 680px) {
   .overview-traffic__controls { gap: .4rem; }
   .overview-traffic__headline { flex-wrap: wrap; }
-  .admin-analytics__header .admin-analytics__controls { gap: .4rem; }
 }
