@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'users' | 'store' | 'sales' | 'alert' | 'message' | 'check' | 'clock' | 'minus' | 'flask' | 'help' | 'search' | 'arrow' | 'close' | 'filter' | 'chevron' | 'card' | 'truck' | 'box' | 'mail' | 'shield' | 'pulse' | 'info'
+export type IconName = 'users' | 'store' | 'sales' | 'alert' | 'message' | 'check' | 'clock' | 'minus' | 'flask' | 'help' | 'search' | 'arrow' | 'close' | 'filter' | 'chevron' | 'card' | 'truck' | 'box' | 'mail' | 'shield' | 'pulse' | 'info' | 'eye' | 'cursor' | 'percent' | 'refresh'
 export default function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
     users: <><circle cx="9" cy="8" r="3" /><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M21 20v-2a6 6 0 0 0-3-5" /></>,
@@ -24,6 +24,10 @@ export default function Icon({ name }: { name: IconName }) {
     shield: <><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z" /><path d="m8 12 3 3 5-6" /></>,
     pulse: <path d="M2 12h5l3-8 4 16 3-8h5" />,
     info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></>,
+    eye: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
+    cursor: <path d="m5 3 15 9-7 1-3 7L5 3Z" />,
+    percent: <><path d="m5 19 14-14" /><circle cx="7" cy="7" r="2" /><circle cx="17" cy="17" r="2" /></>,
+    refresh: <><path d="M20 7v5h-5M4 17v-5h5M5 8a8 8 0 0 1 13-3l2 3M4 16l2 3a8 8 0 0 0 13-3" /></>,
     chevron: <path d="m9 5 7 7-7 7" />,
   }
   return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>

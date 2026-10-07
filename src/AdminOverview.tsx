@@ -1,5 +1,6 @@
 import { useId, useState, type CSSProperties, type MouseEvent } from 'react'
-import AdminUserIcon, { type IconName } from './AdminUserIcon'
+import AdminUserIcon from './AdminUserIcon'
+import AdminStoreAttraction from './AdminStoreAttraction'
 import type { AdminUserRow } from './lib/adminUserOverview'
 import type { AnalyticsDailyPoint, AnalyticsRange, HomepageAnalyticsDashboard, RevenueDashboard } from './lib/adminDashboard'
 import type { HomepageVisitFeedback } from './useHomepageVisitFeedback'
@@ -10,7 +11,6 @@ type OverviewDestination = 'users' | 'analytics' | 'support'
 type Props = {
   rows: AdminUserRow[]
   usersLoading: boolean
-  onlineCount: number | null
   revenue: RevenueDashboard
   revenueError: string
   revenueLoading: boolean
@@ -36,14 +36,22 @@ const metrics = [
 ] as const
 type Metric = typeof metrics[number]['key']
 
-const setupSteps: { key: keyof AdminUserRow; label: string; icon: IconName }[] = [
-  { key: 'has_store_details', label: 'Poe andmed', icon: 'store' },
-  { key: 'has_business_details', label: 'Müüja andmed', icon: 'shield' },
-  { key: 'has_delivery', label: 'Tarne', icon: 'truck' },
-  { key: 'has_product', label: 'Tooted', icon: 'box' },
-  { key: 'has_payments', label: 'Maksed', icon: 'card' },
-  { key: 'has_published', label: 'Avaldatud', icon: 'check' },
-]
+function UserCount({ count }: { count: number | null }) {
+  const hintId = useId()
+  const [hintOpen, setHintOpen] = useState(false)
+  return <div className="overview-donut__total"
+    onMouseEnter={() => setHintOpen(true)}
+    onMouseLeave={(event) => { if (!event.currentTarget.contains(document.activeElement)) setHintOpen(false) }}>
+    <button type="button" aria-label={count === null ? 'Laen kasutajate arvu' : `Kasutajaid kokku: ${number.format(count)}`} aria-describedby={hintOpen ? hintId : undefined}
+      onFocus={() => setHintOpen(true)} onBlur={() => setHintOpen(false)}
+      onClick={() => setHintOpen(true)}
+      onKeyDown={(event) => { if (event.key === 'Escape') setHintOpen(false) }}>
+      <AdminUserIcon name="users" />
+      <strong aria-hidden="true">{count === null ? '—' : number.format(count)}</strong>
+    </button>
+    {hintOpen && <span className="overview-donut__hint" id={hintId} role="tooltip">Registreeritud kasutajad kokku</span>}
+  </div>
+}
 
 function DailyChart({ daily, metric }: { daily: AnalyticsDailyPoint[]; metric: typeof metrics[number] }) {
   const gradientId = useId()
@@ -106,7 +114,7 @@ function DailyChart({ daily, metric }: { daily: AnalyticsDailyPoint[]; metric: t
   </div>
 }
 
-export default function AdminOverview({ rows, usersLoading, onlineCount, revenue, revenueError, revenueLoading, liveRevenueEventId, analytics, analyticsError, analyticsLoading, visitFeedback, range, onRangeChange, onNavigate }: Props) {
+export default function AdminOverview({ rows, usersLoading, revenue, revenueError, revenueLoading, liveRevenueEventId, analytics, analyticsError, analyticsLoading, visitFeedback, range, onRangeChange, onNavigate }: Props) {
   const [metricKey, setMetricKey] = useState<Metric>('sessions')
   const metric = metrics.find((item) => item.key === metricKey)!
   const metricNotice = (key: Metric) => key === 'sessions' ? visitFeedback.notice : key === 'accounts_created' ? visitFeedback.accountNotice : null
@@ -167,23 +175,14 @@ export default function AdminOverview({ rows, usersLoading, onlineCount, revenue
             return state.value > 0 && <circle key={state.label} cx="110" cy="110" r="88" pathLength="100" fill="none" stroke={state.color} strokeDasharray={`${Math.max(.1, share - 1.3)} ${100 - Math.max(.1, share - 1.3)}`} strokeDashoffset={-offset} transform="rotate(-90 110 110)" />
           })}
         </svg>
-        <div><strong>{usersKnown ? number.format(rows.length) : '—'}</strong><span>kasutajat</span>{onlineCount !== null && <small><i />{onlineCount} ühendatud</small>}</div>
+        <div className="overview-donut__center">
+          <UserCount count={usersKnown ? rows.length : null} />
+        </div>
       </div>
       <ul className="overview-stores__legend">{states.map((state) => <li key={state.label}><span><i style={{ background: state.color }} />{state.label}</span><strong>{usersKnown ? number.format(state.value) : '—'}</strong></li>)}</ul>
     </section>
 
-    <section className="overview-panel overview-setup" aria-label="Poodide seadistus" aria-busy={usersLoading}>
-      <header className="overview-panel__header"><h2>Valmis avamiseks</h2><span>{usersKnown ? rows.length : '—'} kontot</span></header>
-      <div className="overview-setup__steps">{setupSteps.map((step) => {
-        const count = rows.filter((row) => row[step.key]).length
-        const percent = rows.length ? count / rows.length * 100 : 0
-        return <div className="overview-setup__step" key={step.key}>
-          <span className="overview-setup__icon"><AdminUserIcon name={step.icon} /></span>
-          <div><span>{step.label}</span><div className="overview-setup__track" role="meter" aria-label={step.label} aria-valuenow={usersKnown ? count : 0} aria-valuemin={0} aria-valuemax={rows.length || 1} aria-valuetext={usersKnown ? `${count} / ${rows.length} kontot` : 'Laen'}><i style={{ width: `${usersKnown ? percent : 0}%` }} /></div></div>
-          <strong>{usersKnown ? count : '—'}</strong>
-        </div>
-      })}</div>
-    </section>
+    <AdminStoreAttraction />
 
     <section className="overview-panel overview-attention" aria-label="Tähelepanu vajavad kohad" aria-busy={usersLoading}>
       <header className="overview-panel__header"><h2>Tähelepanu</h2><span className={`overview-attention__status${usersKnown && !paymentMissing && !stalled && !conversations ? ' is-clear' : ''}`}><AdminUserIcon name={usersKnown && !paymentMissing && !stalled && !conversations ? 'check' : 'pulse'} /></span></header>

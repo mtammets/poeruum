@@ -1,0 +1,51 @@
+.overview-attraction { position: relative; display: flex; flex-direction: column; grid-column: span 5; align-self: stretch; min-height: 0; }
+.attraction-actions { display: flex; align-items: center; gap: .45rem; }
+.attraction-live { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; padding: .3rem; border: 0; border-radius: 50%; background: transparent; color: var(--admin-muted); cursor: pointer; }
+.attraction-live.is-live { color: var(--admin-accent); }
+.attraction-live.is-error { color: var(--admin-warning); }
+.attraction-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .6rem; }
+.attraction-toolbar .overview-range button { min-width: 2rem; min-height: 1.85rem; padding: .2rem .5rem; font-size: .7rem; }
+.attraction-headline { display: flex; align-items: center; gap: .55rem; }
+.attraction-headline > svg { width: 1rem; height: 1rem; color: var(--admin-muted); }
+.attraction-headline strong { font: 550 2.1rem/1 Manrope, sans-serif; letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+.attraction-trend { display: inline-flex; align-items: center; gap: .25rem; font-size: .7rem; color: var(--admin-muted); font-variant-numeric: tabular-nums; }
+.attraction-trend.is-up { color: var(--admin-accent); }
+.attraction-trend.is-down { color: #e8b6a2; }
+.attraction-trend.is-steady { color: var(--overview-lilac); }
+.attraction-stage { position: relative; flex: 1; min-height: 9rem; height: 12rem; margin-top: .4rem; container-type: size; }
+.attraction-plot { position: absolute; top: 50%; left: 50%; width: min(100cqw, 200cqh); aspect-ratio: 2; transform: translate(-50%, -50%); isolation: isolate; }
+.attraction-bubble { --bubble-color: #aebcac; position: absolute; display: grid; place-items: center; aspect-ratio: 1; container-type: inline-size; padding: 0; border: 0; border-radius: 50%; background: radial-gradient(circle at 35% 25%, color-mix(in srgb, var(--bubble-color) 20%, transparent), color-mix(in srgb, var(--bubble-color) 4%, transparent) 85%); color: var(--bubble-color); transform: translate(-50%, -50%); cursor: pointer; transition: left 350ms ease, top 350ms ease, width 350ms ease, background 180ms, box-shadow 180ms; }
+.attraction-bubble.is-up { --bubble-color: #d2f77f; }
+.attraction-bubble.is-down { --bubble-color: #e8b6a2; }
+.attraction-bubble.is-steady { --bubble-color: #c3b1ed; }
+.attraction-bubble.is-zero { background: transparent; }
+.attraction-bubble[aria-pressed="true"] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--bubble-color) 45%, transparent), 0 0 1.5rem color-mix(in srgb, var(--bubble-color) 8%, transparent); }
+.attraction-bubble:hover { background-color: color-mix(in srgb, var(--bubble-color) 8%, transparent); }
+.admin-overview .attraction-bubble > svg { position: absolute; inset: 0; width: 100%; height: 100%; stroke-width: 1.6; pointer-events: none; }
+.attraction-bubble__track { stroke: color-mix(in srgb, var(--bubble-color) 28%, transparent); }
+.attraction-bubble.is-zero .attraction-bubble__track { stroke-dasharray: 2 5; }
+.attraction-bubble__arc { stroke: var(--bubble-color); stroke-width: 2.7; stroke-linecap: round; transition: stroke-dasharray 350ms ease; }
+.attraction-bubble__content { display: grid; width: 75%; place-items: center; pointer-events: none; }
+.attraction-bubble__content strong { font: 550 clamp(.85rem, 30cqi, 2.5rem)/1 Manrope, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.055em; }
+.attraction-bubble.is-updated { animation: attraction-arrival 1400ms ease-out; }
+.attraction-detail { position: absolute; z-index: 2; bottom: 0; left: 0; right: 0; padding: .65rem .75rem; border: 1px solid var(--admin-line); border-radius: .75rem; background: var(--admin-bg); box-shadow: 0 .4rem 1.5rem #0003; }
+.attraction-detail__heading { display: flex; align-items: center; gap: .5rem; }
+.attraction-detail__heading > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; font-weight: 550; }
+.attraction-detail__heading button { display: grid; flex-shrink: 0; place-items: center; width: 1.5rem; height: 1.5rem; padding: .2rem; border: 0; border-radius: .3rem; color: var(--admin-muted); background: transparent; cursor: pointer; }
+.attraction-detail__metrics { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-top: .35rem; }
+.attraction-detail__metrics > span { display: flex; align-items: center; gap: .4rem; }
+.attraction-detail__metrics svg { width: 1rem; height: 1rem; color: var(--admin-muted); }
+.attraction-detail__metrics b { font: 550 .95rem Manrope, sans-serif; font-variant-numeric: tabular-nums; }
+.attraction-unpublished { position: absolute; right: .5rem; top: -.65rem; color: var(--admin-warning); }
+.attraction-help { align-self: flex-end; position: relative; height: 1.25rem; margin-top: .2rem; }
+.attraction-help summary { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; list-style: none; color: var(--admin-muted); cursor: pointer; }
+.attraction-help summary::-webkit-details-marker { display: none; }
+.admin-overview .attraction-help summary svg { width: .95rem; height: .95rem; }
+.attraction-help > div { position: absolute; z-index: 3; bottom: calc(100% + .5rem); right: 0; width: min(18rem, 74vw); padding: .8rem; border: 1px solid var(--admin-line); border-radius: .75rem; background: var(--admin-bg); box-shadow: 0 .5rem 2rem #0004; }
+.attraction-help p { margin: 0; color: var(--admin-muted); font-size: .72rem; line-height: 1.5; }
+.attraction-help p + p { margin-top: .5rem; }
+.attraction-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: .7rem; color: var(--admin-muted); }
+.attraction-placeholder button { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border: 1px solid var(--admin-line); border-radius: 50%; background: transparent; color: var(--admin-ink); cursor: pointer; }
+@keyframes attraction-arrival { 0%, 25% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--bubble-color) 25%, transparent), 0 0 1.4rem color-mix(in srgb, var(--bubble-color) 20%, transparent); } 100% { box-shadow: none; } }
+@media (max-width: 680px) { .attraction-stage { flex: none; height: 10rem; } .attraction-toolbar .overview-range button { min-height: 2rem; } }
+@media (prefers-reduced-motion: reduce) { .attraction-bubble, .attraction-bubble__arc { transition: none; animation: none; } }

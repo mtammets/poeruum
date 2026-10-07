@@ -16,6 +16,12 @@ Migratsioon rakendati tootmises 20. septembril 2026. Kõigil neljal avalikul poe
 
 ## Kaubamaja statistika
 
+Admini ülevaate **Poodide tõmbejõud** kasutab sama aruannet 7/30/90 päeva lõikes: kuni kaheksa poe mulli suurus näitab poe avamisi, kaar klikimäära ja värv muutust eelmise perioodiga. Nimed ja arvulised detailid avanevad valimisel; puuduv võrdlus või klikimäär ei muutu nulliks. Töölaual (laius vähemalt 1001 px, kõrgus vähemalt 640 px) mahub ülevaade kahte ekraanikõrgusega kohanduvasse ritta.
+
+Migratsioon `202610070001_directory_analytics_realtime.sql` lisab ainult administraatorile loetava `admin_directory_refresh` loenduri Supabase Realtime'i publikatsiooni. Uued poe näitamised, poe/toote avamised ning poodide või mõõtmise alguse muudatused käivitavad aruande uuesti lugemise. Duplikaadid signaali ei anna; sündmuste algandmeid ei avaldata. Brauser koondab lähestikused signaalid, väldib kattuvaid päringuid ning taastab andmed ühenduse või nähtavuse taastumisel. Ühenduse rikke korral kontrollitakse andmeid 15 sekundi järel; tavapärane 60 sekundi kontroll katab ka kalendripäeva vahetuse. SQL-test `scripts/test-directory-realtime.sql` kontrollib signaale, publikatsiooni ja rollide õigusi lokaalses tagasipööratavas tehingus.
+
+Reaalaja migratsioon paigaldati tootmises 7. oktoobril 2026. Kontrolliti migratsiooni registrit, kõiki kolme päästikut, Realtime'i publikatsiooni ja RLS-i. Selle kaardi kasutamiseks tuleb avaldada ka brauserirakenduse muudatus.
+
 Admini `/admin/kaubamaja` vaikimisi sakk on **Statistika**; senine järjestamine asub sakis **Poodide järjekord** (`?view=order`). Sakkide vahetamine säilitab salvestamata järjekorra.
 
 Vajalikud on migratsioon `202609200003_directory_analytics.sql` ja Edge Function `directory-analytics` (`verify_jwt = false`). Paigalda esmalt migratsioon ja funktsioon, seejärel brauserirakendus. Funktsioon kasutab olemasolevaid `SUPABASE_URL`, `POERUUM_SUPABASE_SECRET_KEY` ja `RATE_LIMIT_SALT` saladusi. Avalik sisend lubatakse ainult Kaubamaja päritolult, valideeritakse (kuni 20 sündmust / 16 KiB) ja piiratakse IP-räsi järgi 120 päringuni minutis. Avalik päritolukontroll ei tõenda päris inimese külastust; numbrid on brauseripõhine kasutusstatistika, mitte auditeeritud müügiaruanne.

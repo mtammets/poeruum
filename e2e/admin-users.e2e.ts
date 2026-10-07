@@ -127,6 +127,7 @@ async function installBackend(page: Page) {
     failMetrics: (fail: boolean) => { metricsFail = fail },
     setOnline: (next: string[]) => { onlineIds = next },
     subscriptions,
+    disconnect: () => socket!.close({ code: 1012, reason: 'Test reconnect' }),
     emit: (table: string) => {
       const channel = subscriptions.get(table)!
       socket!.send(JSON.stringify([channel.joinRef, null, channel.topic, 'postgres_changes', {
@@ -184,6 +185,203 @@ async function installOverviewData(page: Page) {
   }
 }
 
+async function installAttractionData(page: Page) {
+  let mode: 'ready' | 'zero' | 'empty' | 'error' = 'ready'
+  let comparison = true
+  let added = 0
+  let pendingResponse: Promise<void> | null = null
+  const ranges: number[] = []
+  const metrics = (clicks: number, impressions: number) => ({ visits: impressions, impressions, store_clicks: clicks, product_clicks: 0, outbound_visits: clicks, searches: 0, empty_searches: 0, average_position: null, ctr: impressions ? clicks / impressions * 100 : null })
+  await page.route('**/rpc/admin_directory_analytics', async (route) => {
+    const days = route.request().postDataJSON().requested_days
+    ranges.push(days)
+    if (mode === 'error') return route.fulfill({ status: 503, json: { message: 'Unavailable' } })
+    const factor = days === 7 ? 1 : 2
+    const shops = [
+      { name: 'Keraamika Stuudio', clicks: 24 + added, previous: 12, impressions: 96 },
+      { name: 'Põhjala Puit', clicks: 8, previous: 16, impressions: 80 },
+      { name: 'Ehtepood', clicks: 4, previous: 4, impressions: 40 },
+      { name: 'Linane', clicks: 0, previous: 2, impressions: 0 },
+    ]
+    const report = {
+      range_days: days, from_date: '2026-09-25', to_date: '2026-10-01', previous_from_date: '2026-09-18', previous_to_date: '2026-09-24',
+      tracking_started_at: '2026-09-01T00:00:00Z', comparison_available: comparison, store: null,
+      current: metrics(mode === 'ready' ? (36 + added) * factor : 0, mode === 'ready' ? 216 * factor : 0), previous: metrics(34, 200), daily: [],
+      stores: mode === 'empty' ? [] : shops.map((store, index) => ({ id: `attraction-${index}`, name: store.name, slug: null, is_published: true, position: index + 1,
+        current: metrics(mode === 'ready' ? store.clicks * factor : 0, mode === 'ready' ? store.impressions * factor : 0), previous: metrics(store.previous, 80) })),
+      sources: [], devices: [], products: [], placements: [],
+    }
+    if (pendingResponse) await pendingResponse
+    return route.fulfill({ json: report })
+  })
+  return {
+    ranges, setMode: (next: typeof mode) => { mode = next }, setComparison: (next: boolean) => { comparison = next }, setAdded: (value: number) => { added = value },
+    holdResponse: () => {
+      let release!: () => void
+      pendingResponse = new Promise<void>((resolve) => { release = resolve })
+      return () => { pendingResponse = null; release() }
+    },
+  }
+}
+
+test('store attraction shows actual clicks and CTR, supports selection, and switches periods', async ({ page }) => {
+  await installBackend(page)
+  await installOverviewData(page)
+  const backend = await installAttractionData(page)
+  await page.goto('/admin')
+  const panel = page.getByRole('region', { name: 'Poodide tõmbejõud' })
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('36')
+  await expect(panel.locator('.attraction-bubble')).toHaveCount(4)
+  await expect(panel.locator('.attraction-detail')).toHaveCount(0)
+  await panel.getByRole('button', { name: /^Keraamika Stuudio:/ }).hover()
+  await expect(panel.locator('.attraction-detail')).toContainText('Keraamika Stuudio')
+  await expect(panel.getByRole('group', { name: 'Klikimäär: 25%', exact: true })).toBeVisible()
+  await expect(panel.locator('.attraction-bubble__arc').first()).toHaveAttribute('stroke-dasharray', '25 100')
+  const puit = panel.getByRole('button', { name: /^Põhjala Puit:/ })
+  await puit.click()
+  await expect(panel.locator('.attraction-detail')).toContainText('Põhjala Puit')
+  await expect(panel.locator('.attraction-detail')).toContainText('−50%')
+  await puit.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(panel.getByRole('button', { name: /^Ehtepood:/ })).toBeFocused()
+  await expect(panel.locator('.attraction-detail')).toContainText('Ehtepood')
+  await page.keyboard.press('Escape')
+  await expect(panel.locator('.attraction-detail')).toHaveCount(0)
+  await panel.getByRole('button', { name: '30 päeva', exact: true }).click()
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('72')
+  expect(backend.ranges).toContain(7)
+  expect(backend.ranges.at(-1)).toBe(30)
+  backend.setComparison(false)
+  await page.clock.fastForward(60_000)
+  await expect(panel.locator('.attraction-trend').first()).toHaveAttribute('aria-label', 'Võrdlus koguneb')
+  await expect(panel.locator('.attraction-trend').first()).toHaveText('—')
+  await expect(panel.locator('.attraction-bubble.is-unknown')).toHaveCount(4)
+  backend.setMode('error')
+  await page.clock.fastForward(60_000)
+  await expect(panel.getByRole('button', { name: 'Kuvan viimati laaditud andmeid. Värskenda.' })).toBeVisible()
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('72')
+})
+
+test('store attraction distinguishes failure, zero clicks, and no stores', async ({ page }) => {
+  await installBackend(page)
+  await installOverviewData(page)
+  const backend = await installAttractionData(page)
+  backend.setMode('error')
+  await page.goto('/admin')
+  const panel = page.getByRole('region', { name: 'Poodide tõmbejõud' })
+  await expect(panel.getByRole('status', { name: 'Kaubamaja andmeid ei saanud laadida' })).toBeVisible()
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('—')
+  backend.setMode('zero')
+  await panel.getByRole('button', { name: 'Proovi uuesti' }).click()
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('0')
+  await expect(panel.locator('.attraction-bubble.is-zero')).toHaveCount(4)
+  await expect(panel.locator('.attraction-bubble__arc')).toHaveCount(0)
+  await panel.getByRole('button', { name: /^Linane:/ }).click()
+  await expect(panel.getByRole('group', { name: 'Klikimäär: —', exact: true })).toBeVisible()
+  backend.setMode('empty')
+  await page.clock.fastForward(60_000)
+  await expect(panel.getByRole('status', { name: 'Avalikke poode ega selle perioodi poeandmeid veel pole' })).toBeVisible()
+  await expect(panel.locator('.attraction-bubble')).toHaveCount(0)
+})
+
+test('store attraction reacts to committed events, coalesces bursts, and catches events during a request', async ({ page }) => {
+  const realtime = await installBackend(page)
+  await installOverviewData(page)
+  const backend = await installAttractionData(page)
+  await page.goto('/admin')
+  const panel = page.getByRole('region', { name: 'Poodide tõmbejõud' })
+  await expect(panel.getByRole('button', { name: 'Reaalajaühendus aktiivne' })).toBeVisible()
+  await page.clock.runFor(200)
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('36')
+  const start = backend.ranges.length
+  backend.setAdded(1)
+  for (let i = 0; i < 5; i++) realtime.emit('admin_directory_refresh')
+  await page.clock.runFor(200)
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('37')
+  expect(backend.ranges.length).toBe(start + 1)
+  await expect(panel.locator('.attraction-bubble.is-updated')).toHaveCount(1)
+  await page.clock.runFor(1500)
+  await expect(panel.locator('.attraction-bubble.is-updated')).toHaveCount(0)
+
+  const release = backend.holdResponse()
+  backend.setAdded(2)
+  realtime.emit('admin_directory_refresh')
+  await page.clock.runFor(200)
+  await expect.poll(() => backend.ranges.length).toBe(start + 2)
+  backend.setAdded(3)
+  realtime.emit('admin_directory_refresh')
+  await page.clock.runFor(200)
+  release()
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('38')
+  await page.clock.runFor(200)
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('39')
+  expect(backend.ranges.length).toBe(start + 3)
+  realtime.disconnect()
+  await expect(panel.getByRole('button', { name: 'Reaalajaühendus taastub' })).toBeVisible()
+  backend.setAdded(4)
+  await page.clock.runFor(2500)
+  await expect(panel.getByRole('button', { name: 'Reaalajaühendus aktiivne' })).toBeVisible()
+  await expect(panel.locator('.attraction-headline strong')).toHaveText('40')
+})
+
+test('desktop overview fits the viewport including opened store details and help', async ({ page }) => {
+  await installBackend(page)
+  await installOverviewData(page)
+  await installAttractionData(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/admin')
+  const panel = page.getByRole('region', { name: 'Poodide tõmbejõud' })
+  await expect(panel.locator('.attraction-bubble')).toHaveCount(4)
+  for (const [width, height] of [[1920, 1080], [1440, 900], [1366, 768], [1280, 720], [1024, 768], [1280, 640]]) {
+    await page.setViewportSize({ width, height })
+    await panel.getByRole('button', { name: /^Keraamika Stuudio:/ }).focus()
+    await expect(panel.locator('.attraction-detail')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(height)
+    await page.keyboard.press('Escape')
+    await panel.locator('.attraction-help summary').click()
+    await expect(panel.locator('.attraction-help p').first()).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(height)
+    await panel.locator('.attraction-help summary').click()
+    const dimensions = await page.evaluate(() => ({
+      width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
+      main: { client: document.querySelector('.admin-main')!.clientHeight, scroll: document.querySelector('.admin-main')!.scrollHeight },
+      panels: [...document.querySelectorAll('.overview-panel')].map((element) => ({ client: element.clientHeight, scroll: element.scrollHeight, bottom: element.getBoundingClientRect().bottom })),
+    }))
+    expect(dimensions.width).toBeLessThanOrEqual(width)
+    expect(dimensions.height).toBeLessThanOrEqual(height)
+    expect(dimensions.main.scroll).toBeLessThanOrEqual(dimensions.main.client)
+    for (const card of dimensions.panels) {
+      expect(card.scroll).toBeLessThanOrEqual(card.client + 1)
+      expect(card.bottom).toBeLessThanOrEqual(height)
+    }
+    await page.mouse.move(0, 0)
+    await page.screenshot({ path: `output/admin-overview-compact-${width}.png`, fullPage: true })
+  }
+})
+
+test.describe('store attraction touch controls', () => {
+  test.use({ hasTouch: true })
+  test('store attraction remains readable and selectable on narrow touchscreens', async ({ page }) => {
+    await installBackend(page)
+    await installOverviewData(page)
+    await installAttractionData(page)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/admin')
+    const panel = page.getByRole('region', { name: 'Poodide tõmbejõud' })
+    await expect(panel.locator('.attraction-bubble')).toHaveCount(4)
+    await panel.screenshot({ path: 'output/admin-attraction-desktop.png' })
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 })
+      await panel.getByRole('button', { name: /^Linane:/ }).tap()
+      await expect(panel.locator('.attraction-detail')).toContainText('Linane')
+      await expect(panel.getByRole('group', { name: 'Klikimäär: —', exact: true })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+      await panel.screenshot({ path: `output/admin-attraction-mobile-${width}.png` })
+      await panel.getByRole('button', { name: 'Sulge poe näitajad' }).tap()
+    }
+  })
+})
+
 test('homepage visits highlight increases, clear the badge, and ignore unchanged totals and period changes', async ({ page }) => {
   await installBackend(page)
   const backend = await installOverviewData(page)
@@ -209,7 +407,7 @@ test('homepage visits highlight increases, clear the badge, and ignore unchanged
   backend.setAdded(5)
   await page.clock.fastForward(15_000)
   await expect(badge).toHaveText('+4 uut külastust')
-  await page.getByRole('button', { name: '90 p', exact: true }).click()
+  await page.getByRole('group', { name: 'Külastatavuse periood', exact: true }).getByRole('button', { name: '90 p', exact: true }).click()
   await expect(headline).toHaveText('4100')
   await expect(badge).toHaveCount(0)
   backend.setAdded(0)
@@ -246,7 +444,7 @@ test('new accounts and simultaneous visits retain distinct visual badges', async
   await page.clock.fastForward(3300)
   await expect(accountBadge).toHaveCount(0)
   await page.clock.fastForward(15_000)
-  await page.getByRole('button', { name: '90 p', exact: true }).click()
+  await page.getByRole('group', { name: 'Külastatavuse periood', exact: true }).getByRole('button', { name: '90 p', exact: true }).click()
   await expect(accounts.locator('strong')).toHaveText('48')
   await expect(accountBadge).toHaveCount(0)
 
@@ -320,7 +518,7 @@ test('homepage analytics refreshes silently without overlapping requests and rec
   await expect(headline).toHaveText('465')
   await expect(chart).toBeFocused()
   await expect(page.getByRole('region', { name: 'Avalehe külastatavus' })).toHaveAttribute('aria-busy', 'false')
-  await expect(page.getByRole('button', { name: '7 p', exact: true })).toBeEnabled()
+  await expect(page.getByRole('group', { name: 'Külastatavuse periood', exact: true }).getByRole('button', { name: '7 p', exact: true })).toBeEnabled()
   await page.clock.fastForward(15_000)
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   expect(backend.requestedRanges).toEqual([30, 30])
@@ -389,7 +587,7 @@ test('homepage analytics ignores an older background response after changing per
   const release = backend.holdResponse()
   await page.clock.fastForward(15_000)
   await expect.poll(() => backend.requestedRanges.length).toBe(2)
-  await page.getByRole('button', { name: '7 p', exact: true }).click()
+  await page.getByRole('group', { name: 'Külastatavuse periood', exact: true }).getByRole('button', { name: '7 p', exact: true }).click()
   await expect.poll(() => backend.requestedRanges).toEqual([30, 30, 7])
   release()
   await expect(page.locator('.overview-traffic__headline > strong')).toHaveText('28')
@@ -442,7 +640,7 @@ test('dashboard charts inspect real daily values, switch metrics and request the
   await starts.focus()
   await page.keyboard.press('End')
   await expect(starts).toHaveAttribute('aria-valuetext', '1. okt: 2 alustamised')
-  await page.getByRole('button', { name: '7 p', exact: true }).click()
+  await page.getByRole('group', { name: 'Külastatavuse periood', exact: true }).getByRole('button', { name: '7 p', exact: true }).click()
   await expect(starts).toHaveAttribute('aria-valuemax', '7')
   expect(backend.requestedRanges).toEqual([30, 7])
   await page.getByRole('button', { name: 'Külastused', exact: false }).click()

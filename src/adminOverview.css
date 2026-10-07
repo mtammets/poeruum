@@ -77,25 +77,18 @@
 .overview-donut { position: relative; width: min(100%, 14.2rem); margin: .55rem auto; aspect-ratio: 1; }
 .overview-donut > svg { display: block; width: 100%; height: 100%; stroke-width: 16; stroke-linecap: butt; transform: rotate(-.5deg); }
 .overview-donut__track { stroke: var(--admin-line-soft); }
-.overview-donut > div { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: .15rem; }
-.overview-donut strong { font: 550 4.25rem/1.1 Manrope, sans-serif; letter-spacing: -.07em; }
-.overview-donut span { font-size: .85rem; color: var(--admin-muted); }
-.overview-donut small { display: flex; align-items: center; gap: .35rem; margin-top: .65rem; color: var(--admin-positive); font-size: .7rem; }
-.overview-donut small i { width: .35rem; height: .35rem; border-radius: 50%; background: currentColor; }
+.overview-donut__center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.overview-donut__total { position: relative; }
+.overview-donut__total button { display: flex; align-items: center; justify-content: center; gap: .65rem; min-width: 2.75rem; min-height: 2.75rem; padding: .35rem .5rem; border: 0; border-radius: .7rem; background: transparent; color: inherit; font: inherit; cursor: help; }
+.overview-donut__total svg { flex-shrink: 0; width: 2rem; height: 2rem; color: var(--admin-muted); }
+.overview-donut__total strong { font: 550 4.25rem/1.05 Manrope, sans-serif; letter-spacing: -.07em; font-variant-numeric: tabular-nums; }
+.overview-donut__hint { position: absolute; top: calc(100% + .5rem); left: 50%; width: max-content; max-width: 15rem; padding: .65rem .8rem; transform: translateX(-50%); border: 1px solid var(--admin-line); border-radius: .65rem; background: var(--admin-bg); box-shadow: 0 .5rem 1.5rem #0003; color: var(--admin-ink); font-size: .75rem; line-height: 1.5; text-align: center; }
+.overview-donut__hint::before { content: ''; position: absolute; inset: -.6rem 0 auto; height: .6rem; }
 .overview-stores__legend { display: grid; gap: .65rem; margin: .8rem 0 0; padding: 0; list-style: none; }
 .overview-stores__legend li { display: flex; justify-content: space-between; gap: .5rem; }
 .overview-stores__legend span { display: flex; align-items: center; gap: .55rem; font-size: .85rem; color: var(--admin-muted); }
 .overview-stores__legend i { width: .5rem; height: .5rem; border-radius: 50%; }
 .overview-stores__legend strong { font: 600 1rem Manrope, sans-serif; }
-.overview-setup { grid-column: span 5; align-self: stretch; }
-.overview-setup__steps { display: grid; gap: 1.2rem; margin: 1.7rem 0 .6rem; }
-.overview-setup__step { display: grid; grid-template-columns: 2rem minmax(0, 1fr) 2rem; align-items: center; gap: .7rem; }
-.overview-setup__icon { display: grid; place-items: center; color: var(--admin-muted); }
-.overview-setup__step > div > span { display: block; margin-bottom: .5rem; color: var(--admin-muted); font-size: .8rem; }
-.overview-setup__track { height: .5rem; overflow: hidden; border-radius: 999px; background: var(--admin-line-soft); }
-.overview-setup__track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #809c53, var(--admin-accent)); transition: width 600ms ease; }
-.overview-setup__step:last-child .overview-setup__track i { background: var(--admin-accent); }
-.overview-setup__step > strong { font: 550 1.5rem Manrope, sans-serif; letter-spacing: -.04em; text-align: right; }
 .overview-attention { grid-column: span 3; align-self: stretch; }
 .overview-attention__status { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--admin-raised); }
 .overview-attention__status.is-clear { color: var(--admin-positive); }
@@ -113,7 +106,7 @@
 @keyframes overview-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 1500px) {
-  .overview-stores, .overview-setup, .overview-attention { grid-column: span 4; }
+  .overview-stores, .overview-attraction, .overview-attention { grid-column: span 4; }
   .overview-panel { padding: 1.15rem; }
   .overview-traffic { padding-bottom: .6rem; }
   .overview-metrics button { flex-direction: column; align-items: flex-start; }
@@ -121,7 +114,7 @@
 @media (max-width: 1000px) {
   .overview-traffic { grid-column: span 12; }
   .overview-income, .overview-stores { grid-column: span 6; }
-  .overview-setup, .overview-attention { grid-column: span 6; }
+  .overview-attraction, .overview-attention { grid-column: span 6; }
   .overview-traffic__headline > strong { font-size: 4.5rem; }
   .overview-income__amount { font-size: 3.8rem; }
   .overview-metrics button { flex-direction: row; align-items: center; }
@@ -146,19 +139,56 @@
   .overview-stores { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .6rem; }
   .overview-stores .overview-panel__header { grid-column: 1 / -1; }
   .overview-donut { width: 100%; margin: .4rem 0; }
-  .overview-donut strong { font-size: 3rem; }
-  .overview-donut span { font-size: .75rem; }
-  .overview-donut small { font-size: .6rem; margin-top: .4rem; }
+  .overview-donut__total button { gap: .4rem; padding: .25rem; }
+  .overview-donut__total svg { width: 1.4rem; height: 1.4rem; }
+  .overview-donut__total strong { font-size: 3rem; }
+  .overview-donut__hint { left: -.25rem; transform: none; max-width: min(15rem, 65vw); }
   .overview-stores__legend { align-content: center; gap: 1rem; margin: 0; }
   .overview-stores__legend span { font-size: .75rem; gap: .4rem; }
-  .overview-setup__steps { gap: 1rem; margin-top: 1.2rem; }
   .overview-attention__item { padding-block: 1rem; }
   .overview-attention__item > span:nth-child(2) { flex-direction: row; align-items: center; gap: .75rem; }
   .overview-attention__item strong { min-width: 1.5rem; font-size: 2rem; }
 }
 @media (max-width: 360px) {
-  .overview-donut strong { font-size: 2.5rem; }
-  .overview-donut small { font-size: .55rem; }
+  .overview-donut__total strong { font-size: 2.5rem; }
+  .overview-donut__total svg { width: 1.2rem; height: 1.2rem; }
   .overview-metrics button > span { font-size: .65rem; }
   .overview-metrics i { display: none; }
+}
+
+/* Fit the overview to a desktop viewport; details open over the cards. */
+@media (min-width: 1001px) and (min-height: 640px) {
+  .admin-shell .admin-main--overview { height: 100dvh; padding-block: 1rem; }
+  .admin-main--overview .admin-overview { height: 100%; min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; gap: .8rem; padding-bottom: 0; }
+  .admin-main--overview .overview-panel { min-height: 0; padding: 1rem; }
+  .admin-main--overview .overview-panel__header { flex-shrink: 0; min-height: 2rem; }
+  .admin-main--overview .overview-panel__header h2 { font-size: 1rem; }
+  .admin-main--overview .overview-open { width: 2rem; height: 2rem; }
+  .admin-main--overview .overview-traffic { display: flex; flex-direction: column; }
+  .admin-main--overview .overview-traffic__headline { padding-top: .3rem; }
+  .admin-main--overview .overview-traffic__headline > strong { font-size: clamp(2.6rem, 6vh, 4rem); }
+  .admin-main--overview .overview-traffic__headline > span { padding-top: 0; line-height: 1.35; font-size: .8rem; }
+  .admin-main--overview .overview-chart { display: flex; flex: 1; flex-direction: column; min-height: 0; margin-top: .1rem; }
+  .admin-main--overview .overview-chart__readout { height: 1.5rem; flex-shrink: 0; }
+  .admin-main--overview .overview-chart__plot { flex: 1; height: auto; min-height: 2rem; }
+  .admin-main--overview .overview-chart__dates { margin-block: .4rem; }
+  .admin-main--overview .overview-chart__empty { flex: 1; height: auto; min-height: 3rem; }
+  .admin-main--overview .overview-metrics { flex-shrink: 0; padding-top: .4rem; }
+  .admin-main--overview .overview-metrics button { gap: .1rem; padding: .25rem .45rem; }
+  .admin-main--overview .overview-metrics strong { font-size: 1.35rem; }
+  .admin-main--overview .overview-income__amount { margin-top: .5rem; font-size: clamp(2.5rem, 5.5vh, 4.3rem); }
+  .admin-main--overview .overview-income__today { margin-top: .65rem; }
+  .admin-main--overview .overview-income__composition { height: .5rem; margin-block: .7rem; }
+  .admin-main--overview .overview-income__breakdown { gap: .4rem 1rem; margin-bottom: .5rem; }
+  .admin-main--overview .overview-income__breakdown > div { gap: .15rem; }
+  .admin-main--overview .overview-receipts { position: relative; }
+  .admin-main--overview .overview-receipts summary { min-height: 2rem; padding-top: .15rem; }
+  .admin-main--overview .overview-receipts[open] > :not(summary) { position: absolute; top: 100%; left: -.5rem; right: -.5rem; z-index: 4; max-height: calc(50dvh - 2rem); overflow-y: auto; margin: .3rem 0 0; padding: .8rem; border: 1px solid #283a1033; border-radius: .75rem; background: var(--admin-accent); box-shadow: 0 .5rem 2rem #0003; }
+  .admin-main--overview .overview-stores { display: flex; flex-direction: column; }
+  .admin-main--overview .overview-donut { width: min(100%, clamp(8rem, 23vh, 14rem)); margin: auto; }
+  .admin-main--overview .overview-donut__total strong { font-size: clamp(2.5rem, 5.5vh, 4rem); }
+  .admin-main--overview .overview-stores__legend { gap: .35rem; margin-top: .4rem; }
+  .admin-main--overview .overview-attention { display: flex; flex-direction: column; }
+  .admin-main--overview .overview-attention__item { flex: 1; padding-block: .6rem; }
+  .admin-main--overview .overview-attention__item strong { font-size: clamp(1.7rem, 4.4vh, 2.5rem); }
 }

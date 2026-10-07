@@ -20,10 +20,12 @@ export type DirectoryReport = {
   products: { id: string; name: string; clicks: number; previous_clicks: number }[]
   placements: { placement: string; impressions: number; clicks: number; average_position: number | null }[]
 }
-export async function loadDirectoryReport(days: number, storeId: string | null): Promise<DirectoryReport> {
-  const { data, error } = await requireSupabase().rpc('admin_directory_analytics', {
+export async function loadDirectoryReport(days: number, storeId: string | null, signal?: AbortSignal): Promise<DirectoryReport> {
+  const request = requireSupabase().rpc('admin_directory_analytics', {
     requested_days: days, requested_store_id: storeId,
   })
+  if (signal) request.abortSignal(signal)
+  const { data, error } = await request
   if (error || !data?.current || !Array.isArray(data.daily) || !Array.isArray(data.stores)) {
     throw new Error(error?.code === '42501' ? 'Statistika vaatamiseks on vaja administraatori õigusi.'
       : 'Kaubamaja statistikat ei õnnestunud laadida. Proovi uuesti.')

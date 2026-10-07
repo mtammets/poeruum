@@ -911,7 +911,7 @@ export default function AdminApp() {
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><a className="admin-sidebar__settings" href="/admin/settings" aria-label="Seaded" title="Seaded" aria-current={activeView === 'settings' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'settings')}><AdminIcon name="settings" /></a><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
     </aside>
 
-    <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : ''}`}>
+    <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : activeView === 'overview' ? ' admin-main--overview' : ''}`}>
       {activeView !== 'users' && activeView !== 'overview' && activeView !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && activeView !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
@@ -1078,7 +1078,6 @@ export default function AdminApp() {
         {activeView === 'overview' && <AdminOverview
           rows={rows}
           usersLoading={isLoading}
-          onlineCount={presenceKnown ? onlineUserIds.size : null}
           revenue={revenue}
           revenueError={revenueError}
           revenueLoading={isRevenueLoading}
