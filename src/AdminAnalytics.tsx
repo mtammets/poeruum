@@ -79,11 +79,12 @@ function TrafficChart({ daily, metric, arrival }: { daily: AnalyticsDailyPoint[]
   </div>
 }
 
-type Props = { data: HomepageAnalyticsDashboard; range: AnalyticsRange; loading: boolean; error: string; stale: boolean; live: boolean; feedback: HomepageVisitFeedback; onRangeChange: (range: AnalyticsRange) => void; onRefresh: () => void }
+type Props = { active?: boolean; data: HomepageAnalyticsDashboard; range: AnalyticsRange; loading: boolean; error: string; stale: boolean; live: boolean; feedback: HomepageVisitFeedback; onRangeChange: (range: AnalyticsRange) => void; onRefresh: () => void }
 
-export default function AdminAnalytics({ data, range, loading, error, stale, live, feedback, onRangeChange, onRefresh }: Props) {
+export default function AdminAnalytics({ active = true, data, range, loading, error, stale, live, feedback, onRangeChange, onRefresh }: Props) {
   const [metricKey, setMetricKey] = useState<Metric['key']>('sessions')
   const [detail, setDetail] = useState<Detail | null>(null)
+  useEffect(() => { if (!active) setDetail(null) }, [active])
   const [breakdown, setBreakdown] = useState<'sources' | 'ctas' | 'faqs'>('sources')
   const [chosenDevice, setChosenDevice] = useState<string | null>(null)
   const metric = metrics.find((item) => item.key === metricKey)!
@@ -171,6 +172,6 @@ export default function AdminAnalytics({ data, range, loading, error, stale, liv
         <div className="traffic-discovery"><button type="button" aria-label={`Näidispoe avamised: ${value(data.demo_opens)}`} title="Näidispoe avamised" onClick={() => setDetail('demo')}><Icon name="play" /><strong>{value(data.demo_opens)}</strong></button><button type="button" aria-label={`Hinnastuse vaatamised: ${value(data.pricing_views)}`} title="Hinnastuse vaatamised" onClick={() => setDetail('pricing')}><Icon name="card" /><strong>{value(data.pricing_views)}</strong></button></div>
       </section>
     </div>
-    {detail && <DetailDialog title={detailTitles[detail]} onClose={() => setDetail(null)}>{detailContent()}</DetailDialog>}
+    {active && detail && <DetailDialog title={detailTitles[detail]} onClose={() => setDetail(null)}>{detailContent()}</DetailDialog>}
   </section>
 }

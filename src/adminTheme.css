@@ -95,7 +95,6 @@
   .admin-shell .admin-sidebar .platform-brand__mark { width: 1.9rem; height: 1.9rem; }
   .admin-shell .admin-sidebar nav { gap: .2rem; margin: 0 .35rem 0 .6rem; overflow-y: hidden; }
   .admin-shell .admin-sidebar nav :is(a, button) { flex: 0 0 auto; justify-content: center; gap: 0; width: 2.75rem; height: 2.75rem; min-height: 0; padding: 0; font-size: 0; }
-  .admin-shell .admin-sidebar nav a.is-active { order: -1; }
   .admin-shell .admin-sidebar nav a:last-child { margin: 0; border: 0; }
   .admin-shell .admin-sidebar__account { margin: 0; padding: 0 0 0 .15rem; border: 0; }
   .admin-shell .admin-sidebar__account::before { background: #43503b; }

@@ -20,6 +20,7 @@ import { getHomepageSeoValidationError, seoTextLength } from './lib/homepageSeo'
 import AdminUsers from './AdminUsers'
 import AdminOverview from './AdminOverview'
 import AdminAnalytics from './AdminAnalytics'
+import AdminStoryDeck, { type AdminStoryDeckHandle } from './AdminStoryDeck'
 import useHomepageVisitFeedback from './useHomepageVisitFeedback'
 import useAdminPush from './useAdminPush'
 import AdminSettings from './AdminSettings'
@@ -249,6 +250,8 @@ function AdminLogin({
 
 export default function AdminApp() {
   const [activeView, setActiveView] = useState<AdminView>(() => getAdminView())
+  const storyDeck = useRef<AdminStoryDeckHandle>(null)
+  const navigation = useRef<HTMLElement>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [adminAccessGranted, setAdminAccessGranted] = useState(false)
@@ -334,13 +337,33 @@ export default function AdminApp() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
-  const navigateToView = (event: ReactMouseEvent<HTMLAnchorElement>, view: AdminView) => {
-    event.preventDefault()
+  const changeView = (view: AdminView) => {
     const nextPath = adminViewConfig[view].path
     if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath)
     setActiveView(view)
     window.scrollTo({ top: 0, behavior: 'auto' })
   }
+
+  const navigateToView = (event: ReactMouseEvent<HTMLAnchorElement>, view: AdminView) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    if (storyDeck.current && (view === 'analytics' || view === 'users')) storyDeck.current.navigate(view)
+    else changeView(view)
+  }
+
+  useEffect(() => {
+    const nav = navigation.current
+    const selected = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!nav || !selected) return
+    const bounds = nav.getBoundingClientRect(), item = selected.getBoundingClientRect()
+    if (window.innerWidth <= 680) {
+      if (item.left < bounds.left) nav.scrollLeft += item.left - bounds.left
+      else if (item.right > bounds.right) nav.scrollLeft += item.right - bounds.right
+    } else {
+      if (item.top < bounds.top) nav.scrollTop += item.top - bounds.top
+      else if (item.bottom > bounds.bottom) nav.scrollTop += item.bottom - bounds.bottom
+    }
+  }, [activeView, adminAccessGranted])
 
   const openShowcaseManager = async () => {
     setIsShowcaseLoading(true)
@@ -870,16 +893,16 @@ export default function AdminApp() {
   return <main className={`admin-shell${activeView === 'users' ? ' admin-shell--users' : ''}`}>
     <aside className="admin-sidebar">
       <a href="/" aria-label="Poeruumi avaleht"><Brand /></a>
-      <nav aria-label="Administraatori menüü">
+      <nav ref={navigation} aria-label="Administraatori menüü">
         <a className={activeView === 'overview' ? 'is-active' : undefined} href="/admin" aria-current={activeView === 'overview' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'overview')}><span><AdminIcon name="home" /></span>Ülevaade</a>
         <a className={activeView === 'analytics' ? 'is-active' : undefined} href="/admin/analytics" aria-current={activeView === 'analytics' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'analytics')}><span><AdminIcon name="analytics" /></span>Külastatavus</a>
+        <a className={activeView === 'users' ? 'is-active' : undefined} href="/admin/users" aria-current={activeView === 'users' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'users')}><span><AdminIcon name="users" /></span>Kasutajad</a>
         <a className={activeView === 'campaigns' ? 'is-active' : undefined} href="/admin/campaigns" aria-current={activeView === 'campaigns' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'campaigns')}><span><AdminIcon name="campaigns" /></span>Kampaaniad</a>
         <a className={activeView === 'seo' ? 'is-active' : undefined} href="/admin/seo" aria-current={activeView === 'seo' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'seo')}><span><AdminIcon name="seo" /></span>SEO</a>
         <a className={activeView === 'business-card' ? 'is-active' : undefined} href="/admin/business-card" aria-current={activeView === 'business-card' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'business-card')}><span><AdminIcon name="card" /></span>Visiitkaart</a>
         <a className={activeView === 'leads' ? 'is-active' : undefined} href="/admin/leads" aria-current={activeView === 'leads' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'leads')}><span><AdminIcon name="leads" /></span>Kliendiotsing</a>
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
         <a className={activeView === 'support' ? 'is-active' : undefined} href="/admin/support" aria-current={activeView === 'support' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'support')}><span><AdminIcon name="message" /></span>Klienditugi</a>
-        <a className={activeView === 'users' ? 'is-active' : undefined} href="/admin/users" aria-current={activeView === 'users' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'users')}><span><AdminIcon name="users" /></span>Kasutajad</a>
         <a className={activeView === 'directory' ? 'is-active' : undefined} href="/admin/kaubamaja" aria-current={activeView === 'directory' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'directory')}><span><AdminIcon name="store" /></span>Kaubamaja</a>
         <a href="http://127.0.0.1:4185/previews/payments.html" target="_blank" rel="noopener noreferrer" aria-label="Maksete eelvaade (kohalik server, avaneb uuel vahelehel)" title="Kohalik eelvaade · käivita npm run dev"><span><AdminIcon name="arrow" /></span>Maksete eelvaade</a>
       </nav>
@@ -1066,19 +1089,19 @@ export default function AdminApp() {
           onNavigate={navigateToView}
         />}
 
-        {activeView === 'analytics' && <AdminAnalytics data={homepageAnalytics} range={analyticsRange}
-          loading={isAnalyticsLoading} error={analyticsError} stale={analyticsStale} live={analyticsLive}
-          feedback={visitFeedback} onRangeChange={setAnalyticsRange}
-          onRefresh={() => setAnalyticsRefreshRevision((value) => value + 1)} />}
+        {(activeView === 'analytics' || activeView === 'users') && <AdminStoryDeck ref={storyDeck} view={activeView} onNavigate={changeView}
+          analytics={<AdminAnalytics data={homepageAnalytics} range={analyticsRange} active={activeView === 'analytics'}
+            loading={isAnalyticsLoading} error={analyticsError} stale={analyticsStale} live={analyticsLive}
+            feedback={visitFeedback} onRangeChange={setAnalyticsRange}
+            onRefresh={() => setAnalyticsRefreshRevision((value) => value + 1)} />}
+          users={<>
+            {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset. Vaata uued kontod üle.</p></div>}
+            <AdminUsers rows={rows} onlineUserIds={onlineUserIds} onlineViews={onlineViews} presenceKnown={presenceKnown} latestEmails={latestEmails} isLoading={isLoading} metricsError={userMetricsError} onRetry={() => void loadDashboard()} />
+          </>} />}
 
         {activeView === 'support' && <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />}
 
         {activeView === 'leads' && <AdminLeads />}
-
-        {activeView === 'users' && <>
-          {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset. Vaata uued kontod üle.</p></div>}
-          <AdminUsers rows={rows} onlineUserIds={onlineUserIds} onlineViews={onlineViews} presenceKnown={presenceKnown} latestEmails={latestEmails} isLoading={isLoading} metricsError={userMetricsError} onRetry={() => void loadDashboard()} />
-        </>}
       </>}
     </section>
   </main>

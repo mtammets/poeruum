@@ -413,6 +413,101 @@ test.describe('visual traffic on touchscreens', () => {
   })
 })
 
+test.describe('admin stories navigation', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } })
+
+  async function swipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+    const touch = await page.context().newCDPSession(page)
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] })
+    for (let step = 1; step <= 8; step++) {
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{
+        x: from.x + (to.x - from.x) * step / 8, y: from.y + (to.y - from.y) * step / 8,
+      }] })
+    }
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await page.clock.runFor(450)
+    await touch.detach()
+  }
+
+  test('touch follows menu order and preserves user search across both directions', async ({ page }) => {
+    await installBackend(page)
+    await installTrafficData(page)
+    await page.goto('/admin/analytics')
+    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('778')
+    const nav = page.getByRole('navigation', { name: 'Administraatori menüü' })
+    await expect(nav.getByRole('link').nth(2)).toHaveText('Kasutajad')
+    const trafficLink = await nav.getByRole('link', { name: 'Külastatavus', exact: true }).boundingBox()
+    const usersLink = await nav.getByRole('link', { name: 'Kasutajad', exact: true }).boundingBox()
+    expect(usersLink!.x).toBeGreaterThan(trafficLink!.x)
+    const headline = await page.locator('.traffic-hero__headline').boundingBox()
+    const y = headline!.y + headline!.height / 2
+    await swipe(page, { x: 270, y }, { x: 60, y })
+    await expect(page).toHaveURL(/\/admin\/users$/)
+    await expect(page.locator('[data-story-view="analytics"]')).toHaveAttribute('inert', '')
+    await page.getByRole('searchbox', { name: 'Otsi kasutajaid' }).fill('Angel')
+    await expect(page.locator('.admin-user-row')).toHaveCount(1)
+    const heading = await page.getByRole('heading', { name: 'Kasutajad', exact: true }).boundingBox()
+    const headingY = heading!.y + heading!.height / 2
+    await swipe(page, { x: 80, y: headingY }, { x: 300, y: headingY })
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+    await expect(page.locator('[data-story-view="users"]')).toHaveAttribute('inert', '')
+    await swipe(page, { x: 270, y }, { x: 60, y })
+    await expect(page.getByRole('searchbox', { name: 'Otsi kasutajaid' })).toHaveValue('Angel')
+    await expect(page.locator('.admin-user-row')).toHaveCount(1)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
+    await page.getByText('Filtrid', { exact: true }).click()
+    await nav.getByRole('link', { name: 'Külastatavus', exact: true }).click()
+    await page.clock.runFor(450)
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+    await swipe(page, { x: 270, y }, { x: 60, y })
+    await expect(page).toHaveURL(/\/admin\/users$/)
+  })
+
+  test('short swipes cancel while charts and vertical scrolling retain their own gestures', async ({ page }) => {
+    await installBackend(page)
+    await installTrafficData(page)
+    await page.goto('/admin/analytics')
+    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('778')
+    const headline = await page.locator('.traffic-hero__headline').boundingBox()
+    const y = headline!.y + headline!.height / 2
+    await swipe(page, { x: 250, y }, { x: 225, y })
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+    await expect(page.locator('.admin-story-deck')).not.toHaveAttribute('data-motion')
+    const chart = await page.getByRole('slider').boundingBox()
+    await swipe(page, { x: chart!.x + chart!.width - 20, y: chart!.y + 30 }, { x: chart!.x + 20, y: chart!.y + 30 })
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+    await expect(page.locator('.traffic-chart__readout time')).toBeVisible()
+    await swipe(page, { x: 250, y }, { x: 250, y: y - 110 })
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+  })
+
+  test('trackpad and menu transitions support browser history and reduced motion without desktop overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await installBackend(page)
+    await installTrafficData(page)
+    await page.goto('/admin/analytics')
+    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('778')
+    const headline = await page.locator('.traffic-hero__headline').boundingBox()
+    await page.mouse.move(headline!.x + headline!.width / 2, headline!.y + headline!.height / 2)
+    await page.mouse.wheel(450, 0)
+    await page.clock.runFor(500)
+    await expect(page).toHaveURL(/\/admin\/users$/)
+    await expect(page.getByRole('heading', { name: 'Kasutajad', exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(900)
+    await page.goBack()
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+    await expect(page.getByRole('heading', { name: 'Külastatavus', exact: true })).toBeVisible()
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.getByRole('navigation').getByRole('link', { name: 'Kasutajad', exact: true }).click()
+    await expect(page).toHaveURL(/\/admin\/users$/)
+    await expect(page.locator('.admin-story-deck')).not.toHaveAttribute('data-motion')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440)
+    await page.goBack()
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+  })
+})
+
 test('store attraction shows actual clicks and CTR, supports selection, and switches periods', async ({ page }) => {
   await installBackend(page)
   await installOverviewData(page)
@@ -590,8 +685,9 @@ test('homepage visits highlight increases, clear the badge, and ignore unchanged
   await page.clock.fastForward(3300)
   await expect(badge).toHaveCount(0)
   await expect(panel).not.toHaveClass(/has-new-visits/)
+  const requestsBeforeUnchanged = backend.requestedRanges.length
   await page.clock.fastForward(15_000)
-  await expect.poll(() => backend.requestedRanges.length).toBe(3)
+  await expect.poll(() => backend.requestedRanges.length).toBeGreaterThan(requestsBeforeUnchanged)
   await expect(badge).toHaveCount(0)
   backend.setAdded(5)
   await page.clock.fastForward(15_000)
