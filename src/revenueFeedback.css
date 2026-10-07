@@ -1,0 +1,33 @@
+.overview-income__controls { display: flex; align-items: center; gap: .4rem; }
+.overview-income__controls .overview-income__month { font-size: .8rem; }
+.revenue-sound { display: grid; flex-shrink: 0; width: 2.25rem; height: 2.25rem; place-items: center; padding: .45rem; border: 1px solid #283a1033; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; transition: background 180ms, border-color 180ms; }
+.revenue-sound:hover, .revenue-sound[aria-pressed="true"] { border-color: #283a1066; background: #283a1012; }
+.revenue-sound:disabled { cursor: default; opacity: .45; }
+.overview-income .revenue-sound:focus-visible { outline-color: var(--admin-accent-ink); }
+.overview-income__caption { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .6rem; min-height: 1.55rem; }
+.revenue-announcement { display: inline-flex; margin-left: auto; }
+.revenue-delta { display: inline-flex; align-items: center; gap: .15rem; padding: .2rem .45rem; border-radius: 999px; background: var(--admin-accent-ink); color: var(--admin-accent); font: 750 .75rem/1.3 Manrope, sans-serif; white-space: nowrap; animation: revenue-delta-rise 3.2s both; }
+.admin-overview .revenue-delta svg { width: .8rem; height: .8rem; stroke-width: 2; }
+.revenue-number { display: inline-block; transform-origin: 20% 65%; }
+.revenue-number.is-arriving { animation: revenue-number-settle 1.15s both; }
+.revenue-celebration { position: absolute; inset: -1px; overflow: hidden; border-radius: inherit; pointer-events: none; }
+.revenue-celebration i { position: absolute; inset: -35%; background: radial-gradient(ellipse at 35% 35%, #ffffff75, #ffffff00 60%); animation: revenue-glow 1.5s both; }
+.revenue-celebration b { position: absolute; inset: -50% -80%; background: linear-gradient(115deg, transparent 40%, #fff0 44%, #ffffff70 50%, #fff0 56%, transparent 60%); animation: revenue-light-sweep 1.3s cubic-bezier(.2, .65, .25, 1) both; }
+@keyframes revenue-number-settle {
+  0% { transform: translateY(.07em) scale(.98); filter: blur(.3px); }
+  48% { transform: translateY(-.025em) scale(1.035); filter: blur(0); }
+  74% { transform: translateY(.01em) scale(.995); }
+  100% { transform: none; }
+}
+@keyframes revenue-delta-rise {
+  0% { opacity: 0; transform: translateY(.6rem) scale(.85); }
+  14%, 82% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-.35rem); }
+}
+@keyframes revenue-glow { 0%, 100% { opacity: 0; transform: scale(.85); } 35% { opacity: 1; transform: scale(1); } }
+@keyframes revenue-light-sweep { from { opacity: 0; transform: translateX(-40%); } 20%, 65% { opacity: .8; } to { opacity: 0; transform: translateX(40%); } }
+@media (prefers-reduced-motion: reduce) {
+  .revenue-number.is-arriving, .revenue-delta { animation: none; }
+  .revenue-celebration { display: none; }
+  .revenue-sound, .overview-income__composition i, .overview-income__composition b { transition: none; }
+}

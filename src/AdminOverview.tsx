@@ -5,6 +5,8 @@ import type { AdminUserRow } from './lib/adminUserOverview'
 import type { AnalyticsDailyPoint, AnalyticsRange, HomepageAnalyticsDashboard, RevenueDashboard } from './lib/adminDashboard'
 import type { HomepageVisitFeedback } from './useHomepageVisitFeedback'
 import { VisitBadge, VisitNumber } from './VisitFeedback'
+import type { RevenueNotice } from './useAdminRevenue'
+import { RevenueAmount, RevenueCelebration, RevenueDelta, RevenueSound, revenueMoney as money } from './RevenueFeedback'
 import './adminOverview.css'
 
 type OverviewDestination = 'users' | 'analytics' | 'support'
@@ -14,7 +16,7 @@ type Props = {
   revenue: RevenueDashboard
   revenueError: string
   revenueLoading: boolean
-  liveRevenueEventId: string | null
+  revenueNotice: RevenueNotice | null
   analytics: HomepageAnalyticsDashboard
   analyticsError: string
   analyticsLoading: boolean
@@ -25,9 +27,6 @@ type Props = {
 }
 
 const number = new Intl.NumberFormat('et-EE')
-const money = (cents: number, currency = 'eur') => new Intl.NumberFormat('et-EE', {
-  style: 'currency', currency: currency.toUpperCase(), maximumFractionDigits: 2, minimumFractionDigits: cents % 100 ? 2 : 0,
-}).format(cents / 100)
 const shortDate = (date: string) => new Intl.DateTimeFormat('et-EE', { day: 'numeric', month: 'short', timeZone: 'Europe/Tallinn' }).format(new Date(date))
 const metrics = [
   { key: 'sessions', label: 'Külastused', color: 'var(--admin-accent)' },
@@ -114,7 +113,7 @@ function DailyChart({ daily, metric }: { daily: AnalyticsDailyPoint[]; metric: t
   </div>
 }
 
-export default function AdminOverview({ rows, usersLoading, revenue, revenueError, revenueLoading, liveRevenueEventId, analytics, analyticsError, analyticsLoading, visitFeedback, range, onRangeChange, onNavigate }: Props) {
+export default function AdminOverview({ rows, usersLoading, revenue, revenueError, revenueLoading, revenueNotice, analytics, analyticsError, analyticsLoading, visitFeedback, range, onRangeChange, onNavigate }: Props) {
   const [metricKey, setMetricKey] = useState<Metric>('sessions')
   const metric = metrics.find((item) => item.key === metricKey)!
   const metricNotice = (key: Metric) => key === 'sessions' ? visitFeedback.notice : key === 'accounts_created' ? visitFeedback.accountNotice : null
@@ -150,17 +149,18 @@ export default function AdminOverview({ rows, usersLoading, revenue, revenueErro
       <div className="overview-metrics" role="group" aria-label="Graafiku näitaja">{metrics.map((item) => <button type="button" key={item.key} className={item.key === 'accounts_created' && visitFeedback.accountNotice ? 'has-new-accounts' : undefined} aria-pressed={metricKey === item.key} onClick={() => setMetricKey(item.key)} style={{ '--chart-color': item.color } as CSSProperties}><span><i />{item.label}</span><span className="overview-metrics__value"><strong><VisitNumber value={analyticsKnown ? number.format(analytics[item.key]) : '—'} notice={metricNotice(item.key)} /></strong>{item.key !== metricKey && <VisitBadge notice={metricNotice(item.key)} />}</span></button>)}</div>
     </section>
 
-    <section className={`overview-panel overview-income${liveRevenueEventId ? ' is-live-update' : ''}`} aria-label="Poeruumi teenustasud" aria-busy={revenueLoading}>
-      <header className="overview-panel__header"><h2>Teenustasud</h2><span className="overview-income__month">{new Intl.DateTimeFormat('et-EE', { month: 'long', timeZone: 'Europe/Tallinn' }).format(new Date())}</span></header>
-      <div className="overview-income__amount">{revenueKnown ? money(revenue.month_total_cents) : '—'}</div>
-      <span className="overview-income__basis">KM-ta · enne Stripe’i tasusid</span>
+    <section className={`overview-panel overview-income${revenueNotice ? ' is-live-update' : ''}`} aria-label="Poeruumi teenustasud" aria-busy={revenueLoading}>
+      <RevenueCelebration notice={revenueNotice} />
+      <header className="overview-panel__header"><h2>Teenustasud</h2><div className="overview-income__controls"><span className="overview-income__month">{new Intl.DateTimeFormat('et-EE', { month: 'long', timeZone: 'Europe/Tallinn' }).format(new Date())}</span><RevenueSound notice={revenueNotice} /></div></header>
+      <RevenueAmount value={revenueKnown ? revenue.month_total_cents : null} notice={revenueNotice} />
+      <div className="overview-income__caption"><span className="overview-income__basis">KM-ta · enne Stripe’i tasusid</span><RevenueDelta notice={revenueNotice} /></div>
       {revenueError ? <p role="alert">Tulu pole praegu saadaval</p> : <>
         <div className="overview-income__today"><span>Täna</span><strong>{revenueKnown ? money(revenue.today_total_cents) : '—'}</strong></div>
         <div className="overview-income__composition" aria-hidden="true"><i style={{ width: revenueKnown ? `${feesPercent}%` : '0%' }} /><b style={{ width: revenueKnown ? `${grossRevenue ? 100 - feesPercent : 0}%` : '0%' }} /></div>
         <dl className="overview-income__breakdown"><div><dt><i />Müügitasud</dt><dd>{revenueKnown ? money(revenue.transaction_fee_total_cents) : '—'}</dd></div><div><dt><i />Kuutasud</dt><dd>{revenueKnown ? money(revenue.subscription_total_cents) : '—'}</dd></div>{revenueKnown && revenue.refund_total_cents !== 0 && <div><dt>Tagastused</dt><dd>{money(revenue.refund_total_cents)}</dd></div>}</dl>
       </>}
-      <details className="overview-receipts"><summary>Laekumised <span>{liveRevenueEventId ? 'Uus' : <AdminUserIcon name="chevron" />}</span></summary>
-        {revenueError ? <p>Laekumisi ei saanud laadida.</p> : revenueLoading ? <p>Laen laekumisi…</p> : revenue.recent_events.length ? <ul>{revenue.recent_events.slice(0, 4).map((event) => <li key={event.id} className={event.id === liveRevenueEventId ? 'is-new' : undefined}><span><strong>{event.store_name}</strong><small>{shortDate(event.occurred_at)} · {event.description}</small></span><b>{event.amount_cents > 0 ? '+' : ''}{money(event.amount_cents, event.currency)}</b></li>)}</ul> : <p>Laekumisi veel pole</p>}
+      <details className="overview-receipts"><summary>Laekumised <span>{revenueNotice ? 'Uus' : <AdminUserIcon name="chevron" />}</span></summary>
+        {revenueError ? <p>Laekumisi ei saanud laadida.</p> : revenueLoading ? <p>Laen laekumisi…</p> : revenue.recent_events.length ? <ul>{revenue.recent_events.slice(0, 4).map((event) => <li key={event.id} className={revenueNotice?.eventIds.includes(event.id) ? 'is-new' : undefined}><span><strong>{event.store_name}</strong><small>{shortDate(event.occurred_at)} · {event.description}</small></span><b>{event.amount_cents > 0 ? '+' : ''}{money(event.amount_cents, event.currency)}</b></li>)}</ul> : <p>Laekumisi veel pole</p>}
       </details>
     </section>
 

@@ -128,10 +128,10 @@ async function installBackend(page: Page) {
     setOnline: (next: string[]) => { onlineIds = next },
     subscriptions,
     disconnect: () => socket!.close({ code: 1012, reason: 'Test reconnect' }),
-    emit: (table: string) => {
+    emit: (table: string, record: Record<string, unknown> = { id: true }, type = 'UPDATE') => {
       const channel = subscriptions.get(table)!
       socket!.send(JSON.stringify([channel.joinRef, null, channel.topic, 'postgres_changes', {
-        ids: [channel.id], data: { schema: 'public', table, type: 'UPDATE', commit_timestamp: new Date(now).toISOString(), columns: [], record: { id: true }, old_record: {} },
+        ids: [channel.id], data: { schema: 'public', table, type, commit_timestamp: new Date(now).toISOString(), columns: [], record, old_record: {} },
       }]))
     },
   }
@@ -945,6 +945,186 @@ test('dashboard charts inspect real daily values, switch metrics and request the
   await page.getByRole('link', { name: 'Ava külastatavuse üksikasjad' }).click()
   await expect(page).toHaveURL(/\/admin\/analytics$/)
   await expect(page.getByRole('group', { name: 'Ajavahemik' }).getByRole('button', { name: '7 päeva' })).toHaveAttribute('aria-pressed', 'true')
+})
+
+async function installRevenueFeedback(page: Page, mockAudio = true) {
+  const realtime = await installBackend(page)
+  await installOverviewData(page)
+  if (mockAudio) await page.addInitScript(() => {
+    const notes: { frequency: number; at: number }[] = []
+    Object.assign(window, { revenueTestNotes: notes })
+    class TestAudioContext {
+      state = 'suspended'
+      destination = {}
+      get currentTime() { return performance.now() / 1000 }
+      async resume() { this.state = 'running' }
+      async suspend() { this.state = 'suspended' }
+      async close() { this.state = 'closed' }
+      createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, disconnect() {} } }
+      createOscillator() {
+        const oscillator = { frequency: { value: 0 }, type: 'sine', connect() {}, disconnect() {}, stop() {},
+          start(at: number) { notes.push({ frequency: oscillator.frequency.value, at }) }, onended: null }
+        return oscillator
+      }
+    }
+    Object.defineProperty(window, 'AudioContext', { value: TestAudioContext, configurable: true })
+  })
+  await page.goto('/admin')
+  const card = page.getByRole('region', { name: 'Poeruumi teenustasud' })
+  await expect(card.locator('.overview-income__amount')).toHaveText('375,40 €')
+  await expect.poll(() => realtime.subscriptions.has('revenue_events')).toBe(true)
+  await page.clock.runFor(300)
+  const pending: Route[] = []
+  await page.route('**/rpc/admin_revenue_dashboard', route => { pending.push(route) })
+  const event = (id: string, cents = 160, kind = 'transaction_fee') => ({ id, kind, amount_cents: cents,
+    currency: 'eur', occurred_at: ago(0), store_id: 'store-3', store_name: 'Moreamoreceramics', description: 'Müügitasu' })
+  const snapshot = (total: number, events: ReturnType<typeof event>[]) => ({ month_total_cents: total, today_total_cents: total - 35420,
+    subscription_total_cents: 29900, transaction_fee_total_cents: total - 28900, refund_total_cents: -1000, recent_events: events })
+  const emit = (id: string, cents = 160, kind = 'transaction_fee') => realtime.emit('revenue_events', event(id, cents, kind), 'INSERT')
+  const noteCount = () => page.evaluate(() => (window as unknown as { revenueTestNotes: unknown[] }).revenueTestNotes.length)
+  return { card, pending, event, snapshot, emit, noteCount, realtime }
+}
+
+test('revenue celebrates confirmed amounts with synchronized sound and ignores duplicates', async ({ page }) => {
+  const { card, pending, event, snapshot, emit, noteCount } = await installRevenueFeedback(page)
+  const sound = card.getByRole('button', { name: 'Laekumiste heli' })
+  await expect(sound).toHaveAttribute('aria-pressed', 'false')
+  await expect(card.locator('.revenue-delta')).toHaveCount(0)
+  expect(await noteCount()).toBe(0)
+  await sound.click()
+  emit('fee-a')
+  await page.clock.runFor(200)
+  await expect.poll(() => pending.length).toBe(1)
+  await expect(card).not.toHaveClass(/is-live-update/)
+  await expect(card.locator('.overview-income__amount')).toHaveText('375,40 €')
+  expect(await noteCount()).toBe(0)
+
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100))
+  await pending[0].fulfill({ json: snapshot(37700, [event('fee-a')]) })
+  await expect(card.locator('.revenue-delta')).toContainText('+1,60 €')
+  await expect.poll(noteCount).toBe(4)
+  const notes = await page.evaluate(() => (window as unknown as { revenueTestNotes: { frequency: number; at: number }[] }).revenueTestNotes)
+  expect(notes[0].frequency).toBe(659.25)
+  expect(notes[2].frequency).toBe(987.77)
+  expect(notes[2].at - notes[0].at).toBeCloseTo(.13)
+  await page.clock.runFor(160)
+  const intermediate = Number((await card.locator('.overview-income__amount').innerText()).replace(/[^\d,]/g, '').replace(',', '.'))
+  expect(intermediate).toBeGreaterThan(375.4)
+  expect(intermediate).toBeLessThan(377)
+  await page.clock.runFor(1100)
+  await expect(card.locator('.overview-income__amount')).toHaveText('377 €')
+  await page.screenshot({ path: 'output/admin-revenue-celebration.png', fullPage: true })
+  emit('fee-a')
+  await page.clock.runFor(3400)
+  expect(pending).toHaveLength(1)
+  expect(await noteCount()).toBe(4)
+  await expect(card.locator('.revenue-delta')).toHaveCount(0)
+
+  await sound.click()
+  emit('fee-b')
+  await page.clock.runFor(200)
+  await expect.poll(() => pending.length).toBe(2)
+  await pending[1].fulfill({ json: snapshot(37860, [event('fee-b'), event('fee-a')]) })
+  await expect(card.locator('.revenue-delta')).toContainText('+1,60 €')
+  expect(await noteCount()).toBe(4)
+  expect(await page.evaluate(() => localStorage.getItem('poeruum:revenue-sound'))).toBe('off')
+})
+
+test('revenue groups bursts and catches an event arriving during an unfinished refresh', async ({ page }) => {
+  const { card, pending, event, snapshot, emit } = await installRevenueFeedback(page)
+  for (const id of ['fee-a', 'fee-b', 'fee-c']) emit(id)
+  await page.clock.runFor(250)
+  await expect.poll(() => pending.length).toBe(1)
+  emit('fee-d')
+  await page.clock.runFor(250)
+  expect(pending).toHaveLength(1)
+  await pending[0].fulfill({ json: snapshot(38020, ['fee-a', 'fee-b', 'fee-c'].map(id => event(id))) })
+  await expect(card.locator('.revenue-delta')).toContainText('+4,80 €')
+  await expect.poll(() => pending.length).toBe(2)
+  await pending[1].fulfill({ json: snapshot(38180, ['fee-d', 'fee-a', 'fee-b', 'fee-c'].map(id => event(id))) })
+  await expect(card.locator('.revenue-delta')).toContainText('+1,60 €')
+  await page.clock.runFor(1200)
+  await expect(card.locator('.overview-income__amount')).toHaveText('381,80 €')
+})
+
+test('revenue suppresses celebrations for refunds, test payments, hidden tabs and reconnects', async ({ page }) => {
+  const { card, pending, event, snapshot, emit, noteCount, realtime } = await installRevenueFeedback(page)
+  await card.getByRole('button', { name: 'Laekumiste heli' }).click()
+  emit('refund', -160, 'transaction_fee_refund')
+  await page.clock.runFor(200)
+  await expect.poll(() => pending.length).toBe(1)
+  await pending[0].fulfill({ json: snapshot(37380, [event('refund', -160, 'transaction_fee_refund')]) })
+  await expect(card.locator('.overview-income__amount')).toHaveText('373,80 €')
+  await expect(card).not.toHaveClass(/is-live-update/)
+
+  emit('test-payment')
+  await page.clock.runFor(200)
+  await expect.poll(() => pending.length).toBe(2)
+  await pending[1].fulfill({ json: snapshot(37380, []) })
+  await page.clock.runFor(200)
+  await expect(card.locator('.revenue-delta')).toHaveCount(0)
+
+  await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')) })
+  emit('hidden')
+  await page.clock.runFor(200)
+  await expect.poll(() => pending.length).toBe(3)
+  await pending[2].fulfill({ json: snapshot(37540, [event('hidden')]) })
+  await expect(card.locator('.overview-income__amount')).toHaveText('375,40 €')
+  await expect(card.locator('.revenue-delta')).toHaveCount(0)
+  expect(await noteCount()).toBe(0)
+  await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange')) })
+  await expect.poll(() => pending.length).toBe(4)
+  await pending[3].fulfill({ json: snapshot(37540, [event('hidden')]) })
+  await page.clock.runFor(200)
+  realtime.disconnect()
+  await page.clock.runFor(2500)
+  await expect.poll(() => pending.length).toBe(5)
+  await pending[4].fulfill({ json: snapshot(37700, [event('missed')]) })
+  await expect(card.locator('.overview-income__amount')).toHaveText('377 €')
+  await expect(card.locator('.revenue-delta')).toHaveCount(0)
+  expect(await noteCount()).toBe(0)
+})
+
+test('revenue respects reduced motion and stays within compact and mobile cards', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const { card, pending, event, snapshot, emit } = await installRevenueFeedback(page)
+  emit('fee-a')
+  await page.clock.runFor(200)
+  await expect.poll(() => pending.length).toBe(1)
+  await pending[0].fulfill({ json: snapshot(37700, [event('fee-a')]) })
+  await expect(card.locator('.overview-income__amount')).toHaveText('377 €')
+  await expect(card.locator('.revenue-delta')).toContainText('+1,60 €')
+  await expect(card.locator('.revenue-number')).toHaveCSS('animation-name', 'none')
+  await expect(card.locator('.revenue-celebration')).not.toBeVisible()
+  for (const [width, height] of [[1280, 640], [1024, 768], [390, 844], [320, 844]]) {
+    await page.setViewportSize({ width, height })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+    const bounds = await card.evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth, height: el.clientHeight, content: el.scrollHeight }))
+    expect(bounds.scroll).toBeLessThanOrEqual(bounds.client + 1)
+    expect(bounds.content).toBeLessThanOrEqual(bounds.height + 1)
+    await card.screenshot({ path: `output/admin-revenue-${width}.png` })
+  }
+})
+
+test('revenue restores the sound preference and unlocks real audio after interaction', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('poeruum:revenue-sound', 'on'))
+  const { card, pending, event, snapshot, emit } = await installRevenueFeedback(page, false)
+  await page.evaluate(() => {
+    const original = AudioContext.prototype.createOscillator
+    Object.assign(window, { revenueTestNotes: [] })
+    AudioContext.prototype.createOscillator = function () {
+      const oscillator = original.call(this)
+      ;(window as unknown as { revenueTestNotes: string[] }).revenueTestNotes.push(this.state)
+      return oscillator
+    }
+  })
+  await expect(card.getByRole('button', { name: 'Laekumiste heli' })).toHaveAttribute('aria-pressed', 'true')
+  await card.getByRole('heading', { name: 'Teenustasud' }).click()
+  emit('fee-real')
+  await page.clock.runFor(200)
+  await expect.poll(() => pending.length).toBe(1)
+  await pending[0].fulfill({ json: snapshot(37700, [event('fee-real')]) })
+  await expect.poll(() => page.evaluate(() => (window as unknown as { revenueTestNotes: string[] }).revenueTestNotes)).toEqual(['running', 'running', 'running', 'running'])
 })
 
 test('revenue keeps amounts and receipts visible during background refreshes', async ({ page }) => {

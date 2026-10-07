@@ -22,10 +22,11 @@ import AdminOverview from './AdminOverview'
 import AdminAnalytics from './AdminAnalytics'
 import AdminStoryDeck, { type AdminStoryDeckHandle } from './AdminStoryDeck'
 import useHomepageVisitFeedback from './useHomepageVisitFeedback'
+import useAdminRevenue from './useAdminRevenue'
 import useAdminPush from './useAdminPush'
 import AdminSettings from './AdminSettings'
 import { disableAdminPush } from './lib/adminPush'
-import type { RevenueEvent, RevenueDashboard, AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard } from './lib/adminDashboard'
+import type { AnalyticsRange, HomepageAnalyticsDashboard, HomepageEngagementDashboard } from './lib/adminDashboard'
 import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
 
 const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
@@ -59,15 +60,6 @@ const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/campaigns\/?$/i.test(pathname)) return 'campaigns'
   if (/^\/admin\/settings\/?$/i.test(pathname)) return 'settings'
   return 'overview'
-}
-
-const emptyRevenueDashboard: RevenueDashboard = {
-  month_total_cents: 0,
-  today_total_cents: 0,
-  subscription_total_cents: 0,
-  transaction_fee_total_cents: 0,
-  refund_total_cents: 0,
-  recent_events: [],
 }
 
 const emptyHomepageAnalytics: HomepageAnalyticsDashboard = {
@@ -264,10 +256,6 @@ export default function AdminApp() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [userMetricsError, setUserMetricsError] = useState('')
-  const [revenue, setRevenue] = useState<RevenueDashboard>(emptyRevenueDashboard)
-  const [revenueError, setRevenueError] = useState('')
-  const [isRevenueLoading, setIsRevenueLoading] = useState(true)
-  const loadedRevenueRef = useRef(false)
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>(30)
   const [homepageAnalytics, setHomepageAnalytics] = useState<HomepageAnalyticsDashboard>(emptyHomepageAnalytics)
   const [analyticsError, setAnalyticsError] = useState('')
@@ -276,7 +264,6 @@ export default function AdminApp() {
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true)
   const [analyticsRefreshRevision, setAnalyticsRefreshRevision] = useState(0)
   const loadedAnalyticsRef = useRef<{ userId: string; range: AnalyticsRange } | null>(null)
-  const [liveRevenueEventId, setLiveRevenueEventId] = useState<string | null>(null)
   const [latestEmails, setLatestEmails] = useState<Map<string, LatestEmailDelivery>>(() => new Map())
   const [showcaseStore, setShowcaseStore] = useState<StoreRecord | null>(null)
   const [showcaseProducts, setShowcaseProducts] = useState<Product[]>([])
@@ -392,28 +379,9 @@ export default function AdminApp() {
     }
   }
 
-  const loadRevenue = async () => {
-    // Keep the last successful snapshot visible during background refreshes.
-    if (!loadedRevenueRef.current) setIsRevenueLoading(true)
-    const { data, error: queryError } = await requireSupabase().rpc('admin_revenue_dashboard')
-    setIsRevenueLoading(false)
-    if (queryError) {
-      if (!loadedRevenueRef.current) setRevenueError('Tulude andmeid ei õnnestunud laadida. Rakenda tulude migratsioon.')
-      return
-    }
-    const result = Array.isArray(data) ? data[0] : data
-    loadedRevenueRef.current = true
-    setRevenue({
-      month_total_cents: Number(result?.month_total_cents ?? 0),
-      today_total_cents: Number(result?.today_total_cents ?? 0),
-      subscription_total_cents: Number(result?.subscription_total_cents ?? 0),
-      transaction_fee_total_cents: Number(result?.transaction_fee_total_cents ?? 0),
-      refund_total_cents: Number(result?.refund_total_cents ?? 0),
-      recent_events: Array.isArray(result?.recent_events) ? result.recent_events.map((event: RevenueEvent) => ({ ...event, amount_cents: Number(event.amount_cents) })) : [],
-    })
-    setRevenueError('')
-  }
-
+  const { revenue, error: revenueError, loading: isRevenueLoading, notice: revenueNotice, refresh: loadRevenue } = useAdminRevenue(
+    session && adminAccessGranted ? session.user.id : null, !isManagingShowcase && activeView === 'overview',
+  )
   const analyticsViewActive = !isManagingShowcase && (activeView === 'overview' || activeView === 'analytics')
   const pushFeedback = useAdminPush(session && adminAccessGranted ? session.user.id : null)
   const visitFeedback = useHomepageVisitFeedback({
@@ -761,10 +729,6 @@ export default function AdminApp() {
     if (!session) {
       setAdminAccessGranted(false)
       setRows([])
-      setRevenue(emptyRevenueDashboard)
-      loadedRevenueRef.current = false
-      setIsRevenueLoading(true)
-      setRevenueError('')
       setHomepageAnalytics(emptyHomepageAnalytics)
       loadedAnalyticsRef.current = null
       setOnlineUserIds(new Set())
@@ -816,20 +780,6 @@ export default function AdminApp() {
       window.clearInterval(expiryRefresh)
       void client.removeChannel(channel)
     }
-  }, [session?.user.id, adminAccessGranted])
-
-  useEffect(() => {
-    if (!session || !adminAccessGranted) return
-    const client = requireSupabase()
-    const channel = client.channel(`admin-revenue-${session.user.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'revenue_events' }, (payload) => {
-        const eventId = typeof payload.new.id === 'string' ? payload.new.id : null
-        setLiveRevenueEventId(eventId)
-        void loadRevenue()
-        window.setTimeout(() => setLiveRevenueEventId((current) => current === eventId ? null : current), 3200)
-      })
-      .subscribe()
-    return () => { void client.removeChannel(channel) }
   }, [session?.user.id, adminAccessGranted])
 
   useEffect(() => {
@@ -1079,7 +1029,7 @@ export default function AdminApp() {
           revenue={revenue}
           revenueError={revenueError}
           revenueLoading={isRevenueLoading}
-          liveRevenueEventId={liveRevenueEventId}
+          revenueNotice={revenueNotice}
           analytics={homepageAnalytics}
           analyticsError={analyticsError}
           analyticsLoading={isAnalyticsLoading}
