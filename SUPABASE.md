@@ -1,5 +1,11 @@
 # Supabase'i käivitamine
 
+## Tellimuse saaja telefon
+
+Migratsioon `202610070004_order_customer_phone.sql` lisab tellimusele `customer_phone` välja. `prepare_stripe_checkout` salvestab numbri koos esimese maksekatsega; korduskatse säilitab algse numbri. Migratsioon taastab numbrid säilinud `stripe_checkout_attempts` metaandmetest, jättes kustutatud poed puutumata. Konto kustutamisel eemaldatakse telefon koos teiste kontaktandmetega. `stripe-store-checkout` nõuab telefoninumbrit ka serveris. Tellimuskaart kuvab numbri helistamislingina või puudumisel „Telefon puudub”.
+
+Migratsioon ja `stripe-store-checkout` versioon 82 paigaldati tootmises 7. oktoobril 2026. Kahe varasema tasutud tellimuse numbrid taastati Stripe’i Checkout Sessioni metaandmetest pärast tellimuse, poe, makserežiimi, summa ja makseoleku vastavuse kontrolli. Kontrolliti migratsiooni registrit, andmebaasifunktsioone, tellimuste API kaudu tagastatavaid numbreid ning puuduva telefoni tõrjumist avalikus maksefunktsioonis (`400`). Kohalik migratsioonitest `scripts/test-order-customer-phone.mjs` katab ajaloo taastamise, uue maksekatse, korduskatse ja konto kustutamise. Brauserirakenduse muudatus vajab avalikus poes kasutamiseks eraldi avaldamist; kohalik muudetud tellimusvaade saab numbrid juba serverist lugeda.
+
 ## Kaupmehe poe statistika
 
 Kaupmehe tööriistariba graafikunupp avab poe omaniku 7 või 30 päeva ülevaate: külastused, tasutud tellimused, müük, vaadatuimad tooted ja liikluse allikad. Andmed loetakse vaate avamisel, perioodi vahetamisel ning värskendusnupust; pidevat reaalajaühendust ei kasutata. Telefonis avaneb täisekraanivaade, suuremal ekraanil parempoolne paneel. Graafikud toetavad hiirt, puudutust ja klaviatuuri ning arvestavad vähendatud animatsioonide eelistusega.

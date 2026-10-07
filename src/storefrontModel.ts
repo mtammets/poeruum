@@ -17,6 +17,7 @@ export type StoreOrder = {
   items: CartItem[]
   customerName: string
   customerEmail: string
+  customerPhone?: string | null
   delivery: string
   productSubtotal: number
   total: number

@@ -319,7 +319,7 @@ export function BusinessCardEditor({ initialDocument, onDocumentChange, onSave, 
 
       <div className="bc-design-area">
         <div className="bc-stage-heading"><span>{CARD_SIDE_LABELS[side]}</span><span>{doc.width} × {doc.height} mm</span></div>
-        <div className="bc-stage-scroll" ref={workspace} onClick={(event) => { if (event.target === event.currentTarget) setSelectedId(null) }}>
+        <div className="bc-stage-scroll" data-swipe-ignore ref={workspace} onClick={(event) => { if (event.target === event.currentTarget) setSelectedId(null) }}>
           <div className="bc-stage-position" style={{ width: canvasWidth * zoom, height: (doc.height + 2 * doc.bleed) * scale }}>
             <svg ref={svg} className={`bc-canvas${preview ? ' is-preview' : ''}`} width={canvasWidth * zoom} height={(doc.height + 2 * doc.bleed) * scale} viewBox={`${-doc.bleed} ${-doc.bleed} ${doc.width + 2 * doc.bleed} ${doc.height + 2 * doc.bleed}`} role="group" aria-label={`${side === 'front' ? 'Esikülje' : 'Tagakülje'} kujundus`} tabIndex={0}
               onPointerDown={(event) => { if (event.target === event.currentTarget || (event.target as SVGElement).dataset.background) { setSelectedId(null); setEditingText(null) } }} onPointerMove={moveGesture} onPointerUp={(event) => endGesture(event)} onPointerCancel={(event) => endGesture(event, true)} onDoubleClick={() => { if (selected?.type === 'text' && !selected.locked && !preview) setEditingText(selected.id) }}>

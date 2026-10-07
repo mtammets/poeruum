@@ -8,6 +8,7 @@ import type { Session } from '@supabase/supabase-js'
 import { Brand } from './Brand'
 import PasswordInput from './PasswordInput'
 import { hasAdminRole } from './lib/adminAccess'
+import { adminViewConfig, type AdminView } from './lib/adminNavigation'
 import { Storefront } from './App'
 import { getShowcaseStore, listProducts, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
@@ -33,21 +34,7 @@ const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
 const AdminKaubamaja = lazy(() => import('./AdminKaubamaja'))
 const AdminCampaigns = lazy(() => import('./AdminCampaigns'))
 
-type AdminView = 'overview' | 'analytics' | 'seo' | 'leads' | 'support' | 'users' | 'business-card' | 'directory' | 'campaigns' | 'settings'
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
-
-const adminViewConfig: Record<AdminView, { path: string; title: string }> = {
-  overview: { path: '/admin', title: 'Ülevaade' },
-  analytics: { path: '/admin/analytics', title: 'Külastatavus' },
-  seo: { path: '/admin/seo', title: 'SEO' },
-  leads: { path: '/admin/leads', title: 'Kliendiotsing' },
-  support: { path: '/admin/support', title: 'Klienditugi' },
-  users: { path: '/admin/users', title: 'Kasutajad' },
-  'business-card': { path: '/admin/business-card', title: 'Visiitkaart' },
-  directory: { path: '/admin/kaubamaja', title: 'Kaubamaja' },
-  campaigns: { path: '/admin/campaigns', title: 'Kampaaniad' },
-  settings: { path: '/admin/settings', title: 'Seaded' },
-}
 
 const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/analytics\/?$/i.test(pathname)) return 'analytics'
@@ -334,7 +321,7 @@ export default function AdminApp() {
   const navigateToView = (event: ReactMouseEvent<HTMLAnchorElement>, view: AdminView) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     event.preventDefault()
-    if (storyDeck.current && (view === 'analytics' || view === 'users')) storyDeck.current.navigate(view)
+    if (storyDeck.current) storyDeck.current.navigate(view)
     else changeView(view)
   }
 
@@ -860,19 +847,20 @@ export default function AdminApp() {
     </aside>
 
     <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : activeView === 'overview' ? ' admin-main--overview' : activeView === 'analytics' ? ' admin-main--analytics' : ''}`}>
-      {activeView !== 'users' && activeView !== 'overview' && activeView !== 'analytics' && activeView !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[activeView].title}</h1></div>{activeView !== 'leads' && activeView !== 'business-card' && activeView !== 'directory' && activeView !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
+      <AdminStoryDeck ref={storyDeck} view={activeView} onNavigate={changeView} renderView={(view) => <>
+      {view !== 'users' && view !== 'overview' && view !== 'analytics' && view !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[view].title}</h1></div>{view !== 'leads' && view !== 'business-card' && view !== 'directory' && view !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
-      {activeView === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
+      {view === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
-      {activeView === 'campaigns' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin kampaaniate loojat…</div>}><AdminCampaigns key={session.user.id} userId={session.user.id} /></Suspense>}
+      {view === 'campaigns' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin kampaaniate loojat…</div>}><AdminCampaigns key={session.user.id} userId={session.user.id} /></Suspense>}
 
-      {activeView === 'settings' && <AdminSettings push={pushFeedback} />}
+      {view === 'settings' && <AdminSettings push={pushFeedback} />}
 
-      {error && activeView !== 'settings' && activeView !== 'business-card' && activeView !== 'campaigns' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
+      {error && view !== 'settings' && view !== 'business-card' && view !== 'campaigns' && <div className="admin-alert" role="alert"><span>!</span><div><strong>Ligipääs puudub</strong><p>{error}</p></div></div>}
 
       {!error && <>
-        {activeView === 'directory' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin Kaubamaja…</div>}><AdminKaubamaja /></Suspense>}
-        {activeView === 'seo' && <div className="admin-seo">
+        {view === 'directory' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin Kaubamaja…</div>}><AdminKaubamaja /></Suspense>}
+        {view === 'seo' && <div className="admin-seo">
           <section className="admin-seo__summary">
             <div>
               <span>AVALEHE LEITAVUS</span>
@@ -1023,7 +1011,7 @@ export default function AdminApp() {
           </section>
         </div>}
 
-        {activeView === 'overview' && <AdminOverview
+        {view === 'overview' && <AdminOverview
           rows={rows}
           usersLoading={isLoading}
           revenue={revenue}
@@ -1039,20 +1027,20 @@ export default function AdminApp() {
           onNavigate={navigateToView}
         />}
 
-        {(activeView === 'analytics' || activeView === 'users') && <AdminStoryDeck ref={storyDeck} view={activeView} onNavigate={changeView}
-          analytics={<AdminAnalytics data={homepageAnalytics} range={analyticsRange} active={activeView === 'analytics'}
+        {view === 'analytics' && <AdminAnalytics data={homepageAnalytics} range={analyticsRange} active={activeView === 'analytics'}
             loading={isAnalyticsLoading} error={analyticsError} stale={analyticsStale} live={analyticsLive}
             feedback={visitFeedback} onRangeChange={setAnalyticsRange}
             onRefresh={() => setAnalyticsRefreshRevision((value) => value + 1)} />}
-          users={<>
+        {view === 'users' && <>
             {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset. Vaata uued kontod üle.</p></div>}
             <AdminUsers rows={rows} onlineUserIds={onlineUserIds} onlineViews={onlineViews} presenceKnown={presenceKnown} latestEmails={latestEmails} isLoading={isLoading} metricsError={userMetricsError} onRetry={() => void loadDashboard()} />
-          </>} />}
+        </>}
 
-        {activeView === 'support' && <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />}
+        {view === 'support' && <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />}
 
-        {activeView === 'leads' && <AdminLeads />}
+        {view === 'leads' && <AdminLeads />}
       </>}
+      </>} />
     </section>
   </main>
 }

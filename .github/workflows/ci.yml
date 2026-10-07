@@ -231,6 +231,9 @@ jobs:
       - name: Test historical payment recovery and cron replacement
         run: node scripts/test-payment-recovery-migration.mjs
 
+      - name: Test order phone recovery, persistence and deletion
+        run: node scripts/test-order-customer-phone.mjs
+
       - name: Lint database schemas
         run: npx supabase db lint --local --schema public,extensions --level warning --fail-on warning
 

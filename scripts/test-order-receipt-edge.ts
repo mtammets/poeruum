@@ -98,13 +98,18 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
     }
     await import('../supabase/functions/stripe-store-checkout/index.ts')
     const checkout = handler!
-    const checkoutRequest = () => new Request(values.SUPABASE_URL, { method: 'POST', body: JSON.stringify({
+    const checkoutRequest = (phone: string | null = ' +372 5123 4567 ') => new Request(values.SUPABASE_URL, { method: 'POST', body: JSON.stringify({
       storeId: order.store_id, checkoutRequestId: 'receipt-checkout-request-1', items: [{ id: 'product-1', quantity: 1 }],
-      customer: { name: 'Test Customer', email: 'test@example.invalid' }, billing: { company: false, address: 'Kase 2, Tartu' }, delivery: { type: 'pickup', label: 'Pickup' },
+      customer: { name: 'Test Customer', email: 'test@example.invalid', phone: phone ?? undefined }, billing: { company: false, address: 'Kase 2, Tartu' }, delivery: { type: 'pickup', label: 'Pickup' },
     }) })
     Deno.env.set('STRIPE_CHECKOUT_ENABLED', 'false')
     assert((await checkout(checkoutRequest())).status === 503 && checkoutPayloads.length === 0, 'Paused checkout still reached Stripe')
     Deno.env.set('STRIPE_CHECKOUT_ENABLED', 'true')
+    for (const phone of [null, '', '   ']) {
+      const response = await checkout(checkoutRequest(phone))
+      assert(response.status === 400 && (await response.json()).error === 'Lisa saaja telefoninumber.', 'Missing phone reached payment')
+    }
+    assert(storedAttempt === null && checkoutPayloads.length === 0, 'Missing phone created a checkout attempt')
     loseCreateResponse = true
     assert((await checkout(checkoutRequest())).status === 500, 'Lost Stripe response did not remain retryable')
     assert(order.payment_status === 'pending', 'Lost response released the order')
@@ -116,6 +121,7 @@ Deno.test('checkout persists its private return link; receipt authorizes, verifi
     assert(sessionCreate, 'Stripe checkout was not created')
     assert(new Set(checkoutPayloads).size === 1 && new Set(checkoutKeys).size === 1 && checkoutKeys[0], 'Retry changed the Stripe payload or idempotency key')
     const params = sessionCreate as unknown as URLSearchParams
+    assert(params.get('metadata[customer_phone]') === '+372 5123 4567', 'Buyer phone lost from the durable checkout request')
     const success = new URL(params.get('success_url')!)
     assert(success.href === params.get('cancel_url'), 'Cancel return still asserts an outcome')
     assert(success.search === '?checkout=status' && success.hash === `#receipt=${token}`, 'Receipt secret not confined to fragment')
@@ -214,7 +220,7 @@ Deno.test('company and entrepreneur checkout amounts match saved documents acros
           const response = await handler!(new Request(values.SUPABASE_URL, { method: 'POST', body: JSON.stringify({
             storeId: 'store-pricing', checkoutRequestId: `pricing-matrix-request-${calls}`,
             items: [{ id: 'discount', quantity: 3, price: 0, selectedOptions: { Värv: 'Sinine' } }, { id: 'extra', quantity: 1 }],
-            customer: { name: 'Mari Kask', email: 'buyer@example.invalid' },
+            customer: { name: 'Mari Kask', email: 'buyer@example.invalid', phone: '+372 5123 4567' },
             billing: { company: companyBuyer, name: 'Ostja OÜ', registryCode: '87654321', address: 'Tartu' },
             delivery: { type: shipping.type, provider: 'omniva', label: 'Valitud tarne' },
           }) }))

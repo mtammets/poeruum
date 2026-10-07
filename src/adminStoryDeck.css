@@ -1,5 +1,5 @@
 .admin-story-deck { --story-progress: 0; --story-depth: 0px; --story-offset: 0px; --story-shade: 0; position: relative; min-width: 0; min-height: 0; }
-.admin-story-position { position: absolute; z-index: 1; top: -.65rem; left: 0; right: 0; display: flex; gap: .35rem; height: 2px; pointer-events: none; }
+.admin-story-position { position: absolute; z-index: 1; top: -.65rem; left: 0; right: 0; display: none; gap: .35rem; height: 2px; pointer-events: none; }
 .admin-story-position i { flex: 1; border-radius: 2px; background: var(--admin-line-soft); transition: background 240ms; }
 .admin-story-position i.is-current { background: var(--admin-accent); }
 .admin-story-turn { position: relative; min-width: 0; min-height: 0; transform-style: preserve-3d; }
@@ -8,9 +8,9 @@
 .admin-story-panel--users { flex-direction: column; }
 .admin-story-deck[data-motion] { overflow: clip; }
 /* Each face owns its complete perspective matrix so Safari paints the same cube as Chromium. */
-.admin-story-deck[data-motion] .admin-story-panel { display: block; transform-origin: 50% var(--story-origin-y, 50%); transform: perspective(1800px) translateZ(calc(-1 * var(--story-depth))) rotateY(calc(-90deg * var(--story-progress))) rotateY(var(--story-angle)) translateZ(var(--story-depth)); will-change: transform; }
+.admin-story-deck[data-motion] .admin-story-panel:is(.is-current, .is-incoming) { display: block; transform-origin: 50% var(--story-origin-y, 50%); transform: perspective(1800px) translateZ(calc(-1 * var(--story-depth))) rotateY(calc(-90deg * var(--story-progress))) rotateY(var(--story-angle)) translateZ(var(--story-depth)); will-change: transform; }
 .admin-story-deck[data-motion="settling"] .admin-story-panel { transition: transform 280ms cubic-bezier(.2, .75, .25, 1); }
-.admin-story-panel--users.is-current, .admin-story-deck[data-motion] .admin-story-panel--users { display: flex; }
+.admin-story-panel--users.is-current, .admin-story-deck[data-motion] .admin-story-panel--users.is-incoming { display: flex; }
 .admin-story-deck[data-motion] .admin-story-panel:not(.is-current) { top: var(--story-offset); transform-origin: 50% calc(var(--story-origin-y) - var(--story-offset)); }
 .admin-story-deck[data-motion] .admin-story-panel::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: #000; opacity: 0; }
 .admin-story-deck[data-motion] .admin-story-panel.is-current::after { opacity: var(--story-shade); }
@@ -19,12 +19,15 @@
 .admin-shell--users .admin-main > .admin-story-deck { flex: 1; min-height: 0; }
 .admin-shell--users .admin-story-turn, .admin-shell--users .admin-story-panel { height: 100%; }
 @media (min-width: 1001px) and (min-height: 640px) {
-  .admin-main--analytics .admin-story-deck, .admin-main--analytics .admin-story-turn, .admin-main--analytics .admin-story-panel { height: 100%; }
+  :is(.admin-main--analytics, .admin-main--overview) :is(.admin-story-deck, .admin-story-turn, .admin-story-panel) { height: 100%; }
 }
 @media (max-width: 680px) {
   .admin-shell--users .admin-story-turn, .admin-shell--users .admin-story-panel { height: auto; }
-  .admin-story-position { top: -.45rem; }
+  .admin-story-position { display: flex; top: -.45rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .admin-story-position i { transition: none; }
 }
+
+.admin-story-panel > :is(.admin-users, .admin-support, .admin-leads) { margin-top: 0; }
+.admin-main--business-card .admin-story-panel > .admin-topbar { margin-bottom: 1rem; }

@@ -482,7 +482,84 @@ test.describe('admin stories navigation', () => {
     await expect(page).toHaveURL(/\/admin\/analytics$/)
   })
 
-  test('trackpad and menu transitions support browser history and reduced motion without desktop overflow', async ({ page }) => {
+  test('all admin views swipe in menu order on mobile, including settings and both end stops', async ({ page }) => {
+    await installBackend(page)
+    await installOverviewData(page)
+    await installTrafficData(page)
+    await page.route('**/__e2e_supabase/functions/v1/lead-outreach', (route) => route.fulfill({ json: {
+      settings: { enabled: false, daily_limit: 50, subject: '', body: '', updated_at: '' },
+      counts: { queued: 0, sending: 0, failed: 0, replied: 0, blocked: 0, sent_today: 0, sent_total: 0 },
+      last_import: null, last_send: null,
+    } }))
+    await page.goto('/admin')
+    const paths = ['/admin', '/admin/analytics', '/admin/users', '/admin/campaigns', '/admin/seo', '/admin/business-card', '/admin/leads', '/admin/support', '/admin/kaubamaja', '/admin/settings']
+    const move = async (forward: boolean) => {
+      await page.evaluate(() => window.scrollTo(0, 0))
+      const panel = page.locator('.admin-story-panel.is-current')
+      await expect(panel).toBeVisible()
+      const heading = panel.getByRole('heading').first()
+      await expect(heading).toBeVisible()
+      const bounds = await heading.boundingBox()
+      const y = bounds!.y + bounds!.height / 2
+      await swipe(page, { x: forward ? 150 : 80, y }, { x: forward ? 30 : 300, y })
+    }
+    await expect(page.locator('.admin-story-position')).toBeVisible()
+    await move(false)
+    await expect(page).toHaveURL(paths[0])
+    for (const path of paths.slice(1)) {
+      await move(true)
+      await expect(page).toHaveURL(path)
+      await expect(page.locator(`.admin-sidebar a[href="${path}"]`)).toHaveAttribute('aria-current', 'page')
+      await expect(page.locator('.admin-story-deck')).not.toHaveAttribute('data-motion')
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
+    }
+    await move(true)
+    await expect(page).toHaveURL(paths.at(-1)!)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    for (const path of paths.slice(0, -1).reverse()) {
+      await move(false)
+      await expect(page).toHaveURL(path)
+      await expect(page.locator('.admin-story-deck')).not.toHaveAttribute('data-motion')
+    }
+  })
+
+  test('form fields, editor canvases and open dialogs keep their touch gestures', async ({ page }) => {
+    await installBackend(page)
+    await installTrafficData(page)
+    await page.goto('/admin/seo')
+    const field = page.locator('#admin-seo-form input').first()
+    await field.scrollIntoViewIfNeeded()
+    const input = await field.boundingBox()
+    await swipe(page, { x: 270, y: input!.y + input!.height / 2 }, { x: 80, y: input!.y + input!.height / 2 })
+    await expect(page).toHaveURL(/\/admin\/seo$/)
+
+    await page.goto('/admin/business-card')
+    const canvas = page.getByRole('group', { name: 'Esikülje kujundus' })
+    await expect(canvas).toBeVisible()
+    await canvas.scrollIntoViewIfNeeded()
+    const card = await canvas.boundingBox()
+    await swipe(page, { x: 270, y: card!.y + card!.height / 2 }, { x: 80, y: card!.y + card!.height / 2 })
+    await expect(page).toHaveURL(/\/admin\/business-card$/)
+    await expect(page.locator('.admin-story-deck')).not.toHaveAttribute('data-motion')
+
+    await page.goto('/admin/campaigns')
+    const overlay = page.locator('.campaign-editor__overlay').first()
+    await expect(overlay).toBeVisible()
+    await overlay.scrollIntoViewIfNeeded()
+    const campaign = await overlay.boundingBox()
+    await swipe(page, { x: 270, y: campaign!.y + campaign!.height / 2 }, { x: 80, y: campaign!.y + campaign!.height / 2 })
+    await expect(page).toHaveURL(/\/admin\/campaigns$/)
+
+    await page.goto('/admin/analytics')
+    await page.getByRole('button', { name: 'Kuidas andmeid lugeda' }).click()
+    const dialog = page.getByRole('dialog')
+    const bounds = await dialog.boundingBox()
+    await swipe(page, { x: 270, y: bounds!.y + bounds!.height / 2 }, { x: 80, y: bounds!.y + bounds!.height / 2 })
+    await expect(dialog).toBeVisible()
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+  })
+
+  test('desktop ignores trackpad and touch swipes while menu links and browser history work', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await installBackend(page)
     await installTrafficData(page)
@@ -492,6 +569,12 @@ test.describe('admin stories navigation', () => {
     await page.mouse.move(headline!.x + headline!.width / 2, headline!.y + headline!.height / 2)
     await page.mouse.wheel(450, 0)
     await page.clock.runFor(500)
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+    await swipe(page, { x: headline!.x + 250, y: headline!.y + 10 }, { x: headline!.x + 50, y: headline!.y + 10 })
+    await expect(page).toHaveURL(/\/admin\/analytics$/)
+    await expect(page.locator('.admin-story-position')).toBeHidden()
+    await expect(page.locator('.admin-story-deck')).not.toHaveAttribute('data-motion')
+    await page.getByRole('navigation').getByRole('link', { name: 'Kasutajad', exact: true }).click()
     await expect(page).toHaveURL(/\/admin\/users$/)
     await expect(page.getByRole('heading', { name: 'Kasutajad', exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(900)
@@ -505,6 +588,11 @@ test.describe('admin stories navigation', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440)
     await page.goBack()
     await expect(page).toHaveURL(/\/admin\/analytics$/)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(page.locator('.admin-story-position')).toBeVisible()
+    const mobileHeadline = await page.locator('.traffic-hero__headline').boundingBox()
+    await swipe(page, { x: 270, y: mobileHeadline!.y + 10 }, { x: 60, y: mobileHeadline!.y + 10 })
+    await expect(page).toHaveURL(/\/admin\/users$/)
   })
 })
 

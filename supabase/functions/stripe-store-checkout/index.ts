@@ -84,6 +84,7 @@ Deno.serve(async (request) => {
     if (!storeId || checkoutRequestId.length < 16 || checkoutRequestId.length > 100 || !requestedItems.length || !email || !customerName || !body.delivery) {
       return json({ error: 'Tellimuse andmed on puudulikud.' }, 400)
     }
+    if (!customerPhone) return json({ error: 'Lisa saaja telefoninumber.' }, 400)
 
     const buyer = parseInvoiceBuyer(body.billing, { name: customerName, email })
     const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('POERUUM_SUPABASE_SECRET_KEY'), {

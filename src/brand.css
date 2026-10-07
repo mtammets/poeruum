@@ -7,10 +7,6 @@
   overflow: hidden;
 }
 
-@media (min-width: 1360px) {
-  .orders-overlay .order-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 .secret-login-trigger {
   display: block;
   flex-shrink: 0;
@@ -3507,87 +3503,6 @@
   z-index: 80;
 }
 
-.orders-sheet {
-  width: min(calc(100% - 2rem), 30rem);
-  min-width: 0;
-}
-
-.orders-heading > span {
-  color: #e5f25a;
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-}
-
-.orders-heading h2 {
-  margin: 0.35rem 0 0.25rem;
-}
-
-.orders-heading p {
-  margin: 0 0 0.85rem;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.78rem;
-}
-
-.orders-search { position: relative; display: block; width: 100%; margin-bottom: .65rem; }
-.orders-search > svg { position: absolute; z-index: 1; top: 50%; left: .9rem; width: .95rem; height: .95rem; fill: none; stroke: rgba(255, 255, 255, .45); stroke-width: 1.8; stroke-linecap: round; pointer-events: none; transform: translateY(-50%); }
-.login-sheet .orders-search > input { width: 100%; min-height: 2.35rem; padding: .75rem .9rem .75rem 2.55rem; border: 1px solid rgba(255, 255, 255, .12); border-radius: .65rem; outline: none; background: rgba(255, 255, 255, .055); color: #fff; font: inherit; font-size: .7rem; }
-.orders-search > input::placeholder { color: rgba(255, 255, 255, .38); }
-.orders-search > input:focus { border-color: rgba(229, 242, 90, .65); box-shadow: 0 0 0 3px rgba(229, 242, 90, .08); }
-.orders-layout-toggle { display: inline-flex; padding: .25rem; border: 1px solid rgba(255, 255, 255, .1); border-radius: .7rem; background: rgba(255, 255, 255, .04); }
-.orders-layout-toggle button { display: flex; align-items: center; gap: .38rem; padding: .48rem .62rem; border: 0; border-radius: .48rem; background: transparent; color: rgba(255, 255, 255, .48); font: inherit; font-size: .62rem; font-weight: 800; }
-.orders-layout-toggle button.is-active { background: rgba(229, 242, 90, .14); color: #e5f25a; }
-.orders-layout-toggle button:focus-visible { outline: 2px solid #e5f25a; outline-offset: 1px; }
-.orders-layout-toggle svg { width: .85rem; height: .85rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-
-.order-list {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.orders-overlay .order-list.is-list { grid-template-columns: 1fr; }
-
-.order-list article {
-  padding: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 1rem;
-  background: #191919;
-}
-
-.order-list article.is-new { border-color: rgba(229, 242, 90, 0.55); }
-.order-list article.is-refunded { opacity: 0.72; }
-.order-list article > header,
-.order-list article > footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
-.order-list article > header > div { display: grid; gap: 0.1rem; }
-.order-list article > header small { color: rgba(255, 255, 255, 0.45); font-size: 0.65rem; }
-.order-list article > header > span { padding: 0.3rem 0.5rem; border-radius: 999px; background: #303030; color: rgba(255, 255, 255, 0.65); font-size: 0.62rem; font-weight: 800; }
-.order-list article.is-new > header > span { background: #e5f25a; color: #101510; }
-.order-list article.is-refunded > header > span { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.5); }
-.order-customer { display: grid; gap: 0.1rem; margin: 0.9rem 0; }
-.order-customer a { color: rgba(255, 255, 255, 0.68); font-size: 0.72rem; text-decoration: none; }
-.order-customer small { margin-top: 0.2rem; overflow: hidden; color: rgba(255, 255, 255, 0.45); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
-.order-list ul { display: grid; gap: 0.55rem; margin: 0; padding: 0.75rem 0; border-top: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.1); list-style: none; }
-.order-list li { display: grid; grid-template-columns: 2.5rem 1fr auto; align-items: center; gap: 0.65rem; font-size: 0.72rem; }
-.order-list li img { width: 2.5rem; height: 2.5rem; border-radius: 0.45rem; object-fit: cover; }
-.order-settlement { display: grid; gap: .3rem; margin: .7rem 0 0; padding: .65rem .7rem; border-radius: .65rem; background: rgba(255, 255, 255, .045); }
-.order-settlement > div { display: flex; align-items: center; justify-content: space-between; gap: .8rem; color: rgba(255, 255, 255, .48); font-size: .62rem; }
-.order-settlement dt, .order-settlement dd { margin: 0; }
-.order-settlement > div:last-child { padding-top: .3rem; border-top: 1px solid rgba(255, 255, 255, .08); color: #e5f25a; font-weight: 850; }
-.order-list article > footer { padding-top: 0.85rem; }
-.order-list article > footer > strong { font-size: 1rem; }
-.order-list article > footer button { padding: 0.55rem 0.7rem; border: 0; border-radius: 0.6rem; background: #e5f25a; color: #101510; font: inherit; font-size: 0.68rem; font-weight: 900; }
-.order-list article > footer button.order-refund { background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.72); }
-.order-list article > footer > small { color: #e5f25a; font-size: 0.61rem; }
-.orders-empty { display: grid; justify-items: center; padding: 3rem 1rem; text-align: center; }
-.orders-empty > span { display: grid; width: 4rem; height: 4rem; place-items: center; border-radius: 50%; background: #222; color: #e5f25a; font-size: 1.5rem; }
-.orders-empty h3 { margin: 1rem 0 0.2rem; }
-.orders-empty p { margin: 0; color: rgba(255, 255, 255, 0.5); }
-.orders-no-results { display: grid; grid-column: 1 / -1; align-content: center; justify-items: center; min-height: 18rem; padding: 2rem; border: 1px dashed rgba(255, 255, 255, .14); border-radius: 1rem; text-align: center; }
-.orders-no-results > span { color: #e5f25a; font-size: 2rem; }
-.orders-no-results h3 { margin: .7rem 0 .25rem; }
-.orders-no-results p { margin: 0; color: rgba(255, 255, 255, .5); font-size: .72rem; }
-.orders-no-results button { margin-top: 1rem; padding: .6rem .75rem; border: 1px solid rgba(255, 255, 255, .14); border-radius: .6rem; background: rgba(255, 255, 255, .07); color: #fff; font: inherit; font-size: .68rem; font-weight: 800; }
-
 @media (max-width: 599px) {
   .empty-storefront__drop-copy { display: none; }
   .toast {
@@ -3714,40 +3629,6 @@
     grid-template-columns: 1fr;
   }
 
-  .orders-overlay.login-overlay {
-    align-items: stretch;
-    padding: 0;
-    overflow-y: hidden;
-    overscroll-behavior: none;
-    background: #111;
-  }
-
-  .orders-overlay .orders-sheet {
-    width: 100vw;
-    max-width: none;
-    height: 100%;
-    min-height: 0;
-    max-height: 100%;
-    margin: 0;
-    padding: max(1.5rem, env(safe-area-inset-top)) 1.25rem max(1.5rem, env(safe-area-inset-bottom));
-    overflow-x: hidden;
-    overflow-y: auto;
-    border: 0;
-    border-radius: 0;
-    overscroll-behavior-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .orders-overlay .login-sheet__close {
-    position: fixed;
-    top: max(1rem, env(safe-area-inset-top));
-    right: 1rem;
-  }
-
-  .orders-overlay .orders-layout-toggle {
-    display: none;
-  }
-
   .product-editor-overlay.login-overlay {
     display: block;
     position: static;
@@ -3803,7 +3684,6 @@
 
   .settings-onboarding__list button,
   .settings-tabs button,
-  .order-list article > footer button,
   .settings-secondary-action,
   .settings-logo__actions label,
   .settings-logo__actions button {
@@ -5186,34 +5066,6 @@
     border-radius: 1.4rem 0 0 1.4rem;
     box-shadow: -24px 0 70px rgba(0, 0, 0, 0.45);
   }
-
-  .orders-overlay.login-overlay {
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-  }
-
-  .orders-overlay .orders-sheet {
-    display: grid;
-    grid-template-columns: minmax(15rem, .38fr) minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 1.25rem 2rem;
-    width: min(74rem, calc(100vw - 4rem));
-    max-width: 74rem;
-    height: min(48rem, calc(100dvh - 4rem));
-    max-height: calc(100dvh - 4rem);
-    margin: auto;
-    padding: 2.25rem;
-    overflow: hidden;
-    border-radius: 1.15rem;
-  }
-
-  .orders-overlay .orders-heading { grid-column: 1; grid-row: 1; align-self: end; }
-  .orders-overlay .orders-heading h2 { margin-top: .55rem; font-size: 2.25rem; letter-spacing: -.045em; }
-  .orders-overlay .orders-heading p { max-width: 16rem; margin-bottom: 0; line-height: 1.5; }
-  .orders-overlay .order-list { grid-column: 2; grid-row: 1 / -1; align-content: start; min-height: 0; padding-right: .35rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: rgba(255, 255, 255, .22) transparent; scrollbar-width: thin; }
-  .orders-overlay .order-list article { padding: 1.15rem; }
-  .orders-overlay .login-sheet__close { position: absolute; z-index: 2; top: 1.25rem; right: 1.25rem; }
 
   .settings-overlay.login-overlay {
     align-items: center;

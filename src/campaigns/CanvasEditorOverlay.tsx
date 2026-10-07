@@ -32,7 +32,7 @@ export default function CanvasEditorOverlay({ document, scene, elements, time = 
     if (root.current?.hasPointerCapture(current.pointer)) root.current.releasePointerCapture(current.pointer)
     if (!cancel && current.latest !== current.doc) onCommit(current.latest)
   }
-  return <div ref={root} className="campaign-editor__overlay" onPointerDown={() => onSelect(null)}
+  return <div ref={root} className="campaign-editor__overlay" data-swipe-ignore onPointerDown={() => onSelect(null)}
     onPointerMove={(event) => {
       const current = drag.current, rect = root.current?.getBoundingClientRect()
       if (!current || !rect || current.pointer !== event.pointerId) return

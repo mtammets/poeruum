@@ -2,7 +2,7 @@ import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFie
 import { hasSellerDetails, normalizeSellerSettings, sellerType as getSellerType, type SellerType } from '../shared/seller'
 import { getAccountEmailStatus } from './lib/accountEmail'
 import { createRandomId } from './lib/randomId'
-import OrderDocumentLinks from './OrderDocumentLinks'
+import StoreOrders from './StoreOrders'
 import PlatformInvoiceList from './PlatformInvoiceList'
 import { estonianBillingMonth } from '../shared/platform-business.mjs'
 import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from 'react'
@@ -404,8 +404,6 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [isOrdersOpen, setIsOrdersOpen] = useState(false)
   const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
   const [orders, setOrders] = useState<StoreOrder[]>([])
-  const [orderLayout, setOrderLayout] = useState<'grid' | 'list'>('grid')
-  const [orderSearch, setOrderSearch] = useState('')
   const [storeTheme, setStoreTheme] = useState<StoreTheme>(theme)
   const [storeAccent, setStoreAccent] = useState('#e5f25a')
   const [buyButtonSize, setBuyButtonSize] = useState<BuyButtonSize>('medium')
@@ -767,7 +765,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     let active = true
     const refreshOrders = () => listOrders(storeId, stripeAccountMode ?? 'live').then((rows) => { if (active) setOrders(rows.map((row) => ({
       id: row.order_number, hasInvoice: Boolean(row.invoice_snapshot), items: row.items as CartItem[], customerName: row.customer_name,
-      customerEmail: row.customer_email, delivery: row.delivery, productSubtotal: Number(row.product_subtotal),
+      customerEmail: row.customer_email, customerPhone: row.customer_phone, delivery: row.delivery, productSubtotal: Number(row.product_subtotal),
       total: Number(row.total), createdAt: row.created_at, status: row.status,
       stripeProcessingFee: Number(row.stripe_processing_fee_cents) / 100,
       stripePlatformFee: Number(row.stripe_platform_fee_cents) / 100,
@@ -2452,11 +2450,6 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     }
   }
   const newOrderCount = orders.filter((order) => order.status === 'new').length
-  const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  const normalizedOrderSearch = orderSearch.trim().toLocaleLowerCase('et')
-  const visibleOrders = normalizedOrderSearch
-    ? sortedOrders.filter((order) => `${order.id} ${order.customerName} ${order.customerEmail} ${order.delivery} ${order.items.map((item) => item.name).join(' ')}`.toLocaleLowerCase('et').includes(normalizedOrderSearch))
-    : sortedOrders
   const now = new Date()
   const currentMonthOrders = orders.filter((order) => {
     return estonianBillingMonth(order.createdAt) === estonianBillingMonth(now)
@@ -3085,38 +3078,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         const allowedQuantity = Math.max(1, Math.min(quantity, getProductStockLimit(target) - otherQuantity))
         return items.map((item) => item.cartKey === cartKey ? { ...item, quantity: allowedQuantity } : item)
       })} onClose={() => setIsCartOpen(false)} />}
-      {isOrdersOpen && <div className="overlay login-overlay orders-overlay" onMouseDown={(event) => event.target === event.currentTarget && setIsOrdersOpen(false)}>
-        <section className="login-sheet orders-sheet" role="dialog" aria-modal="true" aria-label="Tellimused">
-          <ModalCloseButton onClose={() => setIsOrdersOpen(false)} />
-          <div className="orders-heading">
-            <span>TELLIMUSED</span><h2>{newOrderCount ? newOrderCount === 1 ? '1 uus tellimus' : `${newOrderCount} uut tellimust` : 'Kõik on tehtud'}</h2><p>Siin näed sinu poele tehtud oste. Uuemad on alati ees.</p>
-            <label className="orders-search">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
-              <input type="text" inputMode="search" value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Otsi tellimusi" aria-label="Otsi tellimuse, kliendi või toote järgi" />
-            </label>
-            <div className="orders-layout-toggle" role="group" aria-label="Tellimuste paigutus">
-              <button type="button" className={orderLayout === 'grid' ? 'is-active' : ''} aria-pressed={orderLayout === 'grid'} onClick={() => setOrderLayout('grid')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>Ruudustik</button>
-              <button type="button" className={orderLayout === 'list' ? 'is-active' : ''} aria-pressed={orderLayout === 'list'} onClick={() => setOrderLayout('list')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/></svg>Nimekiri</button>
-            </div>
-          </div>
-          {orders.length ? <div className={`order-list${orderLayout === 'list' ? ' is-list' : ''}`}>{visibleOrders.length ? visibleOrders.map((order) => <article className={order.status === 'new' ? 'is-new' : order.status === 'refunded' ? 'is-refunded' : ''} key={order.id}>
-            <header><div><strong>{order.id}</strong><small>{new Date(order.createdAt).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><span>{order.status === 'refunded' ? 'Tagastatud' : order.refundStatus === 'requested' || order.refundStatus === 'pending' ? 'Tagastamisel' : order.refundStatus === 'failed' ? 'Tagastus vajab abi' : order.status === 'new' ? 'Uus' : 'Täidetud'}</span></header>
-            <div className="order-customer"><strong>{order.customerName}</strong><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a><small>{order.delivery}</small></div>
-            <ul>{order.items.map((item) => <li key={item.cartKey}><OrderItemThumbnail item={item} currentProduct={displayProducts.find((product) => product.id === item.id)} /><span>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ''}{Object.keys(item.selectedOptions).length ? <small>{Object.values(item.selectedOptions).join(' · ')}</small> : null}</span><strong>{formatEuro(getProductPrice(item) * item.quantity)}</strong></li>)}</ul>
-            {order.paymentIssue && <p role="status">{order.paymentIssue === 'funds_required' ? (order.status === 'refunded' ? 'Ostjale on raha tagastatud. Müüja ülekande tagasipööramiseks ei jätku Stripe’i kontol raha; võta ühendust Poeruumi toega.' : 'Tagastus ootab raha lisamist Stripe’i kontole. Võta ühendust Poeruumi toega.') : order.paymentIssue === 'partial_refund' ? 'Stripe’is on tehtud osaline tagastus. Arvestus vajab Poeruumi toe kontrolli.' : order.paymentIssue === 'dispute' ? 'Ostja on makse vaidlustanud. Kontrolli vaidluse tähtaega Stripe’is ja võta ühendust Poeruumi toega.' : 'Makse arvestus vajab Poeruumi toe kontrolli.'}</p>}
-            {Boolean(order.stripeSellerNet) && order.status !== 'refunded' && !order.refundStatus && <dl className="order-settlement">
-              <div><dt>Stripe’i maksetasu</dt><dd>−{formatEuro(order.stripeProcessingFee ?? 0)}</dd></div>
-              <div><dt>Poeruumi teenustasu (neto)</dt><dd>−{formatEuro(order.stripePlatformFeeNet ?? 0)}</dd></div>
-              {Boolean(order.stripePlatformFeeVat) && <div><dt>Käibemaks Poeruumi teenustasult</dt><dd>−{formatEuro(order.stripePlatformFeeVat ?? 0)}</dd></div>}
-              <div><dt>Poeruumi tasu kokku</dt><dd>−{formatEuro(order.stripePlatformFee ?? 0)}</dd></div>
-              <div><dt>Sinu Stripe’i kontole</dt><dd>{formatEuro(order.stripeSellerNet ?? 0)}</dd></div>
-            </dl>}
-            {Boolean(order.stripeSellerNet) && order.status !== 'refunded' && <p className="settings-helper">See on ülekanne Stripe’i kontole. Pangakontole laekumine toimub Stripe’i väljamaksegraafiku järgi.{sellerType === 'entrepreneur' && ' Ettevõtluskonto maksu peab pank kinni eraldi.'}</p>}
-            {storeId && order.hasInvoice && <OrderDocumentLinks lazy access={{ storeId, orderNumber: order.id }} refunded={order.status === 'refunded'} />}
-            <footer><strong>{order.status === 'refunded' ? <s>{order.total.toFixed(2).replace('.', ',')} €</s> : `${order.total.toFixed(2).replace('.', ',')} €`}</strong>{order.status === 'refunded' ? <small>Makse tagastatud</small> : order.refundStatus === 'requested' || order.refundStatus === 'pending' ? <small>Tagastus on pooleli</small> : order.paymentIssue || order.refundStatus === 'failed' ? <small>Tagastuse kontrollimiseks võta ühendust Poeruumi toega.</small> : <>{order.status === 'new' && <button type="button" onClick={() => changeOrderStatus(order.id, 'fulfilled')}>Märgi täidetuks</button>}<button className="order-refund" type="button" onClick={() => changeOrderStatus(order.id, 'refunded')}>Tagasta makse</button></>}</footer>
-          </article>) : <div className="orders-no-results"><span>⌕</span><h3>Tellimusi ei leitud</h3><p>Proovi tellimuse numbrit, kliendi nime või toodet.</p><button type="button" onClick={() => setOrderSearch('')}>Tühjenda otsing</button></div>}</div> : <div className="orders-empty"><span>□</span><h3>Tellimusi veel pole</h3><p>Uued ostud ilmuvad siia automaatselt.</p></div>}
-        </section>
-      </div>}
+      {isOrdersOpen && <StoreOrders orders={orders} storeId={storeId} sellerType={sellerType}
+        renderThumbnail={(item) => <OrderItemThumbnail item={item} currentProduct={displayProducts.find((product) => product.id === item.id)} />}
+        onChangeStatus={changeOrderStatus} onClose={() => setIsOrdersOpen(false)} />}
       {isSettingsOpen && <div className="overlay login-overlay settings-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsSettingsOpen(false); setIsSettingsHome(true) } }}>
         <section className={`login-sheet settings-sheet${isSettingsHome ? ' is-home' : ''}`} role="dialog" aria-modal="true" aria-label="Seaded" onCompositionStart={() => { settingsCompositionRef.current = true }} onCompositionEnd={() => { settingsCompositionRef.current = false; setSettingsCompositionRevision((revision) => revision + 1) }}>
           <ModalCloseButton onClose={() => { setIsSettingsOpen(false); setIsSettingsHome(true) }} />

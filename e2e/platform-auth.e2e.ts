@@ -1080,6 +1080,130 @@ test('a merchant configures a dispatch range without an unconfirmed default prom
   await expect(range.getByLabel('Kuni')).toHaveValue('3')
 })
 
+test('orders open in a right-side panel with fee details on demand at every screen size', async ({ page }) => {
+  const item = { id: 'order-cup', cartKey: 'order-cup-sand', name: 'Keraamiline tass', price: 24,
+    image: '/images/kaubamaja-example-ceramics.webp', alt: '', quantity: 2, selectedOptions: { Värv: 'Liivakarva' } }
+  const order = {
+    order_number: 'PR-20261007-A41', items: [item], customer_name: 'Mari Maasikas', customer_email: 'mari@example.invalid',
+    customer_phone: '+372 5123 4567',
+    delivery: 'Omniva · Tallinn · Telliskivi Rimi pakiautomaat', product_subtotal: 48, total: 50.9,
+    created_at: '2026-10-07T15:35:00Z', status: 'new', payment_status: 'paid',
+    stripe_processing_fee_cents: 101, stripe_platform_fee_net_cents: 192,
+    stripe_platform_fee_vat_cents: 46, stripe_platform_fee_cents: 238, stripe_seller_net_cents: 4751,
+  }
+  await installSupabaseBackend(page, store, connectedStripeStatus, {
+    products: [{ id: item.id, store_id: STORE_ID, name: item.name, price: item.price, stock: 5, image_url: 'http://localhost:4174/storage/v1/object/public/product-images/auth-preview.svg' }],
+    getOrders: () => [order],
+  })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: /Tellimused/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Tellimused' })
+  await expect(dialog.getByRole('heading', { name: 'Mari Maasikas' })).toBeVisible()
+  await expect(dialog.getByRole('link', { name: '+372 5123 4567', exact: true })).toHaveAttribute('href', 'tel:+37251234567')
+  await expect(dialog.getByText('Telefon puudub', { exact: true })).toHaveCount(0)
+  await expect(dialog.locator('.store-order__total')).toHaveText('Kokku50,90 €')
+  await expect(dialog.locator('.store-order__delivery')).toContainText('Telliskivi Rimi pakiautomaat')
+  await expect(dialog.getByLabel('Kogus: 2')).toBeVisible()
+  const finances = dialog.locator('.store-order__finances')
+  await expect(finances.locator('summary')).toContainText('47,51 €')
+  await expect(dialog.locator('.order-settlement')).toBeHidden()
+  await finances.locator('summary').focus()
+  await page.keyboard.press('Enter')
+  await expect(dialog.locator('.order-settlement')).toBeVisible()
+  await expect(dialog.locator('.order-settlement')).toContainText('sh neto 1,92 € + käibemaks 0,46 €')
+  await expect(finances).toContainText('Panka laekub Stripe’i väljamaksegraafiku järgi.')
+  await page.keyboard.press('Enter')
+  await finances.locator('summary').blur()
+  for (const { width, height } of [{ width: 1440, height: 900 }, { width: 768, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 700 }, { width: 844, height: 390 }]) {
+    await page.setViewportSize({ width, height })
+    await dialog.getByRole('button', { name: 'Märgi täidetuks' }).scrollIntoViewIfNeeded()
+    await expect(dialog.getByRole('button', { name: 'Märgi täidetuks' })).toBeInViewport()
+    await expect(dialog.getByRole('button', { name: 'Sulge', exact: true })).toBeInViewport()
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+    const bounds = (await dialog.boundingBox())!
+    expect(bounds.x + bounds.width).toBeCloseTo(width, 1)
+    expect(bounds.y).toBe(0)
+    expect(bounds.height).toBe(height)
+    expect(bounds.width).toBeCloseTo(width < 600 ? width : width === 768 ? 700 : Math.max(440, Math.min(620, width * .36)), 1)
+    await page.screenshot({ path: `output/orders-drawer-${width}.png`, animations: 'disabled' })
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(dialog).toHaveCSS('animation-name', 'none')
+  await dialog.focus()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Tellimused/ })).toBeFocused()
+  await page.getByRole('button', { name: /Tellimused/ }).click()
+  await expect(dialog).toBeVisible()
+  await page.mouse.click(20, 150)
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Tellimused/ })).toBeFocused()
+})
+
+test('order filters, search and fulfillment retain accurate states in the scrolling side panel', async ({ page }) => {
+  const base = {
+    items: [], customer_email: 'ostja@example.invalid', delivery: 'Tulen ise järele', product_subtotal: 20, total: 20,
+    created_at: '2026-10-07T12:00:00Z', status: 'new', payment_status: 'paid', stripe_seller_net_cents: 1800,
+  }
+  const orders = [
+    { ...base, order_number: 'PR-NEW', customer_name: 'Mari Maasikas' },
+    { ...base, order_number: 'PR-DONE', customer_name: 'Jüri Tamm', status: 'fulfilled' },
+    { ...base, order_number: 'PR-REFUND', customer_name: 'Kati Kask', status: 'refunded', payment_status: 'refunded' },
+    { ...base, order_number: 'PR-PENDING', customer_name: 'Peeter Paju', stripe_refund_status: 'pending' },
+  ]
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await installSupabaseBackend(page, store, connectedStripeStatus, {
+    products: [{ id: 'cup', store_id: STORE_ID, name: 'Tass', price: 20, stock: 5, image_url: 'http://localhost:4174/storage/v1/object/public/product-images/auth-preview.svg' }],
+    getOrders: () => orders,
+  })
+  const fulfilled: string[] = []
+  await page.route('**/rest/v1/rpc/mark_order_fulfilled', (route) => {
+    fulfilled.push(route.request().postDataJSON().target_order_number)
+    orders[0].status = 'fulfilled'
+    return json(route, null)
+  })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: /Tellimused/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Tellimused' })
+  const filters = dialog.getByRole('group', { name: 'Tellimuste olek' })
+  await expect(dialog.getByRole('article')).toHaveCount(4)
+  await expect(dialog.getByText('Telefon puudub', { exact: true })).toHaveCount(4)
+  await expect(dialog.locator('a[href^="tel:"]')).toHaveCount(0)
+  await dialog.getByRole('article').last().scrollIntoViewIfNeeded()
+  await expect(dialog.getByRole('button', { name: 'Sulge', exact: true })).toBeInViewport()
+  await expect(filters).toBeInViewport()
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await filters.getByRole('button', { name: 'Tagastused 2', exact: true }).click()
+  await expect(dialog.getByRole('article')).toHaveCount(2)
+  await expect(dialog.locator('.store-order__finances')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Märgi täidetuks' })).toHaveCount(0)
+  await filters.getByRole('button', { name: 'Uued 1', exact: true }).click()
+  await expect(dialog.getByRole('article')).toHaveCount(1)
+  await dialog.getByRole('button', { name: 'Märgi täidetuks' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Kõik on tehtud' })).toBeVisible()
+  expect(fulfilled).toEqual(['PR-NEW'])
+  await filters.getByRole('button', { name: 'Kõik 4', exact: true }).click()
+  const search = dialog.getByRole('searchbox')
+  await search.fill('jüri')
+  await expect(dialog.getByRole('article')).toHaveCount(1)
+  await expect(dialog.getByRole('heading', { name: 'Jüri Tamm' })).toBeVisible()
+  await search.fill('olematu')
+  await expect(dialog.getByRole('heading', { name: 'Tellimusi ei leitud' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Näita kõiki tellimusi' }).click()
+  await expect(dialog.getByRole('article')).toHaveCount(4)
+  await page.screenshot({ path: 'output/orders-drawer-list.png', animations: 'disabled' })
+  orders.splice(0)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(dialog.getByRole('heading', { name: 'Esimene tellimus on veel tulekul' })).toBeVisible()
+})
+
 test('an unfulfilled order stays refunding until the server confirms the refund', async ({ page }) => {
   const order = {
     order_number: 'PR-REFUND-TEST', items: [], customer_name: 'Testostja', customer_email: 'test@example.invalid',
