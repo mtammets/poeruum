@@ -889,7 +889,7 @@ export default function AdminApp() {
     || seoDraft.social_description !== seoSettings.social_description
     || seoDraft.search_indexing_enabled !== seoSettings.search_indexing_enabled
 
-  return <main className={`admin-shell${activeView === 'users' ? ' admin-shell--users' : ''}${watch.active ? ' is-watching' : ''}${sidebarHidden ? ' is-menu-hidden' : ''}`}>
+  return <main className={`admin-shell${activeView === 'users' ? ' admin-shell--users' : activeView === 'support' ? ' admin-shell--support' : ''}${watch.active ? ' is-watching' : ''}${sidebarHidden ? ' is-menu-hidden' : ''}`}>
     {sidebarHidden && <button ref={showMenuButton} className="admin-sidebar-toggle admin-sidebar-toggle--restore" type="button" hidden={watch.active} aria-label="Näita menüüd" title="Näita menüüd" aria-expanded={false} aria-controls="admin-sidebar" onClick={() => setMenuHidden(false)}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16m5-11 3 3-3 3" /></svg>
     </button>}
@@ -918,7 +918,7 @@ export default function AdminApp() {
 
     <section inert={watch.active} aria-hidden={watch.active || undefined} className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : activeView === 'overview' ? ' admin-main--overview' : activeView === 'analytics' ? ' admin-main--analytics' : ''}`}>
       <AdminStoryDeck ref={storyDeck} view={activeView} onNavigate={changeView} renderView={(view) => <>
-      {view !== 'users' && view !== 'overview' && view !== 'analytics' && view !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[view].title}</h1></div>{view !== 'leads' && view !== 'business-card' && view !== 'directory' && view !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
+      {view !== 'users' && view !== 'overview' && view !== 'analytics' && view !== 'campaigns' && view !== 'support' && <header className="admin-topbar"><div><h1>{adminViewConfig[view].title}</h1></div>{view !== 'leads' && view !== 'business-card' && view !== 'directory' && view !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {view === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
