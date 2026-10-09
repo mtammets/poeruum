@@ -33,8 +33,9 @@ function UserRow({ row, online, expanded, onToggle, children }: { row: AdminUser
   }} className={`admin-user-row${expanded ? ' is-expanded' : ''}${online ? ' is-online' : ''}${row.payment_state === 'restricted' ? ' needs-attention' : ''}`} style={{ '--avatar-hue': [152, 29, 214, 267, 345][Math.abs(hue) % 5] } as CSSProperties}>{children}</article>
 }
 
-export default function AdminUsers({ rows, onlineUserIds, onlineViews, presenceKnown, latestEmails, isLoading, metricsError, onRetry }: {
+export default function AdminUsers({ rows, onlineUserIds, onlineViews, presenceKnown, latestEmails, isLoading, metricsError, onRetry, onSupportChanged }: {
   rows: AdminUserRow[]; onlineUserIds: Set<string>; onlineViews: Map<string, string>; presenceKnown: boolean; latestEmails: Map<string, LatestEmailDelivery>; isLoading: boolean; metricsError: string; onRetry: () => void
+  onSupportChanged: () => void
 }) {
   const [filter, setFilter] = useState<UserFilter>('all')
   const [sort, setSort] = useState<UserSort>('newest')
@@ -90,7 +91,7 @@ export default function AdminUsers({ rows, onlineUserIds, onlineViews, presenceK
           <div className="admin-user-row__support" data-label="Klienditugi">{!known ? <span title="Tugiseis pole kättesaadav">—</span> : (row.awaiting_admin_count ?? 0) > 0 ? <a className="admin-users__reply" href={supportUrl(row)}><Icon name="message" />Vasta<span>{row.awaiting_admin_count}</span></a> : (row.waiting_user_count ?? 0) > 0 ? <span className="admin-users__waiting"><Icon name="clock" />Ootab kasutajat{(row.waiting_user_count ?? 0) > 1 && <small>{row.waiting_user_count} vestlust</small>}</span> : <span className="admin-users__clear" aria-label="Vastamist ootavaid vestlusi pole"><Icon name="check" /></span>}</div>
           <div className="admin-user-row__activity" data-label="Sisselogimine"><strong className={online ? 'is-online' : undefined} title={online ? 'Avatud sessioon; see ei kirjelda kasutaja tegevust.' : `Viimane sisselogimine: ${date(row.last_sign_in_at)}`}>{online && <i aria-hidden="true" />}{online ? 'Ühendatud' : relative(row.last_sign_in_at)}</strong>{online && presenceViews[onlineViews.get(row.user_id) ?? ''] && <small>Vaade: {presenceViews[onlineViews.get(row.user_id)!]}</small>}</div>
           <button className="admin-user-row__expand" type="button" aria-label={`${row.store_name || row.email}: üksikasjad`} aria-expanded={expanded} aria-controls={detailId} onClick={toggle}><Icon name="chevron" /></button>
-          {expanded && <div className="admin-user-row__insights" id={detailId} role="region" aria-label={`${row.store_name || row.email}: ülevaade`}><AdminUserInsights row={row} online={online} view={onlineViews.get(row.user_id)} presenceKnown={presenceKnown} email={latestEmails.get(row.user_id)} paymentDiagnostic={diagnostic} onPaymentDiagnostic={updatePayment} /></div>}
+          {expanded && <div className="admin-user-row__insights" id={detailId} role="region" aria-label={`${row.store_name || row.email}: ülevaade`}><AdminUserInsights row={row} online={online} view={onlineViews.get(row.user_id)} presenceKnown={presenceKnown} email={latestEmails.get(row.user_id)} paymentDiagnostic={diagnostic} onPaymentDiagnostic={updatePayment} onSupportChanged={onSupportChanged} /></div>}
         </UserRow>
       }) : <div className="admin-table__empty"><Icon name="search" /><strong>Kasutajaid ei leitud</strong></div>}
     </div>

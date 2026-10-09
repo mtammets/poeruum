@@ -5,6 +5,7 @@ export type SupportReplyEmailInput = {
   subject: string
   body: string
   conversationId: string
+  isNewConversation?: boolean
 }
 
 const replySubject = (value: string) => {
@@ -16,7 +17,7 @@ export const buildSupportReplyEmail = (input: SupportReplyEmailInput) => ({
   from: input.from,
   to: [input.recipientEmail],
   reply_to: input.replyTo,
-  subject: replySubject(input.subject),
+  subject: input.isNewConversation ? input.subject.trim() : replySubject(input.subject),
   text: input.body.trim(),
   tags: [
     { name: 'email_type', value: 'support_reply' },

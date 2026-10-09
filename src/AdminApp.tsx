@@ -1103,7 +1103,7 @@ export default function AdminApp() {
             onRefresh={() => setAnalyticsRefreshRevision((value) => value + 1)} />}
         {view === 'users' && <>
             {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset. Vaata uued kontod üle.</p></div>}
-            <AdminUsers rows={rows} onlineUserIds={onlineUserIds} onlineViews={onlineViews} presenceKnown={presenceKnown} latestEmails={latestEmails} isLoading={isLoading} metricsError={userMetricsError} onRetry={() => void loadDashboard()} />
+            <AdminUsers rows={rows} onlineUserIds={onlineUserIds} onlineViews={onlineViews} presenceKnown={presenceKnown} latestEmails={latestEmails} isLoading={isLoading} metricsError={userMetricsError} onRetry={() => void loadDashboard()} onSupportChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />
         </>}
 
         {view === 'support' && <AdminSupport onCountsChanged={() => void loadDashboard({ silent: true, refreshAuth: false })} />}

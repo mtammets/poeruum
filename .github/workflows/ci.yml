@@ -42,6 +42,9 @@ jobs:
       - name: Support deletion authorization and attachment cleanup
         run: npm run test:support-delete-edge
 
+      - name: Admin support conversation creation and email retries
+        run: npm run test:support-create-edge
+
       - name: Admin payment diagnostics authorization and read-only Stripe access
         run: npm run test:admin-payment-status-edge
 
@@ -203,6 +206,9 @@ jobs:
 
       - name: Test error monitoring
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-monitoring.sql
+
+      - name: Test atomic admin support creation, permissions and retry isolation
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 --file scripts/test-support-create.sql
 
       - name: Test payment confirmation before settlement and after refunds
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-paid-order-completion.sql

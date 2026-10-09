@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { requireSupabase } from './lib/supabase'
 import AdminPaymentDetails from './AdminPaymentDetails'
 import AdminProductPreview from './AdminProductPreview'
+import AdminUserMessage from './AdminUserMessage'
 import { paymentExplanation, type PaymentDiagnostics } from '../shared/paymentDiagnostics'
 import { hasUserMetrics, salesDefinition, type AdminUserRow, type LatestEmailDelivery } from './lib/adminUserOverview'
 import { date, emailStates, money, presenceViews, relative, storeUrl, supportUrl } from './lib/adminUserDisplay'
@@ -51,9 +52,10 @@ function SalesChart({ days }: { days: UserInsights['sales_days'] }) {
   </div>
 }
 
-export default function AdminUserInsights({ row, online, view, presenceKnown, email, paymentDiagnostic, onPaymentDiagnostic }: {
+export default function AdminUserInsights({ row, online, view, presenceKnown, email, paymentDiagnostic, onPaymentDiagnostic, onSupportChanged }: {
   row: AdminUserRow; online: boolean; view?: string; presenceKnown: boolean; email?: LatestEmailDelivery
   paymentDiagnostic?: PaymentDiagnostics | null; onPaymentDiagnostic: (diagnostic: PaymentDiagnostics) => void
+  onSupportChanged: () => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const finishReveal = () => {
@@ -105,6 +107,7 @@ export default function AdminUserInsights({ row, online, view, presenceKnown, em
   const ringId = useId()
   const url = storeUrl(row)
   return <div className="user-insights" ref={panelRef} aria-busy={!data && !error} onPointerDownCapture={finishReveal} onFocusCapture={finishReveal} onWheelCapture={finishReveal}>
+    <AdminUserMessage row={row} onSent={onSupportChanged} />
     <AdminPaymentDetails row={row} diagnostic={paymentDiagnostic} onUpdated={onPaymentDiagnostic} />
     <div className="user-insights__grid">
       <section className="user-insight-card user-insight-setup" aria-label="Poe seadistus">

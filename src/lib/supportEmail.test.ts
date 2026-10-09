@@ -23,4 +23,12 @@ describe('manual support reply email', () => {
     const email = buildSupportReplyEmail({ ...input, subject: 'Re: Olemasolev vestlus' })
     expect(email.subject).toBe('Re: Olemasolev vestlus')
   })
+
+  it('starts a conversation with the written subject and preserves reply routing', () => {
+    const email = buildSupportReplyEmail({ ...input, subject: '  Abi poe seadistamisel  ', isNewConversation: true })
+    expect(email.subject).toBe('Abi poe seadistamisel')
+    expect(email.reply_to).toBe(input.replyTo)
+    expect(email.tags).toContainEqual({ name: 'conversation_id', value: input.conversationId })
+    expect(email.text).toBe(input.body.trim())
+  })
 })

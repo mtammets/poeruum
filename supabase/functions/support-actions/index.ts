@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
 import { buildSupportReplyEmail } from '../_shared/support-email.ts'
+import { normalizeSenderEmail } from '../_shared/email-source.mjs'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,13 +33,14 @@ const errorMessage = (error: unknown) => {
 const categoryValues = new Set(['question', 'setup', 'payments', 'orders', 'technical', 'feedback'])
 const statusValues = new Set(['open', 'waiting_user', 'resolved'])
 
-const sendEmail = async (payload: Record<string, unknown>) => {
+const sendEmail = async (payload: Record<string, unknown>, idempotencyKey?: string) => {
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${requiredEnv('RESEND_API_KEY')}`,
       'Content-Type': 'application/json',
       'User-Agent': 'poeruum-support/1.0',
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
     },
     body: JSON.stringify(payload),
   })
@@ -96,6 +98,78 @@ Deno.serve(async (request) => {
     const conversationReplyTo = (conversationId: string) => inboundDomain
       ? `Poeruumi klienditugi <vastus+${conversationId}@${inboundDomain}>`
       : fallbackReplyTo || publicSupportEmail
+
+    if (action === 'admin_create') {
+      if (!isAdmin) return json({ error: 'Administraatori ligipääs puudub.' }, 403)
+      const requestId = String(input.request_id ?? '')
+      const recipientId = String(input.user_id ?? '')
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      const subject = typeof input.subject === 'string' ? input.subject.trim() : ''
+      const body = typeof input.body === 'string' ? input.body.trim() : ''
+      if (!uuid.test(requestId) || !uuid.test(recipientId)) return json({ error: 'Kasutaja või sõnumi tunnus on vigane.' }, 400)
+      if (subject.length < 2 || subject.length > 160 || /[\r\n]/.test(subject) || body.length < 2 || body.length > 10000) {
+        return json({ error: 'Lisa teema (2–160 märki) ja sõnum (2–10 000 märki).' }, 400)
+      }
+      const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(recipientId)
+      if (recipientError || !recipient.user?.email) return json({ error: 'Kasutaja e-posti aadressi ei leitud.' }, 404)
+      const recipientEmail = recipient.user.email.trim().toLowerCase()
+      const { data: prepared, error: prepareError } = await admin.rpc('prepare_admin_support_message', {
+        request_id: requestId, target_user_id: recipientId, sender_id: user.id,
+        message_subject: subject, message_body: body,
+        email_payload: buildSupportReplyEmail({
+          from: supportAgentFrom, recipientEmail, replyTo: conversationReplyTo(requestId),
+          subject, body, conversationId: requestId, isNewConversation: true,
+        }),
+      })
+      if (prepareError) {
+        if (prepareError.code === '22023') return json({ error: 'See saatmiskatse kuulub juba teisele sõnumile.' }, 409)
+        throw prepareError
+      }
+      if (!prepared?.id) throw new Error('Vestlust ei õnnestunud salvestada.')
+      const recordSentEmail = async (emailId: string) => {
+        const sentAt = prepared.resend_email_id && prepared.delivery_updated_at || new Date().toISOString()
+        const { error: saveError } = await admin.from('support_messages').update({
+          resend_email_id: emailId, delivery_status: 'sent', delivery_updated_at: sentAt,
+        }).eq('id', prepared.id).is('resend_email_id', null)
+        if (saveError) throw saveError
+        // Populate the user's latest-email card immediately. A webhook that
+        // arrived first owns its newer delivery status and must not be reset.
+        const { error: logError } = await admin.from('email_deliveries').upsert({
+          resend_email_id: emailId, recipient_email: recipientEmail, subject: prepared.payload.subject,
+          email_type: 'support_reply', sender_email: normalizeSenderEmail(prepared.payload.from),
+          source_application: 'poeruum', status: 'sent', sent_at: sentAt, status_updated_at: sentAt,
+        }, { onConflict: 'resend_email_id', ignoreDuplicates: true })
+        if (logError) throw logError
+        const { data: delivery, error: deliveryError } = await admin.from('email_deliveries')
+          .select('status,status_updated_at').eq('resend_email_id', emailId).single()
+        if (deliveryError) throw deliveryError
+        if (delivery && ['delivered', 'failed', 'bounced', 'complained'].includes(delivery.status)) {
+          const { error: statusError } = await admin.from('support_messages').update({
+            delivery_status: delivery.status, delivery_updated_at: delivery.status_updated_at,
+          }).eq('id', prepared.id).eq('delivery_status', 'sent')
+          if (statusError) throw statusError
+        }
+        return json({ id: prepared.id, conversation_id: prepared.conversation_id })
+      }
+      if (prepared.resend_email_id) return await recordSentEmail(prepared.resend_email_id)
+      // Resend retains idempotency keys for 24 hours. Never automatically resend
+      // an ambiguous request after that window has expired.
+      if (Date.now() - Date.parse(prepared.created_at) >= 23 * 60 * 60 * 1000) {
+        return json({ error: 'Sõnum on klienditoes salvestatud. Enne uuesti saatmist kontrolli seal kirja saatmise seisu.', conversation_id: prepared.conversation_id }, 409)
+      }
+      let emailId: string
+      try {
+        emailId = await sendEmail(prepared.payload, `support-start/${requestId}`)
+      } catch (sendError) {
+        await captureEdgeError('support-actions', sendError)
+        const { error: failureError } = await admin.from('support_messages').update({
+          delivery_status: 'failed', delivery_updated_at: new Date().toISOString(),
+        }).eq('id', prepared.id).is('resend_email_id', null)
+        if (failureError) throw failureError
+        return json({ error: 'Sõnum on klienditoes salvestatud, kuid e-kirja saatmist ei õnnestunud kinnitada. Proovi uuesti.', conversation_id: prepared.conversation_id }, 502)
+      }
+      return await recordSentEmail(emailId)
+    }
 
     if (action === 'create') {
       if (isAdmin) return json({ error: 'Administraatori kontolt ei saa kasutaja päringut luua.' }, 403)
