@@ -1653,8 +1653,18 @@ test('user controls scroll away while desktop navigation stays in place', async 
     await expect(page.locator('.admin-users__metrics')).toBeInViewport()
     await list.focus()
     await workspace.evaluate((element) => { element.scrollTop = 0 })
+    // Chromium animates PageDown on Linux. Let that keyboard scroll finish
+    // before independently checking jumps to the bottom and back to a row.
+    const keyboardScrollFinished = workspace.evaluate((element) => new Promise<number>((resolve) => {
+      const finish = () => {
+        if (element.scrollTop <= 0) return
+        element.removeEventListener('scrollend', finish)
+        resolve(element.scrollTop)
+      }
+      element.addEventListener('scrollend', finish)
+    }))
     await page.keyboard.press('PageDown')
-    await expect.poll(() => workspace.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    expect(await keyboardScrollFinished).toBeGreaterThan(0)
     await workspace.evaluate((element) => { element.scrollTop = element.scrollHeight })
     await expect(page.locator('.admin-user-row').last(), `Last row at ${width} × ${height}`).toBeInViewport()
     await page.getByRole('button', { name: 'URGITS', exact: true }).scrollIntoViewIfNeeded()
