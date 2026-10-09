@@ -489,11 +489,20 @@
 .admin-settings,
 .admin-orders,
 .admin-statistics,
-.admin-preview {
+.admin-preview,
+.admin-help {
   width: 2.75rem;
   height: 2.75rem;
   background: rgba(15, 15, 15, 0.68);
 }
+
+.admin-global-actions .admin-help { margin-top: 6px; background: rgba(15, 15, 15, .5); }
+.admin-help:hover, .admin-help:focus-visible { background: rgba(38, 95, 67, .9); }
+.admin-help__unread { position: absolute; top: 0; right: 0; width: 10px; height: 10px; border: 2px solid #17231c; border-radius: 50%; background: #e5f25a; }
+.empty-storefront__help { position: absolute; z-index: 2; top: max(1rem, env(safe-area-inset-top)); right: 4.5rem; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 12px; border: 1px solid #ffffff24; border-radius: 24px; background: #ffffff0e; color: #fff; font-size: 14px; }
+.empty-storefront__help svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.empty-storefront__help:hover { background: #ffffff1a; }
+.admin-help:focus-visible, .empty-storefront__help:focus-visible { outline: 2px solid #e5f25a; outline-offset: 4px; }
 
 .empty-storefront__statistics {
   min-height: 44px;
@@ -506,8 +515,9 @@
 }
 
 @media (max-height: 580px) {
-  .app-shell[data-merchant='true'] .admin-global-actions { display: flex; }
+  .app-shell[data-merchant='true'] .admin-global-actions { display: flex; gap: clamp(4px, 1vw, .55rem); }
   .app-shell[data-merchant='true'] .admin-global-actions .admin-add-product { width: 2.75rem; height: 2.75rem; }
+  .admin-global-actions .admin-help { margin-top: 0; }
 }
 
 .merchant-preview-return {

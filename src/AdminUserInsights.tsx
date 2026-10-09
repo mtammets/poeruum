@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { requireSupabase } from './lib/supabase'
-import { getStripeRequirementIssueCopies } from '../supabase/functions/_shared/stripe-requirement-issues.mjs'
-import { hasUserMetrics, paymentStates, salesDefinition, type AdminUserRow, type LatestEmailDelivery } from './lib/adminUserOverview'
+import AdminPaymentDetails from './AdminPaymentDetails'
+import AdminProductPreview from './AdminProductPreview'
+import { paymentExplanation, type PaymentDiagnostics } from '../shared/paymentDiagnostics'
+import { hasUserMetrics, salesDefinition, type AdminUserRow, type LatestEmailDelivery } from './lib/adminUserOverview'
 import { date, emailStates, money, presenceViews, relative, storeUrl, supportUrl } from './lib/adminUserDisplay'
 import Icon, { type IconName } from './AdminUserIcon'
 
@@ -49,8 +51,9 @@ function SalesChart({ days }: { days: UserInsights['sales_days'] }) {
   </div>
 }
 
-export default function AdminUserInsights({ row, online, view, presenceKnown, email }: {
+export default function AdminUserInsights({ row, online, view, presenceKnown, email, paymentDiagnostic, onPaymentDiagnostic }: {
   row: AdminUserRow; online: boolean; view?: string; presenceKnown: boolean; email?: LatestEmailDelivery
+  paymentDiagnostic?: PaymentDiagnostics | null; onPaymentDiagnostic: (diagnostic: PaymentDiagnostics) => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const finishReveal = () => {
@@ -69,6 +72,7 @@ export default function AdminUserInsights({ row, online, view, presenceKnown, em
   const [data, setData] = useState<UserInsights | null>(null)
   const [error, setError] = useState(false)
   const [retry, setRetry] = useState(0)
+  const [showProducts, setShowProducts] = useState(false)
   useEffect(() => {
     let active = true
     const controller = new AbortController()
@@ -81,10 +85,9 @@ export default function AdminUserInsights({ row, online, view, presenceKnown, em
     return () => { active = false; controller.abort() }
   }, [row, retry])
   const known = hasUserMetrics(row)
-  const payment = paymentStates[row.payment_state ?? 'unknown']
-  const issues = getStripeRequirementIssueCopies(row.stripe_account_requirement_issues)
+  const payment = paymentExplanation(paymentDiagnostic, { state: row.payment_state, issues: row.stripe_account_requirement_issues })
   // A completed setup step is not the same thing as an operational live payment account.
-  const steps = setupSteps.map((step) => ({ ...step, done: step.key === 'has_payments' ? row.payment_state === 'active' : Boolean(row[step.key]), warning: step.key === 'has_payments' && ['restricted', 'test'].includes(row.payment_state ?? ''), unknown: step.key === 'has_payments' && (!known || row.payment_state === 'unknown') }))
+  const steps = setupSteps.map((step) => ({ ...step, done: step.key === 'has_payments' ? payment.tone === 'good' : Boolean(row[step.key]), warning: step.key === 'has_payments' && (payment.tone === 'warning' || row.payment_state === 'test'), unknown: step.key === 'has_payments' && (!known || row.payment_state === 'unknown') }))
   const completed = steps.filter((step) => step.done).length
   const net = data ? data.sales_days.reduce((total, day) => total + day.net_cents, 0) : known ? row.net_sales_30d_cents : undefined
   const paid = data?.order_states.paid ?? (known ? row.paid_orders_30d : undefined)
@@ -102,15 +105,21 @@ export default function AdminUserInsights({ row, online, view, presenceKnown, em
   const ringId = useId()
   const url = storeUrl(row)
   return <div className="user-insights" ref={panelRef} aria-busy={!data && !error} onPointerDownCapture={finishReveal} onFocusCapture={finishReveal} onWheelCapture={finishReveal}>
+    <AdminPaymentDetails row={row} diagnostic={paymentDiagnostic} onUpdated={onPaymentDiagnostic} />
     <div className="user-insights__grid">
       <section className="user-insight-card user-insight-setup" aria-label="Poe seadistus">
         <header><h3>Seadistus</h3>{url ? <a href={url} target="_blank" rel="noopener noreferrer" aria-label="Ava pood" title="Ava pood"><Icon name="arrow" /></a> : <Icon name="store" />}</header>
         <div className="user-insight-setup__hero"><div className="user-insight-ring" role="meter" aria-label="Poe seadistus" aria-valuemin={0} aria-valuemax={6} aria-valuenow={completed} aria-valuetext={`${completed} sammu 6-st korras`}>
           <svg viewBox="0 0 96 96" aria-hidden="true"><defs><linearGradient id={ringId}><stop stopColor="#75dbae" /><stop offset="1" stopColor="#ddfb83" /></linearGradient></defs><circle className="user-insight-ring__track" cx="48" cy="48" r="40" /><circle className="user-insight-ring__value" cx="48" cy="48" r="40" pathLength="100" stroke={`url(#${ringId})`} strokeDasharray={`${completed / 6 * 100} 100`} /></svg><strong>{completed}<small>/6</small></strong>
-        </div><div className="user-insight-setup__product"><Icon name="box" /><strong>{row.product_count}</strong><span>toodet</span>{data && data.products_added_30d > 0 && <small>+{data.products_added_30d} / 30 p</small>}</div></div>
-        <div className="user-insight-steps">{steps.map((step) => <div key={step.key} className={`${step.done ? 'is-done' : step.warning ? 'is-warning' : ''}${online && view === step.view ? ' is-current' : ''}`} title={`${step.label}: ${step.done ? 'korras' : step.unknown ? 'kontrollimata' : step.warning ? payment.label : 'seadistamata'}`}>
-          <Icon name={step.icon} /><span>{step.label}</span><i aria-label={step.done ? 'Korras' : step.unknown ? 'Kontrollimata' : step.warning ? payment.label : 'Seadistamata'}><Icon name={step.done ? 'check' : step.unknown ? 'help' : step.warning ? 'alert' : 'minus'} /></i>
-        </div>)}</div>
+        </div><button type="button" className="user-insight-setup__product" aria-label="Vaata tooteid" aria-haspopup="dialog" disabled={!row.store_id} onClick={() => setShowProducts(true)}><Icon name="box" /><strong>{row.product_count}</strong><span>{row.product_count === 1 ? 'toode' : 'toodet'}</span>{data && data.products_added_30d > 0 && <small>+{data.products_added_30d} / 30 p</small>}</button></div>
+        <div className="user-insight-steps">{steps.map((step) => {
+          const className = `${step.done ? 'is-done' : step.warning ? 'is-warning' : ''}${online && view === step.view ? ' is-current' : ''}`
+          const status = step.done ? 'Korras' : step.unknown ? 'Kontrollimata' : step.warning ? payment.title : 'Seadistamata'
+          const content = <><Icon name={step.icon} /><span>{step.label}</span><i aria-label={status}><Icon name={step.done ? 'check' : step.unknown ? 'help' : step.warning ? 'alert' : 'minus'} /></i></>
+          return step.key === 'has_product'
+            ? <button key={step.key} type="button" className={className} aria-label="Tooted" aria-haspopup="dialog" disabled={!row.store_id} onClick={() => setShowProducts(true)}>{content}</button>
+            : <div key={step.key} className={className} title={`${step.label}: ${status}`}>{content}</div>
+        })}</div>
       </section>
       <section className="user-insight-card user-insight-sales" aria-label="Müügi ülevaade">
         <header><h3>Müük <span>30 p</span></h3><details className="user-insight-tip"><summary aria-label="Müüginäitajate selgitus"><Icon name="info" /></summary><p>{salesDefinition}</p></details></header>
@@ -125,14 +134,10 @@ export default function AdminUserInsights({ row, online, view, presenceKnown, em
       </section>
     </div>
     <div className="user-insights__states">
-      <details className={`user-insight-state is-${payment.tone}`}><summary><Icon name="card" /><span><small>Maksed</small><strong>{payment.label}</strong></span><span className="user-insight-leds">{(['charges_enabled', 'payouts_enabled'] as const).map((key) => {
-        const value = data?.payments?.live ? data.payments[key] : null
-        const label = `${key === 'charges_enabled' ? 'Maksete vastuvõtmine' : 'Väljamaksed'}: ${value == null ? 'kontrollimata' : value ? 'lubatud' : 'keelatud'}`
-        return <i key={key} className={value == null ? '' : value ? 'is-good' : 'is-warning'} title={label} aria-label={label} />
-      })}</span><Icon name="chevron" /></summary><div className="user-insight-state__details"><p>Viimane kontroll: {date(row.payment_checked_at)}</p>{data?.payments && <p>Maksete vastuvõtmine: {data.payments.charges_enabled == null ? 'kontrollimata' : data.payments.charges_enabled ? 'lubatud' : 'keelatud'} · Väljamaksed: {data.payments.payouts_enabled == null ? 'kontrollimata' : data.payments.payouts_enabled ? 'lubatud' : 'keelatud'}</p>}{issues.map((issue) => <div key={issue.title}><strong>{issue.title}</strong><p>{issue.detail}</p></div>)}</div></details>
       <details className={`user-insight-state is-${row.email_confirmed && !row.email_is_disposable && !row.email_review_required ? 'good' : 'warning'}`}><summary><Icon name="shield" /><span><small>Konto</small><strong>{row.email_is_disposable ? 'Ajutine e-post' : row.email_review_required ? 'Vajab ülevaatust' : row.email_confirmed ? 'Kinnitatud' : 'Kinnitamata'}</strong></span><Icon name="chevron" /></summary><div className="user-insight-state__details"><p>{row.email}</p><p>Liitus: {date(row.user_created_at)}</p><p>E-post: {row.email_confirmed ? 'Kinnitatud' : 'Kinnitamata'}</p><p>{row.pricing_plan === 'fixed' ? 'Kindel pakett' : 'Paindlik pakett'}</p>{row.email_review_required && <p>Ülevaatus: 30 päeva tegevuseta</p>}</div></details>
       <details className={`user-insight-state is-${(row.awaiting_admin_count ?? 0) > 0 ? 'warning' : 'good'}`}><summary><Icon name="message" /><span><small>Klienditugi</small><strong>{known ? <span className="user-insight-support-counts"><span><b>{row.awaiting_admin_count ?? 0}</b> sina</span><span><b>{row.waiting_user_count ?? 0}</b> kasutaja</span></span> : '—'}</strong></span><Icon name="chevron" /></summary><div className="user-insight-state__details"><p>Ootab sinu vastust: {row.awaiting_admin_count ?? '—'}</p><p>Ootab kasutajat: {row.waiting_user_count ?? '—'}</p><p>Lahendatud: {data?.support_resolved ?? '—'}</p><a href={supportUrl(row)}>Ava klienditugi<Icon name="arrow" /></a></div></details>
       <details className={`user-insight-state is-${email && ['failed','bounced','complained','suppressed'].includes(email.status) ? 'warning' : 'muted'}`}><summary><Icon name="mail" /><span><small>Viimane kiri</small><strong>{email ? emailStates[email.status] : '—'}</strong></span><Icon name="chevron" /></summary><div className="user-insight-state__details">{email ? <><strong>{email.subject}</strong><p>{date(email.sent_at)}</p></> : <p>Saadetud kirju pole</p>}</div></details>
     </div>
+    {showProducts && row.store_id && <AdminProductPreview key={row.store_id} storeId={row.store_id} storeName={row.store_name || row.email} onClose={() => setShowProducts(false)} />}
   </div>
 }

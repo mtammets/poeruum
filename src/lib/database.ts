@@ -120,7 +120,7 @@ const isMissingDatabaseApi = (error: { code?: string; message: string } | null) 
 
 const publicStoreColumns = 'id,name,slug,is_published,payment_provider,payment_status,shipping,settings'
 
-const isSupabaseProductImageUrl = (value: unknown) => {
+export const isSupabaseProductImageUrl = (value: unknown): value is string => {
   if (typeof value !== 'string' || !value) return false
   const configuredOrigin = import.meta.env.VITE_SUPABASE_URL?.trim()?.replace(/\/$/, '')
   if (!configuredOrigin) return false

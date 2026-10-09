@@ -56,6 +56,15 @@
 .admin-shell .admin-sidebar nav a.is-active::after { width: .3rem; height: .3rem; margin-left: auto; border-radius: 50%; background: currentColor; content: ''; }
 .admin-shell .admin-sidebar { height: 100dvh; min-height: 0; padding: 2rem .875rem 1.25rem; border-right: 1px solid #303d32; background: var(--admin-sidebar); color: #eff5e9; }
 .admin-shell .admin-sidebar > a { margin-left: .75rem; }
+.admin-sidebar__brand { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: .35rem; width: 100%; }
+.admin-sidebar__brand > a { min-width: 0; color: inherit; text-decoration: none; }
+.admin-sidebar-toggle { display: grid; flex-shrink: 0; width: 2.5rem; height: 2.5rem; padding: 0; place-items: center; border: 1px solid transparent; border-radius: .6rem; background: transparent; color: var(--admin-muted); cursor: pointer; }
+.admin-sidebar-toggle svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.admin-sidebar-toggle:hover { border-color: var(--admin-line); background: var(--admin-raised); color: var(--admin-ink); }
+.admin-sidebar-toggle--restore { position: fixed; z-index: 25; top: max(1rem, env(safe-area-inset-top)); left: max(.65rem, env(safe-area-inset-left)); border-color: var(--admin-line); background: var(--admin-sidebar); }
+.admin-sidebar-toggle[hidden], .admin-shell .admin-sidebar[hidden] { display: none; }
+.admin-shell.is-menu-hidden { grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr; }
+.admin-shell.is-menu-hidden .admin-main { padding-left: 4.25rem; }
 .admin-shell .platform-brand, .admin-auth .platform-brand { --platform-ink: #f5f7ef; --platform-green: var(--admin-accent); --platform-lime: #182b12; gap: .7rem; }
 .admin-shell .platform-brand strong { font-size: 1.2rem; }
 .admin-shell .platform-brand strong span, .admin-auth .platform-brand strong span { color: #f5f7ef; }
@@ -77,6 +86,7 @@
 .admin-shell .admin-main { min-height: 0; width: 100%; max-width: 112rem; padding: 1.8rem clamp(1.25rem, 2.4vw, 3rem) 1.25rem; }
 @media (max-width: 1300px) and (min-width: 681px) {
   .admin-shell { grid-template-columns: 4.75rem minmax(0, 1fr); }
+  .admin-sidebar__brand { flex-direction: column; gap: .65rem; }
   .admin-shell .admin-sidebar { align-items: center; padding-inline: .65rem; }
   .admin-shell .admin-sidebar > a { margin-left: 0; }
   .admin-shell .admin-sidebar .platform-brand { gap: 0; }
@@ -89,6 +99,10 @@
 @media (max-width: 680px) {
   .admin-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; height: auto; min-height: 100dvh; overflow: visible; }
   .admin-shell .admin-sidebar { position: static; height: auto; padding: max(.6rem, env(safe-area-inset-top)) .65rem .6rem; border-right: 0; border-bottom: 1px solid #43503b; background: #0d1410f5; }
+  .admin-sidebar__brand { width: auto; }
+  .admin-sidebar__brand > a { display: none; }
+  .admin-sidebar-toggle { width: 2.75rem; height: 2.75rem; }
+  .admin-shell.is-menu-hidden .admin-main { padding-left: .85rem; padding-top: max(4.75rem, calc(env(safe-area-inset-top) + 3.75rem)); }
   .admin-shell .admin-sidebar > a { display: flex; margin: 0; }
   .admin-shell .admin-sidebar .platform-brand { gap: 0; }
   .admin-shell .admin-sidebar .platform-brand strong { display: none; }

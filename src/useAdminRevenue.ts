@@ -16,6 +16,8 @@ export default function useAdminRevenue(userId: string | null, feedbackActive: b
   const [revenue, setRevenue] = useState(emptyRevenue)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [stale, setStale] = useState(false)
+  const [live, setLive] = useState(false)
   const [notice, setNotice] = useState<RevenueNotice | null>(null)
   const feedback = useRef(feedbackActive)
   const refreshRef = useRef<() => void>(() => {})
@@ -37,6 +39,8 @@ export default function useAdminRevenue(userId: string | null, feedbackActive: b
     setRevenue(emptyRevenue)
     setError('')
     setLoading(true)
+    setStale(false)
+    setLive(false)
     setNotice(null)
     if (!userId) return
 
@@ -88,8 +92,10 @@ export default function useAdminRevenue(userId: string | null, feedbackActive: b
         previous = { data: next, month: currentMonth }
         setRevenue(next)
         setError('')
+        setStale(false)
       } catch {
         if (!cancelled && !previous) setError('Tulude andmeid ei õnnestunud laadida. Proovi uuesti.')
+        if (!cancelled) setStale(true)
       } finally {
         inFlight = false
         if (!cancelled) {
@@ -110,21 +116,31 @@ export default function useAdminRevenue(userId: string | null, feedbackActive: b
         if (inFlight) queued = true
         else if (debounce === undefined) debounce = window.setTimeout(() => { debounce = undefined; void load() }, 120)
       })
-      .subscribe(status => { if (status === 'SUBSCRIBED') void load() })
+      .subscribe(status => {
+        if (cancelled) return
+        setLive(status === 'SUBSCRIBED')
+        setStale(true)
+        if (status === 'SUBSCRIBED') void load()
+      })
+    const onOffline = () => { pending.clear(); setNotice(null); setLive(false); setStale(true) }
     const onVisibility = () => {
       if (document.visibilityState !== 'visible') { pending.clear(); setNotice(null) }
       else void load()
     }
     document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', refresh)
     void load()
     return () => {
       cancelled = true
       refreshRef.current = () => {}
       window.clearTimeout(debounce)
       document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', refresh)
       void client.removeChannel(channel)
     }
   }, [userId])
 
-  return { revenue, error, loading, notice, refresh }
+  return { revenue, error, loading, stale, live, notice, refresh }
 }

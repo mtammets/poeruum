@@ -1,4 +1,4 @@
-/* Users workspace: list scrolling on desktop, document scrolling on mobile. */
+/* The complete users view scrolls on desktop; mobile uses document scrolling. */
 :root:has(.admin-shell--users),
 :root:has(.admin-shell--users) body,
 :root:has(.admin-shell--users) #root {
@@ -14,7 +14,7 @@
 .admin-shell--users .admin-main { display: flex; flex-direction: column; }
 .admin-shell--users .admin-main > :not(.admin-users) { flex-shrink: 0; }
 
-.admin-users { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: visible; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.admin-users { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: none; scroll-padding-block: 1rem; scrollbar-color: var(--admin-line-strong) var(--admin-bg); scrollbar-width: thin; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .admin-users > :not(.admin-table) { flex-shrink: 0; }
 .admin-users svg { flex-shrink: 0; width: 1.05rem; height: 1.05rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .admin-users > header { align-items: center; gap: 1rem; padding: 0 0 1.5rem; }
@@ -54,7 +54,7 @@
 .admin-users .admin-sort::after { color: #d2e1bf; }
 .admin-users__notice { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1rem; padding: .75rem 1rem; border: 1px solid #856b46; border-radius: .6rem; background: #403525; color: #f5d6a7; font-size: .8125rem; }
 .admin-users__notice button { padding: .35rem .6rem; border: 1px solid #d3b47f; border-radius: .35rem; background: transparent; color: inherit; }
-.admin-users .admin-table { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: none; scroll-padding-block: 3.5rem .75rem; scrollbar-color: var(--admin-line-strong) var(--admin-surface); scrollbar-width: thin; border: 1px solid #42533a; border-radius: .85rem; background: var(--admin-surface); box-shadow: 0 14px 30px -24px #0009; }
+.admin-users .admin-table { flex: none; overflow: auto; scroll-padding-block: .75rem; scrollbar-color: var(--admin-line-strong) var(--admin-surface); scrollbar-width: thin; border: 1px solid #42533a; border-radius: .85rem; background: var(--admin-surface); box-shadow: 0 14px 30px -24px #0009; }
 .admin-users .admin-table:focus-visible { outline: 2px solid var(--admin-focus); outline-offset: 3px; }
 .admin-users :is(.admin-table__head, .admin-user-row) { display: grid; grid-template-columns: minmax(13rem, 1.65fr) minmax(7rem, .8fr) minmax(8rem, .95fr) minmax(8rem, 1fr) minmax(8rem, 1fr) minmax(7.5rem, .8fr) 2rem; align-items: center; gap: 1.25rem; min-width: 63rem; padding-inline: 1.35rem; }
 .admin-users .admin-table__head { position: sticky; z-index: 2; top: 0; min-height: 3rem; padding-block: .75rem; border-top: 0; border-bottom: 1px solid #506344; background: #2d3b29; color: #dbe7d0; font-size: .6875rem; font-weight: 650; letter-spacing: .075em; }
@@ -83,7 +83,7 @@
 .admin-users .admin-status.is-warning { background: #ffc27b; color: #4a310d; }
 .admin-users .admin-status.is-neutral { background: #d0dcb3; color: #394724; }
 .admin-users .admin-status.is-muted { background: #43533a; color: #e5efd9; }
-.admin-users .admin-user-row__payment .admin-status:hover { filter: brightness(1.12); }
+.admin-users .admin-user-row__payment .admin-status:hover { outline: 1px solid currentColor; outline-offset: 2px; }
 .admin-users .admin-user-row__sales { display: grid; justify-items: end; gap: .25rem; text-align: right; }
 .admin-users .admin-user-row > .admin-user-row__sales { justify-items: end; }
 .admin-users .admin-user-row__sales strong { color: #d8e4cb; font-size: 1.05rem; font-weight: 650; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
@@ -121,6 +121,7 @@
   :root:has(.admin-shell--users),
   :root:has(.admin-shell--users) body,
   :root:has(.admin-shell--users) #root { overflow: visible; overscroll-behavior-y: auto; }
+  .admin-users { overflow: visible; overscroll-behavior: auto; }
   .admin-users > header { align-items: stretch; gap: .85rem; padding: 0 0 1rem; }
   .admin-users__heading { justify-content: space-between; gap: .5rem; }
   .admin-users h1 { font-size: 1.7rem; }

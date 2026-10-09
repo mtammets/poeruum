@@ -42,6 +42,9 @@ jobs:
       - name: Support deletion authorization and attachment cleanup
         run: npm run test:support-delete-edge
 
+      - name: Admin payment diagnostics authorization and read-only Stripe access
+        run: npm run test:admin-payment-status-edge
+
       - name: Unit tests
         run: npm run test
 
@@ -144,6 +147,9 @@ jobs:
 
       - name: Test product image access boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-product-image-access.sql
+
+      - name: Test admin product previews, pagination and access boundaries
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-admin-store-products.sql
 
       - name: Test product category access boundaries
         run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --file scripts/test-product-categories.sql

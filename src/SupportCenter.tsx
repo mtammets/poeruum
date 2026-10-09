@@ -4,6 +4,7 @@ import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { BrandMark } from './Brand'
 import { createRandomId } from './lib/randomId'
 import { SupportContext } from './SupportContext'
+import './supportCenter.css'
 
 type SupportConversation = {
   id: string
@@ -38,7 +39,11 @@ const formatTime = (value: string) => new Intl.DateTimeFormat('et-EE', {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
 }).format(new Date(value))
 
-type SupportIconName = 'chat' | 'arrow' | 'close' | 'back' | 'clock' | 'upload' | 'check' | 'payments' | 'setup' | 'technical'
+const formatDate = (value: string) => new Intl.DateTimeFormat('et-EE', {
+  day: 'numeric', month: 'short',
+}).format(new Date(value))
+
+type SupportIconName = 'chat' | 'arrow' | 'close' | 'back' | 'attachment' | 'check' | 'send'
 
 function SupportIcon({ name }: { name: SupportIconName }) {
   const paths: Record<SupportIconName, React.ReactNode> = {
@@ -46,14 +51,11 @@ function SupportIcon({ name }: { name: SupportIconName }) {
     arrow: <path d="m9 6 6 6-6 6"/>,
     close: <path d="m7 7 10 10M17 7 7 17"/>,
     back: <><path d="m10 6-6 6 6 6"/><path d="M4 12h16"/></>,
-    clock: <><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></>,
-    upload: <><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 14v5h14v-5"/></>,
+    attachment: <path d="m8 12 6-6a3 3 0 0 1 4.2 4.2l-8 8a4.5 4.5 0 0 1-6.4-6.4l8-8M7 13l7-7"/>,
     check: <path d="m6 12 4 4 8-9"/>,
-    payments: <><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16M8 14h3"/></>,
-    setup: <><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></>,
-    technical: <><path d="M8 5 4 9l4 4M16 5l4 4-4 4M14 3l-4 14"/></>,
+    send: <><path d="M12 19V5m-6 6 6-6 6 6"/></>,
   }
-  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
+  return <svg className="support-icon" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
 }
 
 export default function SupportCenter({ children }: { children?: ReactNode }) {
@@ -61,18 +63,22 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const opener = useRef<HTMLElement | null>(null)
+  const heading = useRef<HTMLHeadingElement | null>(null)
+  const messageList = useRef<HTMLDivElement | null>(null)
+  const messageRequest = useRef(0)
   const [view, setView] = useState<'list' | 'new' | 'thread'>('list')
   const [conversations, setConversations] = useState<SupportConversation[]>([])
   const [selected, setSelected] = useState<SupportConversation | null>(null)
   const [messages, setMessages] = useState<SupportMessage[]>([])
   const [category, setCategory] = useState('question')
-  const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [reply, setReply] = useState('')
   const [attachment, setAttachment] = useState<File | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -90,36 +96,49 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
     if (closeTimer.current) clearTimeout(closeTimer.current)
   }, [])
 
-  useEffect(() => {
-    if (!isOpen) return
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeSupport()
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [isOpen])
-
   const openSupport = useCallback(() => {
+    if (!isOpen) opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (closeTimer.current) clearTimeout(closeTimer.current)
+    closeTimer.current = null
     setIsClosing(false)
     setIsOpen(true)
-  }, [])
+  }, [isOpen])
 
-  const closeSupport = () => {
-    if (isClosing) return
+  const closeSupport = useCallback(() => {
+    if (closeTimer.current) return
     setIsClosing(true)
     closeTimer.current = setTimeout(() => {
       setIsOpen(false)
       setIsClosing(false)
       closeTimer.current = null
+      opener.current?.focus()
     }, 190)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) closeSupport()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [isOpen, closeSupport])
+
+  useEffect(() => {
+    if (isOpen) heading.current?.focus({ preventScroll: true })
+  }, [isOpen, view])
+
+  useEffect(() => {
+    if (view === 'thread') messageList.current?.scrollTo({ top: messageList.current.scrollHeight })
+  }, [isOpen, view, messages])
 
   const loadConversations = async () => {
     if (!user) return
+    setIsLoadingConversations(true)
     const { data, error: queryError } = await requireSupabase().from('support_conversations')
       .select('id,subject,category,status,last_message_at,last_message_preview,user_read_at')
       .order('last_message_at', { ascending: false })
+    setIsLoadingConversations(false)
     if (queryError) {
       if (queryError.code !== '42P01') setError('Vestlusi ei õnnestunud laadida.')
       return
@@ -140,15 +159,23 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
   }, [isOpen, user?.id, selected?.id])
 
   const openConversation = async (conversation: SupportConversation) => {
+    const request = ++messageRequest.current
+    const isDifferentConversation = selected?.id !== conversation.id
     setSelected(conversation)
     setView('thread')
     setError('')
+    if (isDifferentConversation) { setMessages([]); setReply(''); setIsLoadingMessages(true) }
     const { data, error: queryError } = await requireSupabase().from('support_messages')
       .select('id,sender_kind,body,attachment_path,attachment_name,delivery_status,created_at')
       .eq('conversation_id', conversation.id).order('created_at')
+    if (request !== messageRequest.current) return
+    setIsLoadingMessages(false)
     if (queryError) setError('Vestlust ei õnnestunud avada.')
     else setMessages((data ?? []) as SupportMessage[])
-    await requireSupabase().rpc('mark_support_conversation_read', { target_conversation_id: conversation.id })
+    if (!queryError) {
+      const { error: readError } = await requireSupabase().rpc('mark_support_conversation_read', { target_conversation_id: conversation.id })
+      if (!readError) setConversations((current) => current.map((item) => item.id === conversation.id ? { ...item, user_read_at: new Date().toISOString() } : item))
+    }
   }
 
   const uploadAttachment = async () => {
@@ -165,23 +192,27 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
 
   const createConversation = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!user) return
-    setIsBusy(true); setError(''); setNotice('')
+    if (!user || isBusy || body.trim().length < 2) return
+    setIsBusy(true); setError('')
     try {
+      const message = body.trim()
+      const summary = message.replace(/\s+/g, ' ')
+      const subject = summary.length > 80 ? `${summary.slice(0, 79).trimEnd()}…` : summary
       const attachmentPath = await uploadAttachment()
       const { data, error: invokeError } = await requireSupabase().functions.invoke('support-actions', { body: {
-        action: 'create', category, subject, body,
+        action: 'create', category, subject, body: message,
         attachment_path: attachmentPath,
         attachment_name: attachment?.name ?? null,
         page_url: window.location.href,
         user_agent: navigator.userAgent,
       } })
       if (invokeError || data?.error) throw new Error(data?.error || 'Küsimust ei õnnestunud saata.')
-      setSubject(''); setBody(''); setAttachment(null); setNotice('Küsimus on saadetud. Vastame sulle esimesel võimalusel.')
+      setBody(''); setAttachment(null)
       await loadConversations()
       const { data: created } = await requireSupabase().from('support_conversations')
         .select('id,subject,category,status,last_message_at,last_message_preview,user_read_at').eq('id', data.id).single()
       if (created) await openConversation(created as SupportConversation)
+      else { setView('list'); setError('Sõnum on saadetud. Vestluse avamiseks laadi tugi uuesti.') }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Küsimust ei õnnestunud saata.')
     } finally { setIsBusy(false) }
@@ -189,7 +220,7 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
 
   const sendReply = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!selected || !reply.trim()) return
+    if (!selected || isBusy || !reply.trim()) return
     setIsBusy(true); setError('')
     const { data, error: invokeError } = await requireSupabase().functions.invoke('support-actions', { body: {
       action: 'user_reply', conversation_id: selected.id, body: reply,
@@ -206,11 +237,18 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
     else window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
   }
 
-  const chooseCategory = (nextCategory: string) => {
-    setCategory(nextCategory)
+  const startConversation = () => {
+    messageRequest.current += 1
+    setSelected(null)
     setView('new')
     setError('')
-    setNotice('')
+  }
+
+  const showConversations = () => {
+    messageRequest.current += 1
+    setView('list')
+    setSelected(null)
+    setError('')
   }
 
   const selectAttachment = (file: File | null) => {
@@ -229,59 +267,86 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
   return <SupportContext.Provider value={support}>
     {children}
     {user && <>
-    <button className="support-launcher" type="button" onClick={openSupport} aria-label="Ava Poeruumi klienditugi" aria-expanded={isOpen}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3v-13Z"/><path d="M9 9h6M9 12h4"/></svg>
-      <span>Abi</span>{unread > 0 && <b>{unread}</b>}
-    </button>
-    {isOpen && <div className={`support-modal${isClosing ? ' is-closing' : ''}`} role="dialog" aria-label="Poeruumi klienditugi">
-      <section className={`support-panel is-${view}`}>
-        <header>
-          <div>{view !== 'list' ? <button type="button" onClick={() => { setView('list'); setSelected(null); setError(''); setNotice('') }} aria-label="Tagasi vestluste juurde"><SupportIcon name="back" /></button> : <BrandMark className="support-panel__logo" />}<span><strong>Poeruumi tugi</strong><small><i /> Oleme siin, et aidata</small></span></div>
-          <button type="button" onClick={closeSupport} aria-label="Sulge"><SupportIcon name="close" /></button>
-        </header>
-
-        {view === 'list' && <div className="support-panel__content">
-          <div className="support-welcome"><span className="support-welcome__icon"><SupportIcon name="chat" /></span><small>ABI ON LÄHEDAL</small><h2>Mis sind praegu takistab?</h2><p>Kirjelda olukorda oma sõnadega. Näeme sinu poe seadistuse seisu ja saame kohe asjast aru.</p>
-            <div className="support-quick-topics">
-              <button type="button" onClick={() => chooseCategory('setup')}><i><SupportIcon name="setup" /></i><span>Poe seadistamine</span><SupportIcon name="arrow" /></button>
-              <button type="button" onClick={() => chooseCategory('payments')}><i><SupportIcon name="payments" /></i><span>Maksed</span><SupportIcon name="arrow" /></button>
-              <button type="button" onClick={() => chooseCategory('technical')}><i><SupportIcon name="technical" /></i><span>Tehniline mure</span><SupportIcon name="arrow" /></button>
+      <button className="support-launcher" type="button" onClick={openSupport} aria-label="Ava Poeruumi klienditugi" aria-expanded={isOpen} aria-controls="support-panel">
+        <SupportIcon name="chat" />
+        <span>Abi</span>{unread > 0 && <b>{unread}</b>}
+      </button>
+      {isOpen && <div className={`support-modal${isClosing ? ' is-closing' : ''}`}>
+        <section id="support-panel" className={`support-panel is-${view}`} role="dialog" aria-labelledby="support-heading">
+          <header className="support-panel__header">
+            <div>
+              {view !== 'list'
+                ? <button className="support-icon-button" type="button" disabled={isBusy} onClick={showConversations} aria-label="Tagasi vestluste juurde"><SupportIcon name="back" /></button>
+                : <BrandMark className="support-panel__logo" />}
+              <h2 id="support-heading" ref={heading} tabIndex={-1}>{view === 'new' ? 'Uus vestlus' : 'Poeruumi tugi'}</h2>
             </div>
-            <button className="support-welcome__primary" type="button" onClick={() => chooseCategory('question')}>Kirjuta meile <SupportIcon name="arrow" /></button>
-            <div className="support-response-time"><SupportIcon name="clock" /><span><strong>Vastame päris inimesena</strong><small>Tavaliselt samal tööpäeval</small></span></div>
-          </div>
-          {conversations.length > 0 && <div className="support-history"><h3>Varasemad vestlused</h3>{conversations.map((conversation) => <button type="button" onClick={() => void openConversation(conversation)} key={conversation.id}>
-            <span><strong>{conversation.subject}</strong><small>{conversation.last_message_preview}</small></span><time>{formatTime(conversation.last_message_at)}</time>{conversation.user_read_at === null && <i />}
-          </button>)}</div>}
-        </div>}
+            <button className="support-icon-button" type="button" onClick={closeSupport} aria-label="Sulge tugi"><SupportIcon name="close" /></button>
+          </header>
+          {error && <p className="support-error" role="alert">{error}</p>}
 
-        {view === 'new' && <form className="support-form" onSubmit={createConversation}>
-          <div className="support-form__intro"><span><SupportIcon name="chat" /></span><div><small>UUS VESTLUS</small><h2>Kirjuta meile</h2><p>Mida täpsemalt kirjeldad, seda kiiremini saame aidata.</p></div></div>
-          <div className="support-form__fields">
-            <label><span>Millega vajad abi?</span><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-            <label><span>Ühe lausega</span><input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={160} placeholder="Näiteks: maksete ühendamine ei õnnestu" required /></label>
-            <label><span>Mis juhtus?</span><textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={10000} rows={5} placeholder="Kirjelda, mida nägid ja mida juba proovisid…" required /></label>
-          </div>
-          <div className="support-upload">
-            <input id="support-attachment" type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(event) => selectAttachment(event.target.files?.[0] ?? null)} />
-            <label htmlFor="support-attachment"><i><SupportIcon name="upload" /></i><span><strong>Lisa ekraanipilt või PDF</strong><small>JPG, PNG, WebP või PDF · kuni 5 MB</small></span><b>{attachment ? 'Vaheta' : 'Vali fail'}</b></label>
-            {attachment && <div className="support-upload__file"><span><SupportIcon name="check" /></span><p><strong>{attachment.name}</strong><small>{(attachment.size / 1024 / 1024).toFixed(1)} MB</small></p><button type="button" onClick={() => setAttachment(null)} aria-label="Eemalda manus"><SupportIcon name="close" /></button></div>}
-          </div>
-          {error && <p className="support-error" role="alert">{error}</p>}{notice && <p className="support-notice">{notice}</p>}
-          <div className="support-form__footer"><small>Saadame kinnituse aadressile {user.email}</small><button className="support-submit" type="submit" disabled={isBusy}>{isBusy ? 'Saadan…' : 'Saada küsimus'} <SupportIcon name="arrow" /></button></div>
-        </form>}
+          {view === 'list' && <div className="support-panel__content">
+            <button className="support-new-conversation" type="button" onClick={startConversation}>
+              <span className="support-new-conversation__icon"><SupportIcon name="chat" /></span>
+              <span>Kirjuta meile</span>
+              <span className="support-new-conversation__arrow"><SupportIcon name="arrow" /></span>
+            </button>
+            {(conversations.length > 0 || isLoadingConversations) && <section className="support-history" aria-labelledby="support-history-heading" aria-busy={isLoadingConversations}>
+              <h3 id="support-history-heading">Vestlused</h3>
+              {conversations.map((conversation) => <button className={conversation.user_read_at === null ? 'is-unread' : ''} type="button" onClick={() => void openConversation(conversation)} key={conversation.id}>
+                <span className={`support-history__icon${conversation.status === 'resolved' ? ' is-resolved' : ''}`}>
+                  <SupportIcon name={conversation.status === 'resolved' ? 'check' : 'chat'} />
+                  {conversation.user_read_at === null && <i aria-label="Lugemata" />}
+                </span>
+                <span className="support-history__text"><strong>{conversation.subject}</strong><span>{conversation.last_message_preview}</span></span>
+                <span className="support-history__meta"><time dateTime={conversation.last_message_at} title={formatTime(conversation.last_message_at)}>{formatDate(conversation.last_message_at)}</time><SupportIcon name="arrow" /></span>
+              </button>)}
+              {isLoadingConversations && conversations.length === 0 && <div className="support-loading" role="status" aria-label="Laadin vestlusi"><span /><span /></div>}
+            </section>}
+          </div>}
 
-        {view === 'thread' && selected && <div className="support-thread">
-          <div className="support-thread__title"><span><small>{categories.find(([value]) => value === selected.category)?.[1]}</small><h2>{selected.subject}</h2></span><b className={`is-${selected.status}`}>{selected.status === 'resolved' ? 'Lahendatud' : selected.status === 'waiting_user' ? 'Ootab sinu vastust' : 'Vaatame üle'}</b></div>
-          <div className="support-thread__messages">{messages.map((message) => <article className={`is-${message.sender_kind}`} key={message.id}>
-            <span>{message.sender_kind === 'admin' ? 'Poeruumi tugi' : 'Sina'}</span><p>{message.body}</p>
-            {message.attachment_path && <button type="button" onClick={() => void openAttachment(message)}>📎 {message.attachment_name || 'Ava manus'}</button>}
-            <time>{formatTime(message.created_at)}</time>
-          </article>)}</div>
-          {selected.status !== 'resolved' ? <form className="support-reply" onSubmit={sendReply}><textarea value={reply} onChange={(event) => setReply(event.target.value)} rows={3} placeholder="Kirjuta vastus…" /><div>{error && <p className="support-error">{error}</p>}<button type="submit" disabled={isBusy || !reply.trim()}>{isBusy ? 'Saadan…' : 'Saada'} →</button></div></form> : <div className="support-resolved">See vestlus on lahendatud. Uue küsimuse korral alusta uut vestlust.</div>}
-        </div>}
-      </section>
-    </div>}
+          {view === 'new' && <form className="support-form" onSubmit={createConversation}>
+            <label className="support-form__category"><span id="support-category-label">Teema</span><select aria-labelledby="support-category-label" value={category} disabled={isBusy} onChange={(event) => setCategory(event.target.value)}>{categories.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+            <div className="support-compose">
+              <textarea aria-label="Sõnum" value={body} disabled={isBusy} onChange={(event) => setBody(event.target.value)} minLength={2} maxLength={10000} rows={7} placeholder="Kirjuta oma küsimus…" required />
+              {attachment && <div className="support-attachment">
+                <SupportIcon name="attachment" /><span title={attachment.name}>{attachment.name}</span>
+                <button className="support-icon-button" type="button" disabled={isBusy} onClick={() => setAttachment(null)} aria-label="Eemalda manus"><SupportIcon name="close" /></button>
+              </div>}
+              <div className="support-compose__actions">
+                <div className="support-upload">
+                  <input id="support-attachment" type="file" disabled={isBusy} accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(event) => { selectAttachment(event.target.files?.[0] ?? null); event.target.value = '' }} />
+                  <label htmlFor="support-attachment" title="Ekraanipilt või PDF · kuni 5 MB"><SupportIcon name="attachment" /><span>{attachment ? 'Vaheta faili' : 'Lisa fail'}</span></label>
+                </div>
+                <button className="support-send" type="submit" disabled={isBusy || body.trim().length < 2}>{isBusy ? 'Saadan…' : 'Saada'}<SupportIcon name="send" /></button>
+              </div>
+            </div>
+          </form>}
+
+          {view === 'thread' && selected && <div className="support-thread">
+            <div className="support-thread__title">
+              <h3>{selected.subject}</h3>
+              <span className={`support-status is-${selected.status}`}>
+                {selected.status === 'resolved' ? <SupportIcon name="check" /> : <i />}
+                {selected.status === 'resolved' ? 'Lahendatud' : selected.status === 'waiting_user' ? 'Sinu kord' : 'Ootab vastust'}
+              </span>
+            </div>
+            <div className="support-thread__messages" ref={messageList} role="log" aria-label="Vestluse sõnumid" aria-busy={isLoadingMessages}>
+              {isLoadingMessages && <div className="support-loading" role="status" aria-label="Laadin sõnumeid"><span /><span /></div>}
+              {messages.map((message) => <article className={`is-${message.sender_kind}`} key={message.id} aria-label={message.sender_kind === 'user' ? 'Sina' : 'Poeruumi tugi'}>
+                <p>{message.body}</p>
+                {message.attachment_path && <button className="support-message-attachment" type="button" onClick={() => void openAttachment(message)}><SupportIcon name="attachment" />{message.attachment_name || 'Ava manus'}</button>}
+                <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
+              </article>)}
+            </div>
+            {selected.status !== 'resolved'
+              ? <form className="support-reply" onSubmit={sendReply}>
+                <textarea aria-label="Vastus" value={reply} disabled={isBusy} onChange={(event) => setReply(event.target.value)} rows={2} maxLength={10000} placeholder="Kirjuta vastus…" required />
+                <button className="support-send support-send--icon" type="submit" disabled={isBusy || isLoadingMessages || !reply.trim()} aria-label={isBusy ? 'Saadan vastust' : 'Saada vastus'} title="Saada vastus"><SupportIcon name="send" /></button>
+              </form>
+              : <div className="support-resolved"><button type="button" onClick={startConversation}>Uus vestlus <SupportIcon name="arrow" /></button></div>}
+          </div>}
+        </section>
+      </div>}
     </>}
   </SupportContext.Provider>
 }

@@ -2732,6 +2732,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           {isAdminMode && <>
             {onBackToSetup && !onContinueSetup && <button className="empty-storefront__back" type="button" onClick={onBackToSetup} aria-label="Tagasi poe seadistusviisardisse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h11"/></svg></button>}
             {!onContinueSetup && <button className="empty-storefront__settings" type="button" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label="Seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 8.5 7L6.1 6 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5 6.1 18l2.4-1a7 7 0 0 0 1.9 1l.3 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z"/></svg></button>}
+            {support && !adminShowcaseMode && <button className="empty-storefront__help" type="button" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); support.openSupport() }} aria-label="Abi ja tugi" aria-haspopup="dialog">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 2-2.5 3.5M12 16.5v.1"/></svg><span>Abi</span>
+            </button>}
           </>}
           {isAdminMode ? <div className="empty-storefront__content">
             <section className="empty-storefront__intro">
@@ -2838,6 +2841,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </button>}
             {merchantMode && activeProduct && <button className="admin-preview" type="button" onClick={() => { setIsLoggedIn(false); setIsCustomerPreview(true) }} aria-label="Vaata poodi kliendina">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+            </button>}
+            {support && !adminShowcaseMode && <button className="admin-help" type="button" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); support.openSupport() }} aria-label="Abi ja tugi" title="Abi ja tugi" aria-haspopup="dialog">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8a3.5 3.5 0 0 1 7 1c0 2-3.5 2.5-3.5 5M12 18v.1"/></svg>
+              {support.unread > 0 && <span className="admin-help__unread" aria-label={`${support.unread} lugemata`} />}
             </button>}
           </div>
         )}

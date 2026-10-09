@@ -19,16 +19,16 @@
 .user-insight-ring__value { transform: rotate(-90deg); transform-origin: center; stroke-linecap: round; transition: stroke-dasharray 600ms ease; }
 .user-insight-ring strong { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: .12rem; color: #edffce; font-size: 2.1rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.065em; }
 .user-insight-ring small { padding-top: .45rem; color: #c1d3a6; font-size: .9rem; font-weight: 450; letter-spacing: -.02em; }
-.user-insight-setup__product { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .15rem .5rem; }
+.user-insight-setup__product { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .15rem .5rem; padding: .4rem .6rem; border: 1px solid transparent; border-radius: .55rem; background: transparent; font: inherit; text-align: left; }
 .user-insight-setup__product > svg { color: #b7d099; }
 .user-insight-setup__product strong { color: #edf5e2; font-size: 1.65rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .user-insight-setup__product > span, .user-insight-setup__product > small { grid-column: 2; color: #bdcca8; font-size: .7rem; }
 .user-insight-setup__product > small { color: #d7f6a1; font-size: .625rem; }
 .user-insight-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
-.user-insight-steps > div { position: relative; display: grid; justify-items: center; gap: .4rem; padding: .7rem .2rem .5rem; border: 1px solid #45523d; border-radius: .55rem; background: #1a251c; color: #b8c5aa; font-size: .625rem; }
-.user-insight-steps > div > svg { width: 1.2rem; height: 1.2rem; }
-.user-insight-steps > div > i { position: absolute; top: .2rem; right: .2rem; display: grid; place-items: center; width: .7rem; height: .7rem; border-radius: 50%; background: #34432e; }
-.user-insight-steps > div > i svg { width: .55rem; height: .55rem; stroke-width: 2.5; }
+.user-insight-steps > :is(div, button) { position: relative; display: grid; justify-items: center; gap: .4rem; padding: .7rem .2rem .5rem; border: 1px solid #45523d; border-radius: .55rem; background: #1a251c; color: #b8c5aa; font-size: .625rem; }
+.user-insight-steps > :is(div, button) > svg { width: 1.2rem; height: 1.2rem; }
+.user-insight-steps > :is(div, button) > i { position: absolute; top: .2rem; right: .2rem; display: grid; place-items: center; width: .7rem; height: .7rem; border-radius: 50%; background: #34432e; }
+.user-insight-steps > :is(div, button) > i svg { width: .55rem; height: .55rem; stroke-width: 2.5; }
 .user-insight-steps > .is-done { border-color: #708b4a; background: #354b2b; color: #e2f7bd; }
 .user-insight-steps > .is-done > i { background: #c2ed80; color: #203d18; }
 .user-insight-steps > .is-warning { border-color: #9c773f; background: #4b3d25; color: #ffd69e; }
@@ -81,7 +81,7 @@
 .user-insight-events li svg { width: .7rem; height: .7rem; }
 .user-insight-events strong { color: #dbe7ce; font-size: .625rem; font-weight: 500; }
 .user-insight-events time { color: #b8cca0; font-size: .5625rem; text-align: right; }
-.user-insights__states { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: .85rem; margin-top: .85rem; }
+.user-insights__states { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: .85rem; margin-top: .85rem; }
 .user-insight-state { min-width: 0; border: 1px solid #46593a; border-radius: .65rem; background: #263622; }
 .user-insight-state summary { display: flex; align-items: center; gap: .65rem; min-height: 4.35rem; padding: .75rem; list-style: none; cursor: pointer; }
 .user-insight-state summary::-webkit-details-marker { display: none; }
@@ -126,7 +126,7 @@
   .user-insight-state strong { font-size: .6875rem; }
   .user-insight-leds { display: none; }
   .user-insight-setup__hero { justify-content: start; gap: 2.5rem; }
-  .user-insight-steps > div { font-size: .7rem; }
+  .user-insight-steps > :is(div, button) { font-size: .7rem; }
   .user-insight-events strong, .user-insight-events time { font-size: .7rem; }
   .user-insight-state__details { padding-inline: .6rem; }
 }
@@ -137,3 +137,8 @@
   .user-insight-events strong { font-size: .6875rem; }
   .user-insight-events time { font-size: .625rem; }
 }
+
+.user-insight-steps > button { font-family: inherit; cursor: pointer; }
+.user-insight-setup__product:not(:disabled) { cursor: pointer; }
+.user-insight-steps > button:hover:not(:disabled), .user-insight-setup__product:hover:not(:disabled) { border-color: #b7d099; }
+.user-insight-steps > button:focus-visible, .user-insight-setup__product:focus-visible { outline: 2px solid var(--admin-focus); outline-offset: 3px; }

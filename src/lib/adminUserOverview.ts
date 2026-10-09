@@ -1,3 +1,5 @@
+import type { PaymentDiagnostics } from '../../shared/paymentDiagnostics'
+
 export type AdminUserRow = {
   user_id: string
   email: string
@@ -31,6 +33,7 @@ export type AdminUserRow = {
   metrics_version?: 1
   payment_state?: 'not_connected' | 'test' | 'unknown' | 'active' | 'restricted' | 'pending'
   payment_checked_at?: string | null
+  payment_diagnostics?: PaymentDiagnostics | null
   paid_orders_30d?: number
   net_sales_30d_cents?: number
   paid_orders_total?: number

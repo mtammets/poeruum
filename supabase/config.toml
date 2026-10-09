@@ -519,3 +519,6 @@ verify_jwt = false
 
 [functions.admin-push-dispatch]
 verify_jwt = false
+
+[functions.admin-payment-status]
+verify_jwt = false

@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route, type WebSocketRoute } from '@playwright/test'
+import type { PaymentDiagnostics } from '../shared/paymentDiagnostics'
 
 test.use({ baseURL: 'http://poeruum.localhost:4174' })
 
@@ -41,6 +42,19 @@ const userMetrics = users.map((row, index) => ({
   awaiting_admin_count: index === 4 ? 1 : 0, waiting_user_count: index === 1 ? 1 : 0,
   awaiting_admin_conversation_id: index === 4 ? 'conversation-test' : null,
 }))
+
+function paymentFixture(index: number, source: 'saved' | 'stripe' = 'saved', changes: Partial<PaymentDiagnostics> = {}): PaymentDiagnostics {
+  const row = users[index]
+  const restricted = [1, 4, 7].includes(index)
+  return {
+    version: 1, userId: row.user_id, storeId: row.store_id!, source, checkedAt: ago(1), connected: Boolean(row.store_id), mode: 'live',
+    chargesEnabled: !restricted, payoutsEnabled: !restricted, detailsSubmitted: true, identityError: null, setupError: null,
+    disabledReason: restricted ? 'requirements.past_due' : null, pendingVerification: false, dueCount: restricted ? 1 : 0,
+    dueFields: source === 'saved' ? null : restricted ? ['company.directors_provided'] : [], pendingFields: [], futureFields: [], deadline: null,
+    issues: row.stripe_account_requirement_issues.map((issue) => ({ code: issue.code, requirement: issue.requirement })),
+    dashboardUrl: 'https://dashboard.stripe.com/connect/accounts/acct_fixture', ...changes,
+  }
+}
 
 function insightFixture(index: number, metrics = userMetrics) {
   const metric = metrics[index]
@@ -88,6 +102,12 @@ async function installBackend(page: Page) {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/auth/v1/token')) return json(route, session)
     if (path.endsWith('/auth/v1/user')) return json(route, user)
+    if (path.endsWith('/functions/v1/admin-payment-status')) {
+      const body = route.request().postDataJSON()
+      if (body.action === 'snapshot') return json(route, { diagnostics: users.flatMap((row, index) => row.store_id && body.userIds.includes(row.user_id) ? [paymentFixture(index)] : []) })
+      const index = users.findIndex((row) => row.user_id === body.userId)
+      return index < 0 ? route.fulfill({ status: 404, json: { error: 'Poodi ei leitud.' } }) : json(route, { diagnostic: paymentFixture(index, 'stripe') })
+    }
     if (path.endsWith('/rpc/admin_user_insights')) {
       const id = route.request().postDataJSON().target_user_id
       insightRequests.push(id)
@@ -1484,8 +1504,7 @@ test('realtime changes actual sales and presence without treating record updates
   await expect(first.getByRole('group', { name: 'Müük päevade kaupa' }).getByRole('button').first()).toHaveAccessibleName(/12\s€.*1 tasutud/)
   await expect(first.getByRole('button', { name: 'Angel Airshe: üksikasjad' })).toHaveAttribute('aria-expanded', 'true')
   await expect(first.locator('.admin-user-row__activity')).toHaveText('17 h tagasi')
-  expect(await first.evaluate((element) => element.getAnimations().length)).toBeGreaterThan(0)
-  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await first.evaluate((element) => element.getAnimations().length)).toBe(0)
   backend.setOnline([users[0].user_id])
   backend.emit('user_presence_sessions')
   await expect(page.locator('.admin-users__online')).toContainText('1 ühendatud')
@@ -1529,7 +1548,6 @@ test('responsive overview and expanded row remain usable by touch and keyboard',
   const detail = page.getByRole('region', { name: 'testit: ülevaade' })
   await expect(detail).toBeVisible()
   await expect(detail.getByRole('group', { name: 'Müük päevade kaupa' })).toBeVisible()
-  await detail.locator('summary').filter({ hasText: 'Maksed' }).click()
   await expect(detail.getByText('Ettevõtte juhtide andmed on puudu')).toBeVisible()
   for (const width of [1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 })
@@ -1579,15 +1597,17 @@ test('rows expand in place on a row click, isolate controls, and recover unavail
   await expect(page.getByRole('button', { name: 'Moreamoreceramics: üksikasjad' })).toBeFocused()
 })
 
-test('the whole page scrolls on mobile while desktop keeps navigation and controls in place', async ({ page }) => {
+test('user controls scroll away while desktop navigation stays in place', async ({ page }) => {
   await installBackend(page)
   await page.goto('/admin/users')
   const list = page.getByRole('region', { name: 'Kasutajate nimekiri', exact: true })
+  const workspace = page.locator('.admin-users')
   await expect(page.locator('.admin-user-row')).toHaveCount(9)
   for (const [width, height] of [[1440, 900], [1024, 768], [390, 844], [390, 640], [844, 390]]) {
     await page.setViewportSize({ width, height })
     await page.evaluate(() => window.scrollTo(0, 0))
     await list.evaluate((element) => { element.scrollTop = 0 })
+    await workspace.evaluate((element) => { element.scrollTop = 0 })
     if (width <= 680) {
       await page.locator('.admin-user-row').first().hover()
       await page.mouse.wheel(0, 700)
@@ -1611,31 +1631,37 @@ test('the whole page scrolls on mobile while desktop keeps navigation and contro
       await page.getByRole('searchbox').fill('')
       continue
     }
-    const fixed = page.locator('.admin-sidebar, .admin-users > header, .admin-users__metrics, .admin-users__toolbar')
+    const fixed = page.locator('.admin-sidebar')
     const before = await fixed.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top))
-    const box = (await list.boundingBox())!
+    const box = (await workspace.boundingBox())!
     expect(box.height).toBeGreaterThan(140)
     expect(box.y + box.height).toBeLessThanOrEqual(height)
-    await list.hover()
+    await page.getByRole('button', { name: 'URGITS: üksikasjad' }).click()
+    await workspace.evaluate((element) => { element.scrollTop = 0 })
+    await page.locator('.admin-user-row').first().hover()
     await page.mouse.wheel(0, 700)
-    await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    await expect.poll(() => workspace.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    expect(await list.evaluate((element) => element.scrollTop)).toBe(0)
+    await expect(page.locator('.admin-users > header')).not.toBeInViewport()
+    await expect(page.locator('.admin-users__metrics')).not.toBeInViewport()
+    await expect(page.locator('.admin-users__toolbar')).not.toBeInViewport()
     expect(await fixed.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top))).toEqual(before)
     expect(await page.evaluate(() => window.scrollY)).toBe(0)
-    if (width > 680) {
-      const header = (await page.locator('.admin-table__head').boundingBox())!
-      expect(Math.abs(header.y - box.y)).toBeLessThanOrEqual(2)
-    }
-    await list.evaluate((element) => { element.scrollTop = 0 })
+    await page.screenshot({ path: `output/admin-users-scroll-${width}.png`, animations: 'disabled' })
+    await page.mouse.wheel(0, -1000)
+    await expect(page.getByRole('searchbox')).toBeInViewport()
+    await expect(page.locator('.admin-users__metrics')).toBeInViewport()
     await list.focus()
+    await workspace.evaluate((element) => { element.scrollTop = 0 })
     await page.keyboard.press('PageDown')
-    await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
-    await list.evaluate((element) => { element.scrollTop = element.scrollHeight })
+    await expect.poll(() => workspace.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    await workspace.evaluate((element) => { element.scrollTop = element.scrollHeight })
     await expect(page.locator('.admin-user-row').last(), `Last row at ${width} × ${height}`).toBeInViewport()
     await page.getByRole('button', { name: 'URGITS', exact: true }).scrollIntoViewIfNeeded()
     await expect(page.getByRole('button', { name: 'URGITS', exact: true })).toBeInViewport()
     await page.getByRole('searchbox').fill('ceramics')
     await expect(page.locator('.admin-user-row')).toHaveCount(1)
-    await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(0)
+    await expect.poll(() => workspace.evaluate((element) => element.scrollTop)).toBe(0)
     await page.getByRole('button', { name: 'Moreamoreceramics: üksikasjad' }).click()
     const detail = page.getByRole('region', { name: 'Moreamoreceramics: ülevaade' })
     await expect(detail.getByRole('group', { name: 'Müük päevade kaupa' })).toBeVisible()
@@ -1649,6 +1675,522 @@ test('the whole page scrolls on mobile while desktop keeps navigation and contro
     await page.getByRole('searchbox').fill('')
   }
   await page.setViewportSize({ width: 1440, height: 900 })
-  await list.evaluate((element) => { element.scrollTop = element.scrollHeight })
-  await page.screenshot({ path: 'output/admin-users-scroll-fixed.png', animations: 'disabled' })
+})
+
+test('the sidebar can be hidden and restored without losing work, and remembers the preference', async ({ page }) => {
+  await installBackend(page)
+  await page.goto('/admin/users')
+  const menu = page.getByRole('navigation', { name: 'Administraatori menüü' })
+  const main = page.locator('.admin-main')
+  const search = page.getByRole('searchbox')
+  await search.fill('URGITS')
+  await page.getByRole('button', { name: 'URGITS: üksikasjad' }).click()
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    const before = (await main.boundingBox())!
+    const hide = page.getByRole('button', { name: 'Peida menüü', exact: true })
+    if (width === 1440) await page.screenshot({ path: 'output/admin-menu-visible.png', animations: 'disabled' })
+    await hide.focus()
+    await page.keyboard.press('Enter')
+    const show = page.getByRole('button', { name: 'Näita menüüd', exact: true })
+    await expect(show).toBeFocused()
+    await expect(show).toHaveAttribute('aria-expanded', 'false')
+    await expect(menu).toBeHidden()
+    await expect(page.locator('#admin-sidebar')).toHaveAttribute('inert', '')
+    if (width > 680) expect((await main.boundingBox())!.width).toBeGreaterThan(before.width)
+    await expect(search).toHaveValue('URGITS')
+    await expect(page.getByRole('button', { name: 'URGITS: üksikasjad' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.getByRole('heading', { name: 'Kasutajad', exact: true })).toBeInViewport()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    const button = (await show.boundingBox())!
+    const heading = (await page.getByRole('heading', { name: 'Kasutajad', exact: true }).boundingBox())!
+    expect(button.x + button.width <= heading.x || button.y + button.height <= heading.y).toBe(true)
+    if (width === 1440 || width === 390) await page.screenshot({ path: `output/admin-menu-hidden-${width}.png`, animations: 'disabled' })
+    await page.keyboard.press('Enter')
+    await expect(hide).toBeFocused()
+    await expect(menu).toBeVisible()
+  }
+  await page.getByRole('button', { name: 'Peida menüü', exact: true }).click()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Näita menüüd', exact: true })).toBeVisible()
+  await expect(menu).toBeHidden()
+  await page.getByRole('button', { name: 'Näita menüüd', exact: true }).click()
+  await page.reload()
+  await expect(menu).toBeVisible()
+})
+
+test('watch mode hides the menu restore button and returns to the chosen menu state', async ({ page }) => {
+  await installBackend(page)
+  await page.goto('/admin/users')
+  await page.getByRole('button', { name: 'Vaatlusrežiim', exact: true }).click()
+  await page.getByRole('button', { name: 'Peida menüü', exact: true }).click()
+  const show = page.getByRole('button', { name: 'Näita menüüd', exact: true })
+  await expect(show).toBeFocused()
+  await page.clock.runFor(3100)
+  await expect(page.getByRole('dialog', { name: 'Vaatlusrežiim' })).toBeVisible()
+  await expect(show).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Vaatlusrežiim' })).toHaveCount(0)
+  await expect(show).toBeFocused()
+  await expect(page.locator('#admin-sidebar')).toBeHidden()
+  await show.click()
+  await expect(page.getByRole('button', { name: 'Vaatlusrežiim', exact: true })).toHaveAttribute('aria-pressed', 'false')
+})
+
+async function openWatch(page: Page, path = '/admin/analytics', visual = false) {
+  const backend = await installBackend(page)
+  const data = await installOverviewData(page)
+  if (visual) await installTrafficData(page)
+  await page.goto(path)
+  await expect(page.getByRole('button', { name: 'Vaatlusrežiim', exact: true })).toBeVisible()
+  await page.clock.runFor(500)
+  await page.getByRole('button', { name: 'Vaatlusrežiim', exact: true }).click()
+  await page.clock.runFor(3100)
+  const screen = page.getByRole('dialog', { name: 'Vaatlusrežiim' })
+  await expect(screen).toBeVisible()
+  return { backend, data, screen }
+}
+
+test('watch is opt in, starts after three seconds, rotates and returns without changing the working view', async ({ page }) => {
+  await installBackend(page)
+  await installOverviewData(page)
+  await page.goto('/admin/users')
+  await expect(page.locator('.admin-user-row')).toHaveCount(users.length)
+  await page.clock.runFor(5000)
+  await expect(page.getByRole('dialog', { name: 'Vaatlusrežiim' })).toHaveCount(0)
+  await page.getByRole('searchbox').fill('ceramics')
+  await page.getByRole('button', { name: 'Vaatlusrežiim', exact: true }).click()
+  await page.clock.runFor(2700)
+  await expect(page.getByRole('dialog', { name: 'Vaatlusrežiim' })).toHaveCount(0)
+  await page.clock.runFor(400)
+  const screen = page.getByRole('dialog', { name: 'Vaatlusrežiim' })
+  await expect(screen).toBeVisible()
+  await expect(page.locator('.admin-sidebar')).toHaveAttribute('inert', '')
+  await expect(screen).toHaveAttribute('data-scene', 'users')
+  await expect(screen.locator('.watch-person')).toHaveCount(users.length)
+  await page.clock.runFor(16_200)
+  await expect(screen).toHaveAttribute('data-scene', 'income')
+  await expect(page).toHaveURL('/admin/users')
+  await page.mouse.move(500, 500)
+  await expect(screen).toHaveCount(0)
+  await expect(page.getByRole('searchbox')).toHaveValue('ceramics')
+  await expect(page.locator('.admin-user-row')).toHaveCount(1)
+  await page.clock.runFor(3100)
+  await expect(screen).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(screen).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Vaatlusrežiim', exact: true })).toHaveAttribute('aria-pressed', 'false')
+  await page.clock.runFor(4000)
+  await expect(screen).toHaveCount(0)
+})
+
+test('watch waits for text editing and preserves a dirty form during background updates', async ({ page }) => {
+  const backend = await installBackend(page)
+  await installOverviewData(page)
+  await page.goto('/admin/seo')
+  const input = page.locator('#admin-seo-form input[type="text"]').first()
+  const fallback = page.locator('#admin-seo-form input').first()
+  const field = await input.count() ? input : fallback
+  await expect(field).toBeVisible()
+  await page.getByRole('button', { name: 'Vaatlusrežiim', exact: true }).click()
+  await field.fill('Poeruumi pooleliolev pealkiri')
+  await page.clock.runFor(6000)
+  await expect(page.getByRole('dialog', { name: 'Vaatlusrežiim' })).toHaveCount(0)
+  backend.emit('admin_dashboard_refresh')
+  await page.clock.runFor(700)
+  await expect(field).toHaveValue('Poeruumi pooleliolev pealkiri')
+  await page.locator('.admin-seo__summary h2').click()
+  await page.clock.runFor(3100)
+  await expect(page.getByRole('dialog', { name: 'Vaatlusrežiim' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(field).toHaveValue('Poeruumi pooleliolev pealkiri')
+  await expect(page).toHaveURL('/admin/seo')
+})
+
+test('watch uses real snapshots for visits, new accounts and published stores', async ({ page }) => {
+  const { backend, data, screen } = await openWatch(page)
+  await expect(screen).not.toHaveAttribute('data-event')
+  data.setAdded(4)
+  backend.emit('admin_homepage_refresh')
+  await page.clock.runFor(700)
+  await expect(screen).toHaveAttribute('data-event', 'visit')
+  await expect(screen.locator('.watch-big-number')).toHaveText('+4')
+  const created = new Date(await page.evaluate(() => Date.now())).toISOString()
+  // A request can return an older snapshot after the account was created.
+  backend.emit('admin_dashboard_refresh')
+  await page.clock.runFor(700)
+  const newcomer = { ...users[2], user_id: 'new-watch-user', email: 'uus@example.invalid', user_created_at: created }
+  const nextRows = [newcomer, ...users]
+  backend.setRows(nextRows)
+  backend.emit('admin_dashboard_refresh')
+  await page.clock.runFor(2400)
+  await expect(screen).toHaveAttribute('data-event', 'account')
+  await expect(screen).toHaveAttribute('data-scene', 'users')
+  await expect(screen.locator('[data-user-id="new-watch-user"]')).toHaveClass(/is-watch-spotlight/)
+  await expect(screen.locator('.watch-person-name')).toContainText('uus@example.invalid')
+  await screen.screenshot({ path: 'output/admin-watch-new-user.png', animations: 'disabled' })
+  await page.clock.runFor(9200)
+  backend.emit('admin_dashboard_refresh')
+  await page.clock.runFor(800)
+  await expect(screen).not.toHaveAttribute('data-event')
+  backend.setRows(nextRows.map((row) => row.user_id === users[0].user_id ? { ...row, is_published: true } : row))
+  backend.emit('admin_dashboard_refresh')
+  await page.clock.runFor(800)
+  await expect(screen).toHaveAttribute('data-event', 'published')
+  await expect(screen.locator(`[data-user-id="${users[0].user_id}"]`)).toHaveClass(/is-watch-spotlight/)
+})
+
+test('watch celebrates only confirmed platform fees and does not replay a duplicate', async ({ page }) => {
+  const { backend, screen } = await openWatch(page)
+  const revenueEvent = { id: 'watch-income', kind: 'transaction_fee', amount_cents: 160, currency: 'eur', occurred_at: new Date(await page.evaluate(() => Date.now())).toISOString(), store_id: 'store-3', store_name: 'Moreamoreceramics', description: 'Müügitasu' }
+  await page.route('**/rpc/admin_revenue_dashboard', (route) => route.fulfill({ json: { month_total_cents: 37700, today_total_cents: 2280, subscription_total_cents: 29900, transaction_fee_total_cents: 8800, refund_total_cents: -1000, recent_events: [revenueEvent] } }))
+  backend.emit('revenue_events', revenueEvent, 'INSERT')
+  await page.clock.runFor(900)
+  await expect(screen).toHaveAttribute('data-event', 'income')
+  await expect(screen.locator('.watch-income__total > strong')).toHaveText('+1,60 €')
+  await expect(screen.locator('.watch-receipts .is-spotlight')).toContainText('Moreamoreceramics')
+  await screen.screenshot({ path: 'output/admin-watch-income.png', animations: 'disabled' })
+  await page.clock.runFor(9500)
+  backend.emit('revenue_events', revenueEvent, 'INSERT')
+  await page.clock.runFor(900)
+  await expect(screen).not.toHaveAttribute('data-event')
+  await expect(screen.locator('.watch-income__total > strong')).toHaveText('377,00 €')
+})
+
+test('watch reports stale data and pauses when the tab is hidden', async ({ page }) => {
+  const { backend, data, screen } = await openWatch(page)
+  await expect(screen.locator('.watch-connection')).toHaveText('Otse')
+  data.setMode('error')
+  backend.emit('admin_homepage_refresh')
+  await page.clock.runFor(800)
+  await expect(screen.locator('.watch-connection')).toHaveText('Ühendus taastub')
+  await expect(screen).not.toHaveAttribute('data-event')
+  data.setMode('ready')
+  backend.emit('admin_homepage_refresh')
+  await page.clock.runFor(800)
+  await expect(screen.locator('.watch-connection')).toHaveText('Otse')
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect(screen).toHaveCount(0)
+  await page.clock.runFor(20_000)
+  await expect(screen).toHaveCount(0)
+  data.setAdded(9)
+  backend.setRows(users.map((row, index) => index === 0 ? { ...row, is_published: true } : row))
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false })
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await page.clock.runFor(3100)
+  await expect(screen).toBeVisible()
+  await expect(screen).not.toHaveAttribute('data-event')
+  await expect(screen.locator('.watch-metrics > div').first()).toContainText('39')
+})
+
+test('watch brings an offscreen user into view on mobile without scrolling the working page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const { backend, screen } = await openWatch(page, '/admin/users')
+  const scrollBefore = await page.evaluate(() => window.scrollY)
+  backend.setRows(users.map((row, index) => index === 7 ? { ...row, is_published: true } : row))
+  backend.emit('admin_dashboard_refresh')
+  await page.clock.runFor(2200)
+  await expect(screen).toHaveAttribute('data-event', 'published')
+  const row = screen.locator(`[data-user-id="${users[7].user_id}"]`)
+  await expect(row).toHaveClass(/is-watch-spotlight/)
+  await expect(row).toBeInViewport({ ratio: 1 })
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore)
+  await screen.screenshot({ path: 'output/admin-watch-published-mobile.png', animations: 'disabled' })
+})
+
+test('watch keeps large real totals within their column', async ({ page }) => {
+  const { backend, data, screen } = await openWatch(page)
+  data.setAdded(999_970)
+  backend.emit('admin_homepage_refresh')
+  await page.clock.runFor(1800)
+  await expect(screen).toHaveAttribute('data-event', 'visit')
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await screen.locator('.watch-big-number').evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+  }
+})
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  test(`watch fits ${viewport.width}×${viewport.height} and respects reduced motion`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const { screen } = await openWatch(page, '/admin/analytics', true)
+    for (const scene of ['analytics', 'users', 'income']) {
+      await expect(screen).toHaveAttribute('data-scene', scene)
+      expect(await screen.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+      await expect(screen.getByRole('button', { name: 'Lõpeta vaatlusrežiim' })).toBeInViewport()
+      await expect(screen.locator('.watch-footer')).toBeInViewport()
+      await expect(screen).toHaveCSS('animation-name', 'none')
+      await screen.screenshot({ path: `output/admin-watch-${scene}-${viewport.width}.png`, animations: 'disabled' })
+      await page.clock.runFor(16_200)
+    }
+    await screen.getByRole('button', { name: 'Lõpeta vaatlusrežiim' }).click()
+    await expect(screen).toHaveCount(0)
+  })
+}
+
+test('payment reasons expose incomplete onboarding without Stripe errors and preserve the last snapshot on failure', async ({ page }) => {
+  await installBackend(page)
+  let fail = false
+  let ready = false
+  const live = paymentFixture(0, 'stripe', { checkedAt: '2026-10-01T11:00:00Z', chargesEnabled: false, payoutsEnabled: false, detailsSubmitted: false,
+    dueCount: 10, disabledReason: 'requirements.past_due', identityError: 'Täienda Stripe’is konto omaniku andmeid ja proovi uuesti.', issues: [],
+    dueFields: ['business_profile.mcc', 'company.name', 'company.address.city', 'company.tax_id', 'owners.first_name', 'owners.dob.day', 'owners.dob.month', 'external_account', 'tos_acceptance.date', 'person_test.email'],
+  })
+  await page.route('**/functions/v1/admin-payment-status', (route) => {
+    const body = route.request().postDataJSON()
+    if (body.action === 'snapshot') return route.fulfill({ json: { diagnostics: [{ ...live, source: 'saved', dueFields: null }] } })
+    if (fail) return route.fulfill({ status: 502, json: { error: 'Stripe’i seisu ei õnnestunud laadida.' } })
+    return route.fulfill({ json: { diagnostic: ready ? { ...live, detailsSubmitted: true, chargesEnabled: true, payoutsEnabled: true, identityError: null, disabledReason: null, dueCount: 0, dueFields: [] } : live } })
+  })
+  await page.goto('/admin/users')
+  const row = page.locator('.admin-user-row').first()
+  await expect(row.locator('.admin-user-row__payment')).toHaveText('Stripe’i seadistus pooleli')
+  await row.getByRole('button', { name: 'Angel Airshe: üksikasjad' }).click()
+  const detail = row.getByRole('region', { name: 'Maksete põhjus' })
+  await expect(detail.getByRole('heading')).toHaveText('Stripe’i seadistus pooleli')
+  await expect(detail.getByText('Stripe’ist kontrollitud:', { exact: false })).toBeVisible()
+  await expect(detail.locator('dt')).toHaveText(['Tegevusandmed', 'Ettevõte', 'Pangakonto', 'Omanikud', 'Isik 1', 'Tingimused'])
+  await expect(detail).toContainText('väljamaksete pangakonto')
+  await expect(detail).toContainText('sünnikuupäev')
+  await expect(detail.getByRole('link', { name: 'Stripe', exact: true })).toHaveAttribute('href', 'https://dashboard.stripe.com/connect/accounts/acct_fixture')
+  await detail.locator('summary').click()
+  await expect(detail.getByText('company.tax_id', { exact: true })).toBeVisible()
+  await detail.locator('summary').click()
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await detail.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    if (width !== 320) await detail.screenshot({ path: `output/admin-payment-reason-${width}.png`, animations: 'disabled' })
+  }
+  fail = true
+  await detail.getByRole('button', { name: 'Uuenda', exact: true }).click()
+  await expect(detail.getByRole('status')).toContainText('viimane teadaolev seis')
+  await expect(detail).toContainText('väljamaksete pangakonto')
+  fail = false; ready = true
+  await detail.getByRole('button', { name: 'Uuenda', exact: true }).click()
+  await expect(detail.getByRole('heading')).toHaveText('Aktiivne')
+  await expect(row.locator('.admin-user-row__payment')).toHaveText('Aktiivne')
+  await expect(detail.locator('.admin-payment-requirements')).toHaveCount(0)
+})
+
+test('payment badges keep their reason during delayed refreshes and apply confirmed changes', async ({ page }) => {
+  const backend = await installBackend(page)
+  const metrics = structuredClone(userMetrics)
+  metrics[0].payment_state = 'restricted'
+  backend.setMetrics(metrics)
+  let held = false
+  let ready = false
+  let checkedAt = ago(1)
+  const pending: Route[] = []
+  const respond = (route: Route) => {
+    const snapshot = route.request().postDataJSON().action === 'snapshot'
+    const diagnostic = paymentFixture(0, snapshot ? 'saved' : 'stripe', {
+      checkedAt, detailsSubmitted: snapshot ? null : ready, chargesEnabled: ready, payoutsEnabled: ready,
+      disabledReason: ready ? null : 'requirements.past_due', dueCount: ready ? 0 : 1,
+      dueFields: snapshot ? null : ready ? [] : ['external_account'], issues: [],
+    })
+    return route.fulfill({ json: snapshot ? { diagnostics: [diagnostic] } : { diagnostic } })
+  }
+  await page.route('**/functions/v1/admin-payment-status', (route) => {
+    if (held) { pending.push(route); return }
+    return respond(route)
+  })
+  await page.goto('/admin/users')
+  const row = page.locator('.admin-user-row').first()
+  const badge = row.locator('.admin-user-row__payment button')
+  await expect(badge).toHaveText('Stripe’i seadistus pooleli')
+  await expect.poll(() => backend.subscriptions.has('admin_dashboard_refresh')).toBe(true)
+  await badge.hover()
+  await expect(badge).toHaveCSS('filter', 'none')
+
+  // The dashboard answers before the delayed diagnosis. Its check timestamp
+  // advances, but there must be no intermediate "reason unchecked" state.
+  held = true
+  checkedAt = ago(0)
+  metrics[0].payment_checked_at = checkedAt
+  backend.setMetrics(structuredClone(metrics))
+  backend.emit('admin_dashboard_refresh')
+  await expect.poll(() => pending.length).toBeGreaterThan(0)
+  await expect(badge).toHaveText('Stripe’i seadistus pooleli')
+  held = false
+  await Promise.all(pending.splice(0).map(respond))
+  await badge.click()
+  const detail = row.getByRole('region', { name: 'Maksete põhjus' })
+  await expect(badge).toHaveText('Pangakonto puudu')
+  await expect(detail).toContainText('väljamaksete pangakonto')
+
+  // A newer summary for the same restriction must not overwrite the more
+  // precise live reason while its own Stripe refresh is still pending.
+  held = true
+  checkedAt = ago(-1)
+  metrics[0].payment_checked_at = checkedAt
+  backend.setMetrics(structuredClone(metrics))
+  backend.emit('admin_dashboard_refresh')
+  await expect.poll(() => pending.filter((route) => route.request().postDataJSON().action === 'snapshot').length).toBeGreaterThan(0)
+  await expect.poll(() => pending.filter((route) => !route.request().postDataJSON().action).length).toBeGreaterThan(0)
+  for (const route of pending.splice(0).filter((route) => {
+    if (route.request().postDataJSON().action === 'snapshot') return true
+    pending.push(route); return false
+  })) await respond(route)
+  await expect(badge).toHaveText('Pangakonto puudu')
+  await expect(detail).toContainText('väljamaksete pangakonto')
+  held = false
+  await Promise.all(pending.splice(0).map(respond))
+
+  ready = true
+  checkedAt = ago(-2)
+  metrics[0].payment_state = 'active'
+  metrics[0].payment_checked_at = checkedAt
+  backend.setMetrics(structuredClone(metrics))
+  backend.emit('admin_dashboard_refresh')
+  await expect(badge).toHaveText('Aktiivne')
+  await expect(detail.getByRole('heading')).toHaveText('Aktiivne')
+})
+
+test('payment reasons distinguish verification in progress from an unspecified restriction', async ({ page }) => {
+  await installBackend(page)
+  let pending = true
+  await page.route('**/functions/v1/admin-payment-status', (route) => {
+    const body = route.request().postDataJSON()
+    if (body.action === 'snapshot') return route.fulfill({ json: { diagnostics: [] } })
+    return route.fulfill({ json: { diagnostic: paymentFixture(0, 'stripe', { chargesEnabled: false, payoutsEnabled: false, dueCount: 0,
+      dueFields: [], identityError: null, issues: [], pendingVerification: pending, pendingFields: pending ? ['company.verification.document'] : [],
+      disabledReason: pending ? 'requirements.pending_verification' : null,
+    }) } })
+  })
+  await page.goto('/admin/users')
+  await page.getByRole('button', { name: 'Angel Airshe: üksikasjad' }).click()
+  const detail = page.getByRole('region', { name: 'Maksete põhjus' })
+  await expect(detail.getByRole('heading')).toHaveText('Stripe kontrollib andmeid')
+  await expect(detail).toContainText('Kontrollimisel: ettevõte (tõendusdokument)')
+  await expect(detail).not.toContainText('Täienda')
+  pending = false
+  await detail.getByRole('button', { name: 'Uuenda', exact: true }).click()
+  await expect(detail.getByRole('heading')).toHaveText('Põhjus täpsustamata')
+  await expect(detail).toContainText('Stripe pole maksete piirangu täpset põhjust tagastanud')
+})
+
+const previewImage = (name: string) => `http://localhost:4174/storage/v1/object/public/product-images/${name}.webp`
+
+async function installProductPreview(page: Page, total = 2) {
+  const requests: { target_store_id: string; page_offset: number }[] = []
+  const products = Array.from({ length: total }, (_, i) => ({
+    id: `product-${i}`, name: i === 0 ? 'Käsitööna valminud keraamika' : `Toode ${i + 1}`,
+    image_url: previewImage(`product-${i}`), alt: `Toote ${i + 1} pilt`,
+    gallery: i === 0 ? [previewImage('product-0'), previewImage('detail')] : [],
+  }))
+  let fail = false
+  await page.route('**/rpc/admin_store_products', (route) => {
+    const body = route.request().postDataJSON()
+    requests.push(body)
+    return fail ? route.fulfill({ status: 503, json: { message: 'Unavailable' } }) : route.fulfill({ json: {
+      version: 1, store_id: body.target_store_id, offset: body.page_offset, total: products.length,
+      products: products.slice(body.page_offset, body.page_offset + 48),
+    } })
+  })
+  await page.route('**/storage/v1/object/public/product-images/**', (route) => route.fulfill({
+    path: 'public/images/kaubamaja-example-ceramics.webp', contentType: 'image/webp',
+  }))
+  return { requests, products, fail: (value: boolean) => { fail = value } }
+}
+
+test('product preview opens draft store photos, changes products and restores keyboard focus', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installProductPreview(page)
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto('/admin/users')
+  const expand = page.getByRole('button', { name: 'Angel Airshe: üksikasjad' })
+  await expand.click()
+  const opener = page.getByRole('button', { name: 'Tooted', exact: true })
+  await opener.click()
+  const dialog = page.getByRole('dialog', { name: 'Angel Airshe' })
+  await expect(dialog).toBeVisible()
+  const image = dialog.locator('.admin-product-preview__image > img')
+  await expect(image).toHaveAttribute('src', previewImage('product-0'))
+  await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true)
+  await expect(dialog.getByRole('button', { name: 'Eelmine toode' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'Sulge tootepildid' })).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(dialog.getByRole('button', { name: 'Järgmine toode' })).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(dialog.getByRole('button', { name: 'Sulge tootepildid' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Pilt 2' }).click()
+  await expect(image).toHaveAttribute('src', previewImage('detail'))
+  await dialog.getByRole('button', { name: 'Järgmine toode' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Toode 2' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Järgmine toode' })).toBeDisabled()
+  await page.keyboard.press('ArrowLeft')
+  await expect(image).toHaveAttribute('src', previewImage('product-0'))
+  await page.screenshot({ path: 'output/admin-product-preview-1440.png' })
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(expand).toHaveAttribute('aria-expanded', 'true')
+  await expect(opener).toBeFocused()
+  await page.getByRole('button', { name: 'Vaata tooteid' }).click()
+  await expect(dialog).toBeVisible()
+  await page.mouse.click(8, 8)
+  await expect(dialog).not.toBeVisible()
+  expect(backend.requests).toEqual(Array(2).fill({ target_store_id: 'store-0', page_offset: 0 }))
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await opener.click()
+  await expect(image).toBeVisible()
+  const bounds = await dialog.boundingBox()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844)
+  const photoBounds = await image.boundingBox()
+  expect(photoBounds!.height).toBeGreaterThan(300)
+  await page.screenshot({ path: 'output/admin-product-preview-390.png' })
+  await dialog.getByRole('button', { name: 'Sulge tootepildid' }).click()
+  await expect(opener).toBeFocused()
+})
+
+test('product preview retries failed requests and handles missing and broken photos', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installProductPreview(page, 1)
+  backend.fail(true)
+  await page.goto('/admin/users')
+  await page.getByRole('button', { name: 'Angel Airshe: üksikasjad' }).click()
+  await page.getByRole('button', { name: 'Tooted', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('Tooteid ei õnnestunud laadida')).toBeVisible()
+  backend.fail(false)
+  backend.products[0].image_url = ''
+  backend.products[0].gallery = []
+  await dialog.getByRole('button', { name: 'Proovi uuesti' }).click()
+  await expect(dialog.getByText('Pilt puudub')).toBeVisible()
+  await page.keyboard.press('Escape')
+  backend.products[0].image_url = previewImage('broken')
+  await page.route('**/product-images/broken.webp', (route) => route.fulfill({ status: 404 }))
+  await page.getByRole('button', { name: 'Tooted', exact: true }).click()
+  await expect(dialog.getByText('Pilti ei õnnestunud laadida')).toBeVisible()
+  await page.keyboard.press('Escape')
+  backend.products.length = 0
+  await page.getByRole('button', { name: 'Tooted', exact: true }).click()
+  await expect(dialog.getByText('Tooteid pole veel lisatud')).toBeVisible()
+})
+
+test('product preview loads additional pages without cutting off products', async ({ page }) => {
+  await installBackend(page)
+  const backend = await installProductPreview(page, 49)
+  await page.goto('/admin/users')
+  await page.getByRole('button', { name: 'Angel Airshe: üksikasjad' }).click()
+  await page.getByRole('button', { name: 'Tooted', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('button', { name: 'Järgmine toode' })).toBeEnabled()
+  for (let i = 1; i < 49; i++) await page.keyboard.press('ArrowRight')
+  await expect(dialog.getByRole('heading', { name: 'Toode 49' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Järgmine toode' })).toBeDisabled()
+  expect(backend.requests.map((request) => request.page_offset)).toEqual([0, 48])
+  await page.keyboard.press('ArrowLeft')
+  await expect(dialog.getByRole('heading', { name: 'Toode 48' })).toBeVisible()
+  expect(backend.requests.map((request) => request.page_offset)).toEqual([0, 48, 0])
 })

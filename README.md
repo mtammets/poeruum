@@ -103,6 +103,12 @@ mõõtmine vajab migratsiooni `202610070003_store_analytics.sql` ning avalikku
 enne uut kasutajaliidest. Tavapärane `supabase:functions:deploy` sisaldab uut
 funktsiooni. Ligipääsu ja müügiarvutusi kontrollib `scripts/test-store-analytics.sql`.
 
+Admini maksete täpsed põhjused vajavad `admin-payment-status` Edge Functionit
+(`verify_jwt = false`; funktsioon kontrollib sessiooni ja administraatori rolli).
+Tootepiltide eelvaade vajab migratsiooni `202610090001_admin_store_products.sql`.
+Mõlemad tuleb juurutada enne kasutajaliidest; eelvaade võimaldab administraatoril
+vaadata ka avaldamata poe tooteid ilma poe avalikkust muutmata.
+
 ## Deploy
 
 Render käivitab `npm run build`, mis ehitab rakenduse ja genereerib SEO-varad,

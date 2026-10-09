@@ -24,6 +24,9 @@ import AdminAnalytics from './AdminAnalytics'
 import AdminStoryDeck, { type AdminStoryDeckHandle } from './AdminStoryDeck'
 import useHomepageVisitFeedback from './useHomepageVisitFeedback'
 import useAdminRevenue from './useAdminRevenue'
+import useAdminWatch from './useAdminWatch'
+import { savedPaymentStatuses } from './lib/adminPaymentStatus'
+import AdminWatchScreen from './AdminWatchScreen'
 import useAdminPush from './useAdminPush'
 import AdminSettings from './AdminSettings'
 import { disableAdminPush } from './lib/adminPush'
@@ -229,6 +232,16 @@ function AdminLogin({
 
 export default function AdminApp() {
   const [activeView, setActiveView] = useState<AdminView>(() => getAdminView())
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    try { return localStorage.getItem('poeruum.admin.sidebar-hidden') === 'true' } catch { return false }
+  })
+  const hideMenuButton = useRef<HTMLButtonElement>(null)
+  const showMenuButton = useRef<HTMLButtonElement>(null)
+  const setMenuHidden = (hidden: boolean) => {
+    setSidebarHidden(hidden)
+    try { localStorage.setItem('poeruum.admin.sidebar-hidden', String(hidden)) } catch { /* Keep the control usable when browser storage is unavailable. */ }
+    window.requestAnimationFrame(() => (hidden ? showMenuButton : hideMenuButton).current?.focus({ preventScroll: true }))
+  }
   const storyDeck = useRef<AdminStoryDeckHandle>(null)
   const navigation = useRef<HTMLElement>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -241,6 +254,11 @@ export default function AdminApp() {
   const [presenceKnown, setPresenceKnown] = useState(false)
   const [onlineViews, setOnlineViews] = useState<Map<string, string>>(() => new Map())
   const [isLoading, setIsLoading] = useState(false)
+  const [watchEnabled, setWatchEnabled] = useState(false)
+  const [usersLoaded, setUsersLoaded] = useState(false)
+  const [usersStale, setUsersStale] = useState(false)
+  const [usersLive, setUsersLive] = useState(false)
+  const paymentSnapshotRevision = useRef(0)
   const [error, setError] = useState('')
   const [userMetricsError, setUserMetricsError] = useState('')
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>(30)
@@ -366,16 +384,26 @@ export default function AdminApp() {
     }
   }
 
-  const { revenue, error: revenueError, loading: isRevenueLoading, notice: revenueNotice, refresh: loadRevenue } = useAdminRevenue(
-    session && adminAccessGranted ? session.user.id : null, !isManagingShowcase && activeView === 'overview',
+  const watchAvailable = Boolean(session && adminAccessGranted && !isManagingShowcase)
+  const { revenue, error: revenueError, loading: isRevenueLoading, stale: revenueStale, live: revenueLive, notice: revenueNotice, refresh: loadRevenue } = useAdminRevenue(
+    session && adminAccessGranted ? session.user.id : null, !isManagingShowcase && (activeView === 'overview' || watchEnabled),
   )
-  const analyticsViewActive = !isManagingShowcase && (activeView === 'overview' || activeView === 'analytics')
+  const analyticsViewActive = !isManagingShowcase && (activeView === 'overview' || activeView === 'analytics' || watchEnabled)
   const pushFeedback = useAdminPush(session && adminAccessGranted ? session.user.id : null)
   const visitFeedback = useHomepageVisitFeedback({
     count: homepageAnalytics.sessions,
     accountCount: homepageAnalytics.accounts_created,
     scope: `${session?.user.id}:${analyticsRange}`,
     active: Boolean(session && adminAccessGranted && analyticsViewActive && !isAnalyticsLoading && !analyticsError && homepageAnalytics.range_days === analyticsRange),
+  })
+  const watch = useAdminWatch({
+    enabled: watchEnabled && watchAvailable,
+    onDisable: () => setWatchEnabled(false),
+    initialScene: activeView === 'users' ? 'users' : activeView === 'overview' ? 'income' : 'analytics',
+    scope: session?.user.id ?? '',
+    rows, usersReady: usersLoaded && !usersStale && usersLive && !error,
+    analytics: homepageAnalytics, analyticsReady: !isAnalyticsLoading && !analyticsError && !analyticsStale && analyticsLive,
+    revenue, revenueNotice, revenueReady: !isRevenueLoading && !revenueError && !revenueStale && revenueLive,
   })
 
   useEffect(() => {
@@ -478,13 +506,15 @@ export default function AdminApp() {
       .subscribe((status) => {
         if (!active) return
         setAnalyticsLive(status === 'SUBSCRIBED')
+        setAnalyticsStale(true)
         // Catch anything committed before the subscription was acknowledged.
         if (status === 'SUBSCRIBED') schedule()
       })
     void refresh()
     const timer = window.setInterval(() => { void refresh() }, 15_000)
     const refreshVisible = () => { void refresh() }
-    document.addEventListener('visibilitychange', refreshVisible)
+    const onVisibility = () => { setAnalyticsStale(true); void refresh() }
+    document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('focus', refreshVisible)
     window.addEventListener('online', refreshVisible)
     const onOffline = () => { setAnalyticsLive(false); setAnalyticsStale(true) }
@@ -494,7 +524,7 @@ export default function AdminApp() {
       controller.abort()
       window.clearInterval(timer)
       window.clearTimeout(refreshTimer)
-      document.removeEventListener('visibilitychange', refreshVisible)
+      document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('focus', refreshVisible)
       window.removeEventListener('online', refreshVisible)
       window.removeEventListener('offline', onOffline)
@@ -660,6 +690,7 @@ export default function AdminApp() {
     silent?: boolean
     refreshAuth?: boolean
   } = {}) => {
+    const snapshotRevision = ++paymentSnapshotRevision.current
     if (!silent) setIsLoading(true)
     setError('')
     // Refresh the JWT so a newly assigned server-side admin role is available
@@ -668,7 +699,7 @@ export default function AdminApp() {
     void loadRevenue()
     void loadLatestEmails()
     void loadSignupAlerts()
-    void loadHomepageSettings()
+    if (!silent) void loadHomepageSettings()
     const [usersResponse, metricsResponse] = await Promise.all([
       requireSupabase().rpc('admin_dashboard_users'),
       requireSupabase().rpc('admin_user_overview'),
@@ -677,20 +708,44 @@ export default function AdminApp() {
     const metrics = new Map<string, Partial<AdminUserRow>>((Array.isArray(metricsResponse.data) ? metricsResponse.data : []).map((row: AdminUserRow) => [row.user_id, row]))
     setUserMetricsError(metricsResponse.error || (data ?? []).some((row: AdminUserRow) => metrics.get(row.user_id)?.metrics_version !== 1) ? 'unavailable' : '')
     if (queryError) {
+      setUsersStale(true)
       const forbidden = queryError.code === '42501' || queryError.message.toLowerCase().includes('admin access')
       setError(forbidden
         ? 'Sellel kontol puudub administraatori ligipääs.'
         : 'Admini andmeid ei õnnestunud laadida. Kontrolli, et uus Supabase’i migratsioon on rakendatud.')
       setRows([])
     } else {
-      setRows(((data ?? []) as AdminUserRow[]).map((row) => ({
-        ...row,
-        ...metrics.get(row.user_id),
-        product_count: Number(row.product_count),
-        order_count: Number(row.order_count),
-        gross_sales: Number(row.gross_sales),
-        open_support_count: Number(row.open_support_count ?? 0),
-      })))
+      setUsersLoaded(true)
+      setUsersStale(false)
+      setRows((current) => {
+        const previous = new Map(current.map((row) => [row.user_id, row]))
+        return ((data ?? []) as AdminUserRow[]).map((row) => {
+          const old = previous.get(row.user_id)
+          const overview = metrics.get(row.user_id)
+          // Retain the last diagnosis while its replacement loads. A newer check
+          // timestamp alone must not replace a known reason with a placeholder.
+          const retainPayment = old?.store_id === row.store_id && row.payment_status !== 'idle'
+            && overview?.payment_state !== 'not_connected'
+          return {
+            ...row,
+            ...overview,
+            payment_diagnostics: retainPayment ? old?.payment_diagnostics : undefined,
+            product_count: Number(row.product_count),
+            order_count: Number(row.order_count),
+            gross_sales: Number(row.gross_sales),
+            open_support_count: Number(row.open_support_count ?? 0),
+          }
+        })
+      })
+      const userIds = ((data ?? []) as AdminUserRow[]).filter((row) => row.store_id).map((row) => row.user_id)
+      if (userIds.length) void savedPaymentStatuses(userIds).then((diagnostics) => {
+        if (snapshotRevision !== paymentSnapshotRevision.current) return
+        const byUser = new Map(diagnostics.map((item) => [item.userId, item]))
+        setRows((current) => current.map((row) => {
+          const diagnostic = byUser.get(row.user_id)
+          return diagnostic?.storeId === row.store_id ? { ...row, payment_diagnostics: diagnostic } : row
+        }))
+      }).catch(() => { /* Row details offer a fresh Stripe lookup and an explicit retry. */ })
     }
     if (!silent) setIsLoading(false)
   }
@@ -714,6 +769,8 @@ export default function AdminApp() {
 
   useEffect(() => {
     if (!session) {
+      setWatchEnabled(false)
+      setUsersLoaded(false)
       setAdminAccessGranted(false)
       setRows([])
       setHomepageAnalytics(emptyHomepageAnalytics)
@@ -780,16 +837,21 @@ export default function AdminApp() {
           void loadDashboard({ silent: true, refreshAuth: false })
         }, 350)
       })
-      .subscribe()
+      .subscribe((status) => {
+        setUsersLive(status === 'SUBSCRIBED')
+        setUsersStale(true)
+        if (status === 'SUBSCRIBED') void loadDashboard({ silent: true, refreshAuth: false })
+      })
     // Recover missed realtime events and keep the rolling 30-day window current.
     const refreshVisibleDashboard = () => {
       if (document.visibilityState === 'visible') void loadDashboard({ silent: true, refreshAuth: false })
     }
+    const onVisibility = () => { setUsersStale(true); refreshVisibleDashboard() }
     const refreshInterval = window.setInterval(refreshVisibleDashboard, 60_000)
-    document.addEventListener('visibilitychange', refreshVisibleDashboard)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       window.clearInterval(refreshInterval)
-      document.removeEventListener('visibilitychange', refreshVisibleDashboard)
+      document.removeEventListener('visibilitychange', onVisibility)
       if (dashboardRefreshTimerRef.current !== null) window.clearTimeout(dashboardRefreshTimerRef.current)
       dashboardRefreshTimerRef.current = null
       void client.removeChannel(channel)
@@ -827,9 +889,17 @@ export default function AdminApp() {
     || seoDraft.social_description !== seoSettings.social_description
     || seoDraft.search_indexing_enabled !== seoSettings.search_indexing_enabled
 
-  return <main className={`admin-shell${activeView === 'users' ? ' admin-shell--users' : ''}`}>
-    <aside className="admin-sidebar">
-      <a href="/" aria-label="Poeruumi avaleht"><Brand /></a>
+  return <main className={`admin-shell${activeView === 'users' ? ' admin-shell--users' : ''}${watch.active ? ' is-watching' : ''}${sidebarHidden ? ' is-menu-hidden' : ''}`}>
+    {sidebarHidden && <button ref={showMenuButton} className="admin-sidebar-toggle admin-sidebar-toggle--restore" type="button" hidden={watch.active} aria-label="Näita menüüd" title="Näita menüüd" aria-expanded={false} aria-controls="admin-sidebar" onClick={() => setMenuHidden(false)}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16m5-11 3 3-3 3" /></svg>
+    </button>}
+    <aside id="admin-sidebar" className="admin-sidebar" hidden={sidebarHidden} inert={watch.active || sidebarHidden} aria-hidden={watch.active || sidebarHidden || undefined}>
+      <div className="admin-sidebar__brand"><a href="/" aria-label="Poeruumi avaleht"><Brand /></a><button ref={hideMenuButton} className="admin-sidebar-toggle" type="button" aria-label="Peida menüü" title="Peida menüü" aria-expanded={true} aria-controls="admin-sidebar" onClick={() => setMenuHidden(true)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16m7-11-3 3 3 3" /></svg>
+      </button></div>
+      <button className="admin-watch-toggle" type="button" aria-label="Vaatlusrežiim" aria-pressed={watchEnabled} title={watchEnabled ? 'Lülita vaatlusrežiim välja' : 'Vaatlusrežiim · käivitub pärast 3 sekundit pausi'} onClick={() => setWatchEnabled((current) => !current)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="3"/><path d="M8 21h8M12 17v4M10 8l5 3-5 3V8Z"/></svg><span>Vaatlusrežiim</span>{watchEnabled && <i />}
+      </button>
       <nav ref={navigation} aria-label="Administraatori menüü">
         <a className={activeView === 'overview' ? 'is-active' : undefined} href="/admin" aria-current={activeView === 'overview' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'overview')}><span><AdminIcon name="home" /></span>Ülevaade</a>
         <a className={activeView === 'analytics' ? 'is-active' : undefined} href="/admin/analytics" aria-current={activeView === 'analytics' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'analytics')}><span><AdminIcon name="analytics" /></span>Külastatavus</a>
@@ -846,7 +916,7 @@ export default function AdminApp() {
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><a className="admin-sidebar__settings" href="/admin/settings" aria-label="Seaded" title="Seaded" aria-current={activeView === 'settings' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'settings')}><AdminIcon name="settings" /></a><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
     </aside>
 
-    <section className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : activeView === 'overview' ? ' admin-main--overview' : activeView === 'analytics' ? ' admin-main--analytics' : ''}`}>
+    <section inert={watch.active} aria-hidden={watch.active || undefined} className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : activeView === 'overview' ? ' admin-main--overview' : activeView === 'analytics' ? ' admin-main--analytics' : ''}`}>
       <AdminStoryDeck ref={storyDeck} view={activeView} onNavigate={changeView} renderView={(view) => <>
       {view !== 'users' && view !== 'overview' && view !== 'analytics' && view !== 'campaigns' && <header className="admin-topbar"><div><h1>{adminViewConfig[view].title}</h1></div>{view !== 'leads' && view !== 'business-card' && view !== 'directory' && view !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
@@ -1042,5 +1112,14 @@ export default function AdminApp() {
       </>}
       </>} />
     </section>
+    {watch.active && <AdminWatchScreen scene={watch.scene} event={watch.event} sequence={watch.key}
+      live={analyticsLive && revenueLive && usersLive && !analyticsStale && !revenueStale && !usersStale && !error}
+      loading={isAnalyticsLoading || isRevenueLoading || !usersLoaded}
+      analytics={homepageAnalytics} analyticsKnown={!isAnalyticsLoading && !analyticsError}
+      revenue={revenue} revenueKnown={!isRevenueLoading && !revenueError}
+      userCount={usersLoaded && !error ? rows.length : null}
+      rows={rows} onlineUserIds={onlineUserIds} presenceKnown={presenceKnown}
+      onDisable={() => setWatchEnabled(false)}
+    />}
   </main>
 }
