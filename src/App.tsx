@@ -1612,8 +1612,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     }
   }, [])
 
+  const singleProductId = displayProducts.length === 1 ? displayProducts[0].id : null
+  const singleProductImageCount = displayProducts.length === 1 ? (displayProducts[0].gallery?.length || 1) : 0
+
   useEffect(() => {
-    if (!autoSwipeEnabled || isEditOpen || productRouteSlug) {
+    if (!autoSwipeEnabled || isEditOpen || productRouteSlug || (displayProducts.length < 2 && singleProductImageCount < 2)) {
       setIsScreensaverActive(false)
       return
     }
@@ -1628,7 +1631,14 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       setIsScreensaverActive(false)
     }
 
-    const showNextProduct = () => {
+    const showNextSlide = () => {
+      if (singleProductId !== null) {
+        setSelectedImages((current) => ({
+          ...current,
+          [singleProductId]: (Math.min(current[singleProductId] ?? 0, singleProductImageCount - 1) + 1) % singleProductImageCount,
+        }))
+        return
+      }
       const track = trackRef.current
       if (!track || !displayProducts.length) return
       const physicalIndex = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1))
@@ -1657,8 +1667,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     const startScreensaver = () => {
       if (document.hidden || isCartOpen || !isProductVisualActive) return
       setIsScreensaverActive(true)
-      showNextProduct()
-      autoplayInterval = window.setInterval(showNextProduct, autoSwipeSpeed * 1000)
+      showNextSlide()
+      autoplayInterval = window.setInterval(showNextSlide, autoSwipeSpeed * 1000)
     }
 
     const scheduleScreensaver = () => {
@@ -1679,7 +1689,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, scheduleScreensaver))
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [isCartOpen, isEditOpen, isProductVisualActive, displayProducts.length, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, productRouteSlug])
+  }, [isCartOpen, isEditOpen, isProductVisualActive, displayProducts.length, singleProductId, singleProductImageCount, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, productRouteSlug])
 
   const goToProduct = (index: number) => {
     const track = trackRef.current
@@ -3325,7 +3335,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 <div className="settings-announcement__colors"><span>Värvid</span><div><label aria-label="Teateriba taustavärv"><input type="color" value={announcementBackground} onChange={(event) => setAnnouncementBackground(event.target.value)} /><i style={{ background: announcementBackground }} /></label><label aria-label="Teateriba tekstivärv"><input type="color" value={announcementColor} onChange={(event) => setAnnouncementColor(event.target.value)} /><i style={{ background: announcementColor }} /></label></div></div>
               </div>}
             </div>
-            <label className="settings-toggle"><span><strong>Automaatne vahetamine</strong><small>Vahetab tegevuseta olekus tooteid</small></span><input type="checkbox" checked={autoSwipeEnabled} onChange={(event) => setAutoSwipeEnabled(event.target.checked)} /><i /></label>
+            <label className="settings-toggle"><span><strong>Automaatne vahetamine</strong><small>Vahetab tegevuseta olekus tooteid, ühe toote korral selle pilte</small></span><input type="checkbox" checked={autoSwipeEnabled} onChange={(event) => setAutoSwipeEnabled(event.target.checked)} /><i /></label>
             <fieldset disabled={!autoSwipeEnabled}>
               <label>Käivitub pärast<select value={autoSwipeDelay} onChange={(event) => setAutoSwipeDelay(Number(event.target.value))}><option value="15">15 sekundit</option><option value="30">30 sekundit</option><option value="60">1 minut</option></select></label>
               <label>Vahetamise kiirus<select value={autoSwipeSpeed} onChange={(event) => setAutoSwipeSpeed(Number(event.target.value))}><option value="5">5 sekundit</option><option value="10">10 sekundit</option><option value="15">15 sekundit</option></select></label>
