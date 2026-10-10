@@ -1346,6 +1346,8 @@ test('a public store keeps its own content when another merchant is already sign
   await page.goto('/p/kruk-kruk/')
   await expect(page.getByRole('heading', { name: 'Teise poe toode', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /Seaded/ })).toHaveCount(0)
+  await expect(page.locator('.support-launcher')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toBeHidden()
   await page.getByRole('button', { name: 'Poe omanikule: ava poe halduse sisselogimine' }).click()
   await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
   await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')

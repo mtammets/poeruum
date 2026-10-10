@@ -2537,9 +2537,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   ]
   const completedSetupSteps = setupChecklist.filter((item) => item.done).length
   const setupProgress = Math.round(completedSetupSteps / setupChecklist.length * 100)
-  const availableSettingsSections = adminShowcaseMode
-    ? SETTINGS_SECTIONS.filter((section) => !['payments', 'business', 'notifications', 'billing', 'account'].includes(section.id))
-    : SETTINGS_SECTIONS
+  const availableSettingsSections = SETTINGS_SECTIONS.filter((section) => {
+    if (section.id === 'directory') return merchantMode && !adminShowcaseMode
+    return !adminShowcaseMode || !['payments', 'business', 'notifications', 'billing', 'account'].includes(section.id)
+  })
   const activeSettingsSection = availableSettingsSections.find((section) => section.id === settingsSection) ?? availableSettingsSections[0]
   const settingsSectionStatus = (section: SettingsSection) => {
     if (section === 'store' && !isStoreVisible) return 'Peidetud'
@@ -3146,25 +3147,6 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <div className="settings-fields">
               <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
               <label>Poe tutvustus<textarea ref={storeDescriptionInputRef} rows={4} maxLength={600} value={storeDescription} onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu pood pakub ja miks see eriline on." /><small className="settings-field-note">Kuvatakse ostjale poe jaluses · {storeDescription.length}/600</small></label>
-              {merchantMode && !adminShowcaseMode && <div className="settings-directory-presentation">
-                <header>
-                  <span><strong>Kaubamaja esitlus</strong><small>Vali, kuidas sinu pood Poeruumi Kaubamajas välja näeb.</small></span>
-                </header>
-                <label>Kaubamaja lühitutvustus<textarea rows={2} maxLength={140} value={directoryDescription} onChange={(event) => setDirectoryDescription(event.target.value)} placeholder={storeDescription || 'Üks lühike lause sinu poe väärtusest.'} /><small className="settings-field-note">Kui jätad välja tühjaks, kasutame poe tutvustust · {directoryDescription.length}/140</small></label>
-                <div className="settings-about-image">
-                  <span className="settings-section-label">Kaubamaja kaanepilt <small>valikuline</small></span>
-                  <div>
-                    <label className="settings-about-image__upload">
-                      <span className="settings-about-image__preview">{directoryCover ? <img src={directoryCover} alt="Kaubamaja kaanepildi eelvaade" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m5 17 5-5 3 3 2-2 4 4"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>}</span>
-                      <span className="settings-about-image__copy"><strong>{directoryCover ? 'Vaheta kaanepilti' : 'Lisa kaanepilt'}</strong><small>Soovituslikult rõhtne JPG, PNG või WebP</small></span>
-                      <span className="settings-about-image__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 14v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/></svg></span>
-                      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { changeDirectoryCover(event.target.files?.[0]); event.target.value = '' }} />
-                    </label>
-                    {directoryCover && <button className="settings-about-image__remove" type="button" onClick={removeDirectoryCover} aria-label="Eemalda Kaubamaja kaanepilt">×</button>}
-                  </div>
-                  <small>{directoryCover ? 'Seda pilti kasutatakse ainult Kaubamaja poekaardil.' : 'Kaanepildi puudumisel kasutame esimese nähtava toote pilti.'}</small>
-                </div>
-              </div>}
               <details className="settings-seo-editor">
                 <summary><span><strong>Google ja jagamine</strong><small>Vaikimisi kasutab Poeruum poe nime ja tutvustust</small></span><b>Muuda</b></summary>
                 <div>
@@ -3235,6 +3217,26 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               </div>
             </div>
             <div className="settings-seo-status"><span>✓</span><div><strong>Otsingumootoritele valmis</strong><small>Avaliku poe indekseeritavad tootelehed, metaandmed, canonical, structured data ja ajakohane sitemap luuakse automaatselt. Google otsustab indekseerimise ja positsiooni.</small></div><b>Automaatne</b></div>
+          </div>}
+          {settingsSection === 'directory' && merchantMode && !adminShowcaseMode && <div className="settings-panel" role="tabpanel">
+            <header><span>KAUBAMAJA ESITLUS</span><p>Vali, kuidas sinu pood Poeruumi Kaubamajas välja näeb.</p></header>
+            <p className="settings-directory-info">Avaldatud pood kuvatakse Poeruumi Kaubamajas automaatselt. Poe peitmisel kaob see ka Kaubamajast.</p>
+            <div className="settings-fields">
+              <label>Kaubamaja lühitutvustus<textarea rows={2} maxLength={140} value={directoryDescription} onChange={(event) => setDirectoryDescription(event.target.value)} placeholder={storeDescription || 'Üks lühike lause sinu poe väärtusest.'} /><small className="settings-field-note">Kui jätad välja tühjaks, kasutame poe tutvustust · {directoryDescription.length}/140</small></label>
+              <div className="settings-about-image">
+                <span className="settings-section-label">Kaubamaja kaanepilt <small>valikuline</small></span>
+                <div>
+                  <label className="settings-about-image__upload">
+                    <span className="settings-about-image__preview">{directoryCover ? <img src={directoryCover} alt="Kaubamaja kaanepildi eelvaade" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m5 17 5-5 3 3 2-2 4 4"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>}</span>
+                    <span className="settings-about-image__copy"><strong>{directoryCover ? 'Vaheta kaanepilti' : 'Lisa kaanepilt'}</strong><small>Soovituslikult rõhtne JPG, PNG või WebP</small></span>
+                    <span className="settings-about-image__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 14v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/></svg></span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { changeDirectoryCover(event.target.files?.[0]); event.target.value = '' }} />
+                  </label>
+                  {directoryCover && <button className="settings-about-image__remove" type="button" onClick={removeDirectoryCover} aria-label="Eemalda Kaubamaja kaanepilt">×</button>}
+                </div>
+                <small>{directoryCover ? 'Seda pilti kasutatakse ainult Kaubamaja poekaardil.' : 'Kaanepildi puudumisel kasutame esimese nähtava toote pilti.'}</small>
+              </div>
+            </div>
           </div>}
           {settingsSection === 'appearance' && <div className="settings-panel" role="tabpanel">
             <header><span>VÄLIMUS</span><p>Kohanda poe ilmet ja toodete esitlemist.</p></header>

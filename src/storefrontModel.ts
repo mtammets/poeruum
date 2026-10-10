@@ -47,7 +47,7 @@ export type BuyButtonSize = 'small' | 'medium' | 'large'
 export type SaleBadgeStyle = 'quirky' | 'classic' | 'price' | 'elegant' | 'minimal'
 export type AnnouncementSpeed = 'slow' | 'normal' | 'fast'
 export type AnnouncementDirection = 'left' | 'right'
-export type SettingsSection = 'store' | 'appearance' | 'payments' | 'delivery' | 'business' | 'links' | 'notifications' | 'billing' | 'account'
+export type SettingsSection = 'store' | 'appearance' | 'directory' | 'payments' | 'delivery' | 'business' | 'links' | 'notifications' | 'billing' | 'account'
 export type CustomDomainStatus = 'idle' | CustomDomainRecord['status']
 
 export const SHIPPING_PROVIDERS: ShippingProvider[] = ['omniva', 'dpd', 'smartposti']

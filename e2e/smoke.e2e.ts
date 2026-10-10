@@ -331,9 +331,13 @@ test('a stale settings response cannot overwrite text being typed', async ({ pag
   })
 
   await page.getByRole('button', { name: /Seaded/ }).click()
-  await page.locator('.settings-home button[data-section="store"]').click()
+  await page.getByRole('button', { name: 'Kaubamaja', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Kaubamaja', exact: true })).toBeVisible()
   await expect(page.getByLabel('Kaubamaja lühitutvustus')).toBeVisible()
   await expect(page.getByText('Kaubamaja kaanepilt', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: 'Kõik seaded' }).click()
+  await page.locator('.settings-home button[data-section="store"]').click()
+  await expect(page.getByLabel('Kaubamaja lühitutvustus')).toHaveCount(0)
   const description = page.getByRole('textbox', { name: /^Poe tutvustus\b/ })
   await description.fill('Telefonis kirjutatud uus tekst')
 

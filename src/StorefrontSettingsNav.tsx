@@ -3,6 +3,7 @@ import type { SettingsSection } from './storefrontModel'
 export const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string }> = [
   { id: 'store', label: 'Pood' },
   { id: 'appearance', label: 'Kujundus' },
+  { id: 'directory', label: 'Kaubamaja' },
   { id: 'payments', label: 'Maksed' },
   { id: 'delivery', label: 'Tarne' },
   { id: 'business', label: 'Müüja' },
@@ -16,6 +17,7 @@ export function SettingsSectionIcon({ section }: { section: SettingsSection }) {
   const paths: Record<SettingsSection, string> = {
     store: 'M3 10 12 3l9 7v10H3V10Zm6 10v-6h6v6',
     appearance: 'M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a2 2 0 0 1 0-4h5.5A3.5 3.5 0 0 0 21 9.5C21 5.9 17 3 12 3Z',
+    directory: 'M4 10v11h16V10M3 10l2-7h14l2 7M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M9 10l1-7m5 7-1-7M9 21v-6h6v6',
     payments: 'M3 6h18v12H3V6Zm0 4h18M7 15h4',
     delivery: 'M3 7h11v10H3V7Zm11 4h4l3 3v3h-7v-6ZM7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
     business: 'M4 21V7l8-4 8 4v14M8 10h2m4 0h2m-8 4h2m4 0h2m-5 7v-4h2v4',
