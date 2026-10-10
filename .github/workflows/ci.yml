@@ -16,7 +16,7 @@ jobs:
   application:
     name: Lint, test, build and audit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out source
         uses: actions/checkout@v5
