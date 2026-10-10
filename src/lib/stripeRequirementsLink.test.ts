@@ -34,8 +34,8 @@ describe('Poeruum Stripe requirements links', () => {
       .toBe('/?billing=success')
   })
 
-  it('opens published stores in payment settings with focused remediation', () => {
-    expect(getStripeRequirementsStoreTarget({ isPublished: true, hasStripeAccount: true })).toEqual({
+  it('opens completed stores in payment settings with focused remediation', () => {
+    expect(getStripeRequirementsStoreTarget({ setupComplete: true, hasStripeAccount: true })).toEqual({
       screen: 'storefront',
       initialSettingsSection: 'payments',
       openEmbeddedRemediation: true,
@@ -43,12 +43,12 @@ describe('Poeruum Stripe requirements links', () => {
   })
 
   it('uses the existing payment setup surface for draft stores', () => {
-    expect(getStripeRequirementsStoreTarget({ isPublished: false, hasStripeAccount: true })).toEqual({
+    expect(getStripeRequirementsStoreTarget({ setupComplete: false, hasStripeAccount: true })).toEqual({
       screen: 'payments',
       initialSettingsSection: null,
       openEmbeddedRemediation: true,
     })
-    expect(getStripeRequirementsStoreTarget({ isPublished: true, hasStripeAccount: false }).openEmbeddedRemediation)
+    expect(getStripeRequirementsStoreTarget({ setupComplete: true, hasStripeAccount: false }).openEmbeddedRemediation)
       .toBe(false)
   })
 })

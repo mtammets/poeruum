@@ -1765,8 +1765,9 @@ test('Stripe requirements email link survives login and opens the owned store pa
   expect(backend.passwordSignIns()).toBe(1)
 })
 
-test('Stripe return on the shop hostname opens payment settings with the existing session', async ({ page }) => {
-  const backend = await installSupabaseBackend(page)
+for (const isPublished of [true, false]) {
+test(`Stripe return on the ${isPublished ? 'published' : 'hidden'} shop opens payment settings with the existing session`, async ({ page }) => {
+  const backend = await installSupabaseBackend(page, { ...store, is_published: isPublished })
 
   await page.goto('/')
   await page.getByRole('button', { name: 'Logi sisse' }).first().click()
@@ -1787,6 +1788,22 @@ test('Stripe return on the shop hostname opens payment settings with the existin
   await expect(page).not.toHaveURL(/stripe_requirements=/)
   expect(backend.passwordSignIns()).toBe(1)
   expect(backend.sessionRefreshes()).toBeGreaterThanOrEqual(1)
+})
+
+}
+
+test('a hidden established shop returns from legacy Stripe Connect to payment settings', async ({ page }) => {
+  await installSupabaseBackend(page, { ...store, is_published: false })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('button', { name: 'Seaded', exact: true })).toBeVisible()
+  await page.goto('http://sisselogimise-testipood.poeruum.localhost:4174/haldus?stripe_connect=return')
+  await expect(page.getByRole('dialog', { name: 'Seaded', exact: true }).getByRole('heading', { name: 'Maksed' })).toBeVisible()
+  await expect(page.locator('.settings-onboarding')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Jätka tarnega/ })).toHaveCount(0)
+  await expect(page).not.toHaveURL(/stripe_connect=/)
 })
 
 const receiptToken = 'a'.repeat(64)

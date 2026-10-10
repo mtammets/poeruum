@@ -22,10 +22,10 @@ export const removeStripeRequirementsLinkParam = (href: string) => {
 }
 
 export const getStripeRequirementsStoreTarget = (store: {
-  isPublished: boolean
+  setupComplete: boolean
   hasStripeAccount: boolean
 }) => ({
-  screen: store.isPublished ? 'storefront' as const : 'payments' as const,
-  initialSettingsSection: store.isPublished ? 'payments' as const : null,
+  screen: store.setupComplete ? 'storefront' as const : 'payments' as const,
+  initialSettingsSection: store.setupComplete ? 'payments' as const : null,
   openEmbeddedRemediation: store.hasStripeAccount,
 })

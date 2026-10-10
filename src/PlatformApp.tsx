@@ -677,14 +677,14 @@ function PlatformFlow() {
     if (redirectToOwnedStore(nextStore)) return
     await applyStore(nextStore)
     const target = getStripeRequirementsStoreTarget({
-      isPublished: nextStore.is_published,
+      setupComplete: hasCompletedStoreSetup(nextStore),
       hasStripeAccount: Boolean(nextStore.stripe_account_id),
     })
     setStripeEmbeddedMode('remediation')
     setIsStripeOnboardingOpen(target.openEmbeddedRemediation)
     setInitialMerchantSettingsSection(target.initialSettingsSection)
     setScreen(target.screen)
-    // A published storefront confirms the settings panel actually opened
+    // An established storefront confirms the settings panel actually opened
     // before the return intent is consumed. Draft stores use the dedicated
     // payments screen and can complete the intent immediately.
     if (!target.initialSettingsSection) {
@@ -810,7 +810,12 @@ function PlatformFlow() {
       }
 
       await applyStore(existing)
-      setScreen('payments')
+      const returningToManagement = hasCompletedStoreSetup(existing)
+      setScreen(returningToManagement ? 'storefront' : 'payments')
+      if (returningToManagement) {
+        setInitialMerchantSettingsSection('payments')
+        setStripeEmbeddedMode('management')
+      }
       setIsStripeConnecting(true)
       try {
         if (stripeConnectResult === 'refresh') setIsStripeOnboardingOpen(true)
@@ -1128,7 +1133,7 @@ function PlatformFlow() {
     setAuthNotice('')
     try {
       await requireMerchantEmail()
-      const saved = await persistStore({ payment_provider: 'stripe' }, store?.is_published ? 'complete' : 'payments')
+      const saved = await persistStore({ payment_provider: 'stripe' }, hasCompletedStoreSetup(store) ? 'complete' : 'payments')
       setPayment('stripe')
       setPaymentStatus(saved.payment_status)
 
