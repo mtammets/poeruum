@@ -166,6 +166,9 @@ jobs:
       - name: Test merchant directory descriptions and SEO isolation
         run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-store-directory-description.sql
 
+      - name: Test merchant directory visibility and independent store publication
+        run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-store-directory-visibility.sql
+
       - name: Test directory analytics aggregation and access boundaries
         run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-directory-analytics.sql
 

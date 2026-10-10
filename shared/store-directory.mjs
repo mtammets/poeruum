@@ -178,6 +178,7 @@ export function normalizeStoreDirectoryCatalog(value) {
   return value.flatMap((item) => {
     const record = asRecord(item)
     if (!record) return []
+    if (record.directory_visible === false) return []
 
     const slug = cleanText(record.store_slug ?? record.slug, 80).toLowerCase()
     const name = cleanText(record.store_name ?? record.name, 120)

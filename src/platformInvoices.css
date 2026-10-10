@@ -11,3 +11,4 @@
 .platform-invoices__document strong { overflow-wrap: anywhere; }
 .platform-invoices__document small { font-size: .65rem; opacity: .7; }
 .platform-invoices > nav { margin-top: .75rem; }
+.platform-invoices .platform-invoices__login { display: inline-flex; align-items: center; min-height: 44px; padding: 0; font-size: .8rem; text-decoration: underline; text-underline-offset: 3px; }

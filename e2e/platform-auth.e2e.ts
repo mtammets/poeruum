@@ -305,8 +305,10 @@ test('merchant downloads readable branded QR artwork for the active shop domain'
   await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
   await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="store"]').click()
   await expect(page.locator('.settings-store-address strong')).toHaveText('keraamika.example.ee')
   await expect(page.locator('.settings-store-address button')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Kõik seaded' }).click()
   const opener = page.locator('.settings-home button[data-section="qr"]')
   await expect(opener).toContainText('QR-kood')
   await opener.click()
@@ -1241,6 +1243,31 @@ test('an unfulfilled order stays refunding until the server confirms the refund'
   expect(refundRequests).toBe(1)
 })
 
+test('merchant can hide a shop from the directory without unpublishing it and restore visibility', async ({ page }) => {
+  const backend = await installSupabaseBackend(page, store, connectedStripeStatus)
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="directory"]').click()
+  const visibility = page.getByRole('switch', { name: 'Nähtav Kaubamajas' })
+  await expect(visibility).toBeChecked()
+  await visibility.uncheck()
+  await expect.poll(() => (backend.currentStore().settings as Record<string, unknown>).directoryVisible).toBe(false)
+  expect(backend.currentStore().is_published).toBe(true)
+  await page.reload()
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await page.locator('.settings-home button[data-section="directory"]').click()
+  await expect(visibility).not.toBeChecked()
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.locator('.settings-drawer__body').evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await visibility.check()
+  await expect.poll(() => (backend.currentStore().settings as Record<string, unknown>).directoryVisible).toBe(true)
+  expect(backend.currentStore().is_published).toBe(true)
+  await page.getByRole('dialog', { name: 'Seaded', exact: true }).screenshot({ path: 'output/settings-directory-toggle-mobile.png' })
+})
+
 test('platform fee invoices download privately and display credits and recoverable errors', async ({ page }) => {
   await installSupabaseBackend(page, store, connectedStripeStatus)
   let fail = true
@@ -1277,6 +1304,76 @@ test('platform fee invoices download privately and display credits and recoverab
   await expect(invoices).toBeVisible()
   expect(await invoices.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })
+
+test('platform invoices recover rejected sessions for both the list and PDF download', async ({ page }) => {
+  await installSupabaseBackend(page, store, connectedStripeStatus)
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  let refreshes = 0
+  let requests = 0
+  const tokens = [accessToken, `${accessToken}-refreshed-list`, `${accessToken}-refreshed-pdf`]
+  await page.route('**/auth/v1/token?grant_type=refresh_token', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback()
+    refreshes += 1
+    await json(route, { access_token: tokens[refreshes], refresh_token: 'playwright-refresh-token', token_type: 'bearer', expires_in: 3600, user })
+  })
+  await page.route('**/functions/v1/platform-invoices', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback()
+    requests += 1
+    const body = route.request().postDataJSON()
+    const requiredToken = tokens[body.documentId ? 2 : 1]
+    if (route.request().headers().authorization !== `Bearer ${requiredToken}`) return json(route, { error: 'Logi sisse.' }, 401)
+    if (body.documentId) return route.fulfill({ contentType: 'application/pdf', headers: { 'Access-Control-Allow-Origin': '*' }, body: '%PDF-1.7\nRecovered invoice' })
+    return json(route, { documents: [{ id: 'invoice-1', number: 'PF-2026-000001', kind: 'invoice', issuedAt: '2026-10-01T07:00:00Z', totalCents: 496, ready: true }], hasMore: false })
+  })
+  await page.locator('.settings-home button[data-section="billing"]').click()
+  const invoices = page.getByRole('region', { name: 'Poeruumi müügitasu arved' })
+  await expect(invoices.getByRole('button', { name: /^Arve PF-2026-000001/ })).toBeVisible()
+  expect(refreshes).toBe(1)
+  const download = page.waitForEvent('download')
+  await invoices.getByRole('button', { name: /^Arve PF-2026-000001/ }).click()
+  expect((await download).suggestedFilename()).toBe('Arve-PF-2026-000001.pdf')
+  expect(refreshes).toBe(2)
+  expect(requests).toBe(4)
+  await expect(invoices.getByRole('alert')).toHaveCount(0)
+  await expect(invoices.getByRole('button', { name: 'Logi uuesti sisse' })).toHaveCount(0)
+})
+
+for (const refreshRejected of [true, false]) {
+  test(`platform invoices offer login when ${refreshRejected ? 'the refresh token expires' : 'the refreshed session is still rejected'}`, async ({ page }) => {
+    await installSupabaseBackend(page, store, connectedStripeStatus)
+    await page.goto('/?continue_setup=1')
+    await page.getByLabel('E-posti aadress').fill(user.email)
+    await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+    await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+    await page.getByRole('button', { name: /Seaded/ }).click()
+    let requests = 0
+    let refreshes = 0
+    await page.route('**/auth/v1/token?grant_type=refresh_token', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback()
+      refreshes += 1
+      if (refreshRejected) return json(route, { error_code: 'refresh_token_not_found', message: 'Invalid Refresh Token' }, 400)
+      return route.fallback()
+    })
+    await page.route('**/functions/v1/platform-invoices', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback()
+      requests += 1
+      return json(route, { error: 'Logi sisse.' }, 401)
+    })
+    await page.locator('.settings-home button[data-section="billing"]').click()
+    const invoices = page.getByRole('region', { name: 'Poeruumi müügitasu arved' })
+    await expect(invoices.getByRole('alert')).toHaveText('Arvete vaatamiseks on vaja uuesti sisse logida.')
+    await expect(invoices.getByRole('button', { name: 'Logi uuesti sisse' })).toBeVisible()
+    expect(refreshes).toBe(1)
+    expect(requests).toBe(refreshRejected ? 1 : 2)
+    await invoices.getByRole('button', { name: 'Logi uuesti sisse' }).click()
+    await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
+    await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
+  })
+}
 
 test('monthly fees preserve each payment’s recorded net and VAT and exclude refunded orders', async ({ page }) => {
   const orders = Array.from({ length: 10 }, (_, index) => ({

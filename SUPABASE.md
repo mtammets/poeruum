@@ -36,11 +36,17 @@ Serveri HTML ja brauser kasutavad sama valikut. Kaardid sisaldavad poe nime, too
 
 ## Kaubamaja poekirjeldused
 
-Migratsioon `202609200004_store_directory_description.sql` parandab kaupmehe tutvustuse valiku. `storefront_seo_catalog().directory_description` sisaldab esimest mittetühja teksti järjekorras `directoryDescription` → `storeDescription` → tühi tekst; ainult tühikutest ja reavahetustest koosnevad väärtused jäetakse vahele. Kaubamaja piirab tutvustuse 140 märgini ja kasutab mõlema tutvustuse puudumisel teksti „Avasta poe valikut.”. Kaupmees haldab neid välju jaotises **Seaded → Pood**.
+Migratsioon `202609200004_store_directory_description.sql` parandab kaupmehe tutvustuse valiku. `storefront_seo_catalog().directory_description` sisaldab esimest mittetühja teksti järjekorras `directoryDescription` → `storeDescription` → tühi tekst; ainult tühikutest ja reavahetustest koosnevad väärtused jäetakse vahele. Kaubamaja piirab tutvustuse 140 märgini ja kasutab mõlema tutvustuse puudumisel teksti „Avasta poe valikut.”. Kaupmees haldab Kaubamaja tutvustust ja kaanepilti jaotises **Seaded → Kaubamaja**; poe üldine tutvustus jääb jaotisse **Seaded → Pood**.
 
 SEO jaoks kasutatav `store_description` jääb eraldi väljaks. Tühi SEO kirjeldus ei saa enam Kaubamajas poe tutvustust varjata ja SEO tekst ei asenda kaupmehe tutvustust. Paigalda esmalt migratsioon, seejärel rakendus. SQL-test `scripts/test-store-directory-description.sql` katab kirjelduse eelistuse, puuduva/tühja SEO kirjelduse, tühikud, puuduva tutvustuse ja SEO väljundi säilimise. Ühiktest kontrollib ka serveri HTML-i algandmete uuesti lugemist brauseris.
 
 Migratsioon rakendati tootmises 20. septembril 2026. Kõigil neljal avalikul poel oli kaupmehe sisestatud tutvustus juba olemas; kolme poe oma jäi varasema valikuloogika tõttu kuvamata. Avaliku API kaudu kontrolliti kõigi nelja poe Kaubamaja kirjelduse vastavust kaupmehe salvestatud tekstile. Kaupmeeste sisu ei muudetud.
+
+## Kaubamaja nähtavus
+
+Jaotise **Seaded → Kaubamaja** lüliti salvestab `settings.directoryVisible` väärtuse. Ainult selgesõnaline `false` peidab poe ja selle tooted Kaubamaja loendist, otsingust ning avalehe tootevalikust. Poe avaldamine, otselink ja SEO-kataloog säilivad. Admini järjestamine kasutab sama nähtavate poodide hulka.
+
+Migratsioon `202610100001_store_directory_visibility.sql` paigaldati tootmises 10. oktoobril 2026 enne brauserirakendust. Kontrolliti migratsiooniregistrit, mõlemat uuendatud andmebaasifunktsiooni ja avaliku kataloogi nähtavusvälju. Kohalik tagasipööratav SQL-test katab vaikimisi nähtavuse, peitmise, taastamise, avaldamise sõltumatuse ja admini järjestamise.
 
 ## Kaubamaja statistika
 

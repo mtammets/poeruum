@@ -1,16 +1,16 @@
 import type { SettingsSection } from './storefrontModel'
 
-export const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string }> = [
-  { id: 'store', label: 'Pood' },
-  { id: 'appearance', label: 'Kujundus' },
-  { id: 'directory', label: 'Kaubamaja' },
-  { id: 'payments', label: 'Maksed' },
-  { id: 'delivery', label: 'Tarne' },
-  { id: 'business', label: 'Müüja' },
-  { id: 'links', label: 'Kontakt ja lingid' },
-  { id: 'notifications', label: 'Teavitused' },
-  { id: 'billing', label: 'Plaan ja tasud' },
-  { id: 'account', label: 'Konto' },
+export const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string; group: string }> = [
+  { id: 'store', label: 'Pood', description: 'Nimi, tutvustus ja veebiaadress', group: 'Sinu pood' },
+  { id: 'appearance', label: 'Kujundus', description: 'Logo, värvid ja poe välimus', group: 'Sinu pood' },
+  { id: 'directory', label: 'Kaubamaja', description: 'Poe esitlus Poeruumi Kaubamajas', group: 'Sinu pood' },
+  { id: 'links', label: 'Kontakt ja lingid', description: 'Sotsiaalmeedia kontod', group: 'Sinu pood' },
+  { id: 'payments', label: 'Maksed', description: 'Maksete vastuvõtmine ja väljamaksed', group: 'Müük' },
+  { id: 'delivery', label: 'Tarne', description: 'Tarneviisid, hinnad ja tähtajad', group: 'Müük' },
+  { id: 'business', label: 'Müüja', description: 'Müüja andmed ja tagastustingimused', group: 'Müük' },
+  { id: 'notifications', label: 'Teavitused', description: 'Tellimustega seotud e-kirjad', group: 'Müük' },
+  { id: 'billing', label: 'Plaan ja tasud', description: 'Poeruumi pakett ja teenustasud', group: 'Sinu konto' },
+  { id: 'account', label: 'Konto', description: 'Sisselogimine ja turvalisus', group: 'Sinu konto' },
 ]
 
 export function SettingsSectionIcon({ section }: { section: SettingsSection }) {

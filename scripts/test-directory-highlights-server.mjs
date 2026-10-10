@@ -17,7 +17,9 @@ const catalog = [10, 1, 1, 1].map((count, index) => ({
   ],
 }))
 
-for (const records of [catalog, []]) {
+const hiddenStore = { store_id: 'hidden-store', store_name: 'Peidetud pood', store_slug: 'peidetud-pood', directory_visible: false,
+  products: [{ id: 'hidden-product', name: 'Peidetud poe toode', image_url: '/hidden.webp', price: 20, stock: 1 }] }
+for (const records of [[...catalog, hiddenStore], [hiddenStore], []]) {
   const backend = createServer((req, res) => {
     if (req.url !== '/rest/v1/rpc/storefront_seo_catalog') {
       res.writeHead(404)
@@ -48,8 +50,11 @@ for (const records of [catalog, []]) {
     })
     assert.equal(response.status, 200)
     const html = response.body
+    assert.ok(!html.includes('Peidetud pood'))
+    assert.ok(!html.includes('Peidetud poe toode'))
+    assert.ok(!html.includes('peidetud-pood.poeruum.ee'))
     const section = html.match(/<section class="store-directory__highlights"[\s\S]*?<\/section>/)?.[0]
-    if (records.length === 0) {
+    if (normalizeStoreDirectoryCatalog(records).length === 0) {
       assert.equal(section, undefined)
       continue
     }

@@ -8,6 +8,19 @@ import {
 } from './store-directory.mjs'
 
 describe('store directory catalog', () => {
+  it('excludes opted-out shops and their products while keeping existing shops visible', () => {
+    const records = [undefined, true, false, null].map((visible, index) => ({
+      store_id: `store-${index}`, store_name: `Pood ${index}`, store_slug: `pood-${index}`,
+      directory_visible: visible,
+      products: [{ id: `product-${index}`, name: `Toode ${index}`, image_url: '/product.webp', price: 25, stock: 1 }],
+    }))
+    const stores = normalizeStoreDirectoryCatalog(records)
+    expect(stores.map((store) => store.id)).toEqual(['store-0', 'store-1', 'store-3'])
+    expect(getStoreDirectoryHighlights(stores).map(({ product }) => product.id)).not.toContain('product-2')
+    expect(normalizeStoreDirectoryCatalog(JSON.parse(JSON.stringify(stores)))).toEqual(stores)
+    expect(normalizeStoreDirectoryCatalog([{ ...records[2], directory_visible: true }])[0].id).toBe('store-2')
+  })
+
   it('keeps public store presentation concise and prefers the merchant directory cover', () => {
     expect(normalizeStoreDirectoryCatalog([{
       store_id: 'store-1',

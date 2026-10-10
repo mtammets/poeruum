@@ -3,6 +3,8 @@ import { hasSellerDetails, normalizeSellerSettings, sellerType as getSellerType,
 import { getAccountEmailStatus } from './lib/accountEmail'
 import { createRandomId } from './lib/randomId'
 import StoreOrders from './StoreOrders'
+import StoreSettingsDrawer from './StoreSettingsDrawer'
+import StoreDirectorySettings from './StoreDirectorySettings'
 import PlatformInvoiceList from './PlatformInvoiceList'
 import { estonianBillingMonth } from '../shared/platform-business.mjs'
 import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from 'react'
@@ -399,7 +401,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const settingsCompositionRef = useRef(false)
   const [settingsCompositionRevision, setSettingsCompositionRevision] = useState(0)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
-  const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(true)
+  const [isSetupChecklistOpen, setIsSetupChecklistOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSettingsSection ?? 'store')
   const [isOrdersOpen, setIsOrdersOpen] = useState(false)
   const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
@@ -425,6 +427,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [storeAboutImage, setStoreAboutImage] = useState<string | null>(null)
   const [directoryCover, setDirectoryCover] = useState<string | null>(null)
   const [directoryDescription, setDirectoryDescription] = useState('')
+  const [directoryVisible, setDirectoryVisible] = useState(initialSettings.directoryVisible !== false)
   const [isStoreVisible, setIsStoreVisible] = useState(initialPublished)
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -641,7 +644,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, entrepreneurPayoutAdminException,
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
-    directoryCover, directoryDescription,
+    directoryCover, directoryDescription, directoryVisible,
     seoTitle: storeSeoTitle, seoDescription: storeSeoDescription, productBrand, searchConsoleVerification,
     contactEmail, contactPhone, instagramUrl, facebookUrl, tiktokUrl, activePaymentProvider,
     deliverySettings, businessName, registryCode, businessAddress, vatRegistered, vatNumber, returnsText, orderNotificationEmail,
@@ -677,6 +680,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     if ('storeAboutImage' in value) setStoreAboutImage(value.storeAboutImage)
     if ('directoryCover' in value) setDirectoryCover(value.directoryCover)
     if (value.directoryDescription != null) setDirectoryDescription(value.directoryDescription)
+    setDirectoryVisible(value.directoryVisible !== false)
     if (value.contactEmail != null) setContactEmail(value.contactEmail)
     if (value.contactPhone != null) setContactPhone(value.contactPhone)
     if (value.instagramUrl != null) setInstagramUrl(value.instagramUrl)
@@ -2524,9 +2528,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const stripeRequirementDeadline = formatStripeRequirementDeadline(stripeRequirements?.currentDeadline)
   const stripeIssueCopies = stripeRequirementIssueCopies(stripeRequirements)
   const stripePaymentsRestricted = Boolean(stripeRequirements?.pastDue || stripeRequirements?.disabledReason)
+  const paymentNeedsAttention = stripeActionRequired || needsPayoutConfirmation || Boolean(paymentSetupError)
+  const showActivePayments = activePaymentProvider === 'stripe' && paymentsReady && !paymentNeedsAttention
   const stripeManagementLabel = stripeActionRequired
     ? 'Kinnita müüja andmed'
-    : paymentsReady ? 'Halda Stripe’i andmeid' : 'Jätka Stripe’i seadistamist'
+    : paymentsReady ? 'Konto ja väljamaksete seaded' : 'Jätka Stripe’i seadistamist'
   const setupChecklist = [
     { id: 'store', label: 'Poe põhiandmed', done: Boolean(editableStoreName.trim()), section: 'store' as const },
     { id: 'payments', label: 'Maksed ühendatud', done: paymentsReady, section: 'payments' as const },
@@ -3089,31 +3095,38 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       {isOrdersOpen && <StoreOrders orders={orders} storeId={storeId} sellerType={sellerType}
         renderThumbnail={(item) => <OrderItemThumbnail item={item} currentProduct={displayProducts.find((product) => product.id === item.id)} />}
         onChangeStatus={changeOrderStatus} onClose={() => setIsOrdersOpen(false)} />}
-      {isSettingsOpen && <div className="overlay login-overlay settings-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsSettingsOpen(false); setIsSettingsHome(true) } }}>
-        <section className={`login-sheet settings-sheet${isSettingsHome ? ' is-home' : ''}`} role="dialog" aria-modal="true" aria-label="Seaded" onCompositionStart={() => { settingsCompositionRef.current = true }} onCompositionEnd={() => { settingsCompositionRef.current = false; setSettingsCompositionRevision((revision) => revision + 1) }}>
-          <ModalCloseButton onClose={() => { setIsSettingsOpen(false); setIsSettingsHome(true) }} />
-          <div className="settings-titlebar">
-            {!isSettingsHome && <button className="settings-titlebar__back" type="button" onClick={() => setIsSettingsHome(true)} aria-label="Kõik seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg><span>Seaded</span></button>}
-            <h2>{isSettingsHome ? 'Seaded' : activeSettingsSection.label}</h2>
-            <button className={`settings-save-button is-${settingsSaveStatus}${hasUnsavedSettings ? ' has-changes' : ''}`} type="button" disabled={!hasUnsavedSettings || settingsSaveStatus === 'saving' || Boolean(dispatchTimeError)} onClick={saveSettings}>
+      {isSettingsOpen && <StoreSettingsDrawer
+        storeName={editableStoreName}
+        storeLogo={storeLogo}
+        title={isSettingsHome ? 'Seaded' : activeSettingsSection.label}
+        section={isSettingsHome ? 'home' : settingsSection}
+        onBack={isSettingsHome ? undefined : () => setIsSettingsHome(true)}
+        onClose={() => { setIsSettingsOpen(false); setIsSettingsHome(true) }}
+        onCompositionStart={() => { settingsCompositionRef.current = true }}
+        onCompositionEnd={() => { settingsCompositionRef.current = false; setSettingsCompositionRevision((revision) => revision + 1) }}
+        saveAction={(hasUnsavedSettings || settingsSaveStatus === 'saving' || settingsSaveStatus === 'saved') ? <button className={`settings-save-button is-${settingsSaveStatus}${hasUnsavedSettings ? ' has-changes' : ''}`} type="button" disabled={!hasUnsavedSettings || settingsSaveStatus === 'saving' || Boolean(dispatchTimeError)} onClick={saveSettings}>
               {settingsSaveStatus === 'saving' ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.35-5.65"/></svg> : settingsSaveStatus === 'saved' && !hasUnsavedSettings ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg> : null}
               <span>{settingsSaveStatus === 'saving' ? 'Salvestan…' : settingsSaveStatus === 'saved' && !hasUnsavedSettings ? 'Salvestatud' : 'Salvesta'}</span>
-            </button>
-          </div>
+            </button> : undefined}
+      >
           {isSettingsHome ? <div className="settings-home">
             <div>{onContinueSetup && <button type="button" data-section="setup" disabled={!persistedProducts.length || isEditOpen || isSetupContinuationBusy} onClick={() => void continueProductOnboarding()}>
               <span className="settings-home__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
               <strong>{isSetupContinuationBusy ? 'Salvestan…' : 'Jätka poe seadistamist'}</strong>
               <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-            </button>}{availableSettingsSections.map((section) => {
+            </button>}</div>
+            {[...new Set(availableSettingsSections.map((section) => section.group))].map((group) => <section className="settings-home__group" key={group} aria-label={group}>
+              <h3>{group}</h3>
+              {availableSettingsSections.filter((section) => section.group === group).map((section) => {
               const status = settingsSectionStatus(section.id)
-              return <button type="button" data-section={section.id} onClick={() => { setSettingsSection(section.id); setIsSettingsHome(false) }} key={section.id}>
+              return <button type="button" data-section={section.id} aria-label={section.label} aria-describedby={`settings-nav-description-${section.id}${status ? ` settings-nav-status-${section.id}` : ''}`} onClick={() => { setSettingsSection(section.id); setIsSettingsHome(false) }} key={section.id}>
                 <span className="settings-home__icon"><SettingsSectionIcon section={section.id} /></span>
-                <strong>{section.label}</strong>
-                {status && <em>{status}</em>}
+                <span className="settings-home__copy"><strong>{section.label}</strong><small id={`settings-nav-description-${section.id}`}>{section.description}</small></span>
+                {status && <em id={`settings-nav-status-${section.id}`}>{status}</em>}
                 <svg className="settings-home__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>
-            })}
+            })}</section>)}
+            <div className="settings-home__tools">
               {storeId && storeSlug && isLoggedIn && !adminShowcaseMode && <button type="button" data-section="qr" aria-haspopup="dialog" onClick={() => setIsStoreQrOpen(true)}>
                 <span className="settings-home__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM21 15v6h-6M3 12h6M12 3v6M12 15v6M15 12h6" /></svg></span>
                 <strong>QR-kood</strong>
@@ -3127,9 +3140,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               </button>}
             </div>
           </div> : null}
-          {settingsSection === 'store' && <div className="settings-panel" role="tabpanel">
+          {!isSettingsHome && settingsSection === 'store' && <div className="settings-panel settings-store">
             {accountEmailNotice}
-            <header><span>POE SEADED</span><p>Halda poe nähtavust ja põhiandmeid.</p></header>
             {merchantMode && setupProgress < 100 && <div className={`settings-onboarding${isSetupChecklistOpen ? ' is-open' : ''}`}>
               <button className="settings-onboarding__summary" type="button" aria-expanded={isSetupChecklistOpen} onClick={() => setIsSetupChecklistOpen((open) => !open)}>
                 <span><strong>Poe seadistus</strong><small>{completedSetupSteps}/{setupChecklist.length} tehtud</small></span>
@@ -3143,103 +3155,103 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 </button>)}
               </div>}
             </div>}
-            {!adminShowcaseMode && !onContinueSetup && <label className="settings-toggle settings-visibility"><span><strong>Pood on avalik</strong><small>{isPublicationBusy ? 'Muudan poe nähtavust…' : isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" checked={isStoreVisible} disabled={isPublicationBusy} onChange={(event) => void changeStorePublication(event.target.checked)} /><i /></label>}
-            <div className="settings-fields">
-              <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
-              <label>Poe tutvustus<textarea ref={storeDescriptionInputRef} rows={4} maxLength={600} value={storeDescription} onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu pood pakub ja miks see eriline on." /><small className="settings-field-note">Kuvatakse ostjale poe jaluses · {storeDescription.length}/600</small></label>
-              <details className="settings-seo-editor">
-                <summary><span><strong>Google ja jagamine</strong><small>Vaikimisi kasutab Poeruum poe nime ja tutvustust</small></span><b>Muuda</b></summary>
-                <div>
+            <div className={`settings-store-presence${isStoreVisible ? ' is-public' : ''}`}>
+              {!adminShowcaseMode && !onContinueSetup && <label className="settings-toggle settings-visibility"><span><strong>{isStoreVisible ? 'Pood on avalik' : 'Pood on peidetud'}</strong><small>{isPublicationBusy ? 'Muudan poe nähtavust…' : isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" aria-label="Pood on avalik" checked={isStoreVisible} disabled={isPublicationBusy} onChange={(event) => void changeStorePublication(event.target.checked)} /><i /></label>}
+              <div className="settings-store-address">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2" /></svg>
+                <span><strong title={storePublicUrl}>{storePublicUrl}</strong></span>
+                <button type="button" onClick={copyStoreUrl} aria-label={`Kopeeri poe aadress ${storePublicUrl}`} title="Kopeeri poe aadress"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
+              </div>
+            </div>
+            <section className="settings-store-section" aria-labelledby="store-content-heading">
+              <h3 id="store-content-heading">Poe sisu</h3>
+              <div className="settings-fields">
+                <label>Poe nimi<input value={editableStoreName} onChange={(event) => setEditableStoreName(event.target.value)} placeholder="Minu pood" /></label>
+                <label className="settings-store-description">Poe tutvustus<textarea ref={storeDescriptionInputRef} rows={6} maxLength={600} value={storeDescription} aria-describedby="store-description-note" onChange={(event) => setStoreDescription(event.target.value)} placeholder="Kirjuta lühidalt, mida sinu poest leiab." /></label>
+                <div className="settings-store-field-meta"><span id="store-description-note">Kuvatakse poe jaluses</span><span>{storeDescription.length} / 600</span></div>
+                <div className="settings-about-image">
+                  <span className="settings-section-label">Tutvustuse pilt <small>valikuline</small></span>
+                  <div className={`settings-store-image${storeAboutImage ? ' has-image' : ''}`}>
+                    <label className="settings-about-image__upload">
+                      <span className="settings-about-image__preview">{storeAboutImage ? <img src={storeAboutImage} alt="Tutvustuse pildi eelvaade" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m5 17 5-5 3 3 2-2 4 4"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>}</span>
+                      <span className="settings-about-image__copy"><strong>{storeAboutImage ? 'Vaheta pilti' : 'Lisa pilt'}</strong><small>JPG, PNG või WebP</small></span>
+                      <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Tutvustuse pilt" onChange={(event) => { changeStoreAboutImage(event.target.files?.[0]); event.target.value = '' }} />
+                    </label>
+                    {storeAboutImage && <button className="settings-about-image__remove" type="button" onClick={removeStoreAboutImage} aria-label="Eemalda tutvustuse pilt" title="Eemalda pilt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" /></svg></button>}
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section className="settings-store-section" aria-labelledby="store-contact-heading">
+              <h3 id="store-contact-heading">Kontaktid</h3>
+              <div className="settings-fields settings-store-contacts"><label>Kontakt-e-post<input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="tere@minupood.ee" /></label><label>Telefon<input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+372 5555 5555" /></label></div>
+            </section>
+            <section className="settings-store-section settings-store-web" aria-labelledby="store-web-heading">
+              <h3 id="store-web-heading">Veebis nähtavus</h3>
+              <details className="settings-seo-editor settings-store-disclosure">
+                <summary><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg><span><strong>Google ja jagamine</strong><small>Otsingutulemuse pealkiri ja kirjeldus</small></span><svg className="settings-store-disclosure__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></summary>
+                <div className="settings-fields">
+                  <p className="settings-store-disclosure__note">Vaikimisi kasutame poe nime ja tutvustust.</p>
                   <label>Otsingu pealkiri<input value={storeSeoTitle} maxLength={70} onChange={(event) => setStoreSeoTitle(event.target.value)} placeholder={`${editableStoreName} – e-pood`} /><small>{(storeSeoTitle || `${editableStoreName} – e-pood`).length}/60 soovituslikku tähemärki</small></label>
                   <label>Meta kirjeldus<textarea rows={3} value={storeSeoDescription} maxLength={200} onChange={(event) => setStoreSeoDescription(event.target.value)} placeholder={storeDescription || `${editableStoreName} e-pood.`} /><small>{(storeSeoDescription || storeDescription).length}/160 soovituslikku tähemärki</small></label>
                   <label>Toodete vaikimisi bränd<input value={productBrand} maxLength={120} onChange={(event) => setProductBrand(event.target.value)} placeholder={editableStoreName} /><small>Kui müüd enda valmistatud tooteid, kasuta oma brändi nime.</small></label>
                   <label>Google Search Console’i kinnituskood<input value={searchConsoleVerification} maxLength={200} onChange={(event) => setSearchConsoleVerification(event.target.value.trim())} placeholder="Google’i HTML tagi content-väärtus" /><small>Valikuline. Kleebi ainult meta tagi content-väärtus.</small></label>
                 </div>
               </details>
-              <div className="settings-about-image">
-                <span className="settings-section-label">Tutvustuse pilt <small>valikuline</small></span>
-                <div>
-                  <label className="settings-about-image__upload">
-                    <span className="settings-about-image__preview">{storeAboutImage ? <img src={storeAboutImage} alt="Tutvustuse pildi eelvaade" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m5 17 5-5 3 3 2-2 4 4"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>}</span>
-                    <span className="settings-about-image__copy"><strong>{storeAboutImage ? 'Vaheta pilti' : 'Lisa pilt'}</strong><small>JPG, PNG või WebP · püsti või rõhtsalt</small></span>
-                    <span className="settings-about-image__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 14v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/></svg></span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { changeStoreAboutImage(event.target.files?.[0]); event.target.value = '' }} />
-                  </label>
-                  {storeAboutImage && <button className="settings-about-image__remove" type="button" onClick={removeStoreAboutImage} aria-label="Eemalda tutvustuse pilt">×</button>}
-                </div>
-                <small>{storeId ? 'Pilt salvestatakse turvaliselt sinu poe juurde.' : 'Pilt salvestub pärast poe loomist.'}</small>
-              </div>
-              <div><label>Kontakt-e-post<input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="tere@minupood.ee" /></label><label>Telefon<input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+372 5555 5555" /></label></div>
-              <div className="settings-store-address">
-                <span><small>Poe aadress</small><strong>{storePublicUrl}</strong></span>
-                <button type="button" onClick={copyStoreUrl} aria-label={`Kopeeri poe aadress ${storePublicUrl}`}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Kopeeri</button>
-              </div>
-              <div className="settings-domain-flow" data-status={customDomainStatus}>
-                <div className="settings-domain-flow__heading">
-                  <span><strong>Oma domeen</strong><small>Ühenda domeen, mille oled ostnud Zone’ist, Veebimajutusest või mujalt.</small></span>
-                  {customDomainStatus !== 'idle' && <b>{customDomainStatus === 'pending_dns' ? 'Ootan DNS-i' : customDomainStatus === 'verifying' ? 'HTTPS loomisel' : customDomainStatus === 'active' ? 'Ühendatud' : 'Vajab tähelepanu'}</b>}
-                </div>
-                {customDomainStatus === 'idle' && <div className="settings-domain-connect">
-                  <div className="settings-domain-flow__start">
-                    <label>Sinu olemasolev domeen<input value={customDomain} onChange={(event) => { setCustomDomain(event.target.value); setCustomDomainError('') }} onKeyDown={(event) => event.key === 'Enter' && startCustomDomainConnection()} placeholder="www.sinupood.ee" autoCapitalize="none" autoCorrect="off" spellCheck={false} /></label>
-                    {customDomainError && <p role="alert">{customDomainError}</p>}
-                    <button type="button" disabled={isCustomDomainBusy} onClick={() => void startCustomDomainConnection()}>{isCustomDomainBusy ? 'Lisan domeeni…' : 'Alusta ühendamist'} <span>→</span></button>
-                    <small>Domeen jääb sinu praeguse registripidaja juurde. Poeruum annab järgmises sammus vajaliku DNS-kirje.</small>
+              <details className="settings-store-disclosure" open={customDomainStatus !== 'idle' || Boolean(customDomainError)}>
+                <summary><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><path d="M3 12h18" /></svg><span><strong>Oma domeen</strong><small>{customDomainStatus === 'active' ? customDomain : 'Kasuta poe jaoks oma veebiaadressi'}</small></span><svg className="settings-store-disclosure__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></summary>
+                <div className="settings-domain-flow" data-status={customDomainStatus}>
+                  <div className="settings-domain-flow__heading">
+                    <span><small>Ühenda domeen, mille oled ostnud Zone’ist, Veebimajutusest või mujalt.</small></span>
+                    {customDomainStatus !== 'idle' && <b>{customDomainStatus === 'pending_dns' ? 'Ootan DNS-i' : customDomainStatus === 'verifying' ? 'HTTPS loomisel' : customDomainStatus === 'active' ? 'Ühendatud' : 'Vajab tähelepanu'}</b>}
                   </div>
-                </div>}
-
-                {customDomainRecord && customDomainStatus !== 'active' && <div className="settings-domain-connect">
-                  <div className="settings-domain-flow__steps" aria-label="Domeeni ühendamise edenemine">
-                    <span className="is-done"><i>1</i><small>Domeen</small></span>
-                    <span className={customDomainStatus === 'pending_dns' ? 'is-active' : 'is-done'}><i>2</i><small>DNS</small></span>
-                    <span className={customDomainStatus === 'verifying' ? 'is-active' : ''}><i>3</i><small>HTTPS</small></span>
-                  </div>
-                  {customDomainRecord.dnsRecord && <div className="settings-domain-flow__dns">
-                    <div className="settings-domain-flow__intro"><span>2</span><p><strong>Lisa domeenihalduris järgmine DNS-kirje</strong><small>Ava teenus, kust domeeni ostsid, ja sisesta täpselt need väärtused.</small></p></div>
-                    <div className="settings-domain-record"><b>{customDomainRecord.dnsRecord.type}</b><span><small>Nimi / host</small><code>{customDomainRecord.dnsRecord.name}</code></span><span><small>Väärtus</small><code>{customDomainRecord.dnsRecord.value}</code></span><button type="button" onClick={() => copyDomainRecord(customDomainRecord.dnsRecord!.value)} aria-label="Kopeeri DNS-kirje väärtus"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>
-                    <p className="settings-domain-flow__notice"><span>i</span>Ära muuda MX-kirjeid ega nimeservereid. DNS-i levimine võib võtta mõnest minutist kuni 48 tunnini.</p>
-                    {customDomainStatus === 'verifying' && <div className="settings-domain-flow__checking" role="status"><i /><strong>DNS on leitud</strong><p>Render loob domeenile turvalist HTTPS-sertifikaati.</p><small>Kontrollime olekut automaatselt iga 15 sekundi järel.</small></div>}
-                    <div className="settings-domain-flow__actions"><button type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>Eemalda</button><button type="button" disabled={isCustomDomainBusy} onClick={() => void refreshCustomDomain(true)}>{isCustomDomainBusy ? 'Kontrollin…' : 'Kontrolli ühendust'} <span>→</span></button></div>
+                  {customDomainStatus === 'idle' && <div className="settings-domain-connect">
+                    <div className="settings-domain-flow__start">
+                      <label>Sinu olemasolev domeen<input value={customDomain} onChange={(event) => { setCustomDomain(event.target.value); setCustomDomainError('') }} onKeyDown={(event) => event.key === 'Enter' && startCustomDomainConnection()} placeholder="www.sinupood.ee" autoCapitalize="none" autoCorrect="off" spellCheck={false} /></label>
+                      {customDomainError && <p role="alert">{customDomainError}</p>}
+                      <button type="button" disabled={isCustomDomainBusy} onClick={() => void startCustomDomainConnection()}>{isCustomDomainBusy ? 'Lisan domeeni…' : 'Alusta ühendamist'} <span>→</span></button>
+                      <small>Domeen jääb sinu praeguse registripidaja juurde. Poeruum annab järgmises sammus vajaliku DNS-kirje.</small>
+                    </div>
                   </div>}
-                  {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
-                  {customDomainStatus === 'error' && <div className="settings-domain-flow__actions"><button type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>Eemalda</button><button type="button" disabled={isCustomDomainBusy} onClick={() => void startCustomDomainConnection()}>Proovi uuesti <span>→</span></button></div>}
-                </div>}
 
-                {customDomainStatus === 'active' && <div className="settings-domain-flow__connected">
-                  <div className="settings-domain-connected__summary">
-                    <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span>
-                    <div><small>DNS JA HTTPS AKTIIVSED</small><strong>{customDomain}</strong><p>Domeen suunab turvaliselt sinu Poeruumi poodi.</p></div>
-                  </div>
-                  <a className="settings-domain-open" href={`https://${customDomain}`} target="_blank" rel="noreferrer">Ava pood <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-9 9"/><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a>
-                  {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
-                  <button className="settings-domain-remove" type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>{isCustomDomainBusy ? 'Eemaldan…' : 'Eemalda ühendus'}</button>
-                </div>}
-              </div>
-            </div>
-            <div className="settings-seo-status"><span>✓</span><div><strong>Otsingumootoritele valmis</strong><small>Avaliku poe indekseeritavad tootelehed, metaandmed, canonical, structured data ja ajakohane sitemap luuakse automaatselt. Google otsustab indekseerimise ja positsiooni.</small></div><b>Automaatne</b></div>
-          </div>}
-          {settingsSection === 'directory' && merchantMode && !adminShowcaseMode && <div className="settings-panel" role="tabpanel">
-            <header><span>KAUBAMAJA ESITLUS</span><p>Vali, kuidas sinu pood Poeruumi Kaubamajas välja näeb.</p></header>
-            <p className="settings-directory-info">Avaldatud pood kuvatakse Poeruumi Kaubamajas automaatselt. Poe peitmisel kaob see ka Kaubamajast.</p>
-            <div className="settings-fields">
-              <label>Kaubamaja lühitutvustus<textarea rows={2} maxLength={140} value={directoryDescription} onChange={(event) => setDirectoryDescription(event.target.value)} placeholder={storeDescription || 'Üks lühike lause sinu poe väärtusest.'} /><small className="settings-field-note">Kui jätad välja tühjaks, kasutame poe tutvustust · {directoryDescription.length}/140</small></label>
-              <div className="settings-about-image">
-                <span className="settings-section-label">Kaubamaja kaanepilt <small>valikuline</small></span>
-                <div>
-                  <label className="settings-about-image__upload">
-                    <span className="settings-about-image__preview">{directoryCover ? <img src={directoryCover} alt="Kaubamaja kaanepildi eelvaade" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m5 17 5-5 3 3 2-2 4 4"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>}</span>
-                    <span className="settings-about-image__copy"><strong>{directoryCover ? 'Vaheta kaanepilti' : 'Lisa kaanepilt'}</strong><small>Soovituslikult rõhtne JPG, PNG või WebP</small></span>
-                    <span className="settings-about-image__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 14v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/></svg></span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { changeDirectoryCover(event.target.files?.[0]); event.target.value = '' }} />
-                  </label>
-                  {directoryCover && <button className="settings-about-image__remove" type="button" onClick={removeDirectoryCover} aria-label="Eemalda Kaubamaja kaanepilt">×</button>}
+                  {customDomainRecord && customDomainStatus !== 'active' && <div className="settings-domain-connect">
+                    <div className="settings-domain-flow__steps" aria-label="Domeeni ühendamise edenemine">
+                      <span className="is-done"><i>1</i><small>Domeen</small></span>
+                      <span className={customDomainStatus === 'pending_dns' ? 'is-active' : 'is-done'}><i>2</i><small>DNS</small></span>
+                      <span className={customDomainStatus === 'verifying' ? 'is-active' : ''}><i>3</i><small>HTTPS</small></span>
+                    </div>
+                    {customDomainRecord.dnsRecord && <div className="settings-domain-flow__dns">
+                      <div className="settings-domain-flow__intro"><span>2</span><p><strong>Lisa domeenihalduris järgmine DNS-kirje</strong><small>Ava teenus, kust domeeni ostsid, ja sisesta täpselt need väärtused.</small></p></div>
+                      <div className="settings-domain-record"><b>{customDomainRecord.dnsRecord.type}</b><span><small>Nimi / host</small><code>{customDomainRecord.dnsRecord.name}</code></span><span><small>Väärtus</small><code>{customDomainRecord.dnsRecord.value}</code></span><button type="button" onClick={() => copyDomainRecord(customDomainRecord.dnsRecord!.value)} aria-label="Kopeeri DNS-kirje väärtus"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>
+                      <p className="settings-domain-flow__notice"><span>i</span>Ära muuda MX-kirjeid ega nimeservereid. DNS-i levimine võib võtta mõnest minutist kuni 48 tunnini.</p>
+                      {customDomainStatus === 'verifying' && <div className="settings-domain-flow__checking" role="status"><i /><strong>DNS on leitud</strong><p>Render loob domeenile turvalist HTTPS-sertifikaati.</p><small>Kontrollime olekut automaatselt iga 15 sekundi järel.</small></div>}
+                      <div className="settings-domain-flow__actions"><button type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>Eemalda</button><button type="button" disabled={isCustomDomainBusy} onClick={() => void refreshCustomDomain(true)}>{isCustomDomainBusy ? 'Kontrollin…' : 'Kontrolli ühendust'} <span>→</span></button></div>
+                    </div>}
+                    {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
+                    {customDomainStatus === 'error' && <div className="settings-domain-flow__actions"><button type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>Eemalda</button><button type="button" disabled={isCustomDomainBusy} onClick={() => void startCustomDomainConnection()}>Proovi uuesti <span>→</span></button></div>}
+                  </div>}
+
+                  {customDomainStatus === 'active' && <div className="settings-domain-flow__connected">
+                    <div className="settings-domain-connected__summary">
+                      <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span>
+                      <div><small>DNS JA HTTPS AKTIIVSED</small><strong>{customDomain}</strong><p>Domeen suunab turvaliselt sinu Poeruumi poodi.</p></div>
+                    </div>
+                    <a className="settings-domain-open" href={`https://${customDomain}`} target="_blank" rel="noreferrer">Ava pood <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-9 9"/><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a>
+                    {customDomainError && <p className="settings-domain-error" role="alert">{customDomainError}</p>}
+                    <button className="settings-domain-remove" type="button" disabled={isCustomDomainBusy} onClick={() => void removeCustomDomain()}>{isCustomDomainBusy ? 'Eemaldan…' : 'Eemalda ühendus'}</button>
+                  </div>}
                 </div>
-                <small>{directoryCover ? 'Seda pilti kasutatakse ainult Kaubamaja poekaardil.' : 'Kaanepildi puudumisel kasutame esimese nähtava toote pilti.'}</small>
-              </div>
-            </div>
+              </details>
+            </section>
           </div>}
-          {settingsSection === 'appearance' && <div className="settings-panel" role="tabpanel">
-            <header><span>VÄLIMUS</span><p>Kohanda poe ilmet ja toodete esitlemist.</p></header>
+          {!isSettingsHome && settingsSection === 'directory' && merchantMode && !adminShowcaseMode && <StoreDirectorySettings
+            storeName={editableStoreName} logo={storeLogo} cover={directoryCover}
+            productImage={displayProducts.find((product) => product.searchVisible !== false && product.image)?.image}
+            description={directoryDescription} storeDescription={storeDescription} published={isStoreVisible}
+            visible={directoryVisible} onVisibilityChange={setDirectoryVisible}
+            onDescriptionChange={setDirectoryDescription} onCoverChange={changeDirectoryCover} onCoverRemove={removeDirectoryCover}
+          />}
+          {!isSettingsHome && settingsSection === 'appearance' && <div className="settings-panel appearance-panel">
             <div className="settings-logo">
               <span className="settings-section-label">Poe logo</span>
               <div>
@@ -3251,21 +3263,19 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 </label>
                 {storeLogo && <button className="settings-logo__remove" type="button" onClick={removeStoreLogo} aria-label="Eemalda poe logo">×</button>}
               </div>
-              <small>{storeId ? 'Logo salvestatakse turvaliselt sinu poe juurde.' : 'Logo salvestub pärast poe loomist.'}</small>
             </div>
             <div className="settings-theme">
               <span>Kujundus</span>
               <div>{([
-                ['midnight', 'Öö', 'Tume ja elegantne'], ['paper', 'Paber', 'Hele ja rahulik'], ['pop', 'Popp', 'Julge ja värviline'],
-              ] as Array<[StoreTheme, string, string]>).map(([id, label, description]) => <button type="button" aria-pressed={storeTheme === id} className={`settings-theme__choice settings-theme__choice--${id}${storeTheme === id ? ' is-selected' : ''}`} onClick={() => setStoreTheme(id)} key={id}>
-                <span className="settings-theme__preview"><i /><em>{storeInitial}</em><b>32 €</b></span>
-                <span className="settings-theme__meta"><strong>{label}</strong><small>{description}</small></span>
+                ['midnight', 'Öö'], ['paper', 'Paber'], ['pop', 'Popp'],
+              ] as Array<[StoreTheme, string]>).map(([id, label]) => <button type="button" aria-pressed={storeTheme === id} className={`settings-theme__choice settings-theme__choice--${id}${storeTheme === id ? ' is-selected' : ''}`} onClick={() => setStoreTheme(id)} key={id}>
+                <span className="settings-theme__preview">{displayProducts.find((product) => product.image)?.image && <img src={displayProducts.find((product) => product.image)!.image} alt="" loading="lazy" />}<i /><em>{storeInitial}</em><b>32 €</b></span>
+                <span className="settings-theme__meta"><strong>{label}</strong></span>
                 <span className="settings-theme__check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg></span>
               </button>)}</div>
             </div>
             <div className="settings-accent">
               <span className="settings-section-label">Aktsentvärv</span>
-              <p>Valitud värvi kasutatakse „Osta”, „Lisa ostukorvi” ja „Maksa” nuppudel.</p>
               <div className="settings-accent__choices">
                 {ACCENT_PRESETS.map((color) => <button type="button" className={storeAccent.toLowerCase() === color ? 'is-selected' : ''} style={{ backgroundColor: color }} aria-label={`Vali aktsentvärv ${color}`} aria-pressed={storeAccent.toLowerCase() === color} onClick={() => setStoreAccent(color)} key={color}><span>✓</span></button>)}
                 <label className="settings-accent__custom" aria-label="Vali oma aktsentvärv">
@@ -3275,7 +3285,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               </div>
               <div className="settings-accent__preview" data-size={buyButtonSize}><span>Osta <strong>32 €</strong></span><small>{storeAccent.toUpperCase()}</small></div>
               <div className="settings-buy-size">
-                <span><strong>„Osta” nupu suurus</strong><small>Muudab tootepildil oleva nupu suurust.</small></span>
+                <span><strong>Ostunupu suurus</strong></span>
                 <div role="group" aria-label="Osta nupu suurus">
                   {([['small', 'Väike'], ['medium', 'Tavaline'], ['large', 'Suur']] as Array<[BuyButtonSize, string]>).map(([size, label]) => <button type="button" className={buyButtonSize === size ? 'is-selected' : ''} aria-pressed={buyButtonSize === size} onClick={() => setBuyButtonSize(size)} key={size}>{label}</button>)}
                 </div>
@@ -3312,22 +3322,34 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <label>Vahetamise kiirus<select value={autoSwipeSpeed} onChange={(event) => setAutoSwipeSpeed(Number(event.target.value))}><option value="5">5 sekundit</option><option value="10">10 sekundit</option><option value="15">15 sekundit</option></select></label>
             </fieldset>
           </div>}
-          {settingsSection === 'payments' && <div className="settings-panel payments-panel" role="tabpanel">
+          {!isSettingsHome && settingsSection === 'payments' && <div className="settings-panel payments-panel">
             {accountEmailNotice}
-            <header><p>Vali, kuidas kliendid sinu poes maksavad.</p></header>
             {needsPayoutConfirmation ? <div className="settings-payment-requirement" role="alert"><div><strong>Kinnita ettevõtluskonto kasutamine</strong><p>Märgi müüja andmetes, et kasutad enda aktiivset ettevõtluskontot ja suunad Stripe’i väljamaksed sellele.</p><button type="button" className="settings-secondary-action" onClick={() => setSettingsSection('business')}>Ava müüja andmed</button></div></div>
               : paymentSetupError && <div className="settings-payment-requirement" role="alert"><div><strong>Maksed vajavad andmete parandamist</strong><p>{paymentSetupError}</p></div></div>}
-            <div className="settings-provider-list">
-              {([
-                ['stripe', 'Stripe', 'Kliendid saavad maksta kaardi, Apple Pay või Google Payga. Raha liigub sinu kontole.', 'Ühenda, et võtta vastu kaardi- ja nutimakseid.'],
-              ] as Array<[PaymentProvider, string, string, string]>).map(([id, name, connectedDetail, disconnectedDetail]) => {
-                const isCurrentProvider = activePaymentProvider === id
-                return <button type="button" disabled={isCurrentProvider} aria-pressed={isCurrentProvider} className={isCurrentProvider ? `is-active${paymentsReady ? '' : ' is-pending'}` : ''} onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider(id) : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')} key={id}>
-                <span className="settings-provider-logo is-stripe">S</span>
-                <span><strong>{name}</strong><small>{isCurrentProvider ? stripeActionRequired ? 'Müüja andmed vajavad kinnitamist.' : paymentsReady ? connectedDetail : 'Makseid saab vastu võtta pärast andmete kinnitamist.' : disconnectedDetail}</small></span>
-                <i className={`settings-provider-status${stripeActionRequired ? ' is-warning' : ''}`}>{isCurrentProvider ? stripeActionRequired || needsPayoutConfirmation || paymentSetupError ? <span>Vajab tegevust</span> : paymentsReady ? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg><span>Ühendatud</span></> : <span>Kontrollimisel</span> : <span>Ühenda</span>}</i>
-              </button>})}
-            </div>
+            <section className="settings-payment-card" aria-labelledby="settings-payments-title">
+              <div className="settings-payment-card__provider">
+                <img src="/images/stripe-wordmark.svg" width="72" height="30" alt="Stripe" />
+                <span className={`settings-payment-card__status${paymentNeedsAttention ? ' is-warning' : showActivePayments ? '' : ' is-pending'}`}>
+                  {showActivePayments && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg>}
+                  {activePaymentProvider !== 'stripe' ? 'Ühendamata' : paymentNeedsAttention ? 'Vajab tegevust' : showActivePayments ? 'Ühendatud' : 'Kontrollimisel'}
+                </span>
+              </div>
+              <div className="settings-payment-card__overview">
+                <h3 id="settings-payments-title">{showActivePayments ? 'Maksed on aktiivsed' : paymentNeedsAttention ? 'Täienda maksete andmeid' : activePaymentProvider === 'stripe' ? 'Maksete seadistus' : 'Ühenda poe maksed'}</h3>
+                <p>{showActivePayments ? 'Kliendid saavad ostude eest tasuda sinu poes.' : paymentNeedsAttention ? 'Vaata allpool, millised andmed vajavad kinnitamist.' : activePaymentProvider === 'stripe' ? 'Makseid saab vastu võtta pärast andmete kinnitamist.' : 'Stripe võimaldab klientidel sinu poes turvaliselt maksta.'}</p>
+              </div>
+              <div className="settings-payment-card__methods">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M3 10h18M7 15h3" /></svg>
+                <span>Kaart <span aria-hidden="true">·</span> Apple Pay <span aria-hidden="true">·</span> Google Pay</span>
+              </div>
+              {showActivePayments && <button className="settings-payment-card__manage" type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
+                <span>Konto ja väljamaksete seaded<small>Avaneb Stripe’is</small></span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg>
+              </button>}
+              {activePaymentProvider !== 'stripe' && <button className="settings-payment-card__manage" type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe') : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')}>
+                <span>Ühenda Stripe<small>Seadista maksed Stripe’is</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg>
+              </button>}
+            </section>
             {stripeActionRequired && <div className="settings-payment-requirement" role="alert">
               <span aria-hidden="true">!</span>
               <div>
@@ -3348,7 +3370,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <span aria-hidden="true">✓</span>
               <div><strong>Andmeid kontrollitakse</strong></div>
             </div>}
-            {activePaymentProvider === 'stripe' && <button className={`settings-secondary-action${stripeActionRequired ? ' is-warning' : ''}`} type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', stripeActionRequired ? 'requirements' : 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
+            {activePaymentProvider === 'stripe' && !showActivePayments && <button className={`settings-secondary-action${stripeActionRequired ? ' is-warning' : ''}`} type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', stripeActionRequired ? 'requirements' : 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
               <span>{stripeManagementLabel}</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>}
@@ -3357,8 +3379,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>}
           </div>}
-          {settingsSection === 'delivery' && <div className="settings-panel delivery-panel" role="tabpanel">
-            <header><span>TARNE</span><p>Määra väljasaatmise aeg, tarneviisid ja nende hinnad.</p></header>
+          {!isSettingsHome && settingsSection === 'delivery' && <div className="settings-panel delivery-panel">
+            <h3 className="settings-group-title">Väljasaatmine</h3>
             <label className="settings-toggle"><span><strong>Näita väljasaatmise aega</strong><small>Aeg tellimuse saamisest paki teelepanekuni</small></span><input type="checkbox" checked={dispatchTime.enabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, enabled: event.target.checked } }))} /><i /></label>
             {dispatchTime.enabled && <div className="settings-fields">
               <div className="settings-dispatch-time" role="group" aria-label="Väljasaatmise ajavahemik" aria-describedby="dispatch-time-note">
@@ -3368,6 +3390,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               </div>
               {dispatchTimeError ? <small id="dispatch-time-note" className="settings-dispatch-error" role="alert">{dispatchTimeError}</small> : <small id="dispatch-time-note" className="settings-field-note">Ostjale kuvatakse: {dispatchTimeText}</small>}
             </div>}
+            <h3 className="settings-group-title">Tarneviisid</h3>
             <div className="settings-delivery-list">
               {SHIPPING_PROVIDERS.map((provider) => {
                 const providerSettings = deliverySettings.parcelProviders[provider]
@@ -3385,12 +3408,12 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 <label className="settings-toggle"><span><strong>Tulen ise järele</strong><small>Ostjale tasuta</small></span><input type="checkbox" checked={deliverySettings.pickupEnabled} disabled={deliverySettings.pickupEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.courierEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupEnabled: event.target.checked }))} /><i /></label>
               </div>
             </div>
-            <div className="settings-fields">
+            <div className="settings-fields settings-delivery-terms">
               {deliverySettings.pickupEnabled && <label>Järeletulemise aadress<input value={deliverySettings.pickupAddress} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupAddress: event.target.value }))} /></label>}
               <label>Ostjale tasuta tarne alates<input type="number" min="0" value={deliverySettings.freeShippingFrom} onChange={(event) => setDeliverySettings((current) => ({ ...current, freeShippingFrom: Number(event.target.value) }))} /><small className="settings-field-note">Sisesta 0, kui tasuta tarne piiri ei ole.</small></label>
             </div>
           </div>}
-          {settingsSection === 'business' && <div className="settings-panel" role="tabpanel">
+          {!isSettingsHome && settingsSection === 'business' && <div className="settings-panel business-panel">
             <SellerDetailsFields value={{ sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, entrepreneurPayoutAdminException, businessName, registryCode, businessAddress, contactEmail, vatRegistered, vatNumber }}
               typeLocked={sellerTypeLocked} onChange={(patch: Partial<SellerDetailsValue>) => {
                 if (patch.sellerType !== undefined) setSellerType(patch.sellerType)
@@ -3404,10 +3427,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 if (patch.vatRegistered !== undefined) setVatRegistered(patch.vatRegistered)
                 if (patch.vatNumber !== undefined) setVatNumber(patch.vatNumber)
               }} />
-            <div className="settings-fields"><label>Tagastustingimused<textarea rows={4} value={returnsText} onChange={(event) => setReturnsText(event.target.value)} /></label></div>
+            <div className="settings-fields settings-business-returns"><label>Tagastustingimused<textarea rows={4} value={returnsText} onChange={(event) => setReturnsText(event.target.value)} /></label></div>
           </div>}
-          {settingsSection === 'links' && <div className="settings-panel" role="tabpanel">
-            <header><span>SOTSIAALMEEDIA</span><p>Lisa lingid, mis kuvatakse poe jaluses.</p></header>
+          {!isSettingsHome && settingsSection === 'links' && <div className="settings-panel">
+            <p className="settings-intro">Lisa lingid, mida näitame sinu poe jaluses.</p>
             <div className="settings-fields settings-social">
               <label className={`settings-social-card is-instagram${instagramUrl.trim() ? ' has-value' : ''}`}>
                 <span className="settings-social-card__brand"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" className="social-dot"/></svg></span>
@@ -3426,14 +3449,13 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               </label>
             </div>
           </div>}
-          {settingsSection === 'notifications' && <div className="settings-panel" role="tabpanel">
-            <header><span>TEAVITUSED</span><p>Vali, kellele tellimuste kohta teated saadetakse.</p></header>
+          {!isSettingsHome && settingsSection === 'notifications' && <div className="settings-panel">
+            <h3 className="settings-group-title">Müüja teavitused</h3>
             <div className="settings-fields"><label>Tellimuste e-post<input type="email" value={orderNotificationEmail} onChange={(event) => setOrderNotificationEmail(event.target.value)} placeholder={contactEmail || 'tellimused@minupood.ee'} /></label></div>
             <label className="settings-toggle"><span><strong>Uue tellimuse teavitus</strong><small>Saadame müüjale kohe e-kirja</small></span><input type="checkbox" checked={sellerNotifications} onChange={(event) => setSellerNotifications(event.target.checked)} /><i /></label>
-            <div className="settings-info-note"><span>i</span><p>Ostja saab pärast edukat makset alati tellimuse kinnituse ja PDF-arve. Tagastatud makse kohta saadetakse kreeditarve.</p></div>
+            <details className="settings-disclosure"><summary>Ostja teavitused <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></summary><div><p>Ostja saab pärast edukat makset tellimuse kinnituse ja PDF-arve. Tagastatud makse kohta saadetakse kreeditarve.</p></div></details>
           </div>}
-          {settingsSection === 'billing' && <div className="settings-panel billing-panel" role="tabpanel">
-            <header><span>ARVELDUS</span><p>Vali müügimahule sobiv pakett. Vahetada saad igal ajal.</p></header>
+          {!isSettingsHome && settingsSection === 'billing' && <div className="settings-panel billing-panel">
             {isBillingDelinquent && <div className={`billing-alert${isBillingGraceActive ? '' : ' is-expired'}`} role="alert">
               <span aria-hidden="true">!</span>
               <div>
@@ -3465,26 +3487,28 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               {monthlyPlatformFee > 0 && <small>Netotasu {formatEuro(monthlyPlatformFeeNet)} · käibemaks 24% {formatEuro(monthlyPlatformFeeVat)}</small>}
               <small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `Prooviperiood lõpeb ${fixedPlanTrialEndLabel}. Seejärel ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} kuus koos käibemaksuga.` : 'Kuutasu ei muutu koos müügimahuga.' : remainingPlatformFee === 0 ? 'Sel kuul rohkem Poeruumi tasu ei lisandu.' : 'Tasu uuendatakse pärast iga edukat tellimust.'}</small>
             </div>
+            <details className="settings-disclosure"><summary>Tasude arvestus <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></summary><div>
             <div className="billing-rules">
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9" /></svg></span><p><strong>{effectiveBillingPlan === 'fixed' ? 'Müügilt 0% Poeruumile' : 'Tarne ei kuulu arvestusse'}</strong><small>{effectiveBillingPlan === 'fixed' ? 'Müügimahu kasv ei suurenda kuutasu.' : '4% arvutatakse ainult toodete summalt.'}</small></p></div>
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8H4V4"/><path d="M4.5 8a8 8 0 1 1-.1 7"/></svg></span><p><strong>{effectiveBillingPlan === 'fixed' ? 'Paketti saad vahetada' : 'Tagastuse tasu krediteeritakse'}</strong><small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? 'Prooviperiood algas Kindla paketi esmakordsel valimisel.' : 'Uus valik hakkab kehtima järgmisest arvelduskuust.' : 'Tagastatud toodete müük vähendatakse arvestusest.'}</small></p></div>
               <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5c-4.5 0-4.5 7 0 7 3.5 0 4.5-7 7-7 4.5 0 4.5 7 0 7-3.5 0-4.5-7-7-7Z"/></svg></span><p><strong>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? '30 päeva tasuta' : 'Kindel kulu iga kuu' : `${formatPricingEuro(PLATFORM_FEE_NET_CAP)} + km hinnalagi`}</strong><small>{effectiveBillingPlan === 'fixed' ? isFixedPlanTrialActive ? `Pärast prooviperioodi on kuutasu ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Poeruumi kuutasu on ${formatPricingEuro(FIXED_PLAN_MONTHLY_TOTAL)} koos käibemaksuga.` : `Koos käibemaksuga maksimaalselt ${formatPricingEuro(PLATFORM_FEE_GROSS_CAP)} kuus.`}</small></p></div>
             </div>
             <div className="settings-info-note"><span>i</span><p>Stripe’i tegelik maksetöötlustasu ja Poeruumi paketipõhine teenustasu arvestatakse iga tehingu järel sinu väljamaksest maha. Ostjale eraldi maksetasu ei lisandu.</p></div>
+            </div></details>
             {(billingPlan === 'fixed' || stripeSubscriptionStatus) && !isBillingDelinquent && <button className="billing-manage-button" type="button" disabled={isBillingPortalBusy} onClick={() => void manageBilling()}>
               {isBillingPortalBusy ? 'Avan Stripe’i…' : 'Halda makseviisi ja arveid'}
             </button>}
             {storeId && <PlatformInvoiceList storeId={storeId} />}
           </div>}
-          {settingsSection === 'account' && <div className="settings-panel account-panel" role="tabpanel">
+          {!isSettingsHome && settingsSection === 'account' && <div className="settings-panel account-panel">
             {accountEmailNotice}
-            <header><span>KONTO</span><p>Halda oma Poeruumi kontot ja sisselogimist.</p></header>
+            <h3 className="settings-group-title">Sisselogimine</h3>
             <div className="account-panel__action account-panel__action--email">
               <span><strong>Sisselogimise e-post</strong><small>{accountEmail || 'Laadin e-posti…'}</small></span>
               <button type="button" onClick={openEmailChange}>Muuda</button>
             </div>
             <div className="account-panel__action">
-              <span><strong>Muuda parooli</strong><small>Kinnitamiseks küsime sinu praegust parooli.</small></span>
+              <span><strong>Parool</strong></span>
               <button type="button" onClick={openPasswordChange}>Muuda</button>
             </div>
             <div className="account-panel__action">
@@ -3493,18 +3517,15 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             </div>
             <div className="account-sessions">
               <span className="account-sessions__label">SESSIOONID</span>
-              <p>Kui kasutasid võõrast seadet või kahtlustad ligipääsu, lõpeta teised aktiivsed sessioonid.</p>
               <div><button type="button" disabled={isSessionActionBusy} onClick={logOutOtherSessions}>Logi teistest seadmetest välja</button><button type="button" disabled={isSessionActionBusy} onClick={logOutEverywhere}>Logi kõikjalt välja</button></div>
             </div>
             <div className="account-danger-zone">
-              <span className="account-danger-zone__label">OHUTSOON</span>
               <h3>Kustuta konto jäädavalt</h3>
               <p>Kustutatakse sinu konto, poe sisu ja üles laaditud pildid. Tellimuste ostja nimi, e-post ja tarneinfo eemaldatakse kohe; isikustamata finantskirjed säilivad kuni seadusest tuleneva tähtaja lõpuni.</p>
               <button type="button" onClick={openAccountDeletion}>Kustuta minu konto</button>
             </div>
           </div>}
-        </section>
-      </div>}
+      </StoreSettingsDrawer>}
       {isBillingCardOpen && <BillingPlanDialog onClose={() => setIsBillingCardOpen(false)} onConfirm={async (checkoutRequestId) => { const url = await startStripeBillingCheckout(checkoutRequestId); window.location.assign(url) }} />}
       {isEmailChangeOpen && <div className="overlay login-overlay account-subdialog-overlay" onMouseDown={(event) => !isChangingEmail && event.target === event.currentTarget && setIsEmailChangeOpen(false)}>
         <section className="login-sheet password-change-sheet" role="dialog" aria-modal="true" aria-labelledby="email-change-title">

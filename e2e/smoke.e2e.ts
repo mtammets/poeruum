@@ -280,18 +280,18 @@ test('admin support keeps the reply composer visible while messages scroll', asy
 
   await page.evaluate(() => {
     const message = `<article><span>Saatja <time>3. sept</time></span><p>${'Pikk klienditoe sõnum. '.repeat(80)}</p></article>`
-    document.body.innerHTML = `<main class="admin-shell">
+    document.body.innerHTML = `<main class="admin-shell admin-shell--support">
       <aside class="admin-sidebar"></aside>
       <section class="admin-main">
         <section class="admin-support">
-          <header><div><span>KLIENDITUGI</span><h2>Vestlused</h2><p>Kasutajate küsimused.</p></div></header>
-          <div class="admin-support__filters"><button>Aktiivsed</button></div>
+          <header class="admin-support__toolbar"><div class="admin-support__title"><h1>Vestlused</h1></div><div class="admin-support__filters"><button>Aktiivsed</button></div></header>
           <div class="admin-support__workspace">
-            <div class="admin-support__list"></div>
+            <aside class="admin-support__inbox"><div class="admin-support__list"></div></aside>
             <div class="admin-support__conversation">
-              <header><div><small>Poe seadistamine</small><h3>Vestlus</h3><p>Klient</p></div></header>
-              <div class="admin-support__messages">${message.repeat(4)}</div>
-              <form><textarea rows="4" placeholder="Kirjuta saatjale vastus…"></textarea><div><button>Saada vastus</button></div></form>
+              <header class="admin-support__contact"><div class="admin-support__contact-copy"><h2>Klient</h2></div></header>
+              <div class="admin-support__subject"><h3>Poe seadistamine</h3></div>
+              <div class="admin-support__history"><div class="admin-support__messages">${message.repeat(4)}</div></div>
+              <form class="admin-support__composer"><textarea rows="4" placeholder="Kirjuta saatjale vastus…"></textarea><footer><button class="admin-support__send">Saada vastus</button></footer></form>
             </div>
           </div>
         </section>
@@ -334,7 +334,8 @@ test('a stale settings response cannot overwrite text being typed', async ({ pag
   await page.getByRole('button', { name: 'Kaubamaja', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Kaubamaja', exact: true })).toBeVisible()
   await expect(page.getByLabel('Kaubamaja lühitutvustus')).toBeVisible()
-  await expect(page.getByText('Kaubamaja kaanepilt', { exact: false })).toBeVisible()
+  await expect(page.getByLabel('Poekaardi eelvaade')).toBeVisible()
+  await expect(page.getByLabel('Kaubamaja kaanepilt', { exact: true })).toHaveAttribute('type', 'file')
   await page.getByRole('button', { name: 'Kõik seaded' }).click()
   await page.locator('.settings-home button[data-section="store"]').click()
   await expect(page.getByLabel('Kaubamaja lühitutvustus')).toHaveCount(0)
@@ -343,6 +344,11 @@ test('a stale settings response cannot overwrite text being typed', async ({ pag
 
   await page.evaluate(() => window.__updateSettingsHarness?.({ storeDescription: 'Serverist hilinenud vana tekst' }))
   await expect(description).toHaveValue('Telefonis kirjutatud uus tekst')
+  await page.getByRole('button', { name: 'Kõik seaded' }).click()
+  await expect(page.locator('.settings-home button[data-section="store"]')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Seaded', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Seaded/ })).toBeFocused()
 })
 
 test('customers filter products by category inside search', async ({ page }) => {

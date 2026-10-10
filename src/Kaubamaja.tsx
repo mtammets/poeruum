@@ -7,6 +7,7 @@ import DirectoryHero, { directoryHeroSlides } from './DirectoryHero'
 import DirectoryStories from './DirectoryStories'
 import DirectoryStoryPage from './DirectoryStoryPage'
 import StoreDirectoryLayout, { ArrowUpRight } from './StoreDirectoryLayout'
+import StoreDirectoryCardContent from './StoreDirectoryCardContent'
 import { listPublicStoreDirectory } from './lib/database'
 import { createStoreDirectorySearch, type DirectoryProductResult } from './lib/directorySearch'
 import { applySeoMetadata } from './lib/seo'
@@ -55,7 +56,6 @@ const StoreCard = ({ store, index, visitUrl, isExample = false, placement = 'dir
   isExample?: boolean
   placement?: 'directory' | 'search'
 }) => {
-  const description = store.description || 'Avasta poe valikut.'
   const ref = useDirectoryImpression(isExample ? null : store.id, placement, index + 1)
   const open = () => {
     if (!isExample) trackDirectoryEvent({ event_name: 'store_click', store_id: store.id, placement, position: index + 1 })
@@ -63,34 +63,7 @@ const StoreCard = ({ store, index, visitUrl, isExample = false, placement = 'dir
 
   return <article className="store-directory__card" ref={ref}>
     <a className="store-directory__card-link" href={visitUrl} onClick={open} onAuxClick={(event) => { if (event.button === 1) open() }} aria-label={isExample ? `${store.name} – loo oma pood Poeruumis` : `Ava pood ${store.name}`}>
-      <div className="store-directory__media">
-        {store.imageUrl ? <img
-          className="store-directory__cover"
-          src={store.imageUrl}
-          alt=""
-          loading={index < 2 ? 'eager' : 'lazy'}
-          fetchPriority={index === 0 ? 'high' : 'auto'}
-          decoding="async"
-          onError={(event) => event.currentTarget.remove()}
-        /> : null}
-        <span className="store-directory__card-shade" aria-hidden="true" />
-      </div>
-      <div className="store-directory__card-copy">
-        <div className="store-directory__identity">
-          <span className="store-directory__identity-mark" aria-hidden="true">
-            <b>{isExample ? '+' : store.name.charAt(0).toLocaleUpperCase('et')}</b>
-            {store.logoUrl ? <img src={store.logoUrl} alt="" loading="lazy" decoding="async" onError={(event) => event.currentTarget.remove()} /> : null}
-          </span>
-          <div>
-            <h3>{store.name}</h3>
-            <p>{description}</p>
-          </div>
-        </div>
-        <span className="store-directory__card-cta" aria-hidden="true">
-          {isExample ? 'Loo oma pood' : 'Ava pood'}
-          <ArrowUpRight />
-        </span>
-      </div>
+      <StoreDirectoryCardContent store={store} index={index} isExample={isExample} />
     </a>
   </article>
 }
