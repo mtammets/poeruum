@@ -30,6 +30,7 @@
     "test:campaign-server": "node scripts/test-campaign-server.mjs",
     "test:order-receipt-server": "node scripts/test-order-receipt-server.mjs",
     "test:directory-highlights-server": "node scripts/test-directory-highlights-server.mjs",
+    "test:closed-storefront-server": "node scripts/test-closed-storefront-server.mjs",
     "test:reservation-cap": "node scripts/test-reservation-cap.mjs",
     "test:billing-delinquency": "node scripts/test-billing-delinquency.mjs",
     "test:outreach-db": "node scripts/test-outreach-automation.mjs",

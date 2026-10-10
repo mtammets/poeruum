@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { normalizeClosedStore, renderClosedStoreDocument } from './shared/closed-storefront.mjs'
 import {
   decodePathname,
   getProductSlugFromPath,
@@ -86,8 +87,20 @@ async function getStore(slug) {
   })
   if (!response.ok) return null
   const value = await response.json()
-  storeCache.set(slug, { value, expires: Date.now() + 30_000 })
+  if (value) storeCache.set(slug, { value, expires: Date.now() + 30_000 })
   return value
+}
+
+async function getClosedStore(slug, hostname) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/closed_storefront_branding`, {
+    method: 'POST',
+    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requested_slug: slug || null, requested_hostname: slug ? null : hostname }),
+  })
+  // Allow the frontend/server rollout while the additive API is being installed.
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`Poe oleku päring ebaõnnestus (${response.status}).`)
+  return normalizeClosedStore(await response.json())
 }
 
 async function getStoreDirectory() {
@@ -347,7 +360,7 @@ createServer(async (req, res) => {
     const assetPath = path.normalize(decodedPathname).replace(/^(\.\.(\/|\\|$))+/, '')
     const file = path.join(dist, assetPath)
     const isStaticAsset = ['/assets/', '/images/', '/data/', '/campaigns/'].some((prefix) => url.pathname.startsWith(prefix))
-      || ['/favicon.ico', '/manifest.webmanifest', '/admin.webmanifest', '/admin-push-sw.js'].includes(url.pathname)
+      || ['/favicon.ico', '/manifest.webmanifest', '/admin.webmanifest', '/admin-push-sw.js', '/closed-storefront.js'].includes(url.pathname)
     if (isStaticAsset && !url.pathname.endsWith('/') && file.startsWith(dist)) {
       const fileStat = await stat(file).catch(() => null)
       if (fileStat?.isFile()) {
@@ -445,8 +458,20 @@ createServer(async (req, res) => {
       const legacyPath = productSlug ? `/toode/${encodeURIComponent(productSlug)}/` : '/'
       return send(res, 301, null, { Location: `https://${legacyKaubamajaStoreSlug}.${platformHost}${legacyPath}` })
     }
-    let slug = pathStore || getStoreSlugFromHostname(host, platformHost)
-    if (!slug && host !== platformHost && host !== `www.${platformHost}` && !host.endsWith('.onrender.com')) {
+    const queryStore = url.searchParams.has('store') ? getStoreSlugFromPath(`/p/${encodeURIComponent(url.searchParams.get('store'))}`) : null
+    let slug = pathStore || queryStore || getStoreSlugFromHostname(host, platformHost)
+    const isCustomStoreHost = host !== platformHost && host !== `www.${platformHost}` && !host.endsWith('.onrender.com')
+    if (slug || isCustomStoreHost) {
+      // Check publication afresh, before cached SEO can expose a just-hidden shop.
+      const closedStore = await getClosedStore(slug, host)
+      if (closedStore) {
+        const headers = { 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' }
+        if (url.pathname === '/robots.txt') return send(res, 200, req.method === 'HEAD' ? null : 'User-agent: *\nDisallow: /\n', { ...headers, 'Content-Type': 'text/plain; charset=utf-8' })
+        if (url.pathname === '/sitemap.xml') return send(res, 404, null, headers)
+        return send(res, 200, req.method === 'HEAD' ? null : renderClosedStoreDocument(closedStore), { ...headers, 'Content-Type': 'text/html; charset=utf-8' })
+      }
+    }
+    if (!slug && isCustomStoreHost) {
       slug = await resolveCustomDomain(host)
     }
     if (!slug) {
@@ -513,7 +538,8 @@ createServer(async (req, res) => {
     const html = renderStorefront(await templatePromise, store, product)
     return send(res, 200, req.method === 'HEAD' ? null : html, {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=120',
+      // Recheck publication on every document request, including at the CDN.
+      'Cache-Control': 'private, no-store',
       ...(product?.search_visible === false ? { 'X-Robots-Tag': 'noindex, nofollow' } : {}),
     })
   } catch (error) {

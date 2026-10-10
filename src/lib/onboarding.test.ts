@@ -20,6 +20,16 @@ describe('getStoreDestination', () => {
     expect(getStoreDestination({ ...readyDraft(), is_published: true }, 0)).toBe('storefront')
   })
 
+  it('keeps a previously published shop in management after it is hidden', () => {
+    expect(getStoreDestination(readyDraft({ onboardingStep: 'complete' }), 1)).toBe('storefront')
+  })
+
+  it('does not restart completed setup when products or operational settings are missing', () => {
+    expect(getStoreDestination({
+      ...readyDraft(), payment_status: 'idle', shipping: [], settings: { onboardingStep: 'complete' },
+    }, 0)).toBe('storefront')
+  })
+
   it('routes an old publish step without products back to the product step', () => {
     expect(getStoreDestination(readyDraft({ onboardingStep: 'publish' }), 0)).toBe('product')
   })

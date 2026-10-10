@@ -3,18 +3,20 @@ import { stripeDashboardUrl } from './lib/stripeOAuth'
 import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFields'
 import { hasSellerDetails, normalizeSellerSettings, sellerDetailsError, sellerType as getSellerType, type SellerType } from '../shared/seller'
 import AccountEmailNotice from './AccountEmailNotice'
+import ClosedStorefront from './ClosedStorefront'
+import type { ClosedStore } from '../shared/closed-storefront.mjs'
 import { requireMerchantEmail } from './lib/accountEmail'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import BillingPlanDialog from './BillingPlanDialog'
 import PasswordInput from './PasswordInput'
 import { Brand } from './Brand'
-import { createStore, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, invokeStripeHosted, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
+import { createStore, getClosedStoreBranding, getMyStore, getStoreByHostname, getStoreBySlug, invokeStripeConnect, invokeStripeHosted, listProducts, setStorePublication, startStripeBillingCheckout, updateStore, type PublicStoreRecord, type StoreContentInput, type StoreRecord } from './lib/database'
 import { loadPublicShowcase } from './lib/showcase'
 import HomepageStorePhone from './HomepageStorePhone'
 import { getResponsiveImageProps } from './storefrontModel'
 import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
-import { getPaymentSetupState, getStoreDestination, getStripeSetupMode, type OnboardingStep, type StripeSetupPurpose } from './lib/onboarding'
+import { getPaymentSetupState, getStoreDestination, getStripeSetupMode, hasCompletedStoreSetup, type OnboardingStep, type StripeSetupPurpose } from './lib/onboarding'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { clearPasswordRecoveryIntent, getPasswordResetRedirectUrl, isPasswordRecoveryLocation, preservePasswordRecoveryIntent } from './lib/passwordRecovery'
 import { getMerchantLoginUrl, getMerchantStoreUrl, getRequestedProductSlug, getRequestedStoreSlug, isDedicatedStorefrontHostname, isMerchantManagementLocation, isReservedStoreSlug, STOREFRONT_ROOT_DOMAIN } from './lib/storefrontUrl'
@@ -274,6 +276,7 @@ function PlatformFlow() {
   const [confirmationResendCooldown, setConfirmationResendCooldown] = useState(0)
   const [isConfirmationRateLimited, setIsConfirmationRateLimited] = useState(false)
   const [publicStore, setPublicStore] = useState<PublicStoreRecord | null>(null)
+  const [closedStore, setClosedStore] = useState<ClosedStore | null>(null)
   const [publicProducts, setPublicProducts] = useState<Product[]>([])
   const [isPublicStoreLoading, setIsPublicStoreLoading] = useState(shouldLoadPublicStore)
   const [isPublicStoreVisualReady, setIsPublicStoreVisualReady] = useState(false)
@@ -496,7 +499,12 @@ function PlatformFlow() {
       ? getStoreBySlug(requestedStoreSlug)
       : getStoreByHostname(window.location.hostname)
     loadRequestedStore.then(async (found) => {
-      if (!found || !active) return
+      if (!active) return
+      if (!found) {
+        const branding = await getClosedStoreBranding(requestedStoreSlug, window.location.hostname)
+        if (active) setClosedStore(branding)
+        return
+      }
       setPublicStore(found)
       const nextProducts = await listProducts(found.id)
       if (!active) return
@@ -1100,7 +1108,7 @@ function PlatformFlow() {
         vatNumber: vatRegistered ? vatNumber.trim() : '',
         contactEmail: businessEmail.trim(),
         returnsText: returnsText.trim() || DEFAULT_RETURNS_TEXT,
-        onboardingStep: store?.is_published ? 'complete' : nextStep ?? existingSettings.onboardingStep ?? 'business',
+        onboardingStep: hasCompletedStoreSetup(store) ? 'complete' : nextStep ?? existingSettings.onboardingStep ?? 'business',
       }),
       ...overrides,
     }
@@ -1461,6 +1469,7 @@ function PlatformFlow() {
     return <main className="platform-loading" aria-label="Laadin sinu poodi" aria-busy="true"><span /></main>
   }
 
+  if (shouldLoadPublicStore && closedStore) return <ClosedStorefront store={closedStore} />
   if (shouldLoadPublicStore && (isPublicStoreLoading || publicStore)) return <div className="public-storefront-bootstrap">
     {!isPublicStoreLoading && publicStore && <Suspense key="storefront-content" fallback={null}><Storefront
       key={publicStore.id}

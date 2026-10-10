@@ -86,6 +86,9 @@ jobs:
       - name: Production directory highlights
         run: npm run test:directory-highlights-server
 
+      - name: Closed storefront routing and content isolation
+        run: npm run test:closed-storefront-server
+
       - name: Production campaign routing and assets
         run: npm run test:campaign-server
 
@@ -168,6 +171,9 @@ jobs:
 
       - name: Test merchant directory visibility and independent store publication
         run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-store-directory-visibility.sql
+
+      - name: Test closed storefront branding and private content isolation
+        run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-closed-storefront.sql
 
       - name: Test directory analytics aggregation and access boundaries
         run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-directory-analytics.sql

@@ -43,8 +43,11 @@ export const getStripeSetupMode = (
   return 'management'
 }
 
+export const hasCompletedStoreSetup = (store: Pick<StoreRecord, 'is_published' | 'settings'> | null | undefined): boolean =>
+  Boolean(store && (store.is_published || store.settings.onboardingStep === 'complete'))
+
 export const getStoreDestination = (store: StoreRecord, productCount?: number): StoreDestination => {
-  if (store.is_published) return 'storefront'
+  if (hasCompletedStoreSetup(store)) return 'storefront'
 
   const settings = store.settings as Record<string, unknown>
   const savedStep = settings.onboardingStep

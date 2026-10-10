@@ -37,6 +37,10 @@ export default tseslint.config(
     languageOptions: { globals: globals.serviceworker },
   },
   {
+    files: ['public/closed-storefront.js'],
+    languageOptions: { globals: globals.browser },
+  },
+  {
     files: ['scripts/**/*.mjs', 'server.mjs', 'eslint.config.js', 'vite.config.ts', 'playwright*.config.ts'],
     languageOptions: {
       globals: globals.node,

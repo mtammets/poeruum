@@ -1,6 +1,7 @@
 import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFields'
 import { hasSellerDetails, normalizeSellerSettings, sellerType as getSellerType, type SellerType } from '../shared/seller'
 import { getAccountEmailStatus } from './lib/accountEmail'
+import { hasCompletedStoreSetup } from './lib/onboarding'
 import { createRandomId } from './lib/randomId'
 import StoreOrders from './StoreOrders'
 import StoreSettingsDrawer from './StoreSettingsDrawer'
@@ -429,6 +430,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [directoryDescription, setDirectoryDescription] = useState('')
   const [directoryVisible, setDirectoryVisible] = useState(initialSettings.directoryVisible !== false)
   const [isStoreVisible, setIsStoreVisible] = useState(initialPublished)
+  const setupComplete = hasCompletedStoreSetup({ is_published: initialPublished || isStoreVisible, settings: initialSettings })
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [instagramUrl, setInstagramUrl] = useState('')
@@ -641,6 +643,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const dispatchTimeError = getDispatchTimeError(deliverySettings.dispatchTime)
   const entrepreneurPayoutAdminException = initialSettings.entrepreneurPayoutAdminException === true
   const settingsSnapshot = JSON.stringify(normalizeSellerSettings({
+    onboardingStep: setupComplete ? 'complete' : initialSettings.onboardingStep,
     sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, entrepreneurPayoutAdminException,
     storeTheme, storeAccent, buyButtonSize, saleBadgeStyle, announcementEnabled, announcementText, announcementLink,
     announcementSpeed, announcementDirection, announcementBackground, announcementColor, storeLogo, editableStoreName, storeDescription, storeAboutImage,
@@ -2543,6 +2546,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   ]
   const completedSetupSteps = setupChecklist.filter((item) => item.done).length
   const setupProgress = Math.round(completedSetupSteps / setupChecklist.length * 100)
+  const showSetupProgress = merchantMode && !setupComplete && setupProgress < 100
+  const showHiddenStoreNotice = merchantMode && isAdminMode && !adminShowcaseMode && setupComplete && !isStoreVisible && !isEditOpen
   const availableSettingsSections = SETTINGS_SECTIONS.filter((section) => {
     if (section.id === 'directory') return merchantMode && !adminShowcaseMode
     return !adminShowcaseMode || !['payments', 'business', 'notifications', 'billing', 'account'].includes(section.id)
@@ -2663,7 +2668,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const storeDirectoryReturnUrl = getStoreDirectoryReturnUrl()
 
   return (
-    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-photo-empty={isEditOpen && !editProductImages.length ? 'true' : 'false'} data-setup-editing={onContinueSetup && isEditOpen ? 'true' : 'false'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
+    <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-photo-empty={isEditOpen && !editProductImages.length ? 'true' : 'false'} data-setup-editing={onContinueSetup && isEditOpen ? 'true' : 'false'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-store-hidden={showHiddenStoreNotice ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
+      {showHiddenStoreNotice && <aside className="merchant-store-notice" aria-label="Poe nähtavus">
+        <div><strong>Pood on peidetud</strong><span>Külastajad näevad sulgemisteadet.</span></div>
+        <button type="button" disabled={isPublicationBusy} onClick={() => void changeStorePublication(true)}>{isPublicationBusy ? 'Avaldan…' : 'Avalda uuesti'}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button>
+      </aside>}
       {isSeoStorefront && storeSlug && <nav className="storefront-product-links" aria-label="Kõik poe tooted">
         <a href="/">Poe avaleht</a>
         {displayProducts.filter((product) => product.searchVisible !== false).map((product) =>
@@ -2737,7 +2746,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <div className="empty-storefront__identity"><span>{storeInitial}</span><div><strong>{editableStoreName}</strong><button type="button" onClick={copyStoreUrl} aria-label={`Kopeeri poe aadress ${storePublicUrl}`}>{storePublicUrl}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div></div>
           </header>}
           {isAdminMode && <>
-            {onBackToSetup && !onContinueSetup && <button className="empty-storefront__back" type="button" onClick={onBackToSetup} aria-label="Tagasi poe seadistusviisardisse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h11"/></svg></button>}
+            {onBackToSetup && !onContinueSetup && !setupComplete && <button className="empty-storefront__back" type="button" onClick={onBackToSetup} aria-label="Tagasi poe seadistusviisardisse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h11"/></svg></button>}
             {!onContinueSetup && <button className="empty-storefront__settings" type="button" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label="Seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 8.5 7L6.1 6 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5 6.1 18l2.4-1a7 7 0 0 0 1.9 1l.3 2.6h4L15 18a7 7 0 0 0 1.5-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z"/></svg></button>}
             {support && !adminShowcaseMode && <button className="empty-storefront__help" type="button" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); support.openSupport() }} aria-label="Abi ja tugi" aria-haspopup="dialog">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 2-2.5 3.5M12 16.5v.1"/></svg><span>Abi</span>
@@ -2832,12 +2841,12 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             {activeProduct && <button className="admin-add-product" onClick={openAddProductChooser} aria-label="Lisa toode">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             </button>}
-            <button className="admin-settings" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label={setupProgress < 100 && merchantMode ? `Seaded, ${setupChecklist.length - completedSetupSteps} sammu lõpetamata` : 'Seaded'}>
+            <button className="admin-settings" onClick={() => { setIsSettingsHome(true); setIsSettingsOpen(true) }} aria-label={showSetupProgress ? `Seaded, ${setupChecklist.length - completedSetupSteps} sammu lõpetamata` : 'Seaded'}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.5 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z" />
               </svg>
-              {setupProgress < 100 && merchantMode && <span className="admin-settings__incomplete" />}
+              {showSetupProgress && <span className="admin-settings__incomplete" />}
             </button>
             {!adminShowcaseMode && activeProduct && <button className="admin-orders" type="button" onClick={() => setIsOrdersOpen(true)} aria-label={`Tellimused${newOrderCount ? `, ${newOrderCount} uut` : ''}`}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg>
@@ -3142,7 +3151,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </div> : null}
           {!isSettingsHome && settingsSection === 'store' && <div className="settings-panel settings-store">
             {accountEmailNotice}
-            {merchantMode && setupProgress < 100 && <div className={`settings-onboarding${isSetupChecklistOpen ? ' is-open' : ''}`}>
+            {showSetupProgress && <div className={`settings-onboarding${isSetupChecklistOpen ? ' is-open' : ''}`}>
               <button className="settings-onboarding__summary" type="button" aria-expanded={isSetupChecklistOpen} onClick={() => setIsSetupChecklistOpen((open) => !open)}>
                 <span><strong>Poe seadistus</strong><small>{completedSetupSteps}/{setupChecklist.length} tehtud</small></span>
                 <b>{setupProgress}%</b>
@@ -3156,7 +3165,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               </div>}
             </div>}
             <div className={`settings-store-presence${isStoreVisible ? ' is-public' : ''}`}>
-              {!adminShowcaseMode && !onContinueSetup && <label className="settings-toggle settings-visibility"><span><strong>{isStoreVisible ? 'Pood on avalik' : 'Pood on peidetud'}</strong><small>{isPublicationBusy ? 'Muudan poe nähtavust…' : isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Poodi näed praegu ainult sina' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" aria-label="Pood on avalik" checked={isStoreVisible} disabled={isPublicationBusy} onChange={(event) => void changeStorePublication(event.target.checked)} /><i /></label>}
+              {!adminShowcaseMode && !onContinueSetup && <label className="settings-toggle settings-visibility"><span><strong>{isStoreVisible ? 'Pood on avalik' : 'Pood on peidetud'}</strong><small>{isPublicationBusy ? 'Muudan poe nähtavust…' : isStoreVisible ? 'Kliendid saavad sinu poodi külastada' : sellerDetailsComplete ? 'Külastajad näevad sulgemisteadet' : 'Lisa enne avaldamist müüja andmed'}</small></span><input type="checkbox" aria-label="Pood on avalik" checked={isStoreVisible} disabled={isPublicationBusy} onChange={(event) => void changeStorePublication(event.target.checked)} /><i /></label>}
               <div className="settings-store-address">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2" /></svg>
                 <span><strong title={storePublicUrl}>{storePublicUrl}</strong></span>

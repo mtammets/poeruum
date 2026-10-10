@@ -788,6 +788,15 @@ const installSupabaseBackend = async (
       return
     }
 
+    if (['publish_store', 'unpublish_store'].some((name) => url.pathname.endsWith(`/rest/v1/rpc/${name}`))) {
+      expect(request.postDataJSON().target_store_id).toBe(currentStore.id)
+      const published = url.pathname.endsWith('/publish_store')
+      currentStore = { ...currentStore, is_published: published,
+        settings: { ...currentStore.settings as Record<string, unknown>, onboardingStep: 'complete' } }
+      await json(route, currentStore)
+      return
+    }
+
     if (url.pathname.includes('/rest/v1/rpc/')) {
       await json(route, null)
       return
@@ -1266,6 +1275,89 @@ test('merchant can hide a shop from the directory without unpublishing it and re
   await expect.poll(() => (backend.currentStore().settings as Record<string, unknown>).directoryVisible).toBe(true)
   expect(backend.currentStore().is_published).toBe(true)
   await page.getByRole('dialog', { name: 'Seaded', exact: true }).screenshot({ path: 'output/settings-directory-toggle-mobile.png' })
+})
+
+const publicationProduct = {
+  id: '30000000-0000-4000-8000-000000000001', store_id: STORE_ID,
+  name: 'Poe toode', slug: 'poe-toode', price: 19, stock: 3, search_visible: true,
+  image_url: 'http://localhost:4174/storage/v1/object/public/product-images/auth-preview.svg',
+}
+
+test('hiding an established shop preserves management through reload, settings saves and republication', async ({ page }) => {
+  const backend = await installSupabaseBackend(page, store, connectedStripeStatus, { products: [publicationProduct] })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="store"]').click()
+  await page.getByRole('checkbox', { name: 'Pood on avalik', exact: true }).uncheck()
+  await expect.poll(() => backend.currentStore().is_published).toBe(false)
+  await expect(page.locator('.settings-onboarding')).toHaveCount(0)
+  await expect(page.locator('.admin-settings__incomplete')).toHaveCount(0)
+
+  await page.reload()
+  const notice = page.getByRole('complementary', { name: 'Poe nähtavus' })
+  await expect(notice).toContainText('Pood on peidetud')
+  await expect(page.getByRole('button', { name: 'Avalda pood', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="store"]').click()
+  await expect(page.locator('.settings-onboarding')).toHaveCount(0)
+  await page.getByLabel('Poe nimi', { exact: true }).fill('Peidetud testipood')
+  await page.getByRole('button', { name: 'Salvesta', exact: true }).click()
+  await expect.poll(() => backend.currentStore().name).toBe('Peidetud testipood')
+  expect(backend.currentStore().settings).toMatchObject({ onboardingStep: 'complete' })
+  await page.reload()
+  await expect(notice).toBeVisible()
+
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(notice.getByRole('button', { name: 'Avalda uuesti' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    const noticeBounds = await notice.boundingBox()
+    const headerBounds = await page.locator('.story-header').boundingBox()
+    expect(headerBounds!.y).toBeGreaterThanOrEqual(noticeBounds!.y + noticeBounds!.height)
+    await page.screenshot({ path: `/tmp/poeruum-hidden-management-${width}.png` })
+  }
+
+  // A failed publication leaves the shop hidden and offers the same retry.
+  await page.route('**/rpc/publish_store', (route) => json(route, { message: 'Maksed vajavad tähelepanu.' }, 400), { times: 1 })
+  await notice.getByRole('button', { name: 'Avalda uuesti' }).click()
+  await expect(page.getByText('Maksed vajavad tähelepanu.', { exact: true })).toBeVisible()
+  await expect(notice.getByRole('button', { name: 'Avalda uuesti' })).toBeEnabled()
+  expect(backend.currentStore().is_published).toBe(false)
+  await notice.getByRole('button', { name: 'Avalda uuesti' }).click()
+  await expect(notice).toHaveCount(0)
+  expect(backend.currentStore().is_published).toBe(true)
+  expect(backend.currentStore().pricing_plan).toBe(store.pricing_plan)
+  expect(backend.currentStore().stripe_account_id).toBe(store.stripe_account_id)
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Seaded', exact: true })).toBeVisible()
+  await expect(notice).toHaveCount(0)
+})
+
+test('a hidden completed shop without products keeps management and no route back to setup', async ({ page }) => {
+  await installSupabaseBackend(page, { ...store, is_published: false, shipping: [], payment_status: 'idle' })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('complementary', { name: 'Poe nähtavus' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Tagasi poe seadistusviisardisse' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="store"]').click()
+  await expect(page.locator('.settings-onboarding')).toHaveCount(0)
+})
+
+test('a never-published draft still resumes its first publication step', async ({ page }) => {
+  await installSupabaseBackend(page, { ...store, is_published: false, settings: { ...store.settings, onboardingStep: 'publish' } },
+    connectedStripeStatus, { products: [publicationProduct] })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('button', { name: 'Avalda pood', exact: true })).toBeVisible()
+  await expect(page.getByRole('complementary', { name: 'Poe nähtavus' })).toHaveCount(0)
 })
 
 test('platform fee invoices download privately and display credits and recoverable errors', async ({ page }) => {

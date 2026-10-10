@@ -1,5 +1,6 @@
 import type { Product, ProductImageAsset } from '../products'
 import { normalizeStoreDirectoryCatalog } from '../../shared/store-directory.mjs'
+import { normalizeClosedStore } from '../../shared/closed-storefront.mjs'
 import { createRandomId } from './randomId'
 import { requireSupabase } from './supabase'
 import type { StripeRequirementSummary } from './stripeRequirements'
@@ -149,6 +150,15 @@ export async function getMyStore() {
   const { data, error } = await requireSupabase().auth.getUser()
   throwIfError(error)
   return data.user ? getStoreForOwner(data.user.id) : null
+}
+
+export async function getClosedStoreBranding(slug: string | null, hostname: string) {
+  const { data, error } = await requireSupabase().rpc('closed_storefront_branding', {
+    requested_slug: slug, requested_hostname: slug ? null : hostname,
+  })
+  if (isMissingDatabaseApi(error)) return null
+  throwIfError(error)
+  return normalizeClosedStore(data)
 }
 
 export async function getStoreBySlug(slug: string) {

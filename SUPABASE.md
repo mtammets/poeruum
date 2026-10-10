@@ -48,6 +48,20 @@ Jaotise **Seaded → Kaubamaja** lüliti salvestab `settings.directoryVisible` v
 
 Migratsioon `202610100001_store_directory_visibility.sql` paigaldati tootmises 10. oktoobril 2026 enne brauserirakendust. Kontrolliti migratsiooniregistrit, mõlemat uuendatud andmebaasifunktsiooni ja avaliku kataloogi nähtavusvälju. Kohalik tagasipööratav SQL-test katab vaikimisi nähtavuse, peitmise, taastamise, avaldamise sõltumatuse ja admini järjestamise.
 
+## Peidetud poe sulgemisvaade
+
+Migratsioon `202610100002_closed_storefront_branding.sql` lisab täpse poe aadressi järgi loetava `closed_storefront_branding` API. Peidetud poest tagastatakse ainult nimi, logo, teema ja aktsentvärv. Avaliku poe, tundmatu aadressi, omanikuta poe ja kinnitamata oma domeeni korral tagastatakse `null`. Tooted, kontaktid, müüjaandmed ja ülejäänud seaded jäävad olemasolevate ligipääsureeglite taha.
+
+Paigalda migratsioon enne rakenduse ja HTTP-serveri avaldamist. Server kuvab sulgemisvaate kohe, ka ilma Reacti laadimiseta, nii alamdomeenil, aktiivsel oma domeenil kui ka poe- ja tootelinkidel. Avaldamise olekut kontrollitakse enne SEO vahemälu kasutamist; sulgemisleht on `no-store` ja `noindex`. Poe haldus, Stripe'i tagasilingid ja tellimuse kviitung jäävad avatavaks. Kaubamajast peitmine üksi sulgemisvaadet ei aktiveeri.
+
+`scripts/test-closed-storefront.sql` kontrollib andmete lubatud välju ja ligipääsupiire. `npm run test:closed-storefront-server` kontrollib päris HTTP-serverit, sulgemist ja taasavamist vahemälu korral. Brauseritest `e2e/closed-storefront.e2e.ts` katab kolm teemat, mobiilivaate, puuduvad ja katkised logod ning tootepäringute puudumise.
+
+## Lõpetatud poe seadistus
+
+Migratsioon `202610100003_preserve_completed_store_setup.sql` säilitab pärast esimest avaldamist `settings.onboardingStep = complete` märgendi ka poe peitmisel ja seadete salvestamisel. Varasemate salvestuste käigus kadunud märgend taastatakse avaliku poe või sama poe ja omaniku lõpetatud `onboarding_journeys` kirje järgi. Tegelikult pooleliolevaid poode ei märgita lõpetatuks.
+
+Omanik jätkab peidetud poe haldamist tavapärases vaates. Esmase seadistuse viisard, protsent ja lõpetamata sammude märguanne ei tule tagasi. Nähtavuse teade pakub uuesti avaldamist olemasoleva `publish_store` kontrollitud funktsiooni kaudu. Migratsioon paigaldatakse enne brauserirakendust; SQL-test `scripts/test-store-publication.sql` katab peitmise, puuduva või aegunud märgendiga salvestamise ja taasavamise.
+
 ## Kaubamaja statistika
 
 Admini ülevaate **Poodide tõmbejõud** kasutab sama aruannet 7/30/90 päeva lõikes: kuni kaheksa poe mulli suurus näitab poe avamisi, kaar klikimäära ja värv muutust eelmise perioodiga. Nimed ja arvulised detailid avanevad valimisel; puuduv võrdlus või klikimäär ei muutu nulliks. Töölaual (laius vähemalt 1001 px, kõrgus vähemalt 640 px) mahub ülevaade kahte ekraanikõrgusega kohanduvasse ritta.

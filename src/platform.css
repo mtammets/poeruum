@@ -805,6 +805,8 @@ button, a, summary { touch-action: manipulation; }
   .platform-nav-cta { display: none; }
 }
 /* Storefront support is opened from the merchant toolbar. */
+.closed-storefront ~ .support-launcher,
+.closed-storefront ~ .support-modal,
 .public-storefront-bootstrap ~ .support-launcher,
 .public-storefront-bootstrap ~ .support-modal,
 .app-shell ~ .support-launcher,

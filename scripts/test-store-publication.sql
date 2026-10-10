@@ -222,7 +222,39 @@ begin
   ) then
     raise exception 'TEST_UNPUBLICATION_DID_NOT_COMPLETE';
   end if;
+  if not exists (
+    select 1 from public.stores
+    where id = '72000000-0000-4000-8000-000000000001'
+      and settings ->> 'onboardingStep' = 'complete'
+  ) then
+    raise exception 'TEST_UNPUBLICATION_RESET_COMPLETED_SETUP';
+  end if;
 end;
 $$;
+
+-- Stale tabs and settings autosave must not turn an established shop into a draft.
+update public.stores
+set settings = (settings - 'onboardingStep') || '{"autosaveProbe": "hidden"}'::jsonb
+where id = '72000000-0000-4000-8000-000000000001';
+
+update public.stores
+set settings = jsonb_set(settings, '{onboardingStep}', '"publish"'::jsonb)
+where id = '72000000-0000-4000-8000-000000000001';
+
+do $$
+begin
+  if not exists (
+    select 1 from public.stores
+    where id = '72000000-0000-4000-8000-000000000001'
+      and not is_published
+      and settings ->> 'onboardingStep' = 'complete'
+      and settings ->> 'autosaveProbe' = 'hidden'
+  ) then
+    raise exception 'TEST_HIDDEN_STORE_AUTOSAVE_RESET_COMPLETED_SETUP';
+  end if;
+end;
+$$;
+
+select public.publish_store('72000000-0000-4000-8000-000000000001');
 
 rollback;
