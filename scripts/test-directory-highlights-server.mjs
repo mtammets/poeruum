@@ -50,12 +50,15 @@ for (const records of [[...catalog, hiddenStore], [hiddenStore], []]) {
     })
     assert.equal(response.status, 200)
     const html = response.body
+    assert.ok(!html.includes('poeruumi-kaubamaja-hero'))
     assert.ok(!html.includes('Peidetud pood'))
     assert.ok(!html.includes('Peidetud poe toode'))
     assert.ok(!html.includes('peidetud-pood.poeruum.ee'))
     const section = html.match(/<section class="store-directory__highlights"[\s\S]*?<\/section>/)?.[0]
     if (normalizeStoreDirectoryCatalog(records).length === 0) {
       assert.equal(section, undefined)
+      assert.ok(!html.includes('class="store-directory__hero-photo is-active"'))
+      assert.ok(html.includes('images/poeruum-email-logo.png'))
       continue
     }
     assert.ok(section)
@@ -64,6 +67,12 @@ for (const records of [[...catalog, hiddenStore], [hiddenStore], []]) {
     const initialData = html.match(/<script type="application\/json" id="poeruum-store-directory-data" data-highlight-seed="(\d+)">(.*?)<\/script>/)
     assert.ok(initialData)
     const browserSelection = getStoreDirectoryHighlights(normalizeStoreDirectoryCatalog(JSON.parse(initialData[2])), Number(initialData[1]))
+    const hero = html.match(/<header class="store-directory__hero">[\s\S]*?<\/header>/)?.[0]
+    assert.ok(hero)
+    assert.equal(hero.match(/<img /g)?.length, 1)
+    assert.ok(hero.includes(browserSelection[0].product.imageUrl))
+    assert.ok(!hero.includes('store-directory__hero-product-copy'))
+    assert.ok(!hero.includes('/sold.webp'))
     const serverNames = [...section.matchAll(/<h3>(.*?)<\/h3>/g)].map((match) => match[1])
     const escapeHtml = (value) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
     assert.deepEqual(serverNames, browserSelection.map(({ product }) => escapeHtml(product.name)))

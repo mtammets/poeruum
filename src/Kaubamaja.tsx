@@ -19,7 +19,6 @@ const directoryUrl = 'https://kaubamaja.poeruum.ee/'
 const directoryName = 'Poeruumi Kaubamaja'
 const directorySeoTitle = `${directoryName} – avasta Eesti väikeettevõtjate e-poode`
 const directoryDescription = directoryHeroSlides[0].description
-const directoryHeroImage = `${directoryUrl}images/poeruumi-kaubamaja-hero.webp`
 const productPageSize = 24
 
 const marqueeMessages = [
@@ -108,6 +107,8 @@ function StoreDirectory() {
   )
   const search = useMemo(() => createStoreDirectorySearch(stores), [stores])
   const highlights = useMemo(() => getStoreDirectoryHighlights(stores, highlightSeed), [stores, highlightSeed])
+  const heroProducts = useMemo(() => highlights.slice(0, 4), [highlights])
+  const directoryHeroImage = heroProducts[0]?.product.imageUrl || `${directoryUrl}images/poeruum-email-logo.png`
   const results = useMemo(() => search(query), [search, query])
   const isSearching = query.trim().length > 0
   const hasResults = results.stores.length > 0 || results.products.length > 0
@@ -167,7 +168,7 @@ function StoreDirectory() {
       imageUrl: directoryHeroImage,
       structuredData,
     })
-  }, [structuredData])
+  }, [structuredData, directoryHeroImage])
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -194,7 +195,7 @@ function StoreDirectory() {
   }, [status])
 
   return <StoreDirectoryLayout>
-    <DirectoryHero />
+    <DirectoryHero products={heroProducts} />
 
     <div className="store-directory__marquee" aria-hidden="true">
       <div className="store-directory__marquee-track">

@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { getStoreDirectoryVisitUrl } from '../shared/store-directory.mjs'
+import type { DirectoryProductResult } from './lib/directorySearch'
+import { trackDirectoryEvent } from './lib/directoryAnalytics'
 
 export const directoryHeroSlides = [
   {
@@ -8,7 +11,6 @@ export const directoryHeroSlides = [
     highlight: 'Eesti',
     ending: 'e-poode',
     description: 'Poeruumi Kaubamaja koondab ühte kohta Eesti ettevõtjate e-poed. Sirvi valikut ja leia uusi poode, tooteid ning tegijaid.',
-    image: '/images/poeruumi-kaubamaja-hero.webp',
     action: { label: 'Sirvi poode', href: '#store-directory-heading', arrow: 'M10 4v12m-5-5 5 5 5-5' },
   },
   {
@@ -18,16 +20,15 @@ export const directoryHeroSlides = [
     highlight: 'nähtavale.',
     ending: '',
     description: 'Poeruumi Kaubamaja aitab ostjatel sinu tooteid avastada ja otse sinu e-poodi jõuda.',
-    image: '/images/poeruumi-kaubamaja-hero2.webp',
     action: { label: 'Loo oma e-pood', href: 'https://poeruum.ee/#hind', arrow: 'M5 15 15 5M7 5h8v8' },
   },
 ]
 
 const slideDuration = 7000
 
-export default function DirectoryHero() {
+export default function DirectoryHero({ products }: { products: DirectoryProductResult[] }) {
   const [activeIndex, setActiveIndex] = useState(0)
-  const [readyImages, setReadyImages] = useState<boolean[]>(() => directoryHeroSlides.map(() => false))
+  const [photoIndex, setPhotoIndex] = useState(0)
   const [paused, setPaused] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [visible, setVisible] = useState(() => !document.hidden)
@@ -35,7 +36,6 @@ export default function DirectoryHero() {
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const hero = useRef<HTMLElement>(null)
   const playbackButton = useRef<HTMLButtonElement>(null)
-  const imagesReady = readyImages.every(Boolean)
   const activeSlide = directoryHeroSlides[activeIndex]
 
   useEffect(() => {
@@ -54,31 +54,21 @@ export default function DirectoryHero() {
   }, [])
 
   useEffect(() => {
-    if (paused || hovered || !visible || !inView || reducedMotion || !imagesReady) return
+    if (paused || hovered || !visible || !inView || reducedMotion) return
     const timer = window.setTimeout(() => {
       setActiveIndex((index) => (index + 1) % directoryHeroSlides.length)
+      setPhotoIndex((index) => (index + 1) % Math.max(products.length, 1))
     }, slideDuration)
     return () => window.clearTimeout(timer)
-  }, [activeIndex, paused, hovered, visible, inView, reducedMotion, imagesReady])
+  }, [activeIndex, paused, hovered, visible, inView, reducedMotion, products.length])
 
   return <header
     ref={hero}
-    className="store-directory__hero"
+    className={`store-directory__hero${products.length ? '' : ' store-directory__hero--text-only'}`}
     onPointerEnter={(event) => { if (event.pointerType === 'mouse') setHovered(true) }}
     onPointerLeave={() => setHovered(false)}
     onFocusCapture={(event) => { if (event.target !== playbackButton.current) setPaused(true) }}
   >
-    <div className="store-directory__hero-media" aria-hidden="true">
-      {directoryHeroSlides.map((slide, index) => <img
-        key={slide.image}
-        className={`store-directory__hero-image${activeIndex === index ? ' is-active' : ''}`}
-        src={slide.image}
-        alt=""
-        fetchPriority={index === 0 ? 'high' : 'low'}
-        decoding="async"
-        onLoad={() => setReadyImages((ready) => ready.map((value, imageIndex) => imageIndex === index || value))}
-      />)}
-    </div>
     <div className="store-directory__intro">
       <h1 className="store-directory__hero-heading" aria-label={activeSlide.heading}>
         {directoryHeroSlides.map((slide, index) => <span
@@ -111,7 +101,6 @@ export default function DirectoryHero() {
             type="button"
             aria-label={paused ? 'Jätka vahetumist' : 'Peata vahetumine'}
             onClick={() => setPaused((value) => !value)}
-            disabled={!imagesReady}
           >
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
               {paused ? <path d="m7 4 8 6-8 6Z" /> : <path d="M7 5v10m6-10v10" />}
@@ -123,13 +112,25 @@ export default function DirectoryHero() {
             type="button"
             aria-label={`Näita vaadet ${index + 1}: ${slide.heading}`}
             aria-pressed={activeIndex === index}
-            disabled={!readyImages[index]}
-            onClick={() => { setPaused(true); setActiveIndex(index) }}
+            onClick={() => { setPaused(true); setActiveIndex(index); setPhotoIndex(index % Math.max(products.length, 1)) }}
           >
             <span aria-hidden="true">0{index + 1}</span>
           </button>)}
         </div>
       </div>
     </div>
+    {products.length > 0 && <div className="store-directory__hero-media">
+      {products.map(({ store, product }, index) => {
+        const active = photoIndex % products.length === index
+        const open = () => trackDirectoryEvent({ event_name: 'product_click', store_id: store.id, product_id: product.id, placement: 'directory', position: index + 1 })
+        return <a className={`store-directory__hero-photo${active ? ' is-active' : ''}`} key={`${store.id}:${product.id}`}
+          href={getStoreDirectoryVisitUrl(store, product)} aria-label={`${product.name} – ${store.name}`}
+          aria-hidden={!active} inert={!active}
+          onClick={open} onAuxClick={(event) => { if (event.button === 1) open() }}>
+          <img src={product.imageUrl!} alt="" fetchPriority={index === 0 ? 'high' : 'auto'} decoding="async"
+            onError={(event) => { event.currentTarget.style.visibility = 'hidden' }} />
+        </a>
+      })}
+    </div>}
   </header>
 }
