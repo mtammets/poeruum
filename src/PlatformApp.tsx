@@ -1,3 +1,5 @@
+import { sellerSettings } from '../shared/seller-settings'
+import { saveStoreSellerDetails } from './lib/database'
 import { beginStripeRedirect } from './lib/stripeHosted'
 import { stripeDashboardUrl } from './lib/stripeOAuth'
 import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFields'
@@ -1931,7 +1933,10 @@ function PlatformFlow() {
       setAuthError('')
       const error = sellerDetailsError(normalizeSellerSettings(sellerDetails))
       if (error) { setAuthError(error); return }
-      try { await persistStore({}, 'payments'); setScreen('payments') }
+      try {
+        if (store?.stripe_account_id) await saveStoreSellerDetails(store.id, sellerSettings(sellerDetails), sellerSettings(store.settings))
+        await persistStore({}, 'payments'); setScreen('payments')
+      }
       catch (error) { setAuthError(error instanceof Error ? error.message : 'Müüja andmete salvestamine ebaõnnestus.') }
     }}>
       <h1>Müüja andmed</h1>

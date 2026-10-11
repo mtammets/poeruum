@@ -492,25 +492,10 @@ button, a, summary { touch-action: manipulation; }
 .stripe-wallets button b { color: #4285f4; }
 .stripe-divider { display: flex; align-items: center; gap: .7rem; margin: .9rem 0; color: rgba(255, 255, 255, .45); font-size: .65rem; }
 .stripe-divider::before, .stripe-divider::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, .13); }
-.stripe-payment__card {
-  display: grid;
-  gap: .8rem;
-  padding: 1rem;
-  border: 1px solid rgba(255, 255, 255, .16);
-  border-radius: .8rem;
-  background: #1d1d1d;
-}
-.stripe-secure { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .5rem; }
-.stripe-secure > span { display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: #635bff; color: #fff; }
-.stripe-secure strong { color: #fff; font-size: .75rem; }
-.stripe-secure small { grid-column: 2; color: #a8a4ff; font-weight: 800; }
-.stripe-payment__card label { color: rgba(255, 255, 255, .75); }
-.stripe-payment__card input { background: #121212; }
 .stripe-card-number { position: relative; }
 .stripe-card-number > span { position: absolute; top: 50%; right: .8rem; color: rgba(255, 255, 255, .55); font-size: .6rem; font-weight: 800; transform: translateY(-50%); pointer-events: none; }
 .stripe-card-number input { padding-right: 5.3rem; }
 .stripe-card-row { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
-.stripe-payment__card small { color: rgba(255, 255, 255, .58); line-height: 1.45; }
 
 .shipping-list { display: grid; gap: .55rem; }
 .shipping-list label { position: relative; display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) auto; align-items: center; gap: .75rem; min-width: 0; padding: .85rem; border: 1px solid #dfe2db; border-radius: .75rem; cursor: pointer; }

@@ -140,3 +140,14 @@
 @media (prefers-reduced-motion: reduce) {
   .orders-overlay .store-orders, .store-orders *, .store-orders *::before, .store-orders *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+.store-withdrawals { margin: 0 0 1.5rem; border: 1px solid #ffffff24; border-radius: .9rem; padding: 1rem; overflow-wrap: anywhere; }
+.store-withdrawals > summary { min-height: 28px; cursor: pointer; font-weight: 650; }
+.store-withdrawals > summary span { float: right; color: #c6e1aa; }
+.store-withdrawals article { padding-top: 1rem; margin-top: 1rem; border-top: 1px solid #ffffff24; }
+.store-withdrawals article header, .store-withdrawals article footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .65rem; }
+.store-withdrawals time, .store-withdrawals small, .store-withdrawals__hint { color: #a4aa9e; font-size: .8rem; }
+.store-withdrawals p { margin: .6rem 0; }
+.store-withdrawals a { color: inherit; }
+.store-withdrawals__statement { white-space: pre-wrap; }
+.store-withdrawals button { min-height: 44px; padding: .6rem .8rem; border: 1px solid #ffffff30; border-radius: .6rem; background: transparent; color: inherit; font: inherit; cursor: pointer; }

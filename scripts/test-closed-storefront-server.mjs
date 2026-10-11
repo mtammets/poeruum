@@ -5,7 +5,7 @@ import { once } from 'node:events'
 
 let published = false
 let seoRequests = 0
-const branding = { name: 'Suletud pood', logo: '/images/poeruum-email-logo.svg', theme: 'paper', accent: '#cc6633' }
+const branding = { withdrawalSlug: 'closed-shop', name: 'Suletud pood', logo: '/images/poeruum-email-logo.svg', theme: 'paper', accent: '#cc6633' }
 const backend = createServer(async (req, res) => {
   let raw = ''
   for await (const chunk of req) raw += chunk
@@ -50,6 +50,7 @@ const assertClosed = (response) => {
   assert.match(response.headers['x-robots-tag'], /noindex/)
   assert.match(response.body, /Pood on hetkel suletud\./)
   assert.match(response.body, /data-store-theme="paper"/)
+  assert.ok(response.body.includes('https://poeruum.ee/taganemine?store=closed-shop'))
   assert.match(response.body, /--closed-accent:#cc6633/)
   assert.doesNotMatch(response.body, /Poe toode|Toote detailid|Poe täielik tutvustus|Loodud Poeruumis|id="root"/)
 }

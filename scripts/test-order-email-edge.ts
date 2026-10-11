@@ -16,6 +16,7 @@ Deno.test('order delivery webhook verifies signatures and retries failed atomic 
   const previous = new Map(Object.keys(values).map((name) => [name, Deno.env.get(name)]))
   let handler: Handler | undefined
   let failDelivery = false
+  let failWithdrawals = false
   const calls: { path: string; body: Record<string, unknown> }[] = []
   try {
     Object.entries(values).forEach(([name,value]) => Deno.env.set(name,value))
@@ -31,6 +32,7 @@ Deno.test('order delivery webhook verifies signatures and retries failed atomic 
       }
       if (url.pathname.endsWith('/rpc/record_application_error')) return Response.json(null)
       if (url.pathname.endsWith('/rpc/claim_order_document') || url.pathname.endsWith('/rpc/claim_platform_fee_document') || url.pathname.endsWith('/order_document_cleanup')) return Response.json([])
+      if (url.pathname.endsWith('/rpc/claim_withdrawal_email')) return failWithdrawals ? Response.json({ message: 'Temporary queue outage' }, { status: 500 }) : Response.json([])
       if (url.pathname.endsWith('/rpc/claim_order_email_job')) return Response.json([])
       throw new Error(`Unexpected DB call: ${url.pathname}`)
     }
@@ -73,8 +75,12 @@ Deno.test('order delivery webhook verifies signatures and retries failed atomic 
     Deno.env.set('ORDER_EMAIL_WORKER_ENABLED', 'false')
     assert((await worker(authorized())).status === 200, 'Document worker did not run')
     assert(!calls.some((call) => call.path.endsWith('/rpc/claim_order_email_job')), 'Disabled mail worker touched email jobs')
+    assert(calls.some((call) => call.path.endsWith('/rpc/claim_withdrawal_email')), 'Mandatory withdrawal confirmations were disabled')
     assert(calls.some((call) => call.path.endsWith('/rpc/claim_order_document')), 'Disabled mail worker blocked invoice generation')
     assert(calls.some((call) => call.path.endsWith('/rpc/claim_platform_fee_document')), 'Disabled mail worker blocked platform fee invoices')
+    failWithdrawals = true
+    assert((await worker(authorized())).status === 200, 'Withdrawal outage blocked ordinary document processing')
+    failWithdrawals = false
     calls.length = 0
     Deno.env.set('ORDER_EMAIL_WORKER_ENABLED', 'true')
     assert((await worker(authorized())).status === 200, 'Authorized worker did not run')

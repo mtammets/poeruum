@@ -16,7 +16,7 @@ set local role anon;
 do $$
 declare branding jsonb := public.closed_storefront_branding('  CLOSED-STORE-TEST  ');
 begin
-  if branding is distinct from '{"name":"Minu pood","logo":"https://example.invalid/logo.png","theme":"paper","accent":"#cc6633"}'::jsonb then
+  if branding is distinct from '{"name":"Minu pood","logo":"https://example.invalid/logo.png","theme":"paper","accent":"#cc6633","withdrawalSlug":"closed-store-test"}'::jsonb then
     raise exception 'CLOSED_BRANDING_ALLOWLIST_FAILED: %', branding;
   end if;
   if public.closed_storefront_branding(null, 'CLOSED.EXAMPLE.INVALID.') is distinct from branding

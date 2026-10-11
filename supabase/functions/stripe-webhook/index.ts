@@ -324,6 +324,14 @@ const handleEvent = async (event: Stripe.Event) => {
     return
   }
 
+  // Instant Payout fees reimburse Stripe's payout cost and are reconciled in
+  // Stripe's payout/application-fee reports. They are not Poeruum's 4% sales
+  // fees and must not inflate the sales-fee ledger, including on refunds.
+  if (event.type === 'application_fee.created' || event.type === 'application_fee.refunded') {
+    const feeSource = object.fee_source as StripeRecord | null | undefined
+    if (feeSource?.type === 'payout' || !stripeId(object.charge)) return
+  }
+
   if (event.type === 'application_fee.created') {
     const store = await findStore({ connectedAccountId: stripeId(object.account) })
     await recordRevenue({

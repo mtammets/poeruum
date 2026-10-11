@@ -16,15 +16,16 @@ export type SellerDetailsValue = {
   vatNumber: string
 }
 
-export default function SellerDetailsFields({ value, onChange, typeLocked = false, registryStatus }: {
+export default function SellerDetailsFields({ value, onChange, typeLocked = false, identityEditable = false, registryStatus }: {
   value: SellerDetailsValue
   onChange: (patch: Partial<SellerDetailsValue>) => void
   typeLocked?: boolean
+  identityEditable?: boolean
   registryStatus?: ReactNode
 }) {
   const individual = value.sellerType === 'entrepreneur'
   return <div className="seller-details">
-    <fieldset className="seller-type" disabled={typeLocked}>
+    {typeLocked ? <div className="seller-details__locked-type">{individual ? 'Ettevõtluskontoga eraisik' : 'Ettevõte'}</div> : <fieldset className="seller-type">
       <legend>Müüja</legend>
       {([['company', 'Ettevõte'], ['entrepreneur', 'Ettevõtluskontoga eraisik']] as const).map(([type, label]) => <label key={type} className={`seller-type__option${value.sellerType === type ? ' is-selected' : ''}`}>
         <input type="radio" name="seller-type" value={type} checked={value.sellerType === type} onChange={() => onChange({ sellerType: type, ...(type === 'entrepreneur' ? { vatRegistered: false, vatNumber: '' } : {}) })} />
@@ -33,15 +34,14 @@ export default function SellerDetailsFields({ value, onChange, typeLocked = fals
           : <><circle cx="12" cy="7.5" r="3.5" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>}</svg>
         <span>{label}</span><i aria-hidden="true">{value.sellerType === type ? '✓' : ''}</i>
       </label>)}
-    </fieldset>
-    {typeLocked && <small className="seller-details__hint">Müüja nime või registrikoodi muutmisel kontrollib Poeruum andmete vastavust Stripe’i kontoga uuesti. Poe nime saad muuta eraldi.</small>}
+    </fieldset>}
     {individual ? <div className="seller-details__names">
-      <label>Eesnimi<input required autoComplete="given-name" maxLength={100} value={value.sellerFirstName} onChange={(event) => onChange({ sellerFirstName: event.target.value })} /></label>
-      <label>Perekonnanimi<input required autoComplete="family-name" maxLength={100} value={value.sellerLastName} onChange={(event) => onChange({ sellerLastName: event.target.value })} /></label>
+      <label>Eesnimi<input required readOnly={typeLocked && !identityEditable} autoComplete="given-name" maxLength={100} value={value.sellerFirstName} onChange={(event) => onChange({ sellerFirstName: event.target.value })} /></label>
+      <label>Perekonnanimi<input required readOnly={typeLocked && !identityEditable} autoComplete="family-name" maxLength={100} value={value.sellerLastName} onChange={(event) => onChange({ sellerLastName: event.target.value })} /></label>
     </div> : <>
-      <label>Registrikood<input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={value.registryCode} onChange={(event) => onChange({ registryCode: event.target.value.replace(/\D/g, '').slice(0, 8) })} /></label>
+      <label>Registrikood<input required readOnly={typeLocked} inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={value.registryCode} onChange={(event) => onChange({ registryCode: event.target.value.replace(/\D/g, '').slice(0, 8) })} /></label>
       {registryStatus}
-      <label>Ettevõtte nimi<input required autoComplete="organization" maxLength={200} value={value.businessName} onChange={(event) => onChange({ businessName: event.target.value })} /></label>
+      <label>Ettevõtte nimi<input required readOnly={typeLocked && !identityEditable} autoComplete="organization" maxLength={200} value={value.businessName} onChange={(event) => onChange({ businessName: event.target.value })} /></label>
     </>}
     <label>{individual ? 'Aadress' : 'Registrijärgne aadress'}<input required autoComplete="street-address" maxLength={400} value={value.businessAddress} onChange={(event) => onChange({ businessAddress: event.target.value })} /></label>
     {individual && <small className="seller-details__hint">Aadress kuvatakse ostjale müüja andmetes.</small>}

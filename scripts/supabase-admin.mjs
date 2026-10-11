@@ -74,6 +74,9 @@ if (action === 'leads') {
   process.exit(0)
 }
 if (action === 'functions') {
+  run(['functions', 'deploy', 'stripe-payouts', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'order-withdrawal', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
+  run(['functions', 'deploy', 'store-seller-details', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'admin-payment-status', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'admin-push', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])
   run(['functions', 'deploy', 'admin-push-dispatch', '--project-ref', process.env.SUPABASE_PROJECT_REF, '--no-verify-jwt'])

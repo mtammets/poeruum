@@ -84,6 +84,16 @@ Deno.test('signed billing events reconcile discounted net revenue and credits on
     await deliver('credit_note.created', credits[2])
     await deliver('invoice.paid', { ...invoice(), subscription: null, parent: null })
     assert(ledger.size === 3, 'Foreign or one-off invoice entered Poeruum revenue')
+    // Instant Payout cost recovery must not appear as a 4% sales fee or a
+    // sales-fee refund. Signed webhook payload remains in the event journal.
+    const payoutFee = { id: 'fee_instant', account: 'acct_1', amount: 26, amount_refunded: 26, currency: 'eur', charge: null, fee_source: { type: 'payout', payout: 'po_1' } }
+    await deliver('application_fee.created', payoutFee)
+    await deliver('application_fee.refunded', payoutFee)
+    await deliver('application_fee.created', { ...payoutFee, fee_source: undefined })
+    assert(ledger.size === 3, 'Instant payout fee inflated sales revenue')
+    await deliver('application_fee.created', { id: 'fee_sale', account: 'acct_1', amount: 100, currency: 'eur', charge: 'ch_sale', fee_source: { type: 'charge', charge: 'ch_sale' } })
+    assert(ledger.size === 4 && [...ledger.values()].at(-1)?.description === '4% müügitasu', 'Existing sales fee handling regressed')
+
   } finally {
     Deno.serve = originalServe; globalThis.fetch = originalFetch; console.error = originalError
     Object.entries(previous).forEach(([key, value]) => value === undefined ? Deno.env.delete(key) : Deno.env.set(key, value))

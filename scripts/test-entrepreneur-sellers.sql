@@ -53,7 +53,10 @@ begin
   select * into receipt from public.order_documents where order_id=target.id and kind='invoice';
   perform pg_temp.seller_assert(receipt.snapshot#>>'{seller,type}'='entrepreneur','Receipt lost seller type');
   perform pg_temp.seller_assert(receipt.snapshot#>>'{seller,registryCode}'='','Receipt has a registry code');
+  -- Simulate an authorized backend change; browser edits are covered by test-seller-settings.
+  perform set_config('request.jwt.claim.role','service_role',true);
   update public.stores set settings=settings||'{"sellerFirstName":"Muudetud"}' where id=target.store_id;
+  perform set_config('request.jwt.claim.role','',true);
   update public.orders set payment_status='refunded',status='refunded',stripe_refund_status='succeeded' where id=target.id;
   select * into credit from public.order_documents where order_id=target.id and kind='credit';
   perform pg_temp.seller_assert(credit.snapshot=receipt.snapshot and credit.original_number=receipt.number,'Return proof lost the original seller identity');

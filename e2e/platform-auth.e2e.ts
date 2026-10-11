@@ -1,3 +1,4 @@
+import { sellerSettings } from '../shared/seller-settings'
 import { expect, test, type Page, type Route } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { PDFDocument } from 'pdf-lib'
@@ -647,6 +648,7 @@ const installSupabaseBackend = async (
   let emailStatusUnavailable = false
   let currentStore = { ...storeFixture }
   let currentProducts = structuredClone(options.products ?? [])
+  const sellerUpdates: Record<string, unknown>[] = []
 
   await page.route('**/storage/v1/object/public/product-images/auth-preview.svg', (route) =>
     route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#226748"/></svg>' }))
@@ -764,6 +766,16 @@ const installSupabaseBackend = async (
       return
     }
 
+    if (url.pathname.endsWith('/functions/v1/store-seller-details')) {
+      const body = request.postDataJSON()
+      expect(body.storeId).toBe(currentStore.id)
+      expect(body.expected).toEqual(sellerSettings(currentStore.settings as Record<string, unknown>))
+      sellerUpdates.push(body.seller)
+      currentStore = { ...currentStore, settings: { ...currentStore.settings as Record<string, unknown>, ...body.seller } }
+      await json(route, { store: currentStore })
+      return
+    }
+
     if (url.pathname.endsWith('/functions/v1/stripe-connect')) {
       await json(route, stripeStatusFixture)
       return
@@ -811,6 +823,7 @@ const installSupabaseBackend = async (
   })
 
   return {
+    sellerUpdates,
     emailUpdates,
     confirmationRequests,
     setEmailStatusUnavailable: (unavailable: boolean) => { emailStatusUnavailable = unavailable },
@@ -1046,7 +1059,8 @@ test('a merchant configures a dispatch range without an unconfirmed default prom
   expect(backend.currentStore().settings).toEqual({ ...store.settings, deliverySettings })
   await range.getByLabel('Alates').fill('2')
   await range.getByLabel('Ühik').selectOption('weeks')
-  await expect(page.getByText('Ostjale kuvatakse: Saadame 2–3 nädalaga')).toBeVisible()
+  await expect(range.getByLabel('Kuni')).toHaveValue('3')
+  await expect(page.getByRole('alert')).toHaveCount(0)
   await page.getByRole('button', { name: 'Salvesta', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Salvestatud', exact: true })).toBeVisible()
   const savedStore = backend.currentStore() as typeof store & { settings: { deliverySettings: typeof deliverySettings & { dispatchTime: { enabled: boolean; min: number; max: number; unit: string } } } }
@@ -1291,7 +1305,12 @@ test('hiding an established shop preserves management through reload, settings s
   await page.getByRole('button', { name: /Jätka oma poega/ }).click()
   await page.getByRole('button', { name: 'Seaded', exact: true }).click()
   await page.locator('.settings-home button[data-section="store"]').click()
-  await page.getByRole('checkbox', { name: 'Pood on avalik', exact: true }).uncheck()
+  const publication = page.getByRole('checkbox', { name: 'Pood on avalik', exact: true })
+  await expect(publication).toBeChecked()
+  // Publication is authoritative only after the server responds; uncheck()
+  // incorrectly requires the controlled input to flip during the click.
+  await publication.click()
+  await expect(publication).not.toBeChecked()
   await expect.poll(() => backend.currentStore().is_published).toBe(false)
   await expect(page.locator('.settings-onboarding')).toHaveCount(0)
   await expect(page.locator('.admin-settings__incomplete')).toHaveCount(0)
@@ -1909,7 +1928,7 @@ test('mobile failed, expired and refunded receipts show the actual state; retry 
   await expect(page.getByRole('heading', { name: 'Makse on tagastatud' })).toBeVisible()
 })
 
-test('checkout explains Link and opens a payment page only after the customer continues', async ({ page }) => {
+test('checkout opens a payment page only after the customer continues', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   let checkoutRequests = 0
   await receiptBackend(page, () => ({ body: { receipt: { ...receiptFixture, status: 'unpaid' } } }))
@@ -1924,11 +1943,11 @@ test('checkout explains Link and opens a payment page only after the customer co
     const { mountCheckoutHarness } = await import('/e2e/checkout-harness.tsx')
     mountCheckoutHarness()
   })
-  await expect(page.getByText(/Link võib kasutada sinu varem salvestatud makseandmeid/)).toBeVisible()
+  await expect(page.getByText('Makseviisi valid Stripe’i makselehel.')).toBeVisible()
   await page.getByRole('textbox', { name: 'Nimi', exact: true }).fill('Test Ostja')
   await page.getByRole('textbox', { name: 'E-post', exact: true }).fill('ostja@example.invalid')
   await page.getByRole('textbox', { name: 'Telefon', exact: true }).fill('+37255555555')
-    await page.getByRole('textbox', { name: 'Aadress', exact: true }).fill('Testi 1, Tallinn, 10111')
+  await page.getByRole('textbox', { name: 'Arveaadress', exact: true }).fill('Testi 1, Tallinn, 10111')
   expect(checkoutRequests).toBe(0)
   await page.getByRole('button', { name: 'Edasi maksma · 27,32 €' }).click()
   await expect(page.getByRole('heading', { name: 'Makse on lõpetamata' })).toBeVisible()
@@ -1975,7 +1994,7 @@ test('checkout retries keep their attempt after errors and reloads, and change i
     await page.getByRole('textbox', { name: 'Nimi', exact: true }).fill('Test Ostja')
     await page.getByRole('textbox', { name: 'E-post', exact: true }).fill('ostja@example.invalid')
     await page.getByRole('textbox', { name: 'Telefon', exact: true }).fill('+37255555555')
-    await page.getByRole('textbox', { name: 'Aadress', exact: true }).fill('Testi 1, Tallinn, 10111')
+    await page.getByRole('textbox', { name: 'Arveaadress', exact: true }).fill('Testi 1, Tallinn, 10111')
   }
   const submit = async () => {
     await page.getByRole('button', { name: 'Edasi maksma · 27,32 €' }).click()
@@ -2024,7 +2043,7 @@ test('company checkout sends billing details and changes the attempt when the in
   await page.getByRole('checkbox', { name: 'Ostan ettevõttele' }).check()
   await page.getByRole('textbox', { name: 'Ettevõtte nimi', exact: true }).fill('Ostja OÜ')
   await page.getByRole('textbox', { name: 'Registrikood', exact: true }).fill('12345678')
-  await page.getByRole('textbox', { name: 'Aadress', exact: true }).fill('Testi 1, Tallinn, 10111')
+  await page.getByRole('textbox', { name: 'Arveaadress', exact: true }).fill('Testi 1, Tallinn, 10111')
   await page.getByRole('button', { name: 'Edasi maksma · 27,32 €' }).click()
   await expect(page.getByText('Ajutine tõrge.')).toBeVisible()
   expect(requests[0].billing).toEqual({ company: true, name: 'Ostja OÜ', registryCode: '12345678', vatNumber: '', address: 'Testi 1, Tallinn, 10111' })
@@ -2206,12 +2225,14 @@ test('saving a seller payout declaration refreshes Stripe automatically without 
   await page.getByRole('button', { name: /Seaded/ }).click()
   await page.locator('.settings-home button[data-section="payments"]').click()
   await page.getByRole('button', { name: 'Ava müüja andmed' }).click()
+  await page.getByRole('button', { name: 'Muuda müüja andmeid', exact: true }).click()
   const declaration = page.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false })
   await expect(declaration).not.toBeChecked()
-  const saved = page.waitForResponse(response => response.url().includes('/rest/v1/stores') && response.request().method() === 'PATCH')
+  const saved = page.waitForResponse(response => response.url().includes('/functions/v1/store-seller-details'))
   const refreshed = page.waitForResponse(response => response.url().includes('/functions/v1/stripe-connect') && response.request().method() === 'POST')
   stripeStatus.status = 'connected'; stripeStatus.setupError = null
   await declaration.check()
+  await page.getByRole('button', { name: 'Kinnita ja salvesta' }).click()
   expect((await saved).ok()).toBe(true)
   expect((await refreshed).ok()).toBe(true)
   expect(backend.currentStore().settings).toMatchObject({ entrepreneurPayoutConfirmed: true })
@@ -2230,11 +2251,15 @@ for (const published of [false, true]) {
     if (published) {
       await page.getByRole('button', { name: /Seaded/ }).click()
       await page.locator('.settings-home button[data-section="business"]').click()
+      await page.getByRole('button', { name: 'Muuda müüja andmeid', exact: true }).click()
     }
     await expect(page.getByText('Poeruumi administraator on sellele kontole teinud erandi.', { exact: false })).toBeVisible()
     await expect(page.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false })).toHaveCount(0)
-    const saved = page.waitForResponse(response => response.url().includes('/rest/v1/stores') && response.request().method() === 'PATCH')
-    if (published) await page.getByLabel('Kontakt-e-post', { exact: true }).fill('updated@example.com')
+    const saved = page.waitForResponse(response => response.url().includes('/functions/v1/store-seller-details'))
+    if (published) {
+      await page.getByLabel('Kontakt-e-post', { exact: true }).fill('updated@example.com')
+      await page.getByRole('button', { name: 'Kinnita ja salvesta' }).click()
+    }
     else await page.getByRole('button', { name: 'Jätka maksetega' }).click()
     expect((await saved).ok()).toBe(true)
     expect(backend.currentStore().settings).toMatchObject({ entrepreneurPayoutConfirmed: false, entrepreneurPayoutAdminException: true })
@@ -2253,4 +2278,230 @@ test('a revoked admin exception restores the seller declaration in the open sess
   await signInThroughLanding(page)
   await expect(page.getByRole('checkbox', { name: 'Kinnitan, et kasutan enda aktiivset LHV ettevõtluskontot', exact: false })).toBeVisible()
   await expect(page.getByText('Poeruumi administraator on sellele kontole teinud erandi.', { exact: false })).toHaveCount(0)
+})
+
+
+test('seller edits stay private until confirmed and rejected identity changes keep payments active', async ({ page }, testInfo) => {
+  const backend = await installSupabaseBackend(page)
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="business"]').click()
+  const seller = page.getByRole('region', { name: 'Müüja andmed', exact: true })
+  await expect(seller.getByText('Testikaupmees OÜ', { exact: true })).toBeVisible()
+  await expect(seller.getByRole('textbox')).toHaveCount(0)
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    const drawer = page.locator('.settings-drawer')
+    expect(await drawer.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await drawer.screenshot({ path: testInfo.outputPath(`seller-${width}.png`) })
+  }
+  await seller.getByRole('button', { name: 'Muuda müüja andmeid', exact: true }).click()
+  await expect(seller.getByLabel('Registrikood', { exact: true })).toHaveAttribute('readonly', '')
+  await expect(seller.getByRole('radio')).toHaveCount(0)
+  await seller.getByLabel('Ettevõtte nimi', { exact: true }).fill('Pooleli nimi')
+  await page.waitForTimeout(2200)
+  expect(backend.currentStore().settings).toEqual(store.settings)
+  expect(backend.currentStore().payment_status).toBe('connected')
+  expect(backend.sellerUpdates).toHaveLength(0)
+  await page.route('**/functions/v1/store-seller-details', route => json(route, { error: 'Stripe’i konto omaniku nimi peab ühtima müüja nimega. Muuda andmed esmalt Stripe’is.' }, 409))
+  await seller.getByRole('button', { name: 'Kinnita ja salvesta' }).click()
+  await expect(seller.getByRole('alert')).toContainText('Stripe’i konto omaniku nimi')
+  await expect(seller.getByLabel('Ettevõtte nimi', { exact: true })).toHaveValue('Pooleli nimi')
+  expect(backend.currentStore().settings).toEqual(store.settings)
+  expect(backend.currentStore().payment_status).toBe('connected')
+  await seller.getByRole('button', { name: 'Loobu', exact: true }).click()
+  await expect(seller.getByRole('button', { name: 'Muuda müüja andmeid', exact: true })).toBeFocused()
+  await page.unroute('**/functions/v1/store-seller-details')
+  await seller.getByRole('button', { name: 'Muuda müüja andmeid', exact: true }).click()
+  await expect(seller.getByLabel('Ettevõtte nimi', { exact: true })).toHaveValue('Testikaupmees OÜ')
+  await seller.getByLabel('Kontakt-e-post', { exact: true }).fill('uus@example.invalid')
+  await seller.getByRole('checkbox', { name: 'Olen käibemaksukohustuslane' }).check()
+  await seller.getByRole('button', { name: 'Kinnita ja salvesta' }).click()
+  expect(backend.sellerUpdates).toHaveLength(0)
+  await seller.getByLabel('KMKR number', { exact: true }).fill('EE123456789')
+  await seller.getByRole('button', { name: 'Kinnita ja salvesta' }).click()
+  await expect(seller.getByRole('status')).toHaveText('Müüja andmed salvestatud.')
+  expect(backend.sellerUpdates).toHaveLength(1)
+  expect(backend.currentStore().settings).toMatchObject({ contactEmail: 'uus@example.invalid', vatRegistered: true, vatNumber: 'EE123456789' })
+  expect(backend.currentStore().payment_status).toBe('connected')
+  // A separately confirmed terms save must retain the seller snapshot.
+  await page.getByRole('button', { name: 'Kõik seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="terms"]').click()
+  await page.getByRole('button', { name: 'Muuda', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Tagastustingimused', exact: true }).fill('Uuendatud tagastustingimused.')
+  await page.getByRole('button', { name: 'Salvesta', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('Tingimused salvestatud.')
+  expect(backend.currentStore().settings).toMatchObject({ contactEmail: 'uus@example.invalid', vatNumber: 'EE123456789', returnsText: 'Uuendatud tagastustingimused.' })
+  await page.getByRole('button', { name: 'Kõik seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="business"]').click()
+  await seller.getByRole('button', { name: 'Muuda müüja andmeid', exact: true }).click()
+  await seller.getByLabel('Ettevõtte nimi', { exact: true }).fill('Salvestamata')
+  await page.getByRole('button', { name: 'Kõik seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="business"]').click()
+  await expect(seller.getByText('Testikaupmees OÜ', { exact: true })).toBeVisible()
+  await page.reload()
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="business"]').click()
+  await expect(seller.getByText('uus@example.invalid', { exact: true })).toBeVisible()
+})
+
+test('terms have their own readable view and only publish after a successful explicit save', async ({ page }, testInfo) => {
+  const backend = await installSupabaseBackend(page, { ...store, settings: { ...store.settings, returnsText: 'Poe kehtivad tagastustingimused.\nTeine lõik.' } })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: 'Seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="business"]').click()
+  await expect(page.getByRole('textbox', { name: 'Tagastustingimused', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Kõik seaded', exact: true }).click()
+  await page.locator('.settings-home button[data-section="terms"]').click()
+  const drawer = page.locator('.settings-drawer')
+  await expect(drawer.getByRole('heading', { name: 'Müügitingimused', exact: true })).toBeVisible()
+  await expect(drawer.locator('textarea')).toHaveCount(0)
+  await expect(drawer).toContainText('Poe kehtivad tagastustingimused.')
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await drawer.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await drawer.screenshot({ path: testInfo.outputPath(`terms-${width}.png`) })
+  }
+  await drawer.getByRole('button', { name: 'Muuda', exact: true }).click()
+  await drawer.getByRole('textbox', { name: 'Tagastustingimused', exact: true }).fill('Pooleli tekst')
+  await page.waitForTimeout(2200)
+  expect(backend.currentStore().settings.returnsText).toContain('Poe kehtivad')
+  await drawer.getByRole('button', { name: 'Loobu', exact: true }).click()
+  await expect(drawer.getByRole('button', { name: 'Muuda', exact: true })).toBeFocused()
+  await drawer.getByRole('button', { name: 'Muuda', exact: true }).click()
+  await expect(drawer.getByRole('textbox', { name: 'Tagastustingimused', exact: true })).toHaveValue('Poe kehtivad tagastustingimused.\nTeine lõik.')
+  await drawer.getByRole('textbox', { name: 'Tagastustingimused', exact: true }).fill('Kinnitatud uus tekst.')
+  await page.route('**/rest/v1/stores?*', route => route.request().method() === 'PATCH' ? json(route, { message: 'Salvestamine ei õnnestunud.' }, 503) : route.fallback())
+  await drawer.getByRole('button', { name: 'Salvesta', exact: true }).click()
+  await expect(drawer.getByRole('alert')).toBeVisible()
+  expect(backend.currentStore().settings.returnsText).toContain('Poe kehtivad')
+  await page.unroute('**/rest/v1/stores?*')
+  await drawer.getByRole('button', { name: 'Salvesta', exact: true }).click()
+  await expect(drawer.getByRole('status')).toContainText('Tingimused salvestatud.')
+  expect(backend.currentStore().settings.returnsText).toBe('Kinnitatud uus tekst.')
+  expect(backend.currentStore().payment_status).toBe('connected')
+})
+
+test('buyer reviews a withdrawal and can retry safely from a private receipt on mobile', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await receiptBackend(page, () => ({ body: { receipt: receiptFixture } }))
+  const requests: Record<string, unknown>[] = []
+  let fail = true
+  await page.route('**/functions/v1/order-withdrawal', async route => {
+    requests.push(route.request().postDataJSON())
+    await json(route, fail ? { error: 'Ühendus katkes. Proovi uuesti.' } : { confirmation: { id: '82000000-0000-4000-8000-000000000004', submittedAt: '2026-10-11T12:00:00Z', statement: 'Taganen müügilepingust. Tellimus: PR-RECEIPT-TEST.\nTaganemine puudutab kogu tellimust.' } }, fail ? 503 : 200)
+  })
+  await page.goto(receiptPath)
+  await page.getByRole('button', { name: 'Taganen lepingust', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Taganen lepingust', exact: true })
+  await dialog.getByLabel('Sinu nimi', { exact: true }).fill('Testostja')
+  await expect(dialog.getByLabel('Tellimuse number või muu tellimust tuvastav teave')).toHaveValue('PR-RECEIPT-TEST')
+  await dialog.getByLabel('E-post kinnituse saamiseks').fill('ostja@example.invalid')
+  await dialog.getByRole('button', { name: 'Vaata avaldus üle' }).click()
+  expect(requests).toHaveLength(0)
+  await expect(dialog.getByRole('heading', { name: 'Kontrolli avaldust' })).toBeFocused()
+  await expect(dialog).toContainText('kogu tellimust')
+  await dialog.screenshot({ path: testInfo.outputPath('withdrawal-review-mobile.png') })
+  await dialog.getByRole('button', { name: 'Kinnitan taganemise' }).click()
+  await expect(dialog.getByRole('alert')).toContainText('Ühendus katkes')
+  fail = false
+  await dialog.getByRole('button', { name: 'Kinnitan taganemise' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Avaldus on esitatud' })).toBeVisible()
+  expect(requests).toHaveLength(2)
+  expect(requests[0]).toEqual(requests[1])
+  expect(requests[0].access).toEqual({ token: 'a'.repeat(64) })
+  await expect(dialog).toContainText('15:00')
+  const download = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Laadi avaldus alla' }).click()
+  expect((await download).suggestedFilename()).toMatch(/^taganemisavaldus-.*\.txt$/)
+  await dialog.getByRole('button', { name: 'Sulge', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Taganen lepingust', exact: true })).toBeFocused()
+})
+
+test('checkout terms expand in place without discarding buyer fields', async ({ page }) => {
+  await receiptBackend(page, () => ({ body: { receipt: receiptFixture } }))
+  await page.goto('/?checkout=status')
+  await page.evaluate(async () => { const { mountCheckoutHarness } = await import('/e2e/checkout-harness.tsx'); mountCheckoutHarness() })
+  await page.getByLabel('E-post', { exact: true }).fill('ostja@example.invalid')
+  await page.locator('.checkout-terms summary').click()
+  await expect(page.getByRole('heading', { name: 'Taganemine ja tagastamine' })).toBeVisible()
+  await page.locator('.checkout-terms summary').click()
+  await expect(page.getByLabel('E-post', { exact: true })).toHaveValue('ostja@example.invalid')
+})
+
+test('merchant can review a withdrawal without changing an order or issuing a refund', async ({ page }) => {
+  await installSupabaseBackend(page)
+  let reviewed = false, refundRequests = 0
+  await page.route('**/rest/v1/store_withdrawals?*', route => json(route, [{ id: '82000000-0000-4000-8000-000000000004', order_id: null, order_reference: 'PR-OLD', customer_name: 'Testostja', customer_email: 'buyer@example.invalid', scope: '', statement: 'Taganen müügilepingust. Tellimus: PR-OLD.', submitted_at: '2026-10-11T12:00:00Z', status: 'new' }]))
+  await page.route('**/rest/v1/rpc/review_store_withdrawal', route => { reviewed = true; return json(route, null) })
+  page.on('request', request => { if (request.url().includes('/stripe-refund-order')) refundRequests++ })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: 'Tellimused', exact: true }).click()
+  const declaration = page.getByRole('article', { name: 'Taganemisavaldus PR-OLD' })
+  await expect(declaration).toContainText('Testostja')
+  await expect(declaration).toContainText('Leia tellimus esitatud andmete järgi.')
+  await declaration.getByRole('button', { name: 'Märgi ülevaadatuks' }).click()
+  expect(reviewed).toBe(true)
+  expect(refundRequests).toBe(0)
+})
+
+test('closed store withdrawal form is usable without a storefront or login', async ({ page }) => {
+  await receiptBackend(page, () => ({ body: {} }))
+  const requests: Record<string, unknown>[] = []
+  await page.route('**/functions/v1/order-withdrawal', route => { requests.push(route.request().postDataJSON()); return json(route, { confirmation: { id: 'id', submittedAt: '2026-10-11T12:00:00Z', statement: 'Taganen müügilepingust.' } }) })
+  await page.goto('/taganemine?store=closed-shop')
+  await expect(page.getByRole('heading', { name: 'Taganen lepingust' })).toBeVisible()
+  await page.getByLabel('Sinu nimi', { exact: true }).fill('Testostja')
+  await page.getByLabel('Tellimuse number või muu tellimust tuvastav teave').fill('PR-OLD')
+  await page.getByLabel('E-post kinnituse saamiseks').fill('ostja@example.invalid')
+  await page.getByRole('button', { name: 'Vaata avaldus üle' }).click()
+  await page.getByRole('button', { name: 'Kinnitan taganemise' }).click()
+  await expect(page.getByRole('heading', { name: 'Avaldus on esitatud' })).toBeVisible()
+  expect(requests[0].storeSlug).toBe('closed-shop')
+})
+
+for (const restricted of [false, true]) test(`payout settings have scoped loading, retry and nested navigation (${restricted ? 'restricted' : 'active'})`, async ({ page }) => {
+  await installSupabaseBackend(page, { ...store, payment_status: restricted ? 'pending' : 'connected' }, {
+    ...connectedStripeStatus, status: restricted ? 'pending' : 'connected', paymentsRestricted: restricted,
+  })
+  let fail = true
+  const requests: unknown[] = []
+  await page.route('**/functions/v1/stripe-payouts', async route => {
+    requests.push(route.request().postDataJSON())
+    await json(route, fail ? { error: 'Väljamaksete laadimine ebaõnnestus. Proovi uuesti.' }
+      : { kind: 'dashboard', dashboardUrl: 'https://dashboard.stripe.com/payouts', mode: 'test' }, fail ? 503 : 200)
+  })
+  await page.goto('/?continue_setup=1')
+  await page.getByLabel('E-posti aadress').fill(user.email)
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await page.getByRole('button', { name: /Seaded/ }).click()
+  await expect(page.locator('.settings-home button[data-section="payouts"]')).toHaveCount(0)
+  await page.locator('.settings-home button[data-section="payments"]').click()
+  await page.getByRole('button', { name: 'Väljamaksed Saldo, graafik ja ajalugu' }).click()
+  const drawer = page.locator('.settings-drawer')
+  await expect(drawer.getByRole('heading', { name: 'Väljamaksed', exact: true })).toBeVisible()
+  await expect(drawer.getByRole('alert')).toContainText('laadimine ebaõnnestus')
+  fail = false
+  await drawer.getByRole('button', { name: 'Proovi uuesti' }).click()
+  const link = drawer.getByRole('link', { name: /Ava väljamaksed Stripe’is/ })
+  await expect(link).toHaveAttribute('href', 'https://dashboard.stripe.com/payouts')
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  expect(requests.length).toBeGreaterThanOrEqual(2)
+  expect(requests.every(request => JSON.stringify(request) === JSON.stringify({ storeId: STORE_ID }))).toBe(true)
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await drawer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await drawer.getByRole('button', { name: 'Tagasi maksete juurde' }).click()
+  await expect(drawer.getByRole('heading', { name: 'Maksed', exact: true })).toBeVisible()
+  await drawer.getByRole('button', { name: 'Kõik seaded' }).click()
+  await expect(drawer.locator('.settings-home')).toBeVisible()
 })

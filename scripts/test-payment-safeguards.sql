@@ -64,7 +64,10 @@ begin
   perform pg_temp.verify(not public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Stale request bypassed revoked declaration');
   update public.stores set settings=settings||'{"entrepreneurPayoutConfirmed":true}' where id=sid;
   perform public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true);
+  -- Simulate an authorized backend change; browser edits are covered by test-seller-settings.
+  perform set_config('request.jwt.claim.role','service_role',true);
   update public.stores set settings=settings||'{"sellerFirstName":"Jaan"}' where id=sid;
+  perform set_config('request.jwt.claim.role','',true);
   perform pg_temp.verify((select payment_status='pending' from public.stores where id=sid),'Changed seller stayed connected');
   perform pg_temp.verify(not exists(select 1 from public.store_payment_checks where store_id=sid),'Changed seller retained bank verification');
   begin
@@ -116,7 +119,9 @@ begin
   update public.seller_payout_exceptions set revoked_at=null where store_id=sid;
   update public.stores set settings=settings where id=sid;
   perform pg_temp.verify(public.sync_store_payment_check(sid,'acct_test','test',settings_value,bank_value,null,true),'Regranted exception unavailable');
+  perform set_config('request.jwt.claim.role','service_role',true);
   update public.stores set settings=settings||'{"sellerLastName":"Kask"}' where id=sid;
+  perform set_config('request.jwt.claim.role','',true);
   perform pg_temp.verify((select revoked_at is not null from public.seller_payout_exceptions where store_id=sid),'Identity change retained exception');
   perform pg_temp.verify((select payment_status='pending' and not public.seller_details_complete(settings) from public.stores where id=sid),'Identity change stayed active');
 end; $$;

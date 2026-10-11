@@ -1,3 +1,4 @@
+import { sellerSettings, type SellerSettings } from '../../shared/seller-settings'
 import type { Product, ProductImageAsset } from '../products'
 import { normalizeStoreDirectoryCatalog } from '../../shared/store-directory.mjs'
 import { normalizeClosedStore } from '../../shared/closed-storefront.mjs'
@@ -232,6 +233,19 @@ export async function updateStore(storeId: string, input: Partial<StoreContentIn
     .single()
   throwIfError(error)
   return data as StoreRecord
+}
+
+export async function saveStoreSellerDetails(storeId: string, next: SellerSettings, expected: SellerSettings) {
+  const { data, error } = await requireSupabase().functions.invoke('store-seller-details', {
+    body: { storeId, seller: sellerSettings(next), expected: sellerSettings(expected) },
+  })
+  if (error) {
+    const context = 'context' in error ? error.context : null
+    const details = context instanceof Response ? await context.clone().json().catch(() => null) : null
+    throw new Error(details?.error || 'Müüja andmete salvestamine ebaõnnestus. Proovi uuesti.')
+  }
+  if (data?.error || !data?.store) throw new Error(data?.error || 'Müüja andmete salvestamine ebaõnnestus.')
+  return data.store as StoreRecord
 }
 
 export async function setStorePublication(storeId: string, published: boolean) {

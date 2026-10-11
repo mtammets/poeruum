@@ -30,6 +30,14 @@ try {
     assert.match(response.body, /<title>Tellimuse ülevaade<\/title>/)
     assert.ok(!response.body.includes('private-test-session'))
   }
+  const withdrawalResponse = await new Promise((resolve, reject) => {
+    const req = request({ hostname: '127.0.0.1', port, path: '/taganemine?store=closed-shop', headers: { Host: 'poeruum.ee' } }, res => {
+      let body = ''; res.on('data', chunk => { body += chunk }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }))
+    }); req.on('error', reject); req.end()
+  })
+  assert.equal(withdrawalResponse.status, 200)
+  assert.equal(withdrawalResponse.headers['cache-control'], 'private, no-store')
+  assert.match(withdrawalResponse.body, /id="root"/)
   const adminResponse = await new Promise((resolve, reject) => {
     const req = request({ hostname: '127.0.0.1', port, path: '/admin/payments', headers: { Host: 'poeruum.ee' } }, (res) => {
       let body = ''; res.on('data', (chunk) => { body += chunk }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }))

@@ -1,3 +1,4 @@
+import StoreWithdrawals from './StoreWithdrawals'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import ModalCloseButton from './ModalCloseButton'
 import OrderDocumentLinks from './OrderDocumentLinks'
@@ -146,6 +147,7 @@ export default function StoreOrders({ orders, storeId, sellerType, renderThumbna
         </div>
       </div>}
       <div className="store-orders__list">
+        {storeId && <StoreWithdrawals storeId={storeId} />}
         {visible.map((order) => <OrderCard key={order.id} order={order} storeId={storeId} sellerType={sellerType} renderThumbnail={renderThumbnail} onChangeStatus={onChangeStatus} />)}
         {!visible.length && <div className="store-orders__empty" role="status"><OrderIcon name={orders.length ? filter === 'new' && !query ? 'check' : 'search' : 'bag'} /><h3>{!orders.length ? 'Esimene tellimus on veel tulekul' : filter === 'new' && !query ? 'Kõik on tehtud' : 'Tellimusi ei leitud'}</h3>{(query || filter !== 'all') && <button type="button" onClick={() => { setSearch(''); setFilter('all') }}>Näita kõiki tellimusi</button>}</div>}
       </div>

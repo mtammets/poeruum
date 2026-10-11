@@ -23,3 +23,5 @@
 
 .settings-panel .seller-details > label, .settings-panel .seller-details__names > label { color: #f1f3ef; }
 .settings-panel .seller-details__hint { color: #b1bab3; }
+.seller-details__locked-type { color: inherit; font-size: 12px; font-weight: 600; }
+.seller-details input[readonly] { opacity: .65; cursor: default; }

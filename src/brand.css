@@ -1568,6 +1568,10 @@
   margin-top: 0.75rem;
 }
 
+.delivery > .parcel-select:first-child {
+  margin-top: 0;
+}
+
 .parcel-combobox {
   position: relative;
   margin-top: 0.35rem;
@@ -1749,6 +1753,18 @@
 .courier-address__results span {
   color: rgba(255, 255, 255, 0.5);
   font-size: 0.7rem;
+}
+
+.checkout-payment-action {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.checkout-payment-action > small {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  text-align: center;
 }
 
 .checkout-summary {
@@ -2710,43 +2726,6 @@
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.settings-delivery-list {
-  margin-bottom: 1.1rem;
-}
-
-.settings-delivery-provider {
-  display: grid;
-}
-
-.settings-delivery-list .settings-toggle {
-  border-bottom: 0;
-}
-
-.settings-price-field {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 6.25rem;
-  align-items: center;
-  gap: 0.7rem !important;
-  padding: 0 0 0.75rem;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 0.68rem !important;
-}
-
-.settings-price-field input {
-  grid-column: 2;
-  grid-row: 1;
-  width: 100%;
-  padding-right: 1.8rem !important;
-  text-align: right;
-}
-
-.settings-price-field > span {
-  position: absolute;
-  right: 0.7rem;
-  color: rgba(255, 255, 255, 0.55);
 }
 
 .settings-fields textarea {
@@ -5571,81 +5550,6 @@
     margin: -.25rem 1.5rem .35rem;
     min-height: 2.75rem;
     font-size: .82rem;
-  }
-}
-
-/* Delivery methods read as individual cards instead of one long settings form. */
-.delivery-panel .settings-delivery-list {
-  display: grid;
-  gap: .7rem;
-}
-
-.delivery-panel .settings-fields > .settings-dispatch-time {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
-  align-items: end;
-}
-.settings-dispatch-error { color: #ff9d91; font-size: .7rem; }
-
-.delivery-panel .settings-delivery-provider {
-  overflow: hidden;
-  padding: 0 .9rem;
-  border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: 1rem;
-  background: #181916;
-}
-
-.delivery-panel .settings-delivery-list .settings-toggle {
-  min-height: 4.5rem;
-  padding: .85rem 0;
-  border: 0;
-}
-
-.delivery-panel .settings-price-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 5.75rem;
-  min-height: 3.9rem;
-  margin: 0;
-  padding: .65rem 0;
-  border-top: 1px solid rgba(255, 255, 255, .08);
-  color: rgba(255, 255, 255, .65);
-  font-size: .78rem !important;
-  font-weight: 750;
-}
-
-.delivery-panel .settings-price-field input {
-  height: 2.75rem;
-  padding: .55rem 1.7rem .55rem .65rem !important;
-  border-color: rgba(255, 255, 255, .1);
-  border-radius: .75rem;
-  background: #11120f;
-  font-weight: 800;
-}
-
-.delivery-panel .settings-price-field > span {
-  right: .7rem;
-  color: rgba(255, 255, 255, .42);
-}
-
-@media (max-width: 599px) {
-  .delivery-panel .settings-delivery-list { gap: .75rem; }
-
-  .delivery-panel .settings-delivery-provider {
-    padding: 0 1rem;
-    border-radius: 1.15rem;
-    background: linear-gradient(145deg, #1b1c19, #161714);
-  }
-
-  .delivery-panel .settings-delivery-list .settings-toggle {
-    min-height: 5rem;
-    padding: .95rem 0;
-  }
-
-  .delivery-panel .settings-delivery-list .settings-toggle strong { font-size: 1rem; }
-  .delivery-panel .settings-delivery-list .settings-toggle small { font-size: .75rem; }
-
-  .delivery-panel .settings-price-field {
-    min-height: 4rem;
-    padding: .6rem 0;
   }
 }
 

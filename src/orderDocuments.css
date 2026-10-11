@@ -5,6 +5,10 @@
 .order-documents small button, .order-documents p button { color: inherit; background: none; border: 0; text-decoration: underline; font: inherit; cursor: pointer; }
 .invoice-buyer-toggle { display: flex !important; flex-direction: row !important; align-items: center; gap: 10px; }
 .invoice-buyer-toggle input[type=checkbox] { width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; }
-.invoice-buyer-fields { border: 0; padding: 0; margin: 20px 0; display: grid; gap: 12px; }
-.invoice-buyer-fields legend { margin-bottom: 12px; font-weight: 600; }
+.checkout-contact-fields, .invoice-buyer-fields { min-width: 0; border: 0; padding: 0; margin: 0; display: grid; gap: .85rem; }
+.checkout-contact-fields legend, .invoice-buyer-fields legend { margin-bottom: .75rem; font-size: .85rem; font-weight: 600; }
+.checkout form > fieldset + fieldset { margin-top: .65rem; }
+.checkout-contact-field { display: grid; gap: .35rem; }
+.checkout-contact-field > small { color: rgba(255, 255, 255, .6); font-size: .75rem; line-height: 1.5; }
 .invoice-buyer-fields small { font-size: 12px; line-height: 1.5; opacity: .75; }
+.invoice-buyer-fields > button { justify-self: start; min-height: 44px; padding: .25rem 0; border: 0; background: none; color: inherit; font: inherit; font-size: .75rem; text-decoration: underline; text-underline-offset: .2em; }

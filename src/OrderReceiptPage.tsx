@@ -1,3 +1,4 @@
+import WithdrawalDialog from './WithdrawalDialog'
 import OrderDocumentLinks from './OrderDocumentLinks'
 import { useEffect, useRef, useState } from 'react'
 import type { OrderReceipt, ReceiptStatus } from '../shared/order-receipt'
@@ -16,6 +17,7 @@ const copy: Record<ReceiptStatus, { title: string; message: string }> = {
 }
 
 export default function OrderReceiptPage({ location }: { location: ReceiptLocation }) {
+  const [withdrawalOpen, setWithdrawalOpen] = useState(false)
   const [receipt, setReceipt] = useState<OrderReceipt | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(Boolean(location.access))
@@ -106,8 +108,10 @@ export default function OrderReceiptPage({ location }: { location: ReceiptLocati
       <div className="order-receipt__actions">
         {receipt?.resumeUrl && ['unpaid', 'failed'].includes(receipt.status) && !error && <a className="order-receipt__primary" href={receipt.resumeUrl} referrerPolicy="no-referrer">Jätka maksmist</a>}
         {location.access && <button type="button" disabled={busy} onClick={() => refresh.current()}>{busy ? 'Kontrollin…' : 'Kontrolli olekut uuesti'}</button>}
+        {location.access && receipt && ['paid', 'refunded'].includes(receipt.status) && <button type="button" onClick={() => setWithdrawalOpen(true)}>Taganen lepingust</button>}
         <a href={location.storePath} referrerPolicy="no-referrer">Tagasi poodi</a>
       </div>
     </div>
+    {withdrawalOpen && receipt && location.access && <WithdrawalDialog store={{ access: location.access }} storeName={receipt.storeName} orderReference={receipt.orderNumber} onClose={() => setWithdrawalOpen(false)} />}
   </main>
 }

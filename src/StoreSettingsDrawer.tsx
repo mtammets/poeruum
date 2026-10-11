@@ -2,12 +2,14 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode, type CompositionEve
 import ModalCloseButton from './ModalCloseButton'
 import './storeSettings.css'
 
-export default function StoreSettingsDrawer({ storeName, storeLogo, title, section, onBack, onClose, onCompositionStart, onCompositionEnd, saveAction, children }: {
+export default function StoreSettingsDrawer({ storeName, storeLogo, title, section, onBack, backLabel = 'Kõik seaded', parentLabel = 'Seaded', onClose, onCompositionStart, onCompositionEnd, saveAction, children }: {
   storeName: string
   storeLogo?: string | null
   title: string
   section: string
   onBack?: () => void
+  backLabel?: string
+  parentLabel?: string
   onClose: () => void
   onCompositionStart: CompositionEventHandler<HTMLElement>
   onCompositionEnd: CompositionEventHandler<HTMLElement>
@@ -42,7 +44,7 @@ export default function StoreSettingsDrawer({ storeName, storeLogo, title, secti
         if (event.nativeEvent.isComposing) return
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); return }
         if (event.key !== 'Tab') return
-        const elements = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], summary, [tabindex="0"]')]
+        const elements = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], summary, iframe, [tabindex="0"]')]
           .filter((element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden')
         const first = elements[0], last = elements.at(-1)
         const active = document.activeElement
@@ -50,9 +52,9 @@ export default function StoreSettingsDrawer({ storeName, storeLogo, title, secti
         else if (!event.shiftKey && (active === last || active === dialog.current || active === heading.current)) { event.preventDefault(); first?.focus() }
       }}>
       <header className="settings-drawer__header">
-        {onBack ? <button className="settings-drawer__icon-button" type="button" onClick={onBack} aria-label="Kõik seaded"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg></button>
+        {onBack ? <button className="settings-drawer__icon-button" type="button" onClick={onBack} aria-label={backLabel}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg></button>
           : <span className="settings-drawer__mark" aria-hidden="true">{storeLogo ? <img src={storeLogo} alt="" /> : storeName.trim().charAt(0).toLocaleUpperCase('et') || 'P'}</span>}
-        <div><span className="settings-drawer__eyebrow">{onBack ? 'Seaded' : storeName}</span><h2 ref={heading} tabIndex={-1}>{title}</h2></div>
+        <div><span className="settings-drawer__eyebrow">{onBack ? parentLabel : storeName}</span><h2 ref={heading} tabIndex={-1}>{title}</h2></div>
         <ModalCloseButton className="settings-drawer__icon-button" onClose={onClose} />
       </header>
       <div className="settings-drawer__body" ref={body}>{children}</div>

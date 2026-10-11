@@ -522,3 +522,12 @@ verify_jwt = false
 
 [functions.admin-payment-status]
 verify_jwt = false
+
+[functions.store-seller-details]
+verify_jwt = false
+
+[functions.order-withdrawal]
+verify_jwt = false
+
+[functions.stripe-payouts]
+verify_jwt = false

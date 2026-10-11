@@ -1,4 +1,8 @@
-import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFields'
+import WithdrawalDialog from './WithdrawalDialog'
+import StoreTermsSettings from './StoreTermsSettings'
+import StoreTermsContent from './StoreTermsContent'
+import StoreSellerSettings from './StoreSellerSettings'
+import { sellerSettings, type SellerSettings } from '../shared/seller-settings'
 import { hasSellerDetails, normalizeSellerSettings, sellerType as getSellerType, type SellerType } from '../shared/seller'
 import { getAccountEmailStatus } from './lib/accountEmail'
 import { hasCompletedStoreSetup } from './lib/onboarding'
@@ -12,7 +16,7 @@ import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } 
 import type { ClipboardEvent as ReactClipboardEvent, CSSProperties, ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { products, type Product, type ProductImageAsset, type ProductImageTransform } from './products'
-import { cancelStripeBilling, createProductCategory, createProductCategorySlug, listOrders, listProductCategories, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, setStorePublication, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type ProductCategory, type StoreRecord } from './lib/database'
+import { cancelStripeBilling, createProductCategory, createProductCategorySlug, listOrders, listProductCategories, listProducts, manageCustomDomain, openStripeBillingPortal, refundStripeOrder, removeProduct, removeStoredProductImages, saveProduct, setStorePublication, saveStoreSellerDetails, startStripeBillingCheckout, updateOrderStatus, updateStore, uploadImages, uploadProductImages, type CustomDomainRecord, type ImageUploadPhase, type ProductCategory, type StoreRecord } from './lib/database'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from './lib/passwordPolicy'
 import { getPasswordResetRedirectUrl } from './lib/passwordRecovery'
@@ -72,6 +76,7 @@ import {
   type StoreTheme,
 } from './storefrontModel'
 
+const StorePayouts = lazy(() => import('./StorePayouts'))
 const StoreQrDialog = lazy(() => import('./StoreQrDialog'))
 const StoreAnalytics = lazy(() => import('./StoreAnalytics'))
 const formatEuro = (value: number) => `${value.toFixed(2).replace('.', ',')} €`
@@ -392,6 +397,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [isSettingsHome, setIsSettingsHome] = useState(!shouldOpenInitialSettings)
   const [settingsSaveStatus, setSettingsSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [isPublicationBusy, setIsPublicationBusy] = useState(false)
+  const [isSellerSaving, setIsSellerSaving] = useState(false)
+  const [isTermsSaving, setIsTermsSaving] = useState(false)
   const [isSetupContinuationBusy, setIsSetupContinuationBusy] = useState(false)
   const [settingsHydrated, setSettingsHydrated] = useState(!storeId)
   const initialSettingsRef = useRef(initialSettings)
@@ -461,6 +468,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const [businessAddress, setBusinessAddress] = useState('')
   const [vatRegistered, setVatRegistered] = useState(false)
   const [vatNumber, setVatNumber] = useState('')
+  const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false)
   const [returnsText, setReturnsText] = useState(DEFAULT_RETURNS_TEXT)
   const [legalView, setLegalView] = useState<'seller' | 'terms' | null>(null)
   const [orderNotificationEmail, setOrderNotificationEmail] = useState('')
@@ -834,8 +842,44 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     return save
   }
 
+  const saveSellerDetails = async (next: SellerSettings, expected: SellerSettings) => {
+    setIsSellerSaving(true)
+    if (settingsAutosaveTimerRef.current !== null) {
+      window.clearTimeout(settingsAutosaveTimerRef.current)
+      settingsAutosaveTimerRef.current = null
+    }
+    try {
+      await settingsSaveChainRef.current.catch(() => undefined)
+      const saved = storeId ? await saveStoreSellerDetails(storeId, next, expected) : null
+      const value = saved ? sellerSettings(saved.settings) : next
+      setSellerType(value.sellerType); setSellerFirstName(value.sellerFirstName); setSellerLastName(value.sellerLastName)
+      setEntrepreneurPayoutConfirmed(value.entrepreneurPayoutConfirmed)
+      setBusinessName(value.businessName); setRegistryCode(value.registryCode); setBusinessAddress(value.businessAddress)
+      setContactEmail(value.contactEmail); setVatRegistered(value.vatRegistered); setVatNumber(value.vatNumber)
+      if (saved) {
+        if (savedSettingsSnapshotRef.current) savedSettingsSnapshotRef.current = JSON.stringify({ ...JSON.parse(savedSettingsSnapshotRef.current), ...value })
+        onStoreChange?.(saved)
+      }
+    } finally { setIsSellerSaving(false) }
+  }
+
+  const saveReturnsText = async (text: string) => {
+    setIsTermsSaving(true)
+    if (settingsAutosaveTimerRef.current !== null) {
+      window.clearTimeout(settingsAutosaveTimerRef.current)
+      settingsAutosaveTimerRef.current = null
+    }
+    try {
+      await settingsSaveChainRef.current.catch(() => undefined)
+      const snapshot = JSON.stringify({ ...JSON.parse(currentSettingsSnapshotRef.current), returnsText: text })
+      await persistSettingsInOrder(snapshot)
+      savedSettingsSnapshotRef.current = snapshot
+      setReturnsText(text)
+    } finally { setIsTermsSaving(false) }
+  }
+
   const saveSettings = async () => {
-    if (!hasUnsavedSettings || settingsSaveStatus === 'saving') return
+    if (!hasUnsavedSettings || settingsSaveStatus === 'saving' || isSellerSaving || isTermsSaving) return
     if (settingsAutosaveTimerRef.current !== null) {
       window.clearTimeout(settingsAutosaveTimerRef.current)
       settingsAutosaveTimerRef.current = null
@@ -856,7 +900,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }
 
   useEffect(() => {
-    if (!storeId || !merchantMode || !settingsHydrated || dispatchTimeError) return
+    if (!storeId || !merchantMode || !settingsHydrated || dispatchTimeError || isSellerSaving || isTermsSaving) return
     if (!savedSettingsSnapshotRef.current || savedSettingsSnapshotRef.current === settingsSnapshot) return
     if (settingsCompositionRef.current) return
     setSettingsSaveStatus((current) => current === 'saving' ? current : 'idle')
@@ -880,7 +924,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       window.clearTimeout(timeout)
       if (settingsAutosaveTimerRef.current === timeout) settingsAutosaveTimerRef.current = null
     }
-  }, [settingsSnapshot, settingsHydrated, storeId, merchantMode, settingsCompositionRevision, dispatchTimeError])
+  }, [settingsSnapshot, settingsHydrated, storeId, merchantMode, settingsCompositionRevision, dispatchTimeError, isSellerSaving, isTermsSaving])
 
   useEffect(() => {
     if (settingsSaveStatus !== 'saved') return
@@ -2559,10 +2603,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const showSetupProgress = merchantMode && !setupComplete && setupProgress < 100
   const showHiddenStoreNotice = merchantMode && isAdminMode && !adminShowcaseMode && setupComplete && !isStoreVisible && !isEditOpen
   const availableSettingsSections = SETTINGS_SECTIONS.filter((section) => {
+    if (section.parent) return false
     if (section.id === 'directory') return merchantMode && !adminShowcaseMode
-    return !adminShowcaseMode || !['payments', 'business', 'notifications', 'billing', 'account'].includes(section.id)
+    return !adminShowcaseMode || !['payments', 'business', 'terms', 'notifications', 'billing', 'account'].includes(section.id)
   })
-  const activeSettingsSection = availableSettingsSections.find((section) => section.id === settingsSection) ?? availableSettingsSections[0]
+  const activeSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === settingsSection) ?? availableSettingsSections[0]
   const settingsSectionStatus = (section: SettingsSection) => {
     if (section === 'store' && !isStoreVisible) return 'Peidetud'
     if (section === 'payments') return stripeActionRequired ? 'Vajab tegevust' : paymentsReady ? null : 'Seadista'
@@ -2766,6 +2811,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             <section className="empty-storefront__intro">
               <h1>Lisa esimene toode</h1>
               <p>Pildista või vali foto galeriist.</p>
+              {merchantMode && storeId && !adminShowcaseMode && <button className="empty-storefront__statistics" type="button" onClick={() => setIsOrdersOpen(true)}>Tellimused</button>}
               {merchantMode && storeId && !onContinueSetup && !adminShowcaseMode && <button className="empty-storefront__statistics" type="button" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); setIsStatisticsOpen(true) }}>Poe statistika</button>}
             </section>
             <button
@@ -3052,6 +3098,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           {storeSlug && <nav className="site-footer__legal" aria-label="Poe õiguslik teave">
             <button type="button" onClick={() => setLegalView('seller')}>Müüja andmed</button>
             <button type="button" onClick={() => setLegalView('terms')}>Müügitingimused</button>
+            {storeId && !isDemoExperience && <button type="button" onClick={() => setIsWithdrawalOpen(true)}>Taganen lepingust</button>}
             <a href="https://poeruum.ee/privaatsus" target="_blank" rel="noreferrer">Poeruumi privaatsus</a>
           </nav>}
           <div className="site-footer__bottom">
@@ -3096,15 +3143,15 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
             {contactEmail && <div><dt>E-post</dt><dd><a href={`mailto:${contactEmail}`}>{contactEmail}</a></dd></div>}
             {contactPhone && <div><dt>Telefon</dt><dd><a href={`tel:${contactPhone.replace(/\s/g, '')}`}>{contactPhone}</a></dd></div>}
           </dl> : <div className="store-legal-sheet__terms">
-            <section><h3>Taganemine ja tagastamine</h3><p>{returnsText || DEFAULT_RETURNS_TEXT}</p></section>
-            <section><h3>Tarne ja maksmine</h3><p>Tarneviis, selle hind ja eeldatav kättesaamine kuvatakse ostukorvis enne tellimuse kinnitamist. Makseviisid kuvatakse kassas.</p></section>
-            <section><h3>Pretensioonid</h3><p>Kaubaga seotud küsimuse või pretensiooni korral võta ühendust aadressil {displayedContactEmail || 'poe kontakt-e-post'}. Tarbijal on õigus pöörduda vaidluse lahendamiseks Tarbijavaidluste komisjoni.</p></section>
+            <StoreTermsContent returnsText={returnsText} contactEmail={displayedContactEmail} />
+            {storeId && !isDemoExperience && <button type="button" onClick={() => setIsWithdrawalOpen(true)}>Taganen lepingust</button>}
             <button type="button" onClick={() => setLegalView('seller')}>Vaata müüja andmeid →</button>
           </div>}
         </section>
       </div>}
 
-      {isCartOpen && <StorefrontCart storeId={storeId} items={cart} initialStep={cartStep} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} vatRegistered={vatRegistered} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
+      {isWithdrawalOpen && storeId && <WithdrawalDialog store={{ storeId }} storeName={editableStoreName} onClose={() => setIsWithdrawalOpen(false)} />}
+      {isCartOpen && <StorefrontCart storeId={storeId} items={cart} initialStep={cartStep} returnsText={returnsText} contactEmail={displayedContactEmail} paymentProvider={activePaymentProvider} paymentsReady={paymentsReady} deliverySettings={deliverySettings} vatRegistered={vatRegistered} onRemove={(cartKey) => setCart((items) => items.filter((item) => item.cartKey !== cartKey))} onQuantityChange={(cartKey, quantity) => setCart((items) => {
         const target = items.find((item) => item.cartKey === cartKey)
         if (!target || quantity <= 0) return items.filter((item) => item.cartKey !== cartKey)
         const otherQuantity = items.filter((item) => item.id === target.id && item.cartKey !== cartKey).reduce((sum, item) => sum + item.quantity, 0)
@@ -3119,11 +3166,13 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         storeLogo={storeLogo}
         title={isSettingsHome ? 'Seaded' : activeSettingsSection.label}
         section={isSettingsHome ? 'home' : settingsSection}
-        onBack={isSettingsHome ? undefined : () => setIsSettingsHome(true)}
+        onBack={isSettingsHome ? undefined : () => settingsSection === 'payouts' ? setSettingsSection('payments') : setIsSettingsHome(true)}
+        backLabel={settingsSection === 'payouts' ? 'Tagasi maksete juurde' : 'Kõik seaded'}
+        parentLabel={settingsSection === 'payouts' ? 'Maksed' : 'Seaded'}
         onClose={() => { setIsSettingsOpen(false); setIsSettingsHome(true) }}
         onCompositionStart={() => { settingsCompositionRef.current = true }}
         onCompositionEnd={() => { settingsCompositionRef.current = false; setSettingsCompositionRevision((revision) => revision + 1) }}
-        saveAction={(hasUnsavedSettings || settingsSaveStatus === 'saving' || settingsSaveStatus === 'saved') ? <button className={`settings-save-button is-${settingsSaveStatus}${hasUnsavedSettings ? ' has-changes' : ''}`} type="button" disabled={!hasUnsavedSettings || settingsSaveStatus === 'saving' || Boolean(dispatchTimeError)} onClick={saveSettings}>
+        saveAction={(hasUnsavedSettings || settingsSaveStatus === 'saving' || settingsSaveStatus === 'saved') ? <button className={`settings-save-button is-${settingsSaveStatus}${hasUnsavedSettings ? ' has-changes' : ''}`} type="button" disabled={!hasUnsavedSettings || settingsSaveStatus === 'saving' || isSellerSaving || isTermsSaving || Boolean(dispatchTimeError)} onClick={saveSettings}>
               {settingsSaveStatus === 'saving' ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.35-5.65"/></svg> : settingsSaveStatus === 'saved' && !hasUnsavedSettings ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg> : null}
               <span>{settingsSaveStatus === 'saving' ? 'Salvestan…' : settingsSaveStatus === 'saved' && !hasUnsavedSettings ? 'Salvestatud' : 'Salvesta'}</span>
             </button> : undefined}
@@ -3361,8 +3410,12 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M3 10h18M7 15h3" /></svg>
                 <span>Kaart <span aria-hidden="true">·</span> Apple Pay <span aria-hidden="true">·</span> Google Pay</span>
               </div>
+              {merchantMode && storeId && sellerTypeLocked && <button className="settings-payment-card__manage" type="button" onClick={() => setSettingsSection('payouts')}>
+                <span>Väljamaksed<small>Saldo, graafik ja ajalugu</small></span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+              </button>}
               {showActivePayments && <button className="settings-payment-card__manage" type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
-                <span>Konto ja väljamaksete seaded<small>Avaneb Stripe’is</small></span>
+                <span>Stripe’i konto<small>Ettevõte ja pangakonto</small></span>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg>
               </button>}
               {activePaymentProvider !== 'stripe' && <button className="settings-payment-card__manage" type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe') : setAuthToast('Makseteenuse ühendamine on saadaval kaupmehe vaates')}>
@@ -3394,60 +3447,65 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>}
             {activePaymentProvider === 'stripe' && stripeActionRequired && <button className="settings-secondary-action" type="button" onClick={() => onConnectPaymentProvider ? onConnectPaymentProvider('stripe', 'management') : setAuthToast('Stripe’i andmete haldamine on saadaval kaupmehe vaates')}>
-              <span>Halda Stripe’i kontot ja väljamakseid</span>
+              <span>Halda Stripe’i kontot</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>}
           </div>}
+          {!isSettingsHome && settingsSection === 'payouts' && merchantMode && storeId && sellerTypeLocked && <Suspense fallback={<p role="status">Laadin väljamakseid…</p>}><StorePayouts key={storeId} storeId={storeId} /></Suspense>}
           {!isSettingsHome && settingsSection === 'delivery' && <div className="settings-panel delivery-panel">
-            <h3 className="settings-group-title">Väljasaatmine</h3>
-            <label className="settings-toggle"><span><strong>Näita väljasaatmise aega</strong><small>Aeg tellimuse saamisest paki teelepanekuni</small></span><input type="checkbox" checked={dispatchTime.enabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, enabled: event.target.checked } }))} /><i /></label>
-            {dispatchTime.enabled && <div className="settings-fields">
-              <div className="settings-dispatch-time" role="group" aria-label="Väljasaatmise ajavahemik" aria-describedby="dispatch-time-note">
-                <label>Alates<input type="number" inputMode="numeric" min="1" step="1" value={dispatchTime.min ?? ''} aria-invalid={Boolean(dispatchTimeError)} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, min: event.target.value === '' ? null : event.target.valueAsNumber } }))} /></label>
-                <label>Kuni<input type="number" inputMode="numeric" min="1" step="1" value={dispatchTime.max ?? ''} aria-invalid={Boolean(dispatchTimeError)} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, max: event.target.value === '' ? null : event.target.valueAsNumber } }))} /></label>
-                <label>Ühik<select value={dispatchTime.unit} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, unit: event.target.value as DispatchTime['unit'] } }))}><option value="business_days">Tööpäeva</option><option value="weeks">Nädalat</option></select></label>
+            <div className="settings-dispatch">
+              <div className="settings-dispatch__row">
+                <label className="settings-delivery-name" htmlFor="dispatch-time-enabled">Väljasaatmine</label>
+                {dispatchTime.enabled && <div className="settings-dispatch-time" role="group" aria-label="Väljasaatmise ajavahemik" aria-describedby={dispatchTimeError ? 'dispatch-time-error' : undefined}>
+                  <input aria-label="Alates" type="number" inputMode="numeric" min="1" step="1" placeholder="1" value={dispatchTime.min ?? ''} aria-invalid={Boolean(dispatchTimeError)} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, min: event.target.value === '' ? null : event.target.valueAsNumber } }))} />
+                  <span aria-hidden="true">–</span>
+                  <input aria-label="Kuni" type="number" inputMode="numeric" min="1" step="1" placeholder="2" value={dispatchTime.max ?? ''} aria-invalid={Boolean(dispatchTimeError)} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, max: event.target.value === '' ? null : event.target.valueAsNumber } }))} />
+                  <select aria-label="Ühik" value={dispatchTime.unit} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, unit: event.target.value as DispatchTime['unit'] } }))}><option value="business_days">tööpäeva</option><option value="weeks">nädalat</option></select>
+                </div>}
+                <label className="settings-toggle settings-delivery-switch"><input id="dispatch-time-enabled" aria-label="Näita väljasaatmise aega" type="checkbox" checked={dispatchTime.enabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, dispatchTime: { ...dispatchTime, enabled: event.target.checked } }))} /><i aria-hidden="true" /></label>
               </div>
-              {dispatchTimeError ? <small id="dispatch-time-note" className="settings-dispatch-error" role="alert">{dispatchTimeError}</small> : <small id="dispatch-time-note" className="settings-field-note">Ostjale kuvatakse: {dispatchTimeText}</small>}
-            </div>}
-            <h3 className="settings-group-title">Tarneviisid</h3>
-            <div className="settings-delivery-list">
-              {SHIPPING_PROVIDERS.map((provider) => {
-                const providerSettings = deliverySettings.parcelProviders[provider]
-                const otherParcelProviderEnabled = SHIPPING_PROVIDERS.some((item) => item !== provider && deliverySettings.parcelProviders[item].enabled)
-                return <div className="settings-delivery-provider" key={provider}>
-                  <label className="settings-toggle"><span><strong>{SHIPPING_PROVIDER_LABELS[provider]} pakiautomaat</strong><small>Asukohad kuvatakse ostjale kassas</small></span><input type="checkbox" checked={providerSettings.enabled} disabled={providerSettings.enabled && !otherParcelProviderEnabled && !deliverySettings.courierEnabled && !deliverySettings.pickupEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, parcelProviders: { ...current.parcelProviders, [provider]: { ...current.parcelProviders[provider], enabled: event.target.checked } } }))} /><i /></label>
-                  {providerSettings.enabled && <label className="settings-price-field">Tarne hind<input type="number" min="0" step="0.1" value={providerSettings.price} onChange={(event) => setDeliverySettings((current) => ({ ...current, parcelProviders: { ...current.parcelProviders, [provider]: { ...current.parcelProviders[provider], price: Number(event.target.value) } } }))} /><span>€</span></label>}
-                </div>
-              })}
-              <div className="settings-delivery-provider">
-                <label className="settings-toggle"><span><strong>Kuller</strong><small>Tarne kliendi aadressile</small></span><input type="checkbox" checked={deliverySettings.courierEnabled} disabled={deliverySettings.courierEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.pickupEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, courierEnabled: event.target.checked }))} /><i /></label>
-                {deliverySettings.courierEnabled && <label className="settings-price-field">Tarne hind<input type="number" min="0" step="0.1" value={deliverySettings.courierPrice} onChange={(event) => setDeliverySettings((current) => ({ ...current, courierPrice: Number(event.target.value) }))} /><span>€</span></label>}
-              </div>
-              <div className="settings-delivery-provider">
-                <label className="settings-toggle"><span><strong>Tulen ise järele</strong><small>Ostjale tasuta</small></span><input type="checkbox" checked={deliverySettings.pickupEnabled} disabled={deliverySettings.pickupEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.courierEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupEnabled: event.target.checked }))} /><i /></label>
-              </div>
+              {dispatchTime.enabled && dispatchTimeError && <small id="dispatch-time-error" className="settings-dispatch-error" role="alert">{dispatchTimeError}</small>}
             </div>
-            <div className="settings-fields settings-delivery-terms">
-              {deliverySettings.pickupEnabled && <label>Järeletulemise aadress<input value={deliverySettings.pickupAddress} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupAddress: event.target.value }))} /></label>}
-              <label>Ostjale tasuta tarne alates<input type="number" min="0" value={deliverySettings.freeShippingFrom} onChange={(event) => setDeliverySettings((current) => ({ ...current, freeShippingFrom: Number(event.target.value) }))} /><small className="settings-field-note">Sisesta 0, kui tasuta tarne piiri ei ole.</small></label>
+            <section className="settings-delivery-methods" aria-labelledby="parcel-methods-title">
+              <h3 id="parcel-methods-title" className="settings-group-title"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M4 10h16M12 3v18M8 6v1m8-1v1M8 14v3m8-3v3" /></svg>Pakiautomaadid</h3>
+              <div className="settings-delivery-list">
+                {SHIPPING_PROVIDERS.map((provider) => {
+                  const providerSettings = deliverySettings.parcelProviders[provider]
+                  const otherParcelProviderEnabled = SHIPPING_PROVIDERS.some((item) => item !== provider && deliverySettings.parcelProviders[item].enabled)
+                  return <div className={`settings-delivery-row${providerSettings.enabled ? '' : ' is-off'}`} key={provider}>
+                    <label className="settings-delivery-name" htmlFor={`delivery-${provider}`}>{SHIPPING_PROVIDER_LABELS[provider]}</label>
+                    <label className="settings-delivery-money"><input aria-label={`${SHIPPING_PROVIDER_LABELS[provider]} tarne hind`} type="number" inputMode="decimal" min="0" step="0.1" disabled={!providerSettings.enabled} value={providerSettings.price} onChange={(event) => setDeliverySettings((current) => ({ ...current, parcelProviders: { ...current.parcelProviders, [provider]: { ...current.parcelProviders[provider], price: Number(event.target.value) } } }))} /><span aria-hidden="true">€</span></label>
+                    <label className="settings-toggle settings-delivery-switch"><input id={`delivery-${provider}`} aria-label={`${SHIPPING_PROVIDER_LABELS[provider]} pakiautomaat`} type="checkbox" checked={providerSettings.enabled} disabled={providerSettings.enabled && !otherParcelProviderEnabled && !deliverySettings.courierEnabled && !deliverySettings.pickupEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, parcelProviders: { ...current.parcelProviders, [provider]: { ...current.parcelProviders[provider], enabled: event.target.checked } } }))} /><i aria-hidden="true" /></label>
+                  </div>
+                })}
+              </div>
+              <div className="settings-delivery-list settings-delivery-list--other">
+                <div className={`settings-delivery-row${deliverySettings.courierEnabled ? '' : ' is-off'}`}>
+                  <label className="settings-delivery-name" htmlFor="delivery-courier"><SettingsSectionIcon section="delivery" />Kuller</label>
+                  <label className="settings-delivery-money"><input aria-label="Kulleri tarne hind" type="number" inputMode="decimal" min="0" step="0.1" disabled={!deliverySettings.courierEnabled} value={deliverySettings.courierPrice} onChange={(event) => setDeliverySettings((current) => ({ ...current, courierPrice: Number(event.target.value) }))} /><span aria-hidden="true">€</span></label>
+                  <label className="settings-toggle settings-delivery-switch"><input id="delivery-courier" aria-label="Kuller" type="checkbox" checked={deliverySettings.courierEnabled} disabled={deliverySettings.courierEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.pickupEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, courierEnabled: event.target.checked }))} /><i aria-hidden="true" /></label>
+                </div>
+                <div className={`settings-delivery-row${deliverySettings.pickupEnabled ? '' : ' is-off'}`}>
+                  <label className="settings-delivery-name" htmlFor="delivery-pickup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" /><circle cx="12" cy="10" r="2" /></svg>Tulen ise järele</label>
+                  <span className="settings-delivery-free">0 €</span>
+                  <label className="settings-toggle settings-delivery-switch"><input id="delivery-pickup" aria-label="Tulen ise järele" type="checkbox" checked={deliverySettings.pickupEnabled} disabled={deliverySettings.pickupEnabled && !SHIPPING_PROVIDERS.some((provider) => deliverySettings.parcelProviders[provider].enabled) && !deliverySettings.courierEnabled} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupEnabled: event.target.checked }))} /><i aria-hidden="true" /></label>
+                </div>
+                {deliverySettings.pickupEnabled && <label className="settings-delivery-address">Järeletulemise aadress<input autoComplete="street-address" value={deliverySettings.pickupAddress} onChange={(event) => setDeliverySettings((current) => ({ ...current, pickupAddress: event.target.value }))} /></label>}
+              </div>
+            </section>
+            <div className="settings-delivery-threshold">
+              <label className="settings-delivery-name" htmlFor="free-shipping-from">Tasuta tarne alates</label>
+              <div className="settings-delivery-money"><input id="free-shipping-from" type="number" inputMode="decimal" min="0" placeholder="—" aria-describedby="free-shipping-note" title="Jäta tühjaks, kui tasuta tarne piiri pole." value={deliverySettings.freeShippingFrom || ''} onChange={(event) => setDeliverySettings((current) => ({ ...current, freeShippingFrom: Number(event.target.value) }))} /><span aria-hidden="true">€</span></div>
+              <small id="free-shipping-note" className="settings-visually-hidden">Jäta tühjaks, kui tasuta tarne piiri pole.</small>
             </div>
           </div>}
           {!isSettingsHome && settingsSection === 'business' && <div className="settings-panel business-panel">
-            <SellerDetailsFields value={{ sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, entrepreneurPayoutAdminException, businessName, registryCode, businessAddress, contactEmail, vatRegistered, vatNumber }}
-              typeLocked={sellerTypeLocked} onChange={(patch: Partial<SellerDetailsValue>) => {
-                if (patch.sellerType !== undefined) setSellerType(patch.sellerType)
-                if (patch.sellerFirstName !== undefined) setSellerFirstName(patch.sellerFirstName)
-                if (patch.sellerLastName !== undefined) setSellerLastName(patch.sellerLastName)
-                if (patch.entrepreneurPayoutConfirmed !== undefined) setEntrepreneurPayoutConfirmed(patch.entrepreneurPayoutConfirmed)
-                if (patch.businessName !== undefined) setBusinessName(patch.businessName)
-                if (patch.registryCode !== undefined) setRegistryCode(patch.registryCode)
-                if (patch.businessAddress !== undefined) setBusinessAddress(patch.businessAddress)
-                if (patch.contactEmail !== undefined) setContactEmail(patch.contactEmail)
-                if (patch.vatRegistered !== undefined) setVatRegistered(patch.vatRegistered)
-                if (patch.vatNumber !== undefined) setVatNumber(patch.vatNumber)
-              }} />
-            <div className="settings-fields settings-business-returns"><label>Tagastustingimused<textarea rows={4} value={returnsText} onChange={(event) => setReturnsText(event.target.value)} /></label></div>
+            <StoreSellerSettings value={{ sellerType, sellerFirstName, sellerLastName, entrepreneurPayoutConfirmed, entrepreneurPayoutAdminException, businessName, registryCode, businessAddress, contactEmail, vatRegistered, vatNumber }}
+              linked={sellerTypeLocked} onSave={saveSellerDetails}
+              onManageStripe={onConnectPaymentProvider ? () => onConnectPaymentProvider('stripe', 'management') : undefined}
+              onSupport={support ? () => support.openSupport() : undefined} />
           </div>}
+          {!isSettingsHome && settingsSection === 'terms' && <div className="settings-panel"><StoreTermsSettings returnsText={returnsText} contactEmail={displayedContactEmail} onSave={saveReturnsText} /></div>}
           {!isSettingsHome && settingsSection === 'links' && <div className="settings-panel">
             <p className="settings-intro">Lisa lingid, mida näitame sinu poe jaluses.</p>
             <div className="settings-fields settings-social">

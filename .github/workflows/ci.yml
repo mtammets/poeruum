@@ -48,6 +48,13 @@ jobs:
       - name: Admin payment diagnostics authorization and read-only Stripe access
         run: npm run test:admin-payment-status-edge
 
+      - name: Seller changes authorization and Stripe verification
+        run: npm run test:seller-settings-edge
+      - name: Check payout session permissions
+        run: npm run test:stripe-payouts-edge
+      - name: Withdrawal API and confirmation queue
+        run: npm run test:withdrawal-edge
+
       - name: Unit tests
         run: npm run test
 
@@ -144,6 +151,11 @@ jobs:
 
       - name: Test one store per owner and concurrent creation
         run: node scripts/test-store-ownership.mjs
+
+      - name: Test seller settings guards and atomic verification
+        run: npm run test:seller-settings
+      - name: Withdrawal permissions and durable declarations
+        run: npm run test:withdrawals
 
       - name: Test entrepreneur sellers, payment permissions and sale documents
         run: npm run test:entrepreneur-sellers

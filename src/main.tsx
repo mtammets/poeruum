@@ -21,6 +21,7 @@ const OutreachUnsubscribe = lazy(() => import('./OutreachUnsubscribe'))
 const PlatformApp = lazy(() => import('./PlatformApp'))
 const Kaubamaja = lazy(() => import('./Kaubamaja'))
 const SupportCenter = lazy(() => import('./SupportCenter'))
+const WithdrawalPage = lazy(() => import('./WithdrawalPage'))
 const OrderReceiptPage = lazy(() => import('./OrderReceiptPage'))
 const CampaignStoreFrame = lazy(() => import('./campaigns/CampaignStoreFrame'))
 const StorefrontPreviewFrame = lazy(() => import('./StorefrontPreviewFrame'))
@@ -243,6 +244,7 @@ function Root() {
   }, [])
 
   if (isStripeConnectReturn) return <Suspense fallback={<LoadingScreen />}><StripeConnectReturn /></Suspense>
+  if (window.location.pathname === '/taganemine') return <Suspense fallback={<LoadingScreen />}><WithdrawalPage /></Suspense>
   if (activeReceiptLocation) return <Suspense fallback={<LoadingScreen />}><OrderReceiptPage key={JSON.stringify(activeReceiptLocation.access)} location={activeReceiptLocation} /></Suspense>
   if (isStoreDirectorySurface) return <Suspense fallback={<LoadingScreen />}><Kaubamaja /></Suspense>
   if (isAdminPath) return <Suspense fallback={<LoadingScreen />}><AdminApp /></Suspense>

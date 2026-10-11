@@ -1,3 +1,5 @@
+import StoreTermsContent from './StoreTermsContent'
+import './withdrawal.css'
 import './orderDocuments.css'
 import { useEffect, useRef, useState } from 'react'
 import { startStripeStoreCheckout } from './lib/database'
@@ -42,12 +44,13 @@ const findParcelMachines = (machines: ParcelMachine[], query: string) => {
   }).slice(0, 8)
 }
 
-export default function StorefrontCart({ storeId, items, initialStep, paymentProvider, paymentsReady, deliverySettings, vatRegistered, onRemove, onQuantityChange, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; vatRegistered: boolean; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onClose: () => void }) {
+export default function StorefrontCart({ storeId, items, initialStep, returnsText = '', contactEmail = '', paymentProvider, paymentsReady, deliverySettings, vatRegistered, onRemove, onQuantityChange, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; returnsText?: string; contactEmail?: string; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; vatRegistered: boolean; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onClose: () => void }) {
   const checkoutRef = useRef<HTMLElement>(null)
   const [step, setStep] = useState<'cart' | 'checkout'>(initialStep)
   const enabledParcelProviders = SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled)
   const enabledParcelProviderKey = enabledParcelProviders.join(',')
   const parcelEnabled = enabledParcelProviders.length > 0
+  const hasDeliveryChoice = [parcelEnabled, deliverySettings.courierEnabled, deliverySettings.pickupEnabled].filter(Boolean).length > 1
   const [delivery, setDelivery] = useState<'parcel' | 'courier' | 'pickup'>(() => parcelEnabled ? 'parcel' : deliverySettings.courierEnabled ? 'courier' : 'pickup')
   const [parcelMachines, setParcelMachines] = useState<ParcelMachine[]>(() => fallbackParcelMachines.filter((machine) => enabledParcelProviders.includes(machine.provider)))
   const [parcelQuery, setParcelQuery] = useState('')
@@ -230,28 +233,22 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
             <div className="cart-total"><span>Kokku</span><strong>{formatEuro(itemTotal)}</strong></div>
             <button className="pay" type="button" onClick={() => setStep('checkout')}>Vormista tellimus</button>
           </> : <form onSubmit={completeCheckout}>
-            <label>Nimi<input required name="customerName" autoComplete="name" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
-            <label>E-post<input required name="customerEmail" type="email" autoComplete="email" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
-            <label>Telefon<input required name="customerPhone" type="tel" autoComplete="tel" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
-            <fieldset className="invoice-buyer-fields">
-              <legend>Ostja andmed</legend>
-              <label className="invoice-buyer-toggle"><input type="checkbox" checked={businessBuyer} onChange={(event) => setBusinessBuyer(event.target.checked)} />Ostan ettevõttele</label>
-              {businessBuyer && <>
-                <label>Ettevõtte nimi<input required name="billingName" autoComplete="billing organization" maxLength={200} /></label>
-                <label>Registrikood<input required name="billingRegistryCode" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} /></label>
-                <label>KMKR number <small>valikuline</small><input name="billingVatNumber" placeholder="EE123456789" pattern="EE[0-9]{9}" maxLength={11} /></label>
-              </>}
-              <label>Aadress<input required name="billingAddress" autoComplete="billing street-address" maxLength={400} placeholder="Tänav, maja, linn ja sihtnumber" value={billingAddress} onChange={(event) => setBillingAddress(event.target.value)} onFocus={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
-              {delivery === 'courier' && courierAddress && <button type="button" onClick={() => setBillingAddress([courierAddress, courierCity, courierPostalCode].filter(Boolean).join(', '))}>Kasuta tarneaadressi</button>}
-              <small>Ostukinnitus saadetakse e-postile.</small>
+            <fieldset className="checkout-contact-fields">
+              <legend>Kontaktandmed</legend>
+              <label>Nimi<input required name="customerName" autoComplete="name" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
+              <div className="checkout-contact-field">
+                <label>E-post<input required name="customerEmail" type="email" autoComplete="email" aria-describedby="checkout-email-hint" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
+                <small id="checkout-email-hint">Ostukinnitus saadetakse e-postile.</small>
+              </div>
+              <label>Telefon<input required name="customerPhone" type="tel" autoComplete="tel" onFocus={(event) => keepContactFieldVisible(event.currentTarget)} onInput={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
             </fieldset>
-            <fieldset className="payment delivery">
-              <legend>Tarneviis</legend>
-              <div className="payment-tabs">
+            <fieldset className="payment delivery" aria-label={!hasDeliveryChoice && delivery === 'parcel' ? 'Tarne' : undefined}>
+              {hasDeliveryChoice ? <legend>Tarneviis</legend> : delivery !== 'parcel' && <legend>{delivery === 'courier' ? 'Kuller' : 'Tulen ise järele'}</legend>}
+              {hasDeliveryChoice && <div className="payment-tabs">
                 {parcelEnabled && <button type="button" className={delivery === 'parcel' ? 'is-selected' : ''} onClick={() => setDelivery('parcel')}>Pakiautomaat</button>}
                 {deliverySettings.courierEnabled && <button type="button" className={delivery === 'courier' ? 'is-selected' : ''} onClick={() => setDelivery('courier')}>Kuller</button>}
                 {deliverySettings.pickupEnabled && <button type="button" className={delivery === 'pickup' ? 'is-selected' : ''} onClick={() => setDelivery('pickup')}>Tulen ise järele</button>}
-              </div>
+              </div>}
               {delivery === 'parcel' ? <div className="parcel-select">
                 <label htmlFor="parcel-search">Pakiautomaat</label>
                 <div className="parcel-combobox">
@@ -301,7 +298,7 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
                 {parcelLoadFailed && <p className="parcel-status">Kõiki pakiautomaate ei õnnestunud laadida.</p>}
                 {!selectedParcelId && parcelMachines.length > 0 && <small>Kirjuta näiteks „Tartu Lõunakeskus“.</small>}
               </div> : delivery === 'courier' ? <div className="courier-fields">
-                <label className="courier-address">Aadress<input required autoComplete="off" placeholder="Tänav, maja ja korter" value={courierAddress} onFocus={() => setIsCourierAddressOpen(true)} onBlur={() => window.setTimeout(() => setIsCourierAddressOpen(false), 150)} onChange={(event) => { setCourierAddress(event.target.value); setSelectedCourierAddressId(''); setIsCourierAddressOpen(true) }} />
+                <label className="courier-address">Tarneaadress<input required autoComplete="off" placeholder="Tänav, maja ja korter" value={courierAddress} onFocus={() => setIsCourierAddressOpen(true)} onBlur={() => window.setTimeout(() => setIsCourierAddressOpen(false), 150)} onChange={(event) => { setCourierAddress(event.target.value); setSelectedCourierAddressId(''); setIsCourierAddressOpen(true) }} />
                   <select className="parcel-required" required value={selectedCourierAddressId} onChange={() => undefined} aria-label="Kinnitatud kulleriaadress" tabIndex={-1}>
                     <option value="" />
                     {selectedCourierAddressId && <option value={selectedCourierAddressId}>{selectedCourierAddressId}</option>}
@@ -320,14 +317,18 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
                 <small>Vali täpne aadress soovituste seast · {deliverySettings.courierPrice.toFixed(2).replace('.', ',')} €</small>
               </div> : <div className="pickup-note"><strong>{deliverySettings.pickupAddress || 'Järeletulemise aadress täpsustamisel'}</strong><span>Järeletulemise aeg lepitakse kokku pärast tellimust.</span></div>}
             </fieldset>
-            {!paymentsReady || paymentProvider !== 'stripe' ? <div className="payment-pending"><span>…</span><div><strong>Maksed pole veel aktiivsed</strong><small>Poe omanik peab enne ostude vastuvõtmist Stripe’i ühendama.</small></div></div> : <fieldset className="payment stripe-payment">
-              <legend>Makseviis</legend>
-              <div className="stripe-payment__card">
-                <div className="stripe-secure"><span>⌁</span><strong>Turvaline makse Stripe’is</strong><small>Kaart · Link · Apple Pay · Google Pay</small></div>
-                <small>Järgmise nupuga avad makselehe. Makse kinnitad Stripe’is, kus näed sulle saadaolevaid makseviise.</small>
-                <small>Link võib kasutada sinu varem salvestatud makseandmeid. Pärast maksmise kinnitamist võib makse toimuda ilma eraldi pangakinnituseta.</small>
-              </div>
-            </fieldset>}
+            <fieldset className="invoice-buyer-fields">
+              <legend>Arveandmed</legend>
+              <label className="invoice-buyer-toggle"><input type="checkbox" checked={businessBuyer} onChange={(event) => setBusinessBuyer(event.target.checked)} />Ostan ettevõttele</label>
+              {businessBuyer && <>
+                <label>Ettevõtte nimi<input required name="billingName" autoComplete="billing organization" maxLength={200} /></label>
+                <label>Registrikood<input required name="billingRegistryCode" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} /></label>
+                <label><span>KMKR number <small>valikuline</small></span><input name="billingVatNumber" placeholder="EE123456789" pattern="EE[0-9]{9}" maxLength={11} /></label>
+              </>}
+              <label>Arveaadress<input required name="billingAddress" autoComplete="billing street-address" maxLength={400} placeholder="Tänav, maja, linn ja sihtnumber" value={billingAddress} onChange={(event) => setBillingAddress(event.target.value)} onFocus={(event) => keepContactFieldVisible(event.currentTarget)} /></label>
+              {delivery === 'courier' && selectedCourierAddressId && <button type="button" onClick={() => setBillingAddress([courierAddress, courierCity, courierPostalCode].filter(Boolean).join(', '))}>Kasuta tarneaadressi</button>}
+            </fieldset>
+            {(!paymentsReady || paymentProvider !== 'stripe') && <div className="payment-pending"><span>…</span><div><strong>Maksed pole veel aktiivsed</strong><small>Poe omanik peab enne ostude vastuvõtmist Stripe’i ühendama.</small></div></div>}
             <div className="checkout-summary">
               {items.map((item) => (
                 <div className="summary-item" key={item.cartKey}>
@@ -342,7 +343,11 @@ export default function StorefrontCart({ storeId, items, initialStep, paymentPro
                 : <small>Müüja ei ole käibemaksukohustuslane.</small>}
             </div>
             {paymentError && <p className="add-product-error" role="alert">{paymentError}</p>}
-            <button className="pay" type="submit" disabled={isPaying || !paymentsReady || paymentProvider !== 'stripe'}>{!paymentsReady || paymentProvider !== 'stripe' ? 'Maksed pole aktiivsed' : isPaying ? 'Avan makselehte…' : `Edasi maksma · ${orderTotal.toFixed(2).replace('.', ',')} €`}</button>
+            <details className="checkout-terms"><summary>Müügitingimused</summary><StoreTermsContent returnsText={returnsText} contactEmail={contactEmail} /></details>
+            <div className="checkout-payment-action">
+              <button className="pay" type="submit" disabled={isPaying || !paymentsReady || paymentProvider !== 'stripe'}>{!paymentsReady || paymentProvider !== 'stripe' ? 'Maksed pole aktiivsed' : isPaying ? 'Avan makselehte…' : `Edasi maksma · ${orderTotal.toFixed(2).replace('.', ',')} €`}</button>
+              {paymentsReady && paymentProvider === 'stripe' && <small>Makseviisi valid Stripe’i makselehel.</small>}
+            </div>
             <button className="checkout-back" type="button" onClick={() => setStep('cart')}>Tagasi ostukorvi</button>
           </form>}
         </>}

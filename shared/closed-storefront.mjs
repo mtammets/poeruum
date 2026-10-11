@@ -15,6 +15,7 @@ export function normalizeClosedStore(value) {
     name: value.name.replace(/\s+/g, ' ').trim().slice(0, 120),
     logo: /^(?:https:\/\/[^\s]+|\/(?![/\\])[^\s]*)$/i.test(logo) ? logo : null,
     theme: Object.hasOwn(themes, value.theme) ? value.theme : 'midnight',
+    ...(typeof value.withdrawalSlug === 'string' && /^[a-z0-9][a-z0-9-]{0,62}$/.test(value.withdrawalSlug) ? { withdrawalSlug: value.withdrawalSlug } : {}),
     accent: /^#[\da-f]{6}$/i.test(value.accent) ? value.accent : '#e5f25a',
   }
 }
@@ -38,7 +39,7 @@ export function renderClosedStoreContent(value) {
   const identity = store.logo
     ? `<img src="${escapeHtml(store.logo)}" alt="${escapeHtml(store.name)}" fetchpriority="high" decoding="async" />`
     : escapeHtml(store.name)
-  return `<main class="closed-store" data-store-theme="${store.theme}" style="--closed-bg:${palette.background};--closed-ink:${palette.ink};--closed-accent:${store.accent};color-scheme:${palette.scheme}"><div class="closed-store__content"><div class="closed-store__brand">${identity}</div><h1 class="closed-store__message">${closedStoreMessage}</h1></div></main>`
+  return `<main class="closed-store" data-store-theme="${store.theme}" style="--closed-bg:${palette.background};--closed-ink:${palette.ink};--closed-accent:${store.accent};color-scheme:${palette.scheme}"><div class="closed-store__content"><div class="closed-store__brand">${identity}</div><h1 class="closed-store__message">${closedStoreMessage}</h1>${store.withdrawalSlug ? `<a style="color:inherit;min-height:44px;display:inline-flex;align-items:center" href="https://poeruum.ee/taganemine?store=${encodeURIComponent(store.withdrawalSlug)}">Taganen lepingust</a>` : ''}</div></main>`
 }
 
 export function renderClosedStoreDocument(value) {

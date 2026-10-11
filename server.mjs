@@ -372,7 +372,7 @@ createServer(async (req, res) => {
       }
     }
 
-    if (url.pathname === '/stripe/connect/return') {
+    if (url.pathname === '/stripe/connect/return' || url.pathname === '/taganemine') {
       return send(res, 200, req.method === 'HEAD' ? null : await templatePromise, {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'private, no-store',

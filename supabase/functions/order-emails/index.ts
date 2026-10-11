@@ -1,3 +1,4 @@
+import { processWithdrawalEmail } from '../_shared/withdrawal-email.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { processOrderDocument, cleanupOrderDocuments } from '../_shared/order-documents.ts'
 import { processOrderEmail } from '../_shared/order-email-queue.ts'
@@ -20,6 +21,16 @@ Deno.serve(async (request) => {
     const mode = assertStripeMode(requiredEnv('STRIPE_SECRET_KEY'))
     const startedAt = Date.now()
     const outcomes: Record<string, number> = {}
+    for (let index = 0; index < 10 && Date.now() - startedAt < 15_000; index++) {
+      try {
+        const job = await processWithdrawalEmail(admin, mode)
+        if (!job) break
+        outcomes[`withdrawal_${job.status}`] = (outcomes[`withdrawal_${job.status}`] ?? 0) + 1
+      } catch (error) {
+        await captureEdgeError('withdrawal-email', error, {}, 'critical')
+        break // A queue outage must not block ordinary invoices and order email.
+      }
+    }
     for (let index = 0; index < 10 && Date.now() - startedAt < 20_000; index++) {
       const document = await processOrderDocument(admin, mode)
       if (!document) break
