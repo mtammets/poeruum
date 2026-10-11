@@ -159,6 +159,25 @@ export function paymentPreviewPlugin({ origin, getService }) {
           }
           if (path === '/auth/v1/user') return json(response, session.user)
           if (path === '/functions/v1/custom-domain') return json(response, { domain: null })
+          if (path === '/functions/v1/store-seller-details' && request.method === 'POST') {
+            const body = await readJson(request)
+            const { sellerSettings, cleanSellerSettings, sellerIdentityChanged } = await server.ssrLoadModule('/shared/seller-settings.ts')
+            const { sellerDetailsError } = await server.ssrLoadModule('/shared/seller.ts')
+            if (body.storeId !== session.store.id) return json(response, { error: 'Poodi ei leitud.' }, 404)
+            const current = sellerSettings(session.store.settings)
+            if (JSON.stringify(sellerSettings(body.expected)) !== JSON.stringify(current)) return json(response, { error: 'Müüja andmed on vahepeal muutunud. Ava vorm uuesti.' }, 409)
+            const next = cleanSellerSettings(sellerSettings(body.seller))
+            const identityChanged = sellerIdentityChanged(current, next)
+            // The local fixture cannot verify a new identity against a linked
+            // Stripe account. Keep that account and its active data intact.
+            if (session.store.stripe_account_id && identityChanged) return json(response, { error: 'Ühendatud Stripe’i konto identiteedi muutmist eelvaade ei toeta.' }, 409)
+            const settings = { ...session.store.settings, ...next,
+              entrepreneurPayoutAdminException: !identityChanged && session.store.settings.entrepreneurPayoutAdminException === true }
+            const problem = sellerDetailsError(settings)
+            if (problem) return json(response, { error: problem }, 400)
+            session.store.settings = settings
+            return json(response, { store: session.store })
+          }
           if (path === '/functions/v1/stripe-connect') {
             const body = await readJson(request)
             return json(response, await service.stripeAction(session, body.action, body.mode, body))
