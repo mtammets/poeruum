@@ -527,6 +527,52 @@
   pointer-events: none;
 }
 
+.store-directory__media--invitation {
+  background: #204a36;
+  color: #fbfaf5;
+}
+
+.store-directory__invitation {
+  position: absolute;
+  inset: clamp(1.1rem, 2.4vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 2.4vw, 2rem);
+  border: 1px dashed rgba(229, 242, 90, .4);
+  border-radius: 1rem;
+  text-align: center;
+}
+
+.store-directory__invitation-plus {
+  display: grid;
+  width: clamp(3rem, 5vw, 4rem);
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(229, 242, 90, .35);
+  border-radius: 1rem;
+  background: rgba(229, 242, 90, .08);
+  color: #e5f25a;
+  font: 400 clamp(2rem, 3.5vw, 2.75rem)/1 Manrope, sans-serif;
+}
+
+.store-directory__invitation-message {
+  font-family: Manrope, sans-serif;
+  font-size: clamp(1.15rem, 2vw, 1.6rem);
+  line-height: 1.3;
+  letter-spacing: -.035em;
+}
+
+.store-directory__invitation-message strong {
+  display: block;
+  margin-top: .25rem;
+  color: #e5f25a;
+  font-size: clamp(2.4rem, 4vw, 3.5rem);
+  font-weight: 750;
+  letter-spacing: -.055em;
+}
+
 .store-directory__cover {
   position: absolute;
   z-index: 0;
@@ -536,6 +582,14 @@
   object-fit: cover;
   object-position: center 38%;
   transition: transform 700ms cubic-bezier(.2, .7, .2, 1), filter 300ms ease;
+}
+
+.store-directory__cover[src="/images/kaubamaja-example-art-beach.webp"] {
+  object-position: center 60%;
+}
+
+.store-directory__cover[src="/images/kaubamaja-example-pastries.webp"] {
+  object-position: center 55%;
 }
 
 .store-directory__card-shade {

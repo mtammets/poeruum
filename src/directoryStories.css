@@ -33,6 +33,7 @@
 }
 
 .directory-stories__image {
+  position: relative;
   min-height: 28rem;
   overflow: hidden;
   border-radius: 1.65rem 0 0 1.65rem;
@@ -40,11 +41,13 @@
 }
 
 .directory-stories__image img {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 60% center;
+  object-position: center 65%;
   transition: transform 600ms ease;
 }
 
@@ -156,7 +159,7 @@
 .directory-story-page__byline { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.5rem 0 0; color: #647068; font-size: .82rem; }
 .directory-story-page__byline span { color: #a0a99a; }
 .directory-story-page__figure { margin: 0 0 clamp(2.5rem, 5vw, 4.5rem); }
-.directory-story-page__figure img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; border-radius: 1.5rem; object-fit: cover; background: #dfd5c1; }
+.directory-story-page__figure img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; border-radius: 1.5rem; object-fit: cover; object-position: center 65%; background: #dfd5c1; }
 .directory-story-page__figure figcaption { margin-top: .8rem; color: #647068; font-size: .75rem; line-height: 1.5; }
 .directory-story-page__body { max-width: 42rem; margin: 0 auto; }
 .directory-story-page__body p { margin: 0 0 1.4rem; color: #3f5143; font-size: 1.125rem; line-height: 1.85; }

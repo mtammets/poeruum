@@ -21,7 +21,7 @@ export default function DirectoryStoryPage({ story }: { story?: DirectoryStory }
       canonicalUrl: `https://kaubamaja.poeruum.ee${directoryStoryPath(story)}`,
       imageUrl: `https://kaubamaja.poeruum.ee${story.image}`,
       imageWidth: 1536,
-      imageHeight: 1024,
+      imageHeight: 2048,
       type: 'article',
       structuredData: directoryStorySchema(story),
     })
@@ -38,7 +38,7 @@ export default function DirectoryStoryPage({ story }: { story?: DirectoryStory }
           <p className="directory-story-page__byline">Poeruumi lood <span aria-hidden="true">/</span> {story.author}</p>
         </header>
         <figure className="directory-story-page__figure">
-          <img src={story.image} alt={story.imageAlt} width="1536" height="1024" fetchPriority="high" decoding="async" />
+          <img src={story.image} alt={story.imageAlt} width="1536" height="2048" fetchPriority="high" decoding="async" />
           <figcaption>{story.imageCaption}</figcaption>
         </figure>
         <div className="directory-story-page__body">

@@ -3,26 +3,10 @@ const directorySlug = 'kaubamaja'
 // Promotional cards stay separate from the public catalog and search results.
 export const storeDirectoryExamples = [
   {
-    id: 'example-jewelry',
-    name: 'Sinu ehtepood',
-    description: 'Ehted, aksessuaarid ja sinu looming.',
-    imageUrl: '/images/kaubamaja-example-jewelry.webp',
-    logoUrl: null,
-    url: 'https://poeruum.ee/',
-  },
-  {
-    id: 'example-fashion',
-    name: 'Sinu rõivapood',
-    description: 'Rõivad, kudumid ja sinu stiil.',
-    imageUrl: '/images/kaubamaja-example-fashion.webp',
-    logoUrl: null,
-    url: 'https://poeruum.ee/',
-  },
-  {
     id: 'example-art',
     name: 'Sinu kunstipood',
     description: 'Kunst, sisustus ja sinu looming.',
-    imageUrl: '/images/kaubamaja-example-art.webp',
+    imageUrl: '/images/kaubamaja-example-art-beach.webp',
     logoUrl: null,
     url: 'https://poeruum.ee/',
   },
@@ -30,17 +14,17 @@ export const storeDirectoryExamples = [
     id: 'example-chocolate',
     name: 'Sinu maiustustepood',
     description: 'Šokolaad, maiustused ja sinu retseptid.',
-    imageUrl: '/images/kaubamaja-example-chocolate.webp',
+    imageUrl: '/images/kaubamaja-example-pastries.webp',
     logoUrl: null,
     url: 'https://poeruum.ee/',
   },
   {
-    id: 'example-bags',
-    name: 'Sinu kotipood',
-    description: 'Kotid, nahatööd ja sinu disain.',
-    imageUrl: '/images/kaubamaja-example-bags.webp',
+    id: 'example-your-store',
+    name: 'Sinu pood',
+    description: 'Sinu tooted. Sinu lugu.',
+    imageUrl: null,
     logoUrl: null,
-    url: 'https://poeruum.ee/',
+    url: 'https://poeruum.ee/#hind',
   },
 ]
 

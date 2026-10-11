@@ -3,9 +3,9 @@ export const directoryStories = [{
   title: 'See üks tass, mille järele käsi haarab',
   category: 'Igapäeva väikesed rõõmud',
   intro: 'Kapis võib olla terve rida tasse, aga hommikul valid ikka selle ühe. Mõni ese leiab meie päevas oma koha nii vaikselt, et märkame seda alles siis, kui ta on puudu.',
-  image: '/images/poeruumi-lood-tass.webp',
-  imageAlt: 'Hele keraamiline kohvitass puidust laual pehmes hommikuvalguses.',
-  imageCaption: 'Üks tass, soe kohv ja hetk iseendale. Illustratiivne tehisintellektiga loodud pilt.',
+  image: '/images/poeruumi-lood-kohvihetk.webp',
+  imageAlt: 'Käes hoitud pruuni-valgekirju tass piimavahumustriga kohviga.',
+  imageCaption: 'Üks tass, soe kohv ja hetk iseendale.',
   author: 'Poeruum',
   publishedAt: '2026-09-07',
   opening: [

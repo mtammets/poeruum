@@ -8,8 +8,9 @@ export default function StoreDirectoryCardContent({ store, index = 0, isExample 
   isExample?: boolean
   mediaActions?: ReactNode
 }) {
+  const isInvitation = isExample && !store.imageUrl
   return <>
-    <div className="store-directory__media">
+    <div className={`store-directory__media${isInvitation ? ' store-directory__media--invitation' : ''}`}>
       {store.imageUrl ? <img
         key={store.imageUrl}
         className="store-directory__cover"
@@ -20,7 +21,10 @@ export default function StoreDirectoryCardContent({ store, index = 0, isExample 
         decoding="async"
         onError={(event) => { event.currentTarget.style.visibility = 'hidden' }}
       /> : null}
-      <span className="store-directory__card-shade" aria-hidden="true" />
+      {isInvitation ? <div className="store-directory__invitation" aria-hidden="true">
+        <span className="store-directory__invitation-plus">+</span>
+        <span className="store-directory__invitation-message">Siin võiks olla<strong>sinu pood.</strong></span>
+      </div> : <span className="store-directory__card-shade" aria-hidden="true" />}
       {mediaActions}
     </div>
     <div className="store-directory__card-copy">

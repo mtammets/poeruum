@@ -242,7 +242,7 @@ function renderDirectoryStoryTeaser(story) {
   return `<section class="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
     <header class="directory-stories__heading"><h2 id="directory-stories-heading">Poeruumi lood</h2><p>Lugemiseks ja kaasamõtlemiseks.</p></header>
     <article class="directory-stories__feature"><a class="directory-stories__link" href="${directoryStoryPath(story)}" aria-labelledby="directory-story-title directory-story-read">
-      <div class="directory-stories__image"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="1024" loading="lazy" decoding="async"></div>
+      <div class="directory-stories__image"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="2048" loading="lazy" decoding="async"></div>
       <div class="directory-stories__copy">${storyMetaMarkup(story)}<h3 id="directory-story-title">${escapeHtml(story.title)}</h3><p>${escapeHtml(story.intro)}</p><span class="directory-stories__read" id="directory-story-read">Loe lugu ${storyArrowMarkup}</span></div>
     </a></article>
   </section>`
@@ -260,7 +260,7 @@ function renderDirectoryStory(template, story) {
           <h1>${escapeHtml(story.title)}</h1><p class="directory-story-page__intro">${escapeHtml(story.intro)}</p>
           <p class="directory-story-page__byline">Poeruumi lood <span aria-hidden="true">/</span> ${escapeHtml(story.author)}</p>
         </header>
-        <figure class="directory-story-page__figure"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="1024" fetchpriority="high" decoding="async"><figcaption>${escapeHtml(story.imageCaption)}</figcaption></figure>
+        <figure class="directory-story-page__figure"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="2048" fetchpriority="high" decoding="async"><figcaption>${escapeHtml(story.imageCaption)}</figcaption></figure>
         <div class="directory-story-page__body">
           ${paragraphs(story.opening)}<blockquote>${escapeHtml(story.quote)}</blockquote>
           ${story.sections.map((section) => `<section><h2>${escapeHtml(section.title)}</h2>${paragraphs(section.paragraphs)}</section>`).join('')}
@@ -318,8 +318,12 @@ function renderStoreDirectory(template, stores) {
     const visitUrl = store.isExample ? store.url : getStoreDirectoryVisitUrl(store)
     const label = store.isExample ? `${store.name} – loo oma pood Poeruumis` : `Ava pood ${store.name}`
     const cta = store.isExample ? 'Loo oma pood' : 'Ava pood'
+    const isInvitation = store.isExample && !store.imageUrl
+    const media = isInvitation
+      ? '<div class="store-directory__invitation" aria-hidden="true"><span class="store-directory__invitation-plus">+</span><span class="store-directory__invitation-message">Siin võiks olla<strong>sinu pood.</strong></span></div>'
+      : `${store.imageUrl ? `<img class="store-directory__cover" src="${escapeHtml(store.imageUrl)}" alt="" loading="${index < 2 ? 'eager' : 'lazy'}"${index === 0 ? ' fetchpriority="high"' : ''} decoding="async">` : ''}<span class="store-directory__card-shade" aria-hidden="true"></span>`
     const logo = `<span class="store-directory__identity-mark" aria-hidden="true"><b>${store.isExample ? '+' : escapeHtml(store.name.charAt(0).toLocaleUpperCase('et'))}</b>${store.logoUrl ? `<img src="${escapeHtml(store.logoUrl)}" alt="" loading="lazy" decoding="async">` : ''}</span>`
-    return `<article class="store-directory__card"><a class="store-directory__card-link" href="${escapeHtml(visitUrl)}" aria-label="${escapeHtml(label)}"><div class="store-directory__media">${store.imageUrl ? `<img class="store-directory__cover" src="${escapeHtml(store.imageUrl)}" alt="" loading="${index < 2 ? 'eager' : 'lazy'}"${index === 0 ? ' fetchpriority="high"' : ''} decoding="async">` : ''}<span class="store-directory__card-shade" aria-hidden="true"></span></div><div class="store-directory__card-copy"><div class="store-directory__identity">${logo}<div><h3>${escapeHtml(store.name)}</h3><p>${escapeHtml(cardDescription)}</p></div></div><span class="store-directory__card-cta" aria-hidden="true">${cta}${arrowUpRight}</span></div></a></article>`
+    return `<article class="store-directory__card"><a class="store-directory__card-link" href="${escapeHtml(visitUrl)}" aria-label="${escapeHtml(label)}"><div class="store-directory__media${isInvitation ? ' store-directory__media--invitation' : ''}">${media}</div><div class="store-directory__card-copy"><div class="store-directory__identity">${logo}<div><h3>${escapeHtml(store.name)}</h3><p>${escapeHtml(cardDescription)}</p></div></div><span class="store-directory__card-cta" aria-hidden="true">${cta}${arrowUpRight}</span></div></a></article>`
   }).join('')
   const heroMedia = heroProducts.length ? `<div class="store-directory__hero-media"><a class="store-directory__hero-photo is-active" href="${escapeHtml(getStoreDirectoryVisitUrl(heroProducts[0].store, heroProducts[0].product))}" aria-label="${escapeHtml(`${heroProducts[0].product.name} – ${heroProducts[0].store.name}`)}"><img src="${escapeHtml(heroProducts[0].product.imageUrl)}" alt="" fetchpriority="high" decoding="async"></a></div>` : ''
   const products = selectedProducts.map(({ store, product }) => `<article class="store-directory__product store-directory__product--highlight"><a href="${escapeHtml(getStoreDirectoryVisitUrl(store, product))}" aria-label="${escapeHtml(`${product.name} – ${store.name}`)}"><div class="store-directory__product-media"><img src="${escapeHtml(product.imageUrl)}" alt="" loading="lazy" decoding="async"></div><div class="store-directory__product-copy"><span class="store-directory__product-store">${escapeHtml(store.name)}</span><h3>${escapeHtml(product.name)}</h3><p class="store-directory__product-price"><strong>${escapeHtml(formatStoreDirectoryPrice(product.salePrice ?? product.price))}</strong>${product.salePrice !== null ? `<del>${escapeHtml(formatStoreDirectoryPrice(product.price))}</del>` : ''}</p><span class="store-directory__product-action" aria-hidden="true">Vaata toodet ${arrowUpRight}</span></div></a></article>`).join('')

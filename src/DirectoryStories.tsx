@@ -13,7 +13,7 @@ export default function DirectoryStories() {
     <article className="directory-stories__feature">
       <a className="directory-stories__link" href={directoryStoryPath(story)} aria-labelledby="directory-story-title directory-story-read">
         <div className="directory-stories__image">
-          <img src={story.image} alt={story.imageAlt} width="1536" height="1024" loading="lazy" decoding="async" />
+          <img src={story.image} alt={story.imageAlt} width="1536" height="2048" loading="lazy" decoding="async" />
         </div>
         <div className="directory-stories__copy">
           <div className="directory-stories__meta"><span>{story.category}</span><span>{directoryStoryReadingMinutes(story)} min lugemist</span></div>

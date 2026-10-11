@@ -345,6 +345,8 @@ test('visual traffic dashboard distinguishes zero, unmeasured engagement, and fa
   const backend = await installTrafficData(page)
   backend.setMode('error')
   await page.goto('/admin/analytics')
+  // Keep the initial subscription catch-up failing before testing manual retry.
+  await expect.poll(() => backend.ranges.length).toBeGreaterThanOrEqual(2)
   await expect(page.getByRole('alert')).toContainText('Andmed pole saadaval')
   await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('—')
   backend.setMode('unmeasured')
@@ -660,6 +662,7 @@ test('store attraction distinguishes failure, zero clicks, and no stores', async
   const backend = await installAttractionData(page)
   backend.setMode('error')
   await page.goto('/admin')
+  await expect.poll(() => backend.ranges.length).toBeGreaterThanOrEqual(2)
   const panel = page.getByRole('region', { name: 'Poodide tõmbejõud' })
   await expect(panel.getByRole('status', { name: 'Kaubamaja andmeid ei saanud laadida' })).toBeVisible()
   await expect(panel.locator('.attraction-headline strong')).toHaveText('—')
