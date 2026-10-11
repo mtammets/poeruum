@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProductCategorySlug, createStore, getImageFallbackMimeType, listOrders, refundStripeOrder, setStorePublication, updateStore, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
+import { createProductCategorySlug, createStore, getImageFallbackMimeType, listOrders, refundStripeOrder, setStorePublication, updateStore, uploadImages, uploadProductImages, type StoreContentInput, type StoreRecord } from './database'
 import { requireSupabase } from './supabase'
 
 vi.mock('./supabase', () => ({
@@ -10,6 +10,18 @@ const store = {
   id: '10000000-0000-4000-8000-000000000001',
   is_published: true,
 } as StoreRecord
+
+it.each([uploadImages, uploadProductImages])('blocks image uploads after a shared-session logout', async (upload) => {
+  const from = vi.fn()
+  vi.mocked(requireSupabase).mockReturnValue({
+    auth: { getSession: vi.fn(async () => ({ data: { session: null }, error: null })) },
+    storage: { from },
+  } as unknown as ReturnType<typeof requireSupabase>)
+  const phase = vi.fn()
+  await expect(upload(store.id, [{ name: 'image.png' } as File], phase)).rejects.toThrow('Logi uuesti sisse')
+  expect(from).not.toHaveBeenCalled()
+  expect(phase).not.toHaveBeenCalled()
+})
 
 it('loads every order page for accurate monthly fees and keeps live/test orders separate', async () => {
   const page = Array.from({ length: 500 }, (_, index) => ({ id: `order-${index}` }))
@@ -219,7 +231,7 @@ describe('image encoding fallback', () => {
       remove: vi.fn(async () => ({ error: null })),
       getPublicUrl: vi.fn((path: string) => ({ data: { publicUrl: `https://images.example/${path}` } })),
     }
-    vi.mocked(requireSupabase).mockReturnValue({ storage: { from: vi.fn(() => bucket) } } as unknown as ReturnType<typeof requireSupabase>)
+    vi.mocked(requireSupabase).mockReturnValue({ auth: { getSession: vi.fn(async () => ({ data: { session: { user: { id: 'owner' } } } })) }, storage: { from: vi.fn(() => bucket) } } as unknown as ReturnType<typeof requireSupabase>)
 
     const steps: number[] = []
     const [result] = await uploadProductImages(store.id, [{
@@ -268,7 +280,7 @@ describe('image encoding fallback', () => {
       remove: vi.fn(async () => ({ error: null })),
       getPublicUrl: vi.fn((path: string) => ({ data: { publicUrl: `https://images.example/${path}` } })),
     }
-    vi.mocked(requireSupabase).mockReturnValue({ storage: { from: vi.fn(() => bucket) } } as unknown as ReturnType<typeof requireSupabase>)
+    vi.mocked(requireSupabase).mockReturnValue({ auth: { getSession: vi.fn(async () => ({ data: { session: { user: { id: 'owner' } } } })) }, storage: { from: vi.fn(() => bucket) } } as unknown as ReturnType<typeof requireSupabase>)
 
     const [result] = await uploadProductImages(store.id, [{
       name: 'opaque-photo.png',

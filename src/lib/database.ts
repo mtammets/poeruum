@@ -4,6 +4,7 @@ import { normalizeStoreDirectoryCatalog } from '../../shared/store-directory.mjs
 import { normalizeClosedStore } from '../../shared/closed-storefront.mjs'
 import { createRandomId } from './randomId'
 import { requireSupabase } from './supabase'
+import { requireActiveSession } from './authSession'
 import type { StripeRequirementSummary } from './stripeRequirements'
 
 export const SHOWCASE_STORE_ID = '00000000-0000-4000-8000-000000000001'
@@ -586,6 +587,7 @@ const getEncodedImageExtension = (mimeType: string) => mimeType === 'image/webp'
 
 const uploadPublicImage = async (storeId: string, relativePath: string, blob: Blob) => {
   const client = requireSupabase()
+  await requireActiveSession(client)
   const path = `${storeId}/${relativePath}`
   const { error } = await client.storage.from('product-images').upload(path, blob, {
     contentType: blob.type,
@@ -599,6 +601,7 @@ const uploadPublicImage = async (storeId: string, relativePath: string, blob: Bl
 export type UploadedProductImage = { url: string; asset: ProductImageAsset }
 
 export async function uploadProductImages(storeId: string, files: File[], onPhase?: (index: number, phase: ImageUploadPhase, step?: ImageUploadStep) => void) {
+  if (files.length) await requireActiveSession(requireSupabase())
   const results: UploadedProductImage[] = []
   for (const [index, file] of files.entries()) {
     if (file.size > 40_000_000) throw new Error('Pilt on töötlemiseks liiga suur. Maksimaalne algfail on 40 MB.')
@@ -666,6 +669,7 @@ export async function uploadProductImages(storeId: string, files: File[], onPhas
 }
 
 export async function uploadImages(storeId: string, files: File[], onPhase?: (index: number, phase: ImageUploadPhase) => void, options: { maximumSide?: number; quality?: number } = {}) {
+  if (files.length) await requireActiveSession(requireSupabase())
   const results: string[] = []
   for (const [index, originalFile] of files.entries()) {
     if (originalFile.size > 40_000_000) throw new Error('Pilt on töötlemiseks liiga suur. Maksimaalne algfail on 40 MB.')

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createSharedAuthStorage } from './sharedAuthStorage'
 import { isPasswordRecoveryLocation, preservePasswordRecoveryIntent } from './passwordRecovery'
+import { watchSharedAuthSession } from './authSession'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim()
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
@@ -28,6 +29,11 @@ export const supabase = isSupabaseConfigured
       },
     })
   : null
+
+if (supabase && authStorage) {
+  const stop = watchSharedAuthSession(supabase.auth, window, document, () => window.location.reload())
+  import.meta.hot?.dispose(stop)
+}
 
 export const requireSupabase = () => {
   if (!supabase) throw new Error('Supabase ei ole seadistatud. Lisa VITE_SUPABASE_URL ja VITE_SUPABASE_PUBLISHABLE_KEY .env faili.')

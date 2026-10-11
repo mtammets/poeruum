@@ -856,9 +856,12 @@ function PlatformFlow() {
         recoveryMode = false
         setOnlineUserId(null)
         setIsPasswordRecoveryReady(false)
+        setStore(null)
+        setStoredProducts([])
+        if (!shouldLoadPublicStore) {
+          setScreen((current) => ['landing', 'login', 'forgot-password', 'account'].includes(current) ? current : 'login')
+        }
       }
-      // Keep the loaded store in memory across auth changes. The logout callback
-      // controls the destination, while account deletion clears it explicitly.
     })
     restore()
       .catch((error) => active && setAuthError(error instanceof Error ? error.message : 'Andmete laadimine ebaõnnestus.'))

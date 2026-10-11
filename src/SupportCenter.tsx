@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { BrandMark } from './Brand'
 import { createRandomId } from './lib/randomId'
+import { requireActiveSession, SESSION_ENDED_MESSAGE } from './lib/authSession'
 import { SupportContext } from './SupportContext'
 import './supportCenter.css'
 
@@ -42,6 +43,16 @@ const formatTime = (value: string) => new Intl.DateTimeFormat('et-EE', {
 const formatDate = (value: string) => new Intl.DateTimeFormat('et-EE', {
   day: 'numeric', month: 'short',
 }).format(new Date(value))
+
+const supportRequestError = async (error: unknown, fallback: string) => {
+  const context = error && typeof error === 'object' && 'context' in error ? error.context : null
+  if (context instanceof Response) {
+    if (context.status === 401) return SESSION_ENDED_MESSAGE
+    const details = await context.clone().json().catch(() => null)
+    if (typeof details?.error === 'string') return details.error
+  }
+  return fallback
+}
 
 type SupportIconName = 'chat' | 'arrow' | 'close' | 'back' | 'attachment' | 'check' | 'send'
 
@@ -195,6 +206,7 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
     if (!user || isBusy || body.trim().length < 2) return
     setIsBusy(true); setError('')
     try {
+      await requireActiveSession(requireSupabase(), user.id)
       const message = body.trim()
       const summary = message.replace(/\s+/g, ' ')
       const subject = summary.length > 80 ? `${summary.slice(0, 79).trimEnd()}…` : summary
@@ -206,7 +218,7 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
         page_url: window.location.href,
         user_agent: navigator.userAgent,
       } })
-      if (invokeError || data?.error) throw new Error(data?.error || 'Küsimust ei õnnestunud saata.')
+      if (invokeError || data?.error) throw new Error(data?.error || await supportRequestError(invokeError, 'Küsimust ei õnnestunud saata.'))
       setBody(''); setAttachment(null)
       await loadConversations()
       const { data: created } = await requireSupabase().from('support_conversations')
@@ -220,14 +232,18 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
 
   const sendReply = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!selected || isBusy || !reply.trim()) return
+    if (!user || !selected || isBusy || !reply.trim()) return
     setIsBusy(true); setError('')
-    const { data, error: invokeError } = await requireSupabase().functions.invoke('support-actions', { body: {
-      action: 'user_reply', conversation_id: selected.id, body: reply,
-    } })
-    if (invokeError || data?.error) setError(data?.error || 'Vastust ei õnnestunud saata.')
-    else { setReply(''); await openConversation(selected) }
-    setIsBusy(false)
+    try {
+      await requireActiveSession(requireSupabase(), user.id)
+      const { data, error: invokeError } = await requireSupabase().functions.invoke('support-actions', { body: {
+        action: 'user_reply', conversation_id: selected.id, body: reply,
+      } })
+      if (invokeError || data?.error) throw new Error(data?.error || await supportRequestError(invokeError, 'Vastust ei õnnestunud saata.'))
+      setReply(''); await openConversation(selected)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Vastust ei õnnestunud saata.')
+    } finally { setIsBusy(false) }
   }
 
   const openAttachment = async (message: SupportMessage) => {

@@ -100,6 +100,46 @@ test('one message creates a conversation, preserves failed drafts and sends atta
   expect(api.calls.at(-1)).toMatchObject({ action: 'user_reply', conversation_id: 'created', body: 'Nüüd töötab.' })
 })
 
+test('a lost shared session blocks sending without discarding the question or attachment', async ({ page }) => {
+  await page.clock.install()
+  const api = await setup(page, { empty: true })
+  await page.getByRole('button', { name: 'Kirjuta meile' }).click()
+  await page.getByRole('textbox', { name: 'Sõnum' }).fill('Toote pilti ei saa vahetada.')
+  await page.locator('input[type=file]').setInputFiles({ name: 'viga.png', mimeType: 'image/png', buffer: Buffer.from('test-image') })
+  // Freeze the periodic reload to exercise the preflight during the short
+  // interval between a different origin clearing cookies and the next check.
+  await page.clock.pauseAt(new Date())
+  await page.evaluate(() => {
+    document.cookie = 'sb-localhost-auth-token=0; Path=/; Domain=poeruum.localhost; SameSite=Lax'
+  })
+  await page.getByRole('button', { name: 'Saada', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Logi uuesti sisse')
+  await expect(page.getByRole('textbox', { name: 'Sõnum' })).toHaveValue('Toote pilti ei saa vahetada.')
+  await expect(page.getByText('viga.png', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Saada', exact: true })).toBeEnabled()
+  expect(api.uploads).toHaveLength(0)
+  expect(api.calls).toHaveLength(0)
+})
+
+test('support shows actionable HTTP errors and preserves a failed reply', async ({ page }) => {
+  await setup(page)
+  await page.route('**/functions/v1/support-actions', (route) => route.fulfill({ status: 401, json: { error: 'Invalid JWT' } }))
+  await page.getByRole('button', { name: /Maksete ühendamine/ }).click()
+  await page.getByRole('textbox', { name: 'Vastus' }).fill('Palun abi.')
+  await page.getByRole('button', { name: 'Saada vastus' }).click()
+  await expect(page.getByRole('alert')).toContainText('Logi uuesti sisse')
+  await expect(page.getByRole('textbox', { name: 'Vastus' })).toHaveValue('Palun abi.')
+  await expect(page.getByRole('button', { name: 'Saada vastus' })).toBeEnabled()
+
+  await page.getByRole('button', { name: 'Tagasi vestluste juurde' }).click()
+  await page.getByRole('button', { name: 'Kirjuta meile' }).click()
+  await page.getByRole('textbox', { name: 'Sõnum' }).fill('Palun abi.')
+  await page.route('**/functions/v1/support-actions', (route) => route.fulfill({ status: 429, json: { error: 'Proovi veidi hiljem uuesti.' } }))
+  await page.getByRole('button', { name: 'Saada', exact: true }).click()
+  await expect(page.getByRole('alert')).toHaveText('Proovi veidi hiljem uuesti.')
+  await expect(page.getByRole('textbox', { name: 'Sõnum' })).toHaveValue('Palun abi.')
+})
+
 test('history, resolved state and keyboard navigation stay usable', async ({ page }) => {
   await setup(page)
   await page.getByRole('button', { name: /Maksete ühendamine/ }).click()

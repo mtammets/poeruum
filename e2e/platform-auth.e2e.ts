@@ -1683,6 +1683,42 @@ test('merchant logout returns to the Poeruum homepage', async ({ page }) => {
   await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
 })
 
+test('logout on the platform closes merchant editing in an already open shop tab', async ({ page, context }) => {
+  await installSupabaseBackend(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Logi sisse' }).first().click()
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('button', { name: 'Seaded', exact: true })).toBeVisible()
+
+  const platform = await context.newPage()
+  await installSupabaseBackend(platform)
+  // Keep this page on the platform origin; the full app normally redirects an
+  // existing login to its shop. Use the real SDK and shared cookie adapter.
+  await platform.goto('http://poeruum.localhost:4174/e2e/support.html')
+  await expect(platform.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toBeVisible()
+  await platform.evaluate(async (modulePath) => {
+    const { requireSupabase } = await import(modulePath)
+    const { error } = await requireSupabase().auth.signOut({ scope: 'local' })
+    if (error) throw new Error(error.message)
+  }, '/src/lib/supabase.ts')
+  await expect(platform.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toHaveCount(0)
+
+  await page.bringToFront()
+  await expect(page.getByRole('button', { name: 'Seaded', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
+  await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
+
+  await page.getByLabel('E-posti aadress').fill('kaupmees@example.com')
+  await page.getByLabel('Parool', { exact: true }).fill('turvaline-testiparool')
+  await page.getByRole('button', { name: /Jätka oma poega/ }).click()
+  await expect(page.getByRole('button', { name: 'Seaded', exact: true })).toBeVisible()
+  await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
+  await platform.close()
+})
+
 test('a saved login migrates to the owner address and cannot reopen another shop management', async ({ page }) => {
   const backend = await installSupabaseBackend(page, store, connectedStripeStatus, { publicStore: otherStore })
   await page.addInitScript(({ accessToken, user }) => {

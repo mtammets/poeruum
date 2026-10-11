@@ -1,5 +1,13 @@
 # Supabase'i käivitamine
 
+## Jagatud seanss ja üleslaadimise õiguste vead
+
+11. oktoobri 2026 tootmislogides õnnestus Krük-Krüki pildi üleslaadimine kell 20.50 Eesti aja järgi. Kell 20.51 toimus põhilehel sama seansi väljalogimine; seejärel saadeti poe alamdomeenilt pildi- ja klienditoe manusepäringud rolliga `anon`, mis tekitas `new row violates row-level security policy` vea. Klienditoe vestluste lugemine sai vastuseks `401`. Poe omanik ja Storage'i õigused olid õiged.
+
+Jagatud autentimise küpsised muutuvad kõigil poe alamdomeenidel, kuid Supabase'i `BroadcastChannel` ei edasta väljalogimise sündmust teisele origin'ile. Brauserirakendus kontrollib nüüd nähtava vahelehe seanssi kord sekundis ning fookuse ja nähtavuse taastumisel. Teises origin'is lõppenud seanss või vahetunud konto laadib vaate uuesti; poe halduse taastamine suunab seansita kasutaja sisselogimisse. Sama konto tokeni värskendamine ei laadi lehte uuesti. Kohalik väljalogimine eemaldab ka mälus hoitud poe muutmisvaate.
+
+Pildid, klienditoe küsimused ja vastused kontrollivad enne saatmist seansi olemasolu. Klienditoe HTTP-vead kuvavad serveri selgituse või `401` korral sisselogimise juhise. Kontrollid asuvad failides `src/lib/authSession.test.ts`, `src/lib/database.test.ts`, `e2e/support.e2e.ts` ja `e2e/platform-auth.e2e.ts` (kahe eri origin'i vahelehe väljalogimine ning uuesti sisselogimine). Parandus vajab brauserirakenduse avaldamist; migratsiooni ega Edge Functioni muudatust pole vaja.
+
 ## Müügitingimused ja taganemisavaldused
 
 Müügitingimused asuvad eraldi poe seadetes. Avalik tagastustekst muutub alles eduka „Salvesta” järel; pooleliolev tekst ja tühistatud muudatus ei kuulu automaatsalvestusse. Olemasolev müüja tekst säilib. Sama tingimuste sisu avaneb poe jaluses ja kassas.
