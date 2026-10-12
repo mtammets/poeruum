@@ -8,11 +8,16 @@ select not exists(select 1 from information_schema.columns where table_schema='p
 \if :needs_preferences_migration
   \ir ../supabase/migrations/202610060001_admin_push_preferences.sql
 \endif
+select not exists(select 1 from information_schema.columns where table_schema='public' and table_name='admin_push_subscriptions' and column_name='support_enabled') as needs_support_migration \gset
+\if :needs_support_migration
+  \ir ../supabase/migrations/202610120001_admin_support_push.sql
+\endif
 create function pg_temp.verify(ok boolean, message text) returns void language plpgsql as $$
 begin if ok is distinct from true then raise exception '%', message; end if; end; $$;
 create extension if not exists plpgsql_check with schema extensions;
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'auth.users') where level in ('error','warning')), 'Account trigger failed static checking');
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'public.homepage_analytics_events') where level in ('error','warning')), 'Visit trigger failed static checking');
+select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'public.support_messages') where level in ('error','warning')), 'Support trigger failed static checking');
 -- Never dispatch network requests from fixtures, even when run against a configured local DB.
 create or replace function public.dispatch_admin_push() returns void language plpgsql as $$ begin return; end; $$;
 insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data)
@@ -34,6 +39,53 @@ select pg_temp.verify(not has_table_privilege('authenticated','public.admin_push
 select pg_temp.verify(not has_table_privilege('anon','public.admin_push_jobs','select'), 'Jobs exposed anonymously');
 select pg_temp.verify(not has_function_privilege('authenticated','public.claim_admin_push_job()','execute'), 'Browser can claim notifications');
 select pg_temp.verify(not has_function_privilege('anon','public.dispatch_admin_push()','execute'), 'Anonymous dispatch allowed');
+-- New app inquiries, inbound email and customer replies notify each enabled device.
+insert into public.support_conversations(id,user_id,subject) values
+('93000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000002','App support test');
+insert into public.support_conversations(id,user_id,subject,origin,external_email) values
+('93000000-0000-4000-8000-000000000002',null,'Email support test','email','push-contact@example.invalid');
+select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where kind='support'), 'Empty support conversation notified admins');
+insert into public.support_messages(id,conversation_id,sender_kind,sender_user_id,body) values
+('94000000-0000-4000-8000-000000000001','93000000-0000-4000-8000-000000000001','user','91000000-0000-4000-8000-000000000002','Please help');
+select pg_temp.verify((select count(*)=2 from public.admin_push_jobs where kind='support'), 'App support did not notify each device once');
+insert into public.support_messages(conversation_id,sender_kind,body,source,inbound_message_id) values
+('93000000-0000-4000-8000-000000000002','user','Incoming support email','email','push-support-email-test');
+select pg_temp.verify((select count(*)=4 from public.admin_push_jobs where kind='support'), 'External email without an account did not notify admins');
+insert into public.support_messages(conversation_id,sender_kind,body,source,inbound_message_id) values
+('93000000-0000-4000-8000-000000000002','user','Duplicate webhook','email','push-support-email-test') on conflict do nothing;
+insert into public.support_messages(conversation_id,sender_kind,body,is_internal) values
+('93000000-0000-4000-8000-000000000001','admin','Admin reply',false),
+('93000000-0000-4000-8000-000000000001','admin','Internal note',true),
+('93000000-0000-4000-8000-000000000001','system','System note',false),
+('93000000-0000-4000-8000-000000000001','user','Internal user note',true);
+select pg_temp.verify((select count(*)=4 from public.admin_push_jobs where kind='support'), 'Duplicate email or non-public/customer message triggered support push');
+insert into public.support_messages(conversation_id,sender_kind,sender_user_id,body) values
+('93000000-0000-4000-8000-000000000001','user','91000000-0000-4000-8000-000000000002','Customer reply');
+select pg_temp.verify((select count(*)=6 from public.admin_push_jobs where kind='support'), 'Customer reply did not notify admins');
+update public.admin_push_subscriptions set support_enabled=false where id='92000000-0000-4000-8000-000000000001';
+select pg_temp.verify((select count(*)=3 from public.admin_push_jobs where kind='support'), 'Muting support did not prune only this device');
+select pg_temp.verify((select count(*)=4 from public.admin_push_jobs where kind in ('visit','account')), 'Muting support affected visits/accounts');
+insert into public.support_messages(conversation_id,sender_kind,body,source,inbound_message_id) values
+('93000000-0000-4000-8000-000000000002','user','Email reply','email','push-support-email-reply-test');
+select pg_temp.verify((select count(*)=4 from public.admin_push_jobs where kind='support'), 'Support preference was ignored on incoming reply');
+select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where kind='support' and subscription_id='92000000-0000-4000-8000-000000000001'), 'Muted device receives support notifications');
+-- A stale enqueue after muting must also be discarded at claim time.
+update public.admin_push_jobs set available_at=now()+interval '1 minute';
+insert into public.admin_push_jobs(subscription_id,event_id,kind) values
+('92000000-0000-4000-8000-000000000001',gen_random_uuid(),'support');
+select pg_temp.verify(not exists(select 1 from public.claim_admin_push_job()), 'Worker claimed disabled support');
+update public.admin_push_jobs set available_at=now() where kind='support';
+do $$ declare support_job record;
+begin
+  select * into support_job from public.claim_admin_push_job();
+  perform pg_temp.verify(support_job.kind='support' and support_job.subscription_id='92000000-0000-4000-8000-000000000002', 'Worker did not claim enabled support');
+  perform pg_temp.verify(public.finish_admin_push_job(support_job.id,support_job.lease_token,'sent'), 'Support job completion failed');
+end; $$;
+update public.admin_push_subscriptions set support_enabled=false;
+select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where kind='support'), 'Muting support left pending work');
+update public.admin_push_subscriptions set support_enabled=true;
+select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where kind='support'), 'Re-enabling support backfilled old messages');
+update public.admin_push_jobs set available_at=now();
 -- Muting each category affects only that device and removes its queued work.
 update public.admin_push_subscriptions set visits_enabled=false where id='92000000-0000-4000-8000-000000000001';
 update public.admin_push_subscriptions set accounts_enabled=false where id='92000000-0000-4000-8000-000000000002';

@@ -15,11 +15,14 @@ export default function AdminSettings({ push }: { push: AdminPushFeedback }) {
       {([
         ['visits', 'Avalehe külastused'],
         ['accounts', 'Uued kontod'],
+        ['support', 'Uued tugipöördumised'],
       ] as const).map(([kind, label]) => <div className="admin-notification-settings__row" key={kind}>
         <span className={`admin-notification-settings__icon${push.enabled && push.preferences[kind] ? ' is-on' : ''}`} aria-hidden="true">
           <svg viewBox="0 0 24 24">{kind === 'visits'
             ? <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>
-            : <><circle cx="9" cy="7" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M19 7v6M16 10h6" /></>}</svg>
+            : kind === 'accounts'
+              ? <><circle cx="9" cy="7" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M19 7v6M16 10h6" /></>
+              : <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H3l2-5a8.5 8.5 0 1 1 16-3.5ZM8 10h8M8 14h5" />}</svg>
         </span>
         <h3 id={`push-${kind}-label`}>{label}</h3>
         <button type="button" role="switch" className="admin-notification-settings__switch" aria-checked={push.preferences[kind]} aria-labelledby={`push-${kind}-label`} onClick={() => void push.updatePreference(kind, !push.preferences[kind])}><span /></button>

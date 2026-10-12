@@ -27,23 +27,28 @@ Deno.serve(async (request) => {
     if (!['status', 'subscribe', 'unsubscribe', 'test', 'preferences'].includes(input.action)) return json({ error: 'Tundmatu toiming.' }, 400)
     const preferences = input.preferences
     if ((input.action === 'preferences' || (input.action === 'subscribe' && preferences !== undefined))
-      && (!preferences || typeof preferences.visits !== 'boolean' || typeof preferences.accounts !== 'boolean')) {
+      && (!preferences || typeof preferences.visits !== 'boolean' || typeof preferences.accounts !== 'boolean'
+        || (preferences.support !== undefined && typeof preferences.support !== 'boolean'))) {
       return json({ error: 'Märguannete valikud on vigased.' }, 400)
     }
     const preferenceFields = preferences && ['subscribe', 'preferences'].includes(input.action)
-      ? { visits_enabled: preferences.visits, accounts_enabled: preferences.accounts } : {}
+      ? { visits_enabled: preferences.visits, accounts_enabled: preferences.accounts,
+        ...(preferences.support !== undefined ? { support_enabled: preferences.support } : {}) } : {}
     const subscription = input.action === 'subscribe' ? parsePushSubscription(input.subscription) : null
     const endpoint = subscription?.endpoint ?? input.endpoint
     if (!validPushEndpoint(endpoint) || (input.action === 'subscribe' && !subscription)) return json({ error: 'Seadme märguannete andmed on vigased.' }, 400)
-    const { data: existing, error: readError } = await admin.from('admin_push_subscriptions').select('id, endpoint, p256dh, auth, visits_enabled, accounts_enabled').eq('endpoint', endpoint).eq('user_id', user.id).maybeSingle()
+    const { data: existing, error: readError } = await admin.from('admin_push_subscriptions').select('id, endpoint, p256dh, auth, visits_enabled, accounts_enabled, support_enabled').eq('endpoint', endpoint).eq('user_id', user.id).maybeSingle()
     if (readError) throw new Error('Subscription lookup failed')
-    const savedPreferences = { visits: existing?.visits_enabled ?? true, accounts: existing?.accounts_enabled ?? true }
+    const savedPreferences = { visits: existing?.visits_enabled ?? true, accounts: existing?.accounts_enabled ?? true, support: existing?.support_enabled ?? true }
+    // Older open tabs only send visits/accounts; preserve the support choice.
+    const updatedPreferences = preferences ? { ...savedPreferences, visits: preferences.visits, accounts: preferences.accounts,
+      support: preferences.support ?? savedPreferences.support } : savedPreferences
     if (input.action === 'status') return json({ enabled: Boolean(existing), preferences: savedPreferences })
     if (input.action === 'preferences') {
       if (!existing) return json({ error: 'Luba esmalt selles seadmes märguanded.' }, 404)
       const { error } = await admin.from('admin_push_subscriptions').update(preferenceFields).eq('id', existing.id).eq('user_id', user.id)
       if (error) throw new Error('Preferences update failed')
-      return json({ enabled: true, preferences: { visits: preferences.visits, accounts: preferences.accounts } })
+      return json({ enabled: true, preferences: updatedPreferences })
     }
     if (input.action === 'unsubscribe') {
       const { error } = await admin.from('admin_push_subscriptions').delete().eq('endpoint', endpoint).eq('user_id', user.id)
@@ -62,7 +67,7 @@ Deno.serve(async (request) => {
         const { error } = await admin.from('admin_push_subscriptions').update({ ...subscription.keys, ...preferenceFields }).eq('id', existing.id).eq('user_id', user.id)
         if (error) throw new Error('Subscription update failed')
       }
-      return json({ enabled: true, preferences: preferences ? { visits: preferences.visits, accounts: preferences.accounts } : savedPreferences })
+      return json({ enabled: true, preferences: updatedPreferences })
     }
     if (!existing) return json({ error: 'Luba esmalt selles seadmes märguanded.' }, 404)
     const outcome = await sendAdminPush({ endpoint: existing.endpoint, keys: { p256dh: existing.p256dh, auth: existing.auth } }, pushNotice('test', crypto.randomUUID()))

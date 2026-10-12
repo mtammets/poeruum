@@ -5,7 +5,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 export type PushSubscriptionData = { endpoint: string; keys: { p256dh: string; auth: string } }
 export type PushNotice = { title: string; body: string; tag: string; url: string }
 export type PushOutcome = 'sent' | 'gone' | 'retry'
-export type PushJob = { id: string; lease_token: string; subscription_id: string; endpoint: string; p256dh: string; auth: string; kind: 'visit' | 'account' }
+export type PushJob = { id: string; lease_token: string; subscription_id: string; endpoint: string; p256dh: string; auth: string; kind: 'visit' | 'account' | 'support' }
 
 // Subscriptions are supplied by browsers, but must never turn the sender into an SSRF proxy.
 export function validPushEndpoint(value: unknown): value is string {
@@ -27,7 +27,12 @@ export function parsePushSubscription(value: unknown): PushSubscriptionData | nu
   return { endpoint: input.endpoint, keys: { p256dh: input.keys.p256dh, auth: input.keys.auth } }
 }
 
-export function pushNotice(kind: 'visit' | 'account' | 'test', id: string): PushNotice {
+export function pushNotice(kind: PushJob['kind'] | 'test', id: string): PushNotice {
+  if (kind === 'support') return {
+    title: 'Uus tugipöördumine',
+    body: 'Klienditoes ootab uus sõnum sinu vastust.',
+    tag: `poeruum-${id}`, url: '/admin/support',
+  }
   return {
     title: kind === 'account' ? 'Uus konto Poeruumis' : kind === 'visit' ? 'Uus avalehe külastus' : 'Poeruumi prooviteavitus',
     body: kind === 'account' ? 'Poeruumiga liitus uus kasutaja.' : kind === 'visit'
