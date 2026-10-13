@@ -16,6 +16,10 @@ select not exists(select 1 from information_schema.columns where table_schema='p
 \if :needs_revenue_migration
   \ir ../supabase/migrations/202610130001_admin_revenue_push.sql
 \endif
+select not exists(select 1 from information_schema.columns where table_schema='public' and table_name='admin_push_jobs' and column_name='store_name') as needs_store_name_migration \gset
+\if :needs_store_name_migration
+  \ir ../supabase/migrations/202610130002_admin_revenue_push_store_name.sql
+\endif
 create function pg_temp.verify(ok boolean, message text) returns void language plpgsql as $$
 begin if ok is distinct from true then raise exception '%', message; end if; end; $$;
 create extension if not exists plpgsql_check with schema extensions;

@@ -61,9 +61,9 @@ Deno.test('support queue sends a private notice that opens customer support', as
   assert(finished, 'Support queue was not processed')
 })
 
-Deno.test('revenue queue puts the exact fee in the title and preserves it on retry', async () => {
+Deno.test('revenue queue shows only the shop and exact fee, preserving both on retry', async () => {
   const job = { id: 'revenue-job', lease_token: 'revenue-lease', subscription_id: 'device', endpoint: subscription.endpoint,
-    ...subscription.keys, kind: 'revenue', amount_cents: 125, currency: 'eur' }
+    ...subscription.keys, kind: 'revenue', amount_cents: 125, currency: 'eur', store_name: 'Näidispood' }
   const outcomes: unknown[] = []
   const notices: string[] = []
   const admin = { rpc: (name: string, args: Record<string, unknown>) => {
@@ -73,8 +73,8 @@ Deno.test('revenue queue puts the exact fee in the title and preserves it on ret
   } } as unknown as SupabaseClient
   for (const outcome of ['retry', 'sent'] as const) {
     await processAdminPush(admin, (_subscription, notice) => {
-      assert(notice.title.replace(/\s/g, ' ') === 'Teenustasu +1,25 €', 'Exact revenue amount is not immediately visible')
-      assert(notice.body.includes('KM-ta') && notice.body.includes('enne Stripe’i tasusid'), 'Revenue basis differs from the dashboard')
+      assert(notice.title.replace(/\s/g, ' ') === 'Näidispood +1,25 €', 'Shop name or exact revenue amount is missing')
+      assert(notice.body === '', 'Revenue notice contains unnecessary text')
       assert(notice.url === '/admin', 'Revenue notification opens the wrong page')
       notices.push(JSON.stringify(notice))
       return Promise.resolve(outcome)
@@ -83,6 +83,9 @@ Deno.test('revenue queue puts the exact fee in the title and preserves it on ret
   assert(notices[0] === notices[1] && outcomes.join(',') === 'retry,sent', 'Revenue retry changed the amount or deduplication tag')
   assert(pushNotice('revenue', 'cent', { amount_cents: 1, currency: 'eur' }).title.includes('+0,01'), 'One-cent fee rounded away')
   assert(pushNotice('revenue', 'usd', { amount_cents: 1234, currency: 'usd' }).title.includes('12,34'), 'Non-EUR amount was converted or lost')
+  assert(pushNotice('revenue', 'unknown', { amount_cents: 125, currency: 'eur' }).title.startsWith('Pood +'), 'Missing shop name has no fallback')
+  assert(pushNotice('revenue', 'blank', { amount_cents: 125, currency: 'eur', store_name: '  ' }).title.startsWith('Pood +'), 'Blank shop name has no fallback')
+  assert(pushNotice('revenue', 'whitespace', { amount_cents: 125, currency: 'eur', store_name: '  Minu\n pood  ' }).title.startsWith('Minu pood +'), 'Shop name introduces extra notification lines')
   for (const amount of [0, -10, 1.5, Number.NaN]) {
     job.amount_cents = amount
     let sent = false

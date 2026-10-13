@@ -5,7 +5,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 export type PushSubscriptionData = { endpoint: string; keys: { p256dh: string; auth: string } }
 export type PushNotice = { title: string; body: string; tag: string; url: string }
 export type PushOutcome = 'sent' | 'gone' | 'retry'
-export type PushJob = { id: string; lease_token: string; subscription_id: string; endpoint: string; p256dh: string; auth: string; kind: 'visit' | 'account' | 'support' | 'revenue'; amount_cents?: number | null; currency?: string | null }
+export type PushJob = { id: string; lease_token: string; subscription_id: string; endpoint: string; p256dh: string; auth: string; kind: 'visit' | 'account' | 'support' | 'revenue'; amount_cents?: number | null; currency?: string | null; store_name?: string | null }
 
 // Subscriptions are supplied by browsers, but must never turn the sender into an SSRF proxy.
 export function validPushEndpoint(value: unknown): value is string {
@@ -27,7 +27,7 @@ export function parsePushSubscription(value: unknown): PushSubscriptionData | nu
   return { endpoint: input.endpoint, keys: { p256dh: input.keys.p256dh, auth: input.keys.auth } }
 }
 
-export function pushNotice(kind: PushJob['kind'] | 'test', id: string, revenue?: Pick<PushJob, 'amount_cents' | 'currency'>): PushNotice {
+export function pushNotice(kind: PushJob['kind'] | 'test', id: string, revenue?: Pick<PushJob, 'amount_cents' | 'currency' | 'store_name'>): PushNotice {
   if (kind === 'revenue') {
     const amount = revenue?.amount_cents
     const currency = revenue?.currency
@@ -36,9 +36,10 @@ export function pushNotice(kind: PushJob['kind'] | 'test', id: string, revenue?:
     const money = new Intl.NumberFormat('et-EE', {
       style: 'currency', currency: currency.toUpperCase(), minimumFractionDigits: 2, maximumFractionDigits: 2,
     }).format(amount / 100)
+    const storeName = revenue?.store_name?.replace(/\s+/g, ' ').trim() || 'Pood'
     return {
-      title: `Teenustasu +${money}`,
-      body: 'Poeruumile lisandus teenustasu. Summa on KM-ta ja enne Stripe’i tasusid.',
+      title: `${storeName} +${money}`,
+      body: '',
       tag: `poeruum-${id}`, url: '/admin',
     }
   }

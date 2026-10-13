@@ -6,7 +6,7 @@ self.addEventListener('push', (event) => {
   let notice = {}
   try { notice = event.data?.json() ?? {} } catch { /* Still display a visible notification. */ }
   event.waitUntil(self.registration.showNotification(notice.title || 'Poeruum', {
-    body: notice.body || 'Adminis on uut infot.',
+    body: typeof notice.body === 'string' ? notice.body : 'Adminis on uut infot.',
     icon: '/images/admin-icon-192.png',
     tag: notice.tag || 'poeruum-admin',
     data: { url: notificationUrl(notice.url) },

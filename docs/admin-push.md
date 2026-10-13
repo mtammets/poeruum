@@ -21,7 +21,7 @@ Kaupmeeste poodidele seda platvormi ikooni ei lisata.
 1. `node scripts/configure-admin-push.mjs prepare` genereerib võtmed ignoreeritud
    `.env` faili, kui kohalikke ega serverivõtmeid veel pole. Olemasolevaid võtmeid
    ei vahetata; privaatvõti ei tohi jõuda brauserisse.
-2. Rakenda `202610050002_admin_push.sql`, `202610060001_admin_push_preferences.sql`, `202610120001_admin_support_push.sql` ja `202610130001_admin_revenue_push.sql` tavapärase migratsioonivooga.
+2. Rakenda `202610050002_admin_push.sql`, `202610060001_admin_push_preferences.sql`, `202610120001_admin_support_push.sql`, `202610130001_admin_revenue_push.sql` ja `202610130002_admin_revenue_push_store_name.sql` tavapärase migratsioonivooga.
 3. `node scripts/configure-admin-push.mjs apply` salvestab võtmed Edge’i ja
    kontrollib olemasolevat Vaulti/cron’i seadistust.
 4. Juuruta `admin-push` ja `admin-push-dispatch` käsuga
@@ -48,6 +48,11 @@ uut `revenue` liiki ja summat, seejärel `202610130001_admin_revenue_push.sql`,
 brauseriversioonid säilitavad selle valiku ka teiste liikide salvestamisel.
 Migratsioon laiendab privaatse claim-RPC vastust ning taastab selle õigused.
 
+Poe nimega lühiteavituste jaoks avalda esmalt frontend, mille service worker säilitab
+teadlikult tühja teavituse sisu. Seejärel rakenda `202610130002_admin_revenue_push_store_name.sql`
+ja juuruta `admin-push-dispatch` ning `admin-push`. Migratsioon lisab poe nime ka
+olemasolevatele järjekorra kirjetele. Ava telefonis Poeruum uuesti, et worker uueneks.
+
 ## Töövoog
 
 INSERT-triggerid lisavad uued `page_view` sündmused, mitte-admini `auth.users`
@@ -64,9 +69,11 @@ maksimaalset vanust. Saatmisel on kaheksasekundiline timeout. Sama töö korduse
 kasutavad sama topic'ut ja notification-tag'i. Võrgutarne pole täpselt ühekordne.
 
 Teenustasu teavitus käivitub `revenue_events` tabelisse lisatud positiivsest
-müügitasust või kuutasust. Pealkiri näitab kohe näiteks **Teenustasu +1,25 €**.
+müügitasust või kuutasust. Pealkiri näitab ainult poe nime ja summat, näiteks
+**Näidispood +1,25 €**, ning teavitusel ei ole lisateksti. Puuduva poe nime korral
+kasutatakse **Pood +1,25 €**.
 Summa on admini ülevaatega samal alusel: käibemaksuta ja enne Stripe’i tasusid.
-Summa ning valuuta kopeeritakse järjekorda, et korduskatse kuvaks sama laekumist.
+Poe nimi, summa ning valuuta kopeeritakse järjekorda, et korduskatse kuvaks sama laekumist ka poe ümbernimetamisel.
 Testmaksed (ka tellimuse testrežiimi järgi), tagastused ja arvelduskorrektsioonid
 teavitust ei käivita. Korduv makse-webhook ega olemasoleva tulurea muutmine uut
 teavitust ei tekita. Märguande vajutus avab admini ülevaate. Liitumine või liigi
