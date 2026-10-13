@@ -2,7 +2,7 @@
 
 Admini menüüriba hammasratas avab **Seaded** (`/admin/settings`).
 **Märguanded selles seadmes** lubab teavitused. **Avalehe külastused**,
-**Uued kontod** ja **Uued tugipöördumised** saab eraldi sisse või välja lülitada. Valikud salvestatakse
+**Uued kontod**, **Uued tugipöördumised** ja **Teenustasude laekumised** saab eraldi sisse või välja lülitada. Valikud salvestatakse
 automaatselt selle seadme tellimusele. **Saada prooviteavitus** kontrollib tarnet.
 Märguannete heli juhitakse telefoni või brauseri seadetes.
 
@@ -21,7 +21,7 @@ Kaupmeeste poodidele seda platvormi ikooni ei lisata.
 1. `node scripts/configure-admin-push.mjs prepare` genereerib võtmed ignoreeritud
    `.env` faili, kui kohalikke ega serverivõtmeid veel pole. Olemasolevaid võtmeid
    ei vahetata; privaatvõti ei tohi jõuda brauserisse.
-2. Rakenda `202610050002_admin_push.sql`, `202610060001_admin_push_preferences.sql` ja `202610120001_admin_support_push.sql` tavapärase migratsioonivooga.
+2. Rakenda `202610050002_admin_push.sql`, `202610060001_admin_push_preferences.sql`, `202610120001_admin_support_push.sql` ja `202610130001_admin_revenue_push.sql` tavapärase migratsioonivooga.
 3. `node scripts/configure-admin-push.mjs apply` salvestab võtmed Edge’i ja
    kontrollib olemasolevat Vaulti/cron’i seadistust.
 4. Juuruta `admin-push` ja `admin-push-dispatch` käsuga
@@ -42,6 +42,12 @@ mis tunneb uut `support` liiki, seejärel uus migratsioon, `admin-push` ja front
 Tugiteavitused on olemasolevatel ja uutel seadmetel vaikimisi lubatud. Vanema
 brauseriversiooni valikute salvestamine säilitab tugiteavituste senise valiku.
 
+Teenustasude teavituste lisamisel juuruta esmalt `admin-push-dispatch`, mis tunneb
+uut `revenue` liiki ja summat, seejärel `202610130001_admin_revenue_push.sql`,
+`admin-push` ja frontend. Uus liik on seadmetel vaikimisi lubatud; varasemad
+brauseriversioonid säilitavad selle valiku ka teiste liikide salvestamisel.
+Migratsioon laiendab privaatse claim-RPC vastust ning taastab selle õigused.
+
 ## Töövoog
 
 INSERT-triggerid lisavad uued `page_view` sündmused, mitte-admini `auth.users`
@@ -56,6 +62,15 @@ tagasi kutsuda ei saa. Kõigi liikide väljalülitamine säilitab seadme tellimu
 Töödel on kaheminutiline lease, kasvav retry-viivitus, kuni viis katset ning tund
 maksimaalset vanust. Saatmisel on kaheksasekundiline timeout. Sama töö kordused
 kasutavad sama topic'ut ja notification-tag'i. Võrgutarne pole täpselt ühekordne.
+
+Teenustasu teavitus käivitub `revenue_events` tabelisse lisatud positiivsest
+müügitasust või kuutasust. Pealkiri näitab kohe näiteks **Teenustasu +1,25 €**.
+Summa on admini ülevaatega samal alusel: käibemaksuta ja enne Stripe’i tasusid.
+Summa ning valuuta kopeeritakse järjekorda, et korduskatse kuvaks sama laekumist.
+Testmaksed (ka tellimuse testrežiimi järgi), tagastused ja arvelduskorrektsioonid
+teavitust ei käivita. Korduv makse-webhook ega olemasoleva tulurea muutmine uut
+teavitust ei tekita. Märguande vajutus avab admini ülevaate. Liitumine või liigi
+uuesti lubamine varasemaid laekumisi ei saada.
 
 404/410 eemaldab aegunud seadme ja selle järjekorra. Adminiõiguste eemaldamine
 peatab järgmisel claim'il tarned. Väljalülitamine eemaldab ainult praeguse brauseri

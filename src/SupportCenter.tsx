@@ -282,87 +282,81 @@ export default function SupportCenter({ children }: { children?: ReactNode }) {
 
   return <SupportContext.Provider value={support}>
     {children}
-    {user && <>
-      <button className="support-launcher" type="button" onClick={openSupport} aria-label="Ava Poeruumi klienditugi" aria-expanded={isOpen} aria-controls="support-panel">
-        <SupportIcon name="chat" />
-        <span>Abi</span>{unread > 0 && <b>{unread}</b>}
-      </button>
-      {isOpen && <div className={`support-modal${isClosing ? ' is-closing' : ''}`}>
-        <section id="support-panel" className={`support-panel is-${view}`} role="dialog" aria-labelledby="support-heading">
-          <header className="support-panel__header">
-            <div>
-              {view !== 'list'
-                ? <button className="support-icon-button" type="button" disabled={isBusy} onClick={showConversations} aria-label="Tagasi vestluste juurde"><SupportIcon name="back" /></button>
-                : <BrandMark className="support-panel__logo" />}
-              <h2 id="support-heading" ref={heading} tabIndex={-1}>{view === 'new' ? 'Uus vestlus' : 'Poeruumi tugi'}</h2>
-            </div>
-            <button className="support-icon-button" type="button" onClick={closeSupport} aria-label="Sulge tugi"><SupportIcon name="close" /></button>
-          </header>
-          {error && <p className="support-error" role="alert">{error}</p>}
+    {user && isOpen && <div className={`support-modal${isClosing ? ' is-closing' : ''}`}>
+      <section id="support-panel" className={`support-panel is-${view}`} role="dialog" aria-labelledby="support-heading">
+        <header className="support-panel__header">
+          <div>
+            {view !== 'list'
+              ? <button className="support-icon-button" type="button" disabled={isBusy} onClick={showConversations} aria-label="Tagasi vestluste juurde"><SupportIcon name="back" /></button>
+              : <BrandMark className="support-panel__logo" />}
+            <h2 id="support-heading" ref={heading} tabIndex={-1}>{view === 'new' ? 'Uus vestlus' : 'Poeruumi tugi'}</h2>
+          </div>
+          <button className="support-icon-button" type="button" onClick={closeSupport} aria-label="Sulge tugi"><SupportIcon name="close" /></button>
+        </header>
+        {error && <p className="support-error" role="alert">{error}</p>}
 
-          {view === 'list' && <div className="support-panel__content">
-            <button className="support-new-conversation" type="button" onClick={startConversation}>
-              <span className="support-new-conversation__icon"><SupportIcon name="chat" /></span>
-              <span>Kirjuta meile</span>
-              <span className="support-new-conversation__arrow"><SupportIcon name="arrow" /></span>
-            </button>
-            {(conversations.length > 0 || isLoadingConversations) && <section className="support-history" aria-labelledby="support-history-heading" aria-busy={isLoadingConversations}>
-              <h3 id="support-history-heading">Vestlused</h3>
-              {conversations.map((conversation) => <button className={conversation.user_read_at === null ? 'is-unread' : ''} type="button" onClick={() => void openConversation(conversation)} key={conversation.id}>
-                <span className={`support-history__icon${conversation.status === 'resolved' ? ' is-resolved' : ''}`}>
-                  <SupportIcon name={conversation.status === 'resolved' ? 'check' : 'chat'} />
-                  {conversation.user_read_at === null && <i aria-label="Lugemata" />}
-                </span>
-                <span className="support-history__text"><strong>{conversation.subject}</strong><span>{conversation.last_message_preview}</span></span>
-                <span className="support-history__meta"><time dateTime={conversation.last_message_at} title={formatTime(conversation.last_message_at)}>{formatDate(conversation.last_message_at)}</time><SupportIcon name="arrow" /></span>
-              </button>)}
-              {isLoadingConversations && conversations.length === 0 && <div className="support-loading" role="status" aria-label="Laadin vestlusi"><span /><span /></div>}
-            </section>}
-          </div>}
-
-          {view === 'new' && <form className="support-form" onSubmit={createConversation}>
-            <label className="support-form__category"><span id="support-category-label">Teema</span><select aria-labelledby="support-category-label" value={category} disabled={isBusy} onChange={(event) => setCategory(event.target.value)}>{categories.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-            <div className="support-compose">
-              <textarea aria-label="Sõnum" value={body} disabled={isBusy} onChange={(event) => setBody(event.target.value)} minLength={2} maxLength={10000} rows={7} placeholder="Kirjuta oma küsimus…" required />
-              {attachment && <div className="support-attachment">
-                <SupportIcon name="attachment" /><span title={attachment.name}>{attachment.name}</span>
-                <button className="support-icon-button" type="button" disabled={isBusy} onClick={() => setAttachment(null)} aria-label="Eemalda manus"><SupportIcon name="close" /></button>
-              </div>}
-              <div className="support-compose__actions">
-                <div className="support-upload">
-                  <input id="support-attachment" type="file" disabled={isBusy} accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(event) => { selectAttachment(event.target.files?.[0] ?? null); event.target.value = '' }} />
-                  <label htmlFor="support-attachment" title="Ekraanipilt või PDF · kuni 5 MB"><SupportIcon name="attachment" /><span>{attachment ? 'Vaheta faili' : 'Lisa fail'}</span></label>
-                </div>
-                <button className="support-send" type="submit" disabled={isBusy || body.trim().length < 2}>{isBusy ? 'Saadan…' : 'Saada'}<SupportIcon name="send" /></button>
-              </div>
-            </div>
-          </form>}
-
-          {view === 'thread' && selected && <div className="support-thread">
-            <div className="support-thread__title">
-              <h3>{selected.subject}</h3>
-              <span className={`support-status is-${selected.status}`}>
-                {selected.status === 'resolved' ? <SupportIcon name="check" /> : <i />}
-                {selected.status === 'resolved' ? 'Lahendatud' : selected.status === 'waiting_user' ? 'Sinu kord' : 'Ootab vastust'}
+        {view === 'list' && <div className="support-panel__content">
+          <button className="support-new-conversation" type="button" onClick={startConversation}>
+            <span className="support-new-conversation__icon"><SupportIcon name="chat" /></span>
+            <span>Kirjuta meile</span>
+            <span className="support-new-conversation__arrow"><SupportIcon name="arrow" /></span>
+          </button>
+          {(conversations.length > 0 || isLoadingConversations) && <section className="support-history" aria-labelledby="support-history-heading" aria-busy={isLoadingConversations}>
+            <h3 id="support-history-heading">Vestlused</h3>
+            {conversations.map((conversation) => <button className={conversation.user_read_at === null ? 'is-unread' : ''} type="button" onClick={() => void openConversation(conversation)} key={conversation.id}>
+              <span className={`support-history__icon${conversation.status === 'resolved' ? ' is-resolved' : ''}`}>
+                <SupportIcon name={conversation.status === 'resolved' ? 'check' : 'chat'} />
+                {conversation.user_read_at === null && <i aria-label="Lugemata" />}
               </span>
+              <span className="support-history__text"><strong>{conversation.subject}</strong><span>{conversation.last_message_preview}</span></span>
+              <span className="support-history__meta"><time dateTime={conversation.last_message_at} title={formatTime(conversation.last_message_at)}>{formatDate(conversation.last_message_at)}</time><SupportIcon name="arrow" /></span>
+            </button>)}
+            {isLoadingConversations && conversations.length === 0 && <div className="support-loading" role="status" aria-label="Laadin vestlusi"><span /><span /></div>}
+          </section>}
+        </div>}
+
+        {view === 'new' && <form className="support-form" onSubmit={createConversation}>
+          <label className="support-form__category"><span id="support-category-label">Teema</span><select aria-labelledby="support-category-label" value={category} disabled={isBusy} onChange={(event) => setCategory(event.target.value)}>{categories.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <div className="support-compose">
+            <textarea aria-label="Sõnum" value={body} disabled={isBusy} onChange={(event) => setBody(event.target.value)} minLength={2} maxLength={10000} rows={7} placeholder="Kirjuta oma küsimus…" required />
+            {attachment && <div className="support-attachment">
+              <SupportIcon name="attachment" /><span title={attachment.name}>{attachment.name}</span>
+              <button className="support-icon-button" type="button" disabled={isBusy} onClick={() => setAttachment(null)} aria-label="Eemalda manus"><SupportIcon name="close" /></button>
+            </div>}
+            <div className="support-compose__actions">
+              <div className="support-upload">
+                <input id="support-attachment" type="file" disabled={isBusy} accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(event) => { selectAttachment(event.target.files?.[0] ?? null); event.target.value = '' }} />
+                <label htmlFor="support-attachment" title="Ekraanipilt või PDF · kuni 5 MB"><SupportIcon name="attachment" /><span>{attachment ? 'Vaheta faili' : 'Lisa fail'}</span></label>
+              </div>
+              <button className="support-send" type="submit" disabled={isBusy || body.trim().length < 2}>{isBusy ? 'Saadan…' : 'Saada'}<SupportIcon name="send" /></button>
             </div>
-            <div className="support-thread__messages" ref={messageList} role="log" aria-label="Vestluse sõnumid" aria-busy={isLoadingMessages}>
-              {isLoadingMessages && <div className="support-loading" role="status" aria-label="Laadin sõnumeid"><span /><span /></div>}
-              {messages.map((message) => <article className={`is-${message.sender_kind}`} key={message.id} aria-label={message.sender_kind === 'user' ? 'Sina' : 'Poeruumi tugi'}>
-                <p>{message.body}</p>
-                {message.attachment_path && <button className="support-message-attachment" type="button" onClick={() => void openAttachment(message)}><SupportIcon name="attachment" />{message.attachment_name || 'Ava manus'}</button>}
-                <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
-              </article>)}
-            </div>
-            {selected.status !== 'resolved'
-              ? <form className="support-reply" onSubmit={sendReply}>
-                <textarea aria-label="Vastus" value={reply} disabled={isBusy} onChange={(event) => setReply(event.target.value)} rows={2} maxLength={10000} placeholder="Kirjuta vastus…" required />
-                <button className="support-send support-send--icon" type="submit" disabled={isBusy || isLoadingMessages || !reply.trim()} aria-label={isBusy ? 'Saadan vastust' : 'Saada vastus'} title="Saada vastus"><SupportIcon name="send" /></button>
-              </form>
-              : <div className="support-resolved"><button type="button" onClick={startConversation}>Uus vestlus <SupportIcon name="arrow" /></button></div>}
-          </div>}
-        </section>
-      </div>}
-    </>}
+          </div>
+        </form>}
+
+        {view === 'thread' && selected && <div className="support-thread">
+          <div className="support-thread__title">
+            <h3>{selected.subject}</h3>
+            <span className={`support-status is-${selected.status}`}>
+              {selected.status === 'resolved' ? <SupportIcon name="check" /> : <i />}
+              {selected.status === 'resolved' ? 'Lahendatud' : selected.status === 'waiting_user' ? 'Sinu kord' : 'Ootab vastust'}
+            </span>
+          </div>
+          <div className="support-thread__messages" ref={messageList} role="log" aria-label="Vestluse sõnumid" aria-busy={isLoadingMessages}>
+            {isLoadingMessages && <div className="support-loading" role="status" aria-label="Laadin sõnumeid"><span /><span /></div>}
+            {messages.map((message) => <article className={`is-${message.sender_kind}`} key={message.id} aria-label={message.sender_kind === 'user' ? 'Sina' : 'Poeruumi tugi'}>
+              <p>{message.body}</p>
+              {message.attachment_path && <button className="support-message-attachment" type="button" onClick={() => void openAttachment(message)}><SupportIcon name="attachment" />{message.attachment_name || 'Ava manus'}</button>}
+              <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
+            </article>)}
+          </div>
+          {selected.status !== 'resolved'
+            ? <form className="support-reply" onSubmit={sendReply}>
+              <textarea aria-label="Vastus" value={reply} disabled={isBusy} onChange={(event) => setReply(event.target.value)} rows={2} maxLength={10000} placeholder="Kirjuta vastus…" required />
+              <button className="support-send support-send--icon" type="submit" disabled={isBusy || isLoadingMessages || !reply.trim()} aria-label={isBusy ? 'Saadan vastust' : 'Saada vastus'} title="Saada vastus"><SupportIcon name="send" /></button>
+            </form>
+            : <div className="support-resolved"><button type="button" onClick={startConversation}>Uus vestlus <SupportIcon name="arrow" /></button></div>}
+        </div>}
+      </section>
+    </div>}
   </SupportContext.Provider>
 }

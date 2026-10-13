@@ -28,21 +28,23 @@ Deno.serve(async (request) => {
     const preferences = input.preferences
     if ((input.action === 'preferences' || (input.action === 'subscribe' && preferences !== undefined))
       && (!preferences || typeof preferences.visits !== 'boolean' || typeof preferences.accounts !== 'boolean'
-        || (preferences.support !== undefined && typeof preferences.support !== 'boolean'))) {
+        || (preferences.support !== undefined && typeof preferences.support !== 'boolean')
+        || (preferences.revenue !== undefined && typeof preferences.revenue !== 'boolean'))) {
       return json({ error: 'Märguannete valikud on vigased.' }, 400)
     }
     const preferenceFields = preferences && ['subscribe', 'preferences'].includes(input.action)
       ? { visits_enabled: preferences.visits, accounts_enabled: preferences.accounts,
-        ...(preferences.support !== undefined ? { support_enabled: preferences.support } : {}) } : {}
+        ...(preferences.support !== undefined ? { support_enabled: preferences.support } : {}),
+        ...(preferences.revenue !== undefined ? { revenue_enabled: preferences.revenue } : {}) } : {}
     const subscription = input.action === 'subscribe' ? parsePushSubscription(input.subscription) : null
     const endpoint = subscription?.endpoint ?? input.endpoint
     if (!validPushEndpoint(endpoint) || (input.action === 'subscribe' && !subscription)) return json({ error: 'Seadme märguannete andmed on vigased.' }, 400)
-    const { data: existing, error: readError } = await admin.from('admin_push_subscriptions').select('id, endpoint, p256dh, auth, visits_enabled, accounts_enabled, support_enabled').eq('endpoint', endpoint).eq('user_id', user.id).maybeSingle()
+    const { data: existing, error: readError } = await admin.from('admin_push_subscriptions').select('id, endpoint, p256dh, auth, visits_enabled, accounts_enabled, support_enabled, revenue_enabled').eq('endpoint', endpoint).eq('user_id', user.id).maybeSingle()
     if (readError) throw new Error('Subscription lookup failed')
-    const savedPreferences = { visits: existing?.visits_enabled ?? true, accounts: existing?.accounts_enabled ?? true, support: existing?.support_enabled ?? true }
-    // Older open tabs only send visits/accounts; preserve the support choice.
+    const savedPreferences = { visits: existing?.visits_enabled ?? true, accounts: existing?.accounts_enabled ?? true, support: existing?.support_enabled ?? true, revenue: existing?.revenue_enabled ?? true }
+    // Older open tabs omit newer categories; preserve their saved choices.
     const updatedPreferences = preferences ? { ...savedPreferences, visits: preferences.visits, accounts: preferences.accounts,
-      support: preferences.support ?? savedPreferences.support } : savedPreferences
+      support: preferences.support ?? savedPreferences.support, revenue: preferences.revenue ?? savedPreferences.revenue } : savedPreferences
     if (input.action === 'status') return json({ enabled: Boolean(existing), preferences: savedPreferences })
     if (input.action === 'preferences') {
       if (!existing) return json({ error: 'Luba esmalt selles seadmes märguanded.' }, 404)

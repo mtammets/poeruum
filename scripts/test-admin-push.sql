@@ -12,12 +12,18 @@ select not exists(select 1 from information_schema.columns where table_schema='p
 \if :needs_support_migration
   \ir ../supabase/migrations/202610120001_admin_support_push.sql
 \endif
+select not exists(select 1 from information_schema.columns where table_schema='public' and table_name='admin_push_subscriptions' and column_name='revenue_enabled') as needs_revenue_migration \gset
+\if :needs_revenue_migration
+  \ir ../supabase/migrations/202610130001_admin_revenue_push.sql
+\endif
 create function pg_temp.verify(ok boolean, message text) returns void language plpgsql as $$
 begin if ok is distinct from true then raise exception '%', message; end if; end; $$;
 create extension if not exists plpgsql_check with schema extensions;
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'auth.users') where level in ('error','warning')), 'Account trigger failed static checking');
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'public.homepage_analytics_events') where level in ('error','warning')), 'Visit trigger failed static checking');
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'public.support_messages') where level in ('error','warning')), 'Support trigger failed static checking');
+select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_revenue_push()', 'public.revenue_events') where level in ('error','warning')), 'Revenue trigger failed static checking');
+select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.claim_admin_push_job()') where level in ('error','warning')), 'Push claim failed static checking');
 -- Never dispatch network requests from fixtures, even when run against a configured local DB.
 create or replace function public.dispatch_admin_push() returns void language plpgsql as $$ begin return; end; $$;
 insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data)
@@ -85,6 +91,7 @@ update public.admin_push_subscriptions set support_enabled=false;
 select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where kind='support'), 'Muting support left pending work');
 update public.admin_push_subscriptions set support_enabled=true;
 select pg_temp.verify(not exists(select 1 from public.admin_push_jobs where kind='support'), 'Re-enabling support backfilled old messages');
+\ir test-admin-revenue-push.sql
 update public.admin_push_jobs set available_at=now();
 -- Muting each category affects only that device and removes its queued work.
 update public.admin_push_subscriptions set visits_enabled=false where id='92000000-0000-4000-8000-000000000001';

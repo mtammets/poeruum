@@ -789,12 +789,11 @@ button, a, summary { touch-action: manipulation; }
 @media (max-width: 340px) {
   .platform-nav-cta { display: none; }
 }
-/* Storefront support is opened from the merchant toolbar. */
-.closed-storefront ~ .support-launcher,
+/* Keep support hidden while loading; the storefront uses the merchant toolbar. */
+.platform-loading ~ .support-modal,
+.storefront-loading ~ .support-modal,
 .closed-storefront ~ .support-modal,
-.public-storefront-bootstrap ~ .support-launcher,
 .public-storefront-bootstrap ~ .support-modal,
-.app-shell ~ .support-launcher,
 .app-shell[data-editing='false'] ~ .support-modal { display: none; }
 
 .fatal-error {

@@ -18,14 +18,6 @@ export const storeDirectoryExamples = [
     logoUrl: null,
     url: 'https://poeruum.ee/',
   },
-  {
-    id: 'example-your-store',
-    name: 'Sinu pood',
-    description: 'Sinu tooted. Sinu lugu.',
-    imageUrl: null,
-    logoUrl: null,
-    url: 'https://poeruum.ee/#hind',
-  },
 ]
 
 const validSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/

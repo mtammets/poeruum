@@ -58,7 +58,7 @@ test('Kaubamaja presents the store instead of turning its card into a product ad
   })
 
   const cards = page.locator('.store-directory__card')
-  await expect(cards).toHaveCount(5)
+  await expect(cards).toHaveCount(4)
   const firstCard = cards.first()
   await expect(firstCard.locator('h3')).toHaveText('Keraamika Stuudio')
   await expect(firstCard.getByText('Eesti savist käsitsi valminud nõud.')).toBeVisible()
@@ -251,26 +251,6 @@ test('storefront modal close button owns mobile taps', async ({ browser, baseURL
   await closeButton.tap()
   await expect(dialog).toHaveCount(0)
   await context.close()
-})
-
-test('support launcher stays hidden throughout the storefront', async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(async () => {
-    const { mountStorefrontPreviewHarness } = await import('/e2e/storefront-preview-harness.tsx')
-    mountStorefrontPreviewHarness()
-  })
-
-  const supportProbe = page.locator('.support-launcher')
-  await page.locator('.app-shell').evaluate((storefront) => {
-    const launcher = document.createElement('button')
-    launcher.className = 'support-launcher'
-    launcher.textContent = 'Abi'
-    storefront.after(launcher)
-  })
-
-  await expect(supportProbe).toBeHidden()
-  await page.locator('.app-shell').evaluate((storefront) => { storefront.dataset.editing = 'true' })
-  await expect(supportProbe).toBeHidden()
 })
 
 test('admin support keeps the reply composer visible while messages scroll', async ({ page }) => {

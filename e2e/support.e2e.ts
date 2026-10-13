@@ -65,7 +65,7 @@ async function setup(page: Page, options: { empty?: boolean; failList?: boolean;
   await page.routeWebSocket(/__e2e_supabase/, () => {})
   await page.goto(`http://poeruum.localhost:4174/e2e/support.html${options.store ? `?store=${options.store}` : ''}`)
   if (!options.store) {
-    await page.getByRole('button', { name: 'Ava Poeruumi klienditugi' }).click()
+    await page.getByRole('button', { name: 'Abi ja tugi', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Kirjuta meile' })).toBeVisible()
   }
   await page.evaluate(() => document.fonts.ready)
@@ -79,9 +79,9 @@ test('one message creates a conversation, preserves failed drafts and sends atta
   await page.getByLabel('Teema', { exact: true }).selectOption('payments')
   const body = 'Maksete ühendamine ei õnnestu.\nProovisin uuesti, aga maksete seadistamise vaade jääb pärast andmete sisestamist laadima.'
   await page.getByRole('textbox', { name: 'Sõnum' }).fill(body)
-  await page.locator('input[type=file]').setInputFiles({ name: 'ekraanipilt.png', mimeType: 'image/png', buffer: Buffer.from('test-image') })
+  await page.getByRole('dialog').locator('input[type=file]').setInputFiles({ name: 'ekraanipilt.png', mimeType: 'image/png', buffer: Buffer.from('test-image') })
   await page.getByRole('button', { name: 'Eemalda manus' }).click()
-  await page.locator('input[type=file]').setInputFiles({ name: 'ekraanipilt.png', mimeType: 'image/png', buffer: Buffer.from('test-image') })
+  await page.getByRole('dialog').locator('input[type=file]').setInputFiles({ name: 'ekraanipilt.png', mimeType: 'image/png', buffer: Buffer.from('test-image') })
   api.failSend(true)
   await page.getByRole('button', { name: 'Saada', exact: true }).click()
   await expect(page.getByRole('alert')).toHaveText('Sõnumit ei õnnestunud saata.')
@@ -105,7 +105,7 @@ test('a lost shared session blocks sending without discarding the question or at
   const api = await setup(page, { empty: true })
   await page.getByRole('button', { name: 'Kirjuta meile' }).click()
   await page.getByRole('textbox', { name: 'Sõnum' }).fill('Toote pilti ei saa vahetada.')
-  await page.locator('input[type=file]').setInputFiles({ name: 'viga.png', mimeType: 'image/png', buffer: Buffer.from('test-image') })
+  await page.getByRole('dialog').locator('input[type=file]').setInputFiles({ name: 'viga.png', mimeType: 'image/png', buffer: Buffer.from('test-image') })
   // Freeze the periodic reload to exercise the preflight during the short
   // interval between a different origin clearing cookies and the next check.
   await page.clock.pauseAt(new Date())
@@ -153,7 +153,7 @@ test('history, resolved state and keyboard navigation stay usable', async ({ pag
   await expect(page.getByRole('textbox', { name: 'Sõnum' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Abi ja tugi', exact: true })).toBeFocused()
 })
 
 test('load errors and oversized attachments remain visible', async ({ page }) => {
@@ -161,7 +161,7 @@ test('load errors and oversized attachments remain visible', async ({ page }) =>
   await expect(page.getByRole('alert')).toHaveText('Vestlusi ei õnnestunud laadida.')
   await page.getByRole('button', { name: 'Kirjuta meile' }).click()
   await page.getByRole('textbox', { name: 'Sõnum' }).fill('Palun abi.')
-  await page.locator('input[type=file]').setInputFiles({ name: 'suur.png', mimeType: 'image/png', buffer: Buffer.alloc(5 * 1024 * 1024 + 1) })
+  await page.getByRole('dialog').locator('input[type=file]').setInputFiles({ name: 'suur.png', mimeType: 'image/png', buffer: Buffer.alloc(5 * 1024 * 1024 + 1) })
   await expect(page.getByRole('alert')).toContainText('5 MB')
   await expect(page.getByRole('textbox', { name: 'Sõnum' })).toHaveValue('Palun abi.')
 })
@@ -209,6 +209,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     await setup(page, { store: 'full' })
     const help = page.getByRole('button', { name: 'Abi ja tugi', exact: true })
     await expect(help).toBeInViewport()
+    await expect(page.locator('.support-launcher')).toHaveCount(0)
     const toolbar = await page.locator('.admin-global-actions').boundingBox()
     expect(toolbar!.x).toBeGreaterThanOrEqual(0)
     expect(toolbar!.x + toolbar!.width).toBeLessThanOrEqual(viewport.width)
@@ -219,7 +220,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     await expect(help).toBeFocused()
     await page.getByRole('button', { name: 'Vaata poodi kliendina' }).click()
     await expect(help).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toBeHidden()
+    await expect(page.locator('.support-launcher')).toHaveCount(0)
   })
 }
 

@@ -1554,8 +1554,7 @@ test('a public store keeps its own content when another merchant is already sign
   await page.goto('/p/kruk-kruk/')
   await expect(page.getByRole('heading', { name: 'Teise poe toode', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /Seaded/ })).toHaveCount(0)
-  await expect(page.locator('.support-launcher')).toHaveCount(1)
-  await expect(page.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toBeHidden()
+  await expect(page.locator('.support-launcher')).toHaveCount(0)
   await page.getByRole('button', { name: 'Poe omanikule: ava poe halduse sisselogimine' }).click()
   await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
   await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
@@ -1585,10 +1584,14 @@ test('existing merchant never sees new-store onboarding while their store loads'
 
   await expect(page.getByLabel('Laadin sinu poodi')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Poe nimi' })).toHaveCount(0)
+  await expect(page.locator('.support-launcher')).toHaveCount(0)
 
   releaseProducts()
   await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Poe nimi' })).toHaveCount(0)
+  await expect(page.locator('.support-launcher')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Abi ja tugi', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Poeruumi tugi' })).toBeVisible()
 })
 
 test('a stale creation form resumes the existing store without overwriting it', async ({ page }) => {
@@ -1697,17 +1700,17 @@ test('logout on the platform closes merchant editing in an already open shop tab
   // Keep this page on the platform origin; the full app normally redirects an
   // existing login to its shop. Use the real SDK and shared cookie adapter.
   await platform.goto('http://poeruum.localhost:4174/e2e/support.html')
-  await expect(platform.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toBeVisible()
+  await expect(platform.getByRole('button', { name: 'Abi ja tugi', exact: true })).toBeVisible()
   await platform.evaluate(async (modulePath) => {
     const { requireSupabase } = await import(modulePath)
     const { error } = await requireSupabase().auth.signOut({ scope: 'local' })
     if (error) throw new Error(error.message)
   }, '/src/lib/supabase.ts')
-  await expect(platform.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toHaveCount(0)
+  await expect(platform.getByRole('button', { name: 'Abi ja tugi', exact: true })).toHaveCount(0)
 
   await page.bringToFront()
   await expect(page.getByRole('button', { name: 'Seaded', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Ava Poeruumi klienditugi' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Abi ja tugi', exact: true })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Logi sisse', exact: true })).toBeVisible()
   await expect(page).toHaveURL('http://poeruum.localhost:4174/?continue_setup=1')
 

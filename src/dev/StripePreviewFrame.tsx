@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import StripeEmbeddedOnboarding, { type StripeEmbeddedMode } from '../StripeEmbeddedOnboarding'
 import { SetupShell } from '../PlatformApp'
-import SupportCenter from '../SupportCenter'
 import type { StripeRequirementSummary } from '../lib/stripeRequirements'
 import '../styles.css'
 import '../brand.css'
@@ -37,7 +36,7 @@ function StripePreviewFrame() {
     try { await stripe('status') } catch { /* The last known state is still available in the app preview. */ }
     window.location.assign(`/?preview_session=${encodeURIComponent(sessionId)}`)
   }
-  return <><SetupShell screen="payments" onBack={() => void close()} onExit={() => void close()}>
+  return <SetupShell screen="payments" onBack={() => void close()} onExit={() => void close()}>
     <div className="setup-form">
       {publishableKey ? <StripeEmbeddedOnboarding key={mode} mode={mode}
         requirements={requirements}
@@ -51,7 +50,7 @@ function StripePreviewFrame() {
       /> : !error && <div role="status"><h2>Valmistan Stripe’i testkontot</h2><p>Hetk palun…</p></div>}
       {error && <p className="add-product-error" role="alert">{error}</p>}
     </div>
-  </SetupShell><SupportCenter /></>
+  </SetupShell>
 }
 
 if (import.meta.env.DEV) createRoot(document.getElementById('root')!).render(<StripePreviewFrame />)

@@ -6,8 +6,8 @@ import '../src/styles.css'
 import '../src/brand.css'
 import '../src/platform.css'
 
-const store = new URLSearchParams(location.search).get('store')
-createRoot(document.getElementById('root')!).render(createElement(SupportCenter, null, store && createElement(Storefront, {
+const store = new URLSearchParams(location.search).get('store') ?? 'full'
+createRoot(document.getElementById('root')!).render(createElement(SupportCenter, null, createElement(Storefront, {
   storeId: '10000000-0000-4000-8000-000000000071',
   merchantMode: store !== 'public',
   storeName: 'Mavi Stuudio',

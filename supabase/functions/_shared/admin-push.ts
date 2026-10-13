@@ -5,7 +5,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 export type PushSubscriptionData = { endpoint: string; keys: { p256dh: string; auth: string } }
 export type PushNotice = { title: string; body: string; tag: string; url: string }
 export type PushOutcome = 'sent' | 'gone' | 'retry'
-export type PushJob = { id: string; lease_token: string; subscription_id: string; endpoint: string; p256dh: string; auth: string; kind: 'visit' | 'account' | 'support' }
+export type PushJob = { id: string; lease_token: string; subscription_id: string; endpoint: string; p256dh: string; auth: string; kind: 'visit' | 'account' | 'support' | 'revenue'; amount_cents?: number | null; currency?: string | null }
 
 // Subscriptions are supplied by browsers, but must never turn the sender into an SSRF proxy.
 export function validPushEndpoint(value: unknown): value is string {
@@ -27,7 +27,21 @@ export function parsePushSubscription(value: unknown): PushSubscriptionData | nu
   return { endpoint: input.endpoint, keys: { p256dh: input.keys.p256dh, auth: input.keys.auth } }
 }
 
-export function pushNotice(kind: PushJob['kind'] | 'test', id: string): PushNotice {
+export function pushNotice(kind: PushJob['kind'] | 'test', id: string, revenue?: Pick<PushJob, 'amount_cents' | 'currency'>): PushNotice {
+  if (kind === 'revenue') {
+    const amount = revenue?.amount_cents
+    const currency = revenue?.currency
+    if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount <= 0
+      || typeof currency !== 'string' || !/^[a-z]{3}$/.test(currency)) throw new Error('Invalid revenue notice amount')
+    const money = new Intl.NumberFormat('et-EE', {
+      style: 'currency', currency: currency.toUpperCase(), minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(amount / 100)
+    return {
+      title: `Teenustasu +${money}`,
+      body: 'Poeruumile lisandus teenustasu. Summa on KM-ta ja enne Stripe’i tasusid.',
+      tag: `poeruum-${id}`, url: '/admin',
+    }
+  }
   if (kind === 'support') return {
     title: 'Uus tugipöördumine',
     body: 'Klienditoes ootab uus sõnum sinu vastust.',
@@ -71,7 +85,7 @@ export async function processAdminPush(admin: SupabaseClient, send = sendAdminPu
   const job = data?.[0] as PushJob | undefined
   if (!job) return null
   let outcome: PushOutcome = 'retry'
-  try { outcome = await send({ endpoint: job.endpoint, keys: { p256dh: job.p256dh, auth: job.auth } }, pushNotice(job.kind, job.id)) } catch { /* Retry without logging private endpoints or keys. */ }
+  try { outcome = await send({ endpoint: job.endpoint, keys: { p256dh: job.p256dh, auth: job.auth } }, pushNotice(job.kind, job.id, job)) } catch { /* Retry without logging private endpoints or keys. */ }
   const { error: finishError } = await admin.rpc('finish_admin_push_job', { target_id: job.id, target_token: job.lease_token, outcome })
   if (finishError) throw new Error('Could not finish push job')
   return outcome
