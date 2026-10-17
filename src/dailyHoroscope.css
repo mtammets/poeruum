@@ -1,5 +1,6 @@
 .daily-horoscope {
   margin-top: clamp(3.5rem, 6vw, 5.5rem);
+  scroll-margin-top: 1.5rem;
 }
 
 .daily-horoscope__section-heading {
@@ -34,6 +35,33 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.daily-horoscope__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1.25rem;
+  margin-top: .75rem;
+}
+
+.daily-horoscope__share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  min-height: 2.75rem;
+  padding: .5rem 0;
+  border: 0;
+  border-radius: .25rem;
+  background: transparent;
+  color: #536b53;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.daily-horoscope__share svg { width: 1.1rem; height: 1.1rem; stroke-width: 1.7; }
+.daily-horoscope__share:focus-visible { outline: 2px solid #265f43; outline-offset: 3px; }
+.daily-horoscope__share:disabled { opacity: .45; cursor: default; }
 
 .daily-horoscope__signs {
   display: grid;
@@ -108,13 +136,16 @@
 .daily-horoscope__emblem svg { width: 2.25rem; height: 2.25rem; stroke-width: 1.1; }
 .daily-horoscope__heading h3 { margin: 0 0 .5rem; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(2rem, 3vw, 2.75rem); font-weight: 400; line-height: 1.1; letter-spacing: -.045em; }
 .daily-horoscope__heading time { color: #63745f; font-size: .85rem; }
-.daily-horoscope__text { min-width: 0; min-height: 6.25rem; }
+.daily-horoscope__content { min-width: 0; min-height: 6.25rem; }
+.daily-horoscope__text { min-width: 0; }
 .daily-horoscope__text p { margin: 0; max-width: 44rem; font-size: clamp(1.05rem, 1.5vw, 1.3rem); line-height: 1.65; animation: horoscope-appear 220ms ease-out; }
 .daily-horoscope__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @keyframes horoscope-appear { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (hover: hover) {
+  .daily-horoscope__share:hover:not(:disabled) { color: #173d2b; }
+  .daily-horoscope__share:hover:not(:disabled) span { text-decoration: underline; text-underline-offset: .2em; }
   .daily-horoscope__sign:hover { background: rgba(247, 248, 239, .65); color: #173d2b; }
   .daily-horoscope__sign:has(input:checked):hover { background: #f7f8ef; }
 }
@@ -129,7 +160,7 @@
   .daily-horoscope__section-heading { margin-bottom: 1.35rem; }
   .daily-horoscope__card { border-radius: 1.25rem; }
   .daily-horoscope__reading { grid-template-columns: 1fr; gap: 1.5rem; }
-  .daily-horoscope__text { min-height: 0; }
+  .daily-horoscope__content { min-height: 0; }
 }
 
 @media (max-width: 35rem) {

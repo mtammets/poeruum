@@ -189,7 +189,7 @@ function StoreDirectory() {
     if (status === 'loading') return
     // The directory is loaded lazily, after the browser first resolves the fragment.
     const target = window.location.hash.slice(1)
-    if (target === 'poeruumi-lood' || target === 'store-directory-heading') {
+    if (target === 'poeruumi-lood' || target === 'store-directory-heading' || target === 'horoskoop') {
       document.getElementById(target)?.scrollIntoView({ behavior: 'instant' })
     }
   }, [status])
