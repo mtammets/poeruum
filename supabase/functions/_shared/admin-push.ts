@@ -5,7 +5,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 export type PushSubscriptionData = { endpoint: string; keys: { p256dh: string; auth: string } }
 export type PushNotice = { title: string; body: string; tag: string; url: string }
 export type PushOutcome = 'sent' | 'gone' | 'retry'
-export type PushJob = { id: string; lease_token: string; subscription_id: string; endpoint: string; p256dh: string; auth: string; kind: 'visit' | 'account' | 'support' | 'revenue'; amount_cents?: number | null; currency?: string | null; store_name?: string | null }
+export type PushJob = { id: string; lease_token: string; subscription_id: string; endpoint: string; p256dh: string; auth: string; kind: 'visit' | 'directory_visit' | 'account' | 'support' | 'revenue'; amount_cents?: number | null; currency?: string | null; store_name?: string | null }
 
 // Subscriptions are supplied by browsers, but must never turn the sender into an SSRF proxy.
 export function validPushEndpoint(value: unknown): value is string {
@@ -28,6 +28,11 @@ export function parsePushSubscription(value: unknown): PushSubscriptionData | nu
 }
 
 export function pushNotice(kind: PushJob['kind'] | 'test', id: string, revenue?: Pick<PushJob, 'amount_cents' | 'currency' | 'store_name'>): PushNotice {
+  if (kind === 'directory_visit') return {
+    title: 'Uus Kaubamaja külastus',
+    body: 'Keegi avas Poeruumi Kaubamaja.',
+    tag: `poeruum-${id}`, url: '/admin/kaubamaja',
+  }
   if (kind === 'revenue') {
     const amount = revenue?.amount_cents
     const currency = revenue?.currency

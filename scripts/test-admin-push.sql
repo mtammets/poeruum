@@ -20,11 +20,16 @@ select not exists(select 1 from information_schema.columns where table_schema='p
 \if :needs_store_name_migration
   \ir ../supabase/migrations/202610130002_admin_revenue_push_store_name.sql
 \endif
+select not exists(select 1 from information_schema.columns where table_schema='public' and table_name='admin_push_subscriptions' and column_name='directory_visits_enabled') as needs_directory_migration \gset
+\if :needs_directory_migration
+  \ir ../supabase/migrations/202610170001_admin_directory_push.sql
+\endif
 create function pg_temp.verify(ok boolean, message text) returns void language plpgsql as $$
 begin if ok is distinct from true then raise exception '%', message; end if; end; $$;
 create extension if not exists plpgsql_check with schema extensions;
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'auth.users') where level in ('error','warning')), 'Account trigger failed static checking');
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'public.homepage_analytics_events') where level in ('error','warning')), 'Visit trigger failed static checking');
+select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'public.directory_analytics_events') where level in ('error','warning')), 'Directory visit trigger failed static checking');
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_push()', 'public.support_messages') where level in ('error','warning')), 'Support trigger failed static checking');
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.enqueue_admin_revenue_push()', 'public.revenue_events') where level in ('error','warning')), 'Revenue trigger failed static checking');
 select pg_temp.verify(not exists(select 1 from extensions.plpgsql_check_function_tb('public.claim_admin_push_job()') where level in ('error','warning')), 'Push claim failed static checking');
@@ -45,6 +50,7 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) v
 ('91000000-0000-4000-8000-000000000002','authenticated','authenticated','push-merchant@example.invalid','{}','{}'),
 ('91000000-0000-4000-8000-000000000003','authenticated','authenticated','push-admin-two@example.invalid','{"role":"admin"}','{}');
 select pg_temp.verify((select count(*)=2 from public.admin_push_jobs where kind='account'),'Account notification missing or admin signup included');
+\ir test-admin-directory-push.sql
 select pg_temp.verify(not has_table_privilege('authenticated','public.admin_push_subscriptions','select'), 'Subscriptions exposed to users');
 select pg_temp.verify(not has_table_privilege('anon','public.admin_push_jobs','select'), 'Jobs exposed anonymously');
 select pg_temp.verify(not has_function_privilege('authenticated','public.claim_admin_push_job()','execute'), 'Browser can claim notifications');

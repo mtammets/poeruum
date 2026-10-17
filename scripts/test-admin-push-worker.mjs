@@ -41,6 +41,17 @@ assert.equal(navigated, '/admin/support'); assert.ok(focused)
 windows = []
 await dispatch('notificationclick', { notification: supportNotification })
 assert.equal(opened.at(-1), '/admin/support')
+await dispatch('push', { data: { json: () => ({ title: 'Uus Kaubamaja külastus', body: 'Keegi avas Poeruumi Kaubamaja.', tag: 'directory-event', url: '/admin/kaubamaja' }) } })
+assert.equal(notifications.at(-1).options.data.url, '/admin/kaubamaja')
+const directoryNotification = { close: () => {}, data: notifications.at(-1).options.data }
+await dispatch('notificationclick', { notification: directoryNotification })
+assert.equal(opened.at(-1), '/admin/kaubamaja')
+windows = [{ url: 'https://poeruum.ee/admin', navigate: async (url) => { navigated = url }, focus: async () => { focused = true } }]
+focused = false
+await dispatch('notificationclick', { notification: directoryNotification })
+assert.equal(navigated, '/admin/kaubamaja'); assert.ok(focused)
+await dispatch('push', { data: { json: () => ({ url: '//evil.invalid/admin/kaubamaja' }) } })
+assert.equal(notifications.at(-1).options.data.url, '/admin')
 await dispatch('push', { data: { json: () => ({ url: '//evil.invalid/admin/support' }) } })
 assert.equal(notifications.at(-1).options.data.url, '/admin')
 await dispatch('push', { data: { json: () => ({ title: 'Näidispood +1,25 €', body: '', tag: 'revenue-event', url: '/admin' }) } })
@@ -56,7 +67,7 @@ await new Promise((resolve) => probe.close(resolve))
 const server = spawn(process.execPath, ['server.mjs'], { env: { ...process.env, PORT: String(port), VITE_SUPABASE_URL: '', VITE_SUPABASE_PUBLISHABLE_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] })
 try {
   await Promise.race([once(server.stdout, 'data'), once(server, 'exit').then(() => { throw new Error('Server failed to start') })])
-  for (const path of ['/admin/settings', '/admin/settings/', '/admin/support', '/admin-push-sw.js', '/admin.webmanifest', '/images/admin-icon-192.png', '/images/admin-icon-512.png']) {
+  for (const path of ['/admin/settings', '/admin/settings/', '/admin/support', '/admin/kaubamaja', '/admin-push-sw.js', '/admin.webmanifest', '/images/admin-icon-192.png', '/images/admin-icon-512.png']) {
     const response = await new Promise((resolve, reject) => {
       const req = request({ hostname: '127.0.0.1', port, path, headers: { Host: 'poeruum.ee' } }, (res) => {
         const chunks = []; res.on('data', (chunk) => chunks.push(chunk)); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }))

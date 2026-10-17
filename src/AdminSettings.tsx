@@ -14,12 +14,13 @@ export default function AdminSettings({ push }: { push: AdminPushFeedback }) {
     <fieldset disabled={disabled || !push.enabled} aria-label="Märguannete liigid" className={!push.enabled ? 'is-off' : undefined}>
       {([
         ['visits', 'Avalehe külastused'],
+        ['directory', 'Kaubamaja külastused'],
         ['accounts', 'Uued kontod'],
         ['support', 'Uued tugipöördumised'],
         ['revenue', 'Teenustasude laekumised'],
       ] as const).map(([kind, label]) => <div className="admin-notification-settings__row" key={kind}>
         <span className={`admin-notification-settings__icon${push.enabled && push.preferences[kind] ? ' is-on' : ''}`} aria-hidden="true">
-          <svg viewBox="0 0 24 24">{kind === 'visits'
+          <svg viewBox="0 0 24 24">{kind === 'visits' || kind === 'directory'
             ? <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>
             : kind === 'accounts'
               ? <><circle cx="9" cy="7" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M19 7v6M16 10h6" /></>

@@ -61,6 +61,26 @@ Deno.test('support queue sends a private notice that opens customer support', as
   assert(finished, 'Support queue was not processed')
 })
 
+Deno.test('directory visit queue sends distinct copy and opens Kaubamaja statistics', async () => {
+  const job = { id: 'directory-job', lease_token: 'directory-lease', subscription_id: 'device', endpoint: subscription.endpoint, ...subscription.keys, kind: 'directory_visit' }
+  const outcomes: unknown[] = [], notices: string[] = []
+  const admin = { rpc: (name: string, args: Record<string, unknown>) => {
+    if (name === 'claim_admin_push_job') return Promise.resolve({ data: [job] })
+    assert(args.target_id === job.id && args.target_token === job.lease_token, 'Directory job lost its lease')
+    outcomes.push(args.outcome); return Promise.resolve({ data: true })
+  } } as unknown as SupabaseClient
+  for (const outcome of ['retry', 'sent'] as const) {
+    await processAdminPush(admin, (_subscription, notice) => {
+      assert(notice.title === 'Uus Kaubamaja külastus' && notice.body === 'Keegi avas Poeruumi Kaubamaja.', 'Directory visit uses the wrong notice')
+      assert(notice.url === '/admin/kaubamaja' && notice.tag === 'poeruum-directory-job', 'Directory destination or retry tag incorrect')
+      notices.push(JSON.stringify(notice))
+      return Promise.resolve(outcome)
+    })
+  }
+  assert(notices[0] === notices[1] && outcomes.join(',') === 'retry,sent', 'Directory retry changed notification identity')
+  assert(pushNotice('visit', 'homepage').title === 'Uus avalehe külastus', 'Homepage notice changed')
+})
+
 Deno.test('revenue queue shows only the shop and exact fee, preserving both on retry', async () => {
   const job = { id: 'revenue-job', lease_token: 'revenue-lease', subscription_id: 'device', endpoint: subscription.endpoint,
     ...subscription.keys, kind: 'revenue', amount_cents: 125, currency: 'eur', store_name: 'Näidispood' }
@@ -100,7 +120,7 @@ Deno.test('admin push API authenticates, scopes device operations to the owner a
   type Handler = (request: Request) => Promise<Response>
   let handler: Handler | undefined, role = 'merchant', rateAllowed = true
   let databaseCalls = 0, deviceExists = false
-  let preferences = { visits_enabled: true, accounts_enabled: true, support_enabled: true, revenue_enabled: true }
+  let preferences = { visits_enabled: true, directory_visits_enabled: true, accounts_enabled: true, support_enabled: true, revenue_enabled: true }
   const owner = '10000000-0000-4000-8000-000000000001'
   try {
     Deno.serve = ((callback: Handler) => { handler = callback; return {} }) as typeof Deno.serve
@@ -113,7 +133,7 @@ Deno.test('admin push API authenticates, scopes device operations to the owner a
         databaseCalls++
         if (init?.method === 'POST') {
           const body = JSON.parse(String(init.body)); assert(body.user_id === owner, 'Client controls subscription owner')
-          deviceExists = true; preferences = { visits_enabled: body.visits_enabled ?? true, accounts_enabled: body.accounts_enabled ?? true, support_enabled: body.support_enabled ?? true, revenue_enabled: body.revenue_enabled ?? true }; return json(null, 201)
+          deviceExists = true; preferences = { visits_enabled: body.visits_enabled ?? true, directory_visits_enabled: body.directory_visits_enabled ?? true, accounts_enabled: body.accounts_enabled ?? true, support_enabled: body.support_enabled ?? true, revenue_enabled: body.revenue_enabled ?? true }; return json(null, 201)
         }
         assert(url.searchParams.get('user_id') === `eq.${owner}`, 'Device operation is not scoped to its owner')
         if (init?.method === 'PATCH') { preferences = { ...preferences, ...JSON.parse(String(init.body)) }; return json(null) }
@@ -142,9 +162,16 @@ Deno.test('admin push API authenticates, scopes device operations to the owner a
     for (const revenue of ['false', null, 0]) {
       assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: true, accounts: true, revenue } })).status === 400, 'Non-boolean revenue preference accepted')
     }
+    for (const directory of ['false', null, 0]) {
+      assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: true, accounts: true, directory } })).status === 400, 'Non-boolean directory preference accepted')
+    }
     assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: false, accounts: true }, user_id: 'someone-else' })).status === 200, 'Preference update failed')
     let status = await (await call({ action: 'status', endpoint: subscription.endpoint })).json()
     assert(status.enabled && !status.preferences.visits && status.preferences.accounts && status.preferences.support && status.preferences.revenue, 'Preferences not restored independently')
+    assert(status.preferences.directory, 'Directory visits are not enabled by default or depend on homepage visits')
+    assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: false, accounts: true, directory: false } })).status === 200, 'Directory preference update failed')
+    status = await (await call({ action: 'status', endpoint: subscription.endpoint })).json()
+    assert(!status.preferences.directory && !status.preferences.visits && status.preferences.accounts && status.preferences.support && status.preferences.revenue, 'Directory choice did not save independently')
     assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: false, accounts: true, support: false } })).status === 200, 'Support preference update failed')
     status = await (await call({ action: 'status', endpoint: subscription.endpoint })).json()
     assert(!status.preferences.support && !status.preferences.visits && status.preferences.accounts, 'Support did not save independently')
@@ -160,6 +187,7 @@ Deno.test('admin push API authenticates, scopes device operations to the owner a
     await call({ action: 'subscribe', subscription, preferences: { visits: false, accounts: true, support: false } })
     status = await (await call({ action: 'status', endpoint: subscription.endpoint })).json()
     assert(!status.preferences.support && !status.preferences.revenue, 'Legacy subscribe preferences re-enabled newer categories')
+    assert(!status.preferences.directory, 'Legacy preference update or subscription refresh re-enabled directory visits')
     assert((await call({ action: 'unsubscribe', endpoint: subscription.endpoint })).status === 200 && !deviceExists, 'Unsubscribe failed')
     assert((await call({ action: 'test', endpoint: subscription.endpoint })).status === 404, 'Test sent to unowned device')
     assert((await call({ action: 'preferences', endpoint: subscription.endpoint, preferences: { visits: true, accounts: true } })).status === 404, 'Preferences updated an unowned device')

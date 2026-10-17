@@ -1,7 +1,7 @@
 # Admini telefoni märguanded
 
 Admini menüüriba hammasratas avab **Seaded** (`/admin/settings`).
-**Märguanded selles seadmes** lubab teavitused. **Avalehe külastused**,
+**Märguanded selles seadmes** lubab teavitused. **Avalehe külastused**, **Kaubamaja külastused**,
 **Uued kontod**, **Uued tugipöördumised** ja **Teenustasude laekumised** saab eraldi sisse või välja lülitada. Valikud salvestatakse
 automaatselt selle seadme tellimusele. **Saada prooviteavitus** kontrollib tarnet.
 Märguannete heli juhitakse telefoni või brauseri seadetes.
@@ -21,7 +21,7 @@ Kaupmeeste poodidele seda platvormi ikooni ei lisata.
 1. `node scripts/configure-admin-push.mjs prepare` genereerib võtmed ignoreeritud
    `.env` faili, kui kohalikke ega serverivõtmeid veel pole. Olemasolevaid võtmeid
    ei vahetata; privaatvõti ei tohi jõuda brauserisse.
-2. Rakenda `202610050002_admin_push.sql`, `202610060001_admin_push_preferences.sql`, `202610120001_admin_support_push.sql`, `202610130001_admin_revenue_push.sql` ja `202610130002_admin_revenue_push_store_name.sql` tavapärase migratsioonivooga.
+2. Rakenda `202610050002_admin_push.sql`, `202610060001_admin_push_preferences.sql`, `202610120001_admin_support_push.sql`, `202610130001_admin_revenue_push.sql`, `202610130002_admin_revenue_push_store_name.sql` ja `202610170001_admin_directory_push.sql` tavapärase migratsioonivooga.
 3. `node scripts/configure-admin-push.mjs apply` salvestab võtmed Edge’i ja
    kontrollib olemasolevat Vaulti/cron’i seadistust.
 4. Juuruta `admin-push` ja `admin-push-dispatch` käsuga
@@ -53,6 +53,13 @@ teadlikult tühja teavituse sisu. Seejärel rakenda `202610130002_admin_revenue_
 ja juuruta `admin-push-dispatch` ning `admin-push`. Migratsioon lisab poe nime ka
 olemasolevatele järjekorra kirjetele. Ava telefonis Poeruum uuesti, et worker uueneks.
 
+Kaubamaja külastuste lisamisel juuruta esmalt `admin-push-dispatch`, mis tunneb
+uut `directory_visit` liiki, seejärel `202610170001_admin_directory_push.sql`,
+`admin-push` ja frontend koos uuendatud service worker'iga. Uus liik on olemasolevatel
+ja uutel seadmetel vaikimisi lubatud; varasemate brauseriversioonide salvestused
+säilitavad selle valiku. Ava telefonis Poeruum uuesti, et worker saaks uue sihtlehe toe.
+Vanem worker kuvab teate, kuid suunab vajutuse admini ülevaatesse.
+
 ## Töövoog
 
 INSERT-triggerid lisavad uued `page_view` sündmused, mitte-admini `auth.users`
@@ -67,6 +74,14 @@ tagasi kutsuda ei saa. Kõigi liikide väljalülitamine säilitab seadme tellimu
 Töödel on kaheminutiline lease, kasvav retry-viivitus, kuni viis katset ning tund
 maksimaalset vanust. Saatmisel on kaheksasekundiline timeout. Sama töö kordused
 kasutavad sama topic'ut ja notification-tag'i. Võrgutarne pole täpselt ühekordne.
+
+Kaubamaja `directory_analytics_events.page_view` saadab **Uus Kaubamaja külastus**
+teate, mille sisu on **Keegi avas Poeruumi Kaubamaja.** Vajutus avab
+`/admin/kaubamaja` statistika. Sama analüütikaseansi korduv sündmus või päringu
+kordus uut teadet ei lisa; otsingud, kaartide näitamised ja lingiklikid ei käivita
+eraldi külastusteadet. Lehe uuesti laadimine alustab olemasoleva analüütikaloogika
+järgi uut külastust. Sisselogitud admini enda sirvimist Kaubamaja ei mõõda.
+Kaubamaja lüliti on avalehe külastuste lülitist sõltumatu.
 
 Teenustasu teavitus käivitub `revenue_events` tabelisse lisatud positiivsest
 müügitasust või kuutasust. Pealkiri näitab ainult poe nime ja summat, näiteks
@@ -84,8 +99,8 @@ peatab järgmisel claim'il tarned. Väljalülitamine eemaldab ainult praeguse br
 tellimuse; admini väljalogimine proovib samuti selle lõpetada. Endpoint'id ja
 krüptovõtmed pole brauseri andmebaasirollidele loetavad. Payload ei sisalda
 kasutajate isikuandmeid. Service worker ei puhverda adminilehti ega API vastuseid.
-Tugiteavituse vajutus avab `/admin/support`, teiste märguannete vajutus `/admin`,
-mõlemad tavapärase sisselogimiskontrolliga. Kliendi nime, e-posti ega sõnumi sisu
+Tugiteavituse vajutus avab `/admin/support`, Kaubamaja külastus `/admin/kaubamaja`
+ja teiste märguannete vajutus `/admin`, kõik tavapärase sisselogimiskontrolliga. Kliendi nime, e-posti ega sõnumi sisu
 lukuekraani teavitusse ei lisata.
 
 ## Kontroll

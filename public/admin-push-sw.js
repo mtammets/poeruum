@@ -1,5 +1,5 @@
 // This worker handles notifications only; admin pages and API responses are never cached.
-const notificationUrl = (url) => url === '/admin/support' ? '/admin/support' : '/admin'
+const notificationUrl = (url) => ['/admin/support', '/admin/kaubamaja'].includes(url) ? url : '/admin'
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
 self.addEventListener('push', (event) => {
