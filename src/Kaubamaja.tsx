@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
 import { formatStoreDirectoryPrice, getStoreDirectoryHighlights, getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog, storeDirectoryExamples } from '../shared/store-directory.mjs'
 import { getDirectoryStory } from '../shared/directory-stories.mjs'
+import { getHoroscopeShareMetadata } from '../shared/horoscope-share.mjs'
 import DailyHoroscope from './DailyHoroscope'
 import DirectoryHero, { directoryHeroSlides } from './DirectoryHero'
 import DirectoryStories from './DirectoryStories'
@@ -161,11 +162,16 @@ function StoreDirectory() {
   }), [stores])
 
   useEffect(() => {
+    const sharedHoroscope = getHoroscopeShareMetadata(new URLSearchParams(window.location.search).get('horoskoop'))
     applySeoMetadata({
-      title: directorySeoTitle,
-      description: directoryDescription,
+      title: sharedHoroscope?.title || directorySeoTitle,
+      description: sharedHoroscope?.description || directoryDescription,
       canonicalUrl: directoryUrl,
-      imageUrl: directoryHeroImage,
+      socialUrl: sharedHoroscope?.url,
+      imageUrl: sharedHoroscope?.image || directoryHeroImage,
+      imageWidth: sharedHoroscope?.imageWidth,
+      imageHeight: sharedHoroscope?.imageHeight,
+      imageType: sharedHoroscope?.imageType,
       structuredData,
     })
   }, [structuredData, directoryHeroImage])
@@ -188,7 +194,8 @@ function StoreDirectory() {
   useEffect(() => {
     if (status === 'loading') return
     // The directory is loaded lazily, after the browser first resolves the fragment.
-    const target = window.location.hash.slice(1)
+    const sharedHoroscope = getHoroscopeShareMetadata(new URLSearchParams(window.location.search).get('horoskoop'))
+    const target = window.location.hash.slice(1) || (sharedHoroscope ? 'horoskoop' : '')
     if (target === 'poeruumi-lood' || target === 'store-directory-heading' || target === 'horoskoop') {
       document.getElementById(target)?.scrollIntoView({ behavior: 'instant' })
     }

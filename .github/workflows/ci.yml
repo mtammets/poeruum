@@ -93,6 +93,9 @@ jobs:
       - name: Production directory highlights
         run: npm run test:directory-highlights-server
 
+      - name: Horoscope sharing previews and images
+        run: npm run test:horoscope-server
+
       - name: Closed storefront routing and content isolation
         run: npm run test:closed-storefront-server
 

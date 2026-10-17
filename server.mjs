@@ -4,6 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { normalizeClosedStore, renderClosedStoreDocument } from './shared/closed-storefront.mjs'
+import { getHoroscopeShareMetadata } from './shared/horoscope-share.mjs'
 import {
   decodePathname,
   getProductSlugFromPath,
@@ -125,7 +126,7 @@ async function getStoreDirectory() {
   }
 }
 
-const seoBlock = ({ title, description, canonical, image, type, noIndex, schema, verification }) => {
+const seoBlock = ({ title, description, canonical, socialUrl = canonical, image, imageWidth, imageHeight, imageType, type, noIndex, schema, verification }) => {
   const resolvedImage = absoluteImage(image)
   return `<!-- poeruum:seo:start -->
     <meta name="description" content="${escapeHtml(description)}" />
@@ -133,12 +134,15 @@ const seoBlock = ({ title, description, canonical, image, type, noIndex, schema,
     <meta property="og:title" content="${escapeHtml(title)}" />
     <meta property="og:description" content="${escapeHtml(description)}" />
     <meta property="og:type" content="${type}" />
-    <meta property="og:url" content="${escapeHtml(canonical)}" />
+    <meta property="og:url" content="${escapeHtml(socialUrl)}" />
     <meta property="og:locale" content="et_EE" />
     <meta property="og:site_name" content="${escapeHtml(schema?.brand?.name || schema?.isPartOf?.name || schema?.name || 'Poeruum')}" />
     ${resolvedImage ? `<meta property="og:image" content="${escapeHtml(resolvedImage)}" />
     <meta property="og:image:secure_url" content="${escapeHtml(resolvedImage)}" />
-    <meta property="og:image:alt" content="${escapeHtml(title)}" />` : ''}
+    <meta property="og:image:alt" content="${escapeHtml(title)}" />
+    ${imageType ? `<meta property="og:image:type" content="${escapeHtml(imageType)}" />` : ''}
+    ${imageWidth && imageHeight ? `<meta property="og:image:width" content="${imageWidth}" />
+    <meta property="og:image:height" content="${imageHeight}" />` : ''}` : ''}
     <meta name="twitter:card" content="${resolvedImage ? 'summary_large_image' : 'summary'}" />
     <meta name="twitter:title" content="${escapeHtml(title)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
@@ -282,7 +286,7 @@ function renderDirectoryStory(template, story) {
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
 }
 
-function renderStoreDirectory(template, stores) {
+function renderStoreDirectory(template, stores, sharedHoroscope = null) {
   const canonical = `https://${storeDirectoryHost}/`
   const title = 'Poeruumi Kaubamaja – avasta Eesti väikeettevõtjate e-poode'
   const heading = 'Avasta Poeruumis loodud Eesti e-poode'
@@ -333,15 +337,19 @@ function renderStoreDirectory(template, stores) {
 
   return template
     .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
-      title,
-      description,
+      title: sharedHoroscope?.title || title,
+      description: sharedHoroscope?.description || description,
       canonical,
-      image: heroImage,
+      socialUrl: sharedHoroscope?.url || canonical,
+      image: sharedHoroscope?.image || heroImage,
+      imageWidth: sharedHoroscope?.imageWidth,
+      imageHeight: sharedHoroscope?.imageHeight,
+      imageType: sharedHoroscope?.imageType,
       type: 'website',
       noIndex: false,
       schema,
     }))
-    .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
+    .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(sharedHoroscope?.title || title)}</title>`)
     .replace('</head>', `<script type="application/json" id="poeruum-store-directory-data" data-highlight-seed="${highlightSeed}">${initialData}</script></head>`)
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
 }
@@ -441,7 +449,8 @@ createServer(async (req, res) => {
           'X-Robots-Tag': 'noindex',
         })
       }
-      const html = renderStoreDirectory(await templatePromise, await getStoreDirectory())
+      const sharedHoroscope = getHoroscopeShareMetadata(url.searchParams.get('horoskoop'))
+      const html = renderStoreDirectory(await templatePromise, await getStoreDirectory(), sharedHoroscope)
       return send(res, 200, req.method === 'HEAD' ? null : html, {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',

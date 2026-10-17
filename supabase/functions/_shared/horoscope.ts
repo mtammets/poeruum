@@ -1,17 +1,5 @@
-export const zodiacSigns = [
-  { id: 'aries', name: 'Jäär' },
-  { id: 'taurus', name: 'Sõnn' },
-  { id: 'gemini', name: 'Kaksikud' },
-  { id: 'cancer', name: 'Vähk' },
-  { id: 'leo', name: 'Lõvi' },
-  { id: 'virgo', name: 'Neitsi' },
-  { id: 'libra', name: 'Kaalud' },
-  { id: 'scorpio', name: 'Skorpion' },
-  { id: 'sagittarius', name: 'Ambur' },
-  { id: 'capricorn', name: 'Kaljukits' },
-  { id: 'aquarius', name: 'Veevalaja' },
-  { id: 'pisces', name: 'Kalad' },
-] as const
+import { zodiacSigns } from './zodiac.mjs'
+export { zodiacSigns } from './zodiac.mjs'
 
 export type ZodiacSign = typeof zodiacSigns[number]['id']
 export type DailyHoroscope = {

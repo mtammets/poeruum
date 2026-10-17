@@ -4,6 +4,7 @@ type SeoMetadata = {
   socialTitle?: string
   socialDescription?: string
   canonicalUrl: string
+  socialUrl?: string
   imageUrl?: string
   imageWidth?: number
   imageHeight?: number
@@ -35,6 +36,7 @@ export const applySeoMetadata = ({
   socialTitle,
   socialDescription,
   canonicalUrl,
+  socialUrl,
   imageUrl,
   imageWidth,
   imageHeight,
@@ -55,7 +57,7 @@ export const applySeoMetadata = ({
   upsertMeta('meta[property="og:title"]', { property: 'og:title', content: resolvedSocialTitle })
   upsertMeta('meta[property="og:description"]', { property: 'og:description', content: resolvedSocialDescription })
   upsertMeta('meta[property="og:type"]', { property: 'og:type', content: type })
-  upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonicalUrl })
+  upsertMeta('meta[property="og:url"]', { property: 'og:url', content: socialUrl || canonicalUrl })
   upsertMeta('meta[property="og:locale"]', { property: 'og:locale', content: 'et_EE' })
   upsertMeta('meta[name="twitter:card"]', {
     name: 'twitter:card',
