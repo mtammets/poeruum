@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { isZodiacSign, tallinnDate, zodiacSigns, type DailyHoroscope as Horoscope, type ZodiacSign } from '../supabase/functions/_shared/horoscope'
 import { zodiacPaths } from '../supabase/functions/_shared/zodiac.mjs'
+import { getHoroscopeSharePath, getHoroscopeSignFromLocation } from '../shared/horoscope-share.mjs'
 import { loadDailyHoroscope } from './lib/horoscope'
 import './dailyHoroscope.css'
 
@@ -10,15 +11,15 @@ const ZodiacIcon = ({ sign }: { sign: ZodiacSign }) => <svg viewBox="0 0 32 32" 
 </svg>
 
 const readSign = (): ZodiacSign => {
-  const sharedSign = new URLSearchParams(window.location.search).get('horoskoop')
-  if (isZodiacSign(sharedSign)) return sharedSign
+  const sharedSign = getHoroscopeSignFromLocation(window.location)
+  if (sharedSign) return sharedSign
   try {
     const value = window.localStorage.getItem(preferenceKey)
     return isZodiacSign(value) ? value : 'aries'
   } catch { return 'aries' }
 }
 
-export default function DailyHoroscope() {
+export default function DailyHoroscope({ onSignChange }: { onSignChange?: () => void }) {
   const [horoscope, setHoroscope] = useState<Horoscope | null>(null)
   const [date, setDate] = useState(tallinnDate)
   const [isLoading, setIsLoading] = useState(true)
@@ -64,9 +65,7 @@ export default function DailyHoroscope() {
 
   const shareHoroscope = async (copyOnly = false) => {
     if (!horoscope || isSharing) return
-    const url = new URL('/', window.location.origin)
-    url.searchParams.set('horoskoop', sign)
-    url.hash = 'horoskoop'
+    const url = new URL(getHoroscopeSharePath(sign)!, window.location.origin)
     const title = `${selectedSign.name} · ${dateLabel} · Poeruumi horoskoop`
     setIsSharing(true)
     setShareStatus('idle')
@@ -105,11 +104,13 @@ export default function DailyHoroscope() {
               setSign(item.id)
               setShareStatus('idle')
               const url = new URL(window.location.href)
-              if (url.searchParams.has('horoskoop')) {
-                url.searchParams.set('horoskoop', item.id)
+              if (getHoroscopeSignFromLocation(url) || url.searchParams.has('horoskoop')) {
+                url.pathname = getHoroscopeSharePath(item.id)!
+                url.searchParams.delete('horoskoop')
                 window.history.replaceState(window.history.state, '', url)
               }
               try { window.localStorage.setItem(preferenceKey, item.id) } catch { /* Selection still works without storage. */ }
+              onSignChange?.()
             }}
           />
           <span className="daily-horoscope__sign-symbol"><ZodiacIcon sign={item.id} /></span>

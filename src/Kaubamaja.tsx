@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
 import { formatStoreDirectoryPrice, getStoreDirectoryHighlights, getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog, storeDirectoryExamples } from '../shared/store-directory.mjs'
 import { getDirectoryStory } from '../shared/directory-stories.mjs'
-import { getHoroscopeShareMetadata } from '../shared/horoscope-share.mjs'
+import { getHoroscopeShareMetadata, getHoroscopeSignFromLocation } from '../shared/horoscope-share.mjs'
 import DailyHoroscope from './DailyHoroscope'
 import DirectoryHero, { directoryHeroSlides } from './DirectoryHero'
 import DirectoryStories from './DirectoryStories'
@@ -98,6 +98,7 @@ export default function Kaubamaja() {
 }
 
 function StoreDirectory() {
+  const [sharedHoroscopeSign, setSharedHoroscopeSign] = useState(() => getHoroscopeSignFromLocation(window.location))
   const [stores, setStores] = useState<StoreDirectoryEntry[]>(readInitialStores)
   const [highlightSeed] = useState(readHighlightSeed)
   const [query, setQuery] = useState(() => (new URLSearchParams(window.location.search).get('q') || '').slice(0, 160))
@@ -162,11 +163,11 @@ function StoreDirectory() {
   }), [stores])
 
   useEffect(() => {
-    const sharedHoroscope = getHoroscopeShareMetadata(new URLSearchParams(window.location.search).get('horoskoop'))
+    const sharedHoroscope = getHoroscopeShareMetadata(sharedHoroscopeSign)
     applySeoMetadata({
       title: sharedHoroscope?.title || directorySeoTitle,
       description: sharedHoroscope?.description || directoryDescription,
-      canonicalUrl: directoryUrl,
+      canonicalUrl: sharedHoroscope?.url || directoryUrl,
       socialUrl: sharedHoroscope?.url,
       imageUrl: sharedHoroscope?.image || directoryHeroImage,
       imageWidth: sharedHoroscope?.imageWidth,
@@ -174,7 +175,7 @@ function StoreDirectory() {
       imageType: sharedHoroscope?.imageType,
       structuredData,
     })
-  }, [structuredData, directoryHeroImage])
+  }, [structuredData, directoryHeroImage, sharedHoroscopeSign])
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -194,7 +195,7 @@ function StoreDirectory() {
   useEffect(() => {
     if (status === 'loading') return
     // The directory is loaded lazily, after the browser first resolves the fragment.
-    const sharedHoroscope = getHoroscopeShareMetadata(new URLSearchParams(window.location.search).get('horoskoop'))
+    const sharedHoroscope = getHoroscopeShareMetadata(getHoroscopeSignFromLocation(window.location))
     const target = window.location.hash.slice(1) || (sharedHoroscope ? 'horoskoop' : '')
     if (target === 'poeruumi-lood' || target === 'store-directory-heading' || target === 'horoskoop') {
       document.getElementById(target)?.scrollIntoView({ behavior: 'instant' })
@@ -276,7 +277,7 @@ function StoreDirectory() {
         </div>}
       </div>
       {!isSearching ? <>
-        <DailyHoroscope />
+        <DailyHoroscope onSignChange={() => setSharedHoroscopeSign(getHoroscopeSignFromLocation(window.location))} />
         <DirectoryStories />
       </> : null}
     </section>

@@ -27,20 +27,23 @@ const meta = (html, property) => html.match(new RegExp(`<meta (?:property|name)=
 
 try {
   await Promise.race([once(server.stdout, 'data'), once(server, 'exit').then(() => { throw new Error('Server exited before listening') })])
-  for (const sign of zodiacSigns) {
-    const response = await fetchPage(`/?horoskoop=${sign.id}&utm_source=ignored`)
+  const slugs = ['jaar', 'sonn', 'kaksikud', 'vahk', 'lovi', 'neitsi', 'kaalud', 'skorpion', 'ambur', 'kaljukits', 'veevalaja', 'kalad']
+  for (const [index, sign] of zodiacSigns.entries()) {
+    const path = `/horoskoop/${slugs[index]}/`
+    const canonical = `https://kaubamaja.poeruum.ee${path}`
+    const response = await fetchPage(`${path}?utm_source=ignored`)
     assert.equal(response.status, 200)
     const html = response.body.toString()
     const expectedTitle = `${sign.name} · tänane horoskoop — Poeruumi Kaubamaja`
     assert.equal(meta(html, 'og:title'), expectedTitle)
     assert.equal(meta(html, 'twitter:title'), expectedTitle)
-    assert.equal(meta(html, 'og:url'), `https://kaubamaja.poeruum.ee/?horoskoop=${sign.id}`)
+    assert.equal(meta(html, 'og:url'), canonical)
     assert.equal(meta(html, 'og:image:width'), '1200')
     assert.equal(meta(html, 'og:image:height'), '630')
     assert.equal(meta(html, 'og:image:type'), 'image/png')
     assert.equal(meta(html, 'twitter:card'), 'summary_large_image')
     assert.equal(meta(html, 'og:description'), 'Loe oma tänast horoskoopi Poeruumi Kaubamajas.')
-    assert.ok(html.includes('<link rel="canonical" href="https://kaubamaja.poeruum.ee/"'))
+    assert.ok(html.includes(`<link rel="canonical" href="${canonical}"`))
     assert.ok(html.includes('Leia oma uus lemmikpood'))
     const imageUrl = meta(html, 'og:image')
     assert.equal(imageUrl, `https://kaubamaja.poeruum.ee/images/horoscope/${sign.id}.png`)
@@ -51,6 +54,14 @@ try {
     assert.equal(image.body.subarray(1, 4).toString(), 'PNG')
     assert.equal(image.body.readUInt32BE(16), 1200)
     assert.equal(image.body.readUInt32BE(20), 630)
+    const legacy = await fetchPage(`/?horoskoop=${sign.id}`)
+    assert.equal(legacy.status, 200)
+    assert.equal(meta(legacy.body.toString(), 'og:title'), expectedTitle)
+    assert.equal(meta(legacy.body.toString(), 'og:url'), canonical)
+    assert.ok(legacy.body.toString().includes(`<link rel="canonical" href="${canonical}"`))
+    const redirect = await fetchPage(path.slice(0, -1))
+    assert.equal(redirect.status, 301)
+    assert.equal(redirect.headers.location, path)
   }
   for (const path of ['/', '/?horoskoop=invalid', '/?horoskoop=__proto__', '/?horoskoop=%22%3E%3Cscript%3E']) {
     const response = await fetchPage(path)
@@ -58,7 +69,10 @@ try {
     assert.equal(meta(response.body.toString(), 'og:url'), 'https://kaubamaja.poeruum.ee/')
     assert.equal(meta(response.body.toString(), 'og:title'), 'Poeruumi Kaubamaja – avasta Eesti väikeettevõtjate e-poode')
   }
-  const head = await fetchPage('/?horoskoop=gemini', 'HEAD')
+  for (const path of ['/horoskoop/puudub/', '/horoskoop/__proto__/', '/horoskoop/jaar/veel/']) {
+    assert.equal((await fetchPage(path)).status, 404)
+  }
+  const head = await fetchPage('/horoskoop/kaksikud/', 'HEAD')
   assert.equal(head.status, 200)
   assert.equal(head.body.length, 0)
   console.log('Horoscope previews: all 12 signs, crawler-visible metadata, PNG assets, canonical URLs and invalid signs passed.')

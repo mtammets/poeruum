@@ -4,7 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { normalizeClosedStore, renderClosedStoreDocument } from './shared/closed-storefront.mjs'
-import { getHoroscopeShareMetadata } from './shared/horoscope-share.mjs'
+import { getHoroscopeShareMetadata, getHoroscopeSharePath, getHoroscopeSignFromLocation } from './shared/horoscope-share.mjs'
 import {
   decodePathname,
   getProductSlugFromPath,
@@ -287,14 +287,14 @@ function renderDirectoryStory(template, story) {
 }
 
 function renderStoreDirectory(template, stores, sharedHoroscope = null) {
-  const canonical = `https://${storeDirectoryHost}/`
+  const canonical = sharedHoroscope?.url || `https://${storeDirectoryHost}/`
   const title = 'Poeruumi Kaubamaja – avasta Eesti väikeettevõtjate e-poode'
   const heading = 'Avasta Poeruumis loodud Eesti e-poode'
   const description = 'Poeruumi Kaubamaja koondab ühte kohta Eesti ettevõtjate e-poed. Sirvi valikut ja leia uusi poode, tooteid ning tegijaid.'
   const highlightSeed = Math.floor(Math.random() * 2 ** 32)
   const selectedProducts = getStoreDirectoryHighlights(stores, highlightSeed)
   const heroProducts = selectedProducts.slice(0, 4)
-  const heroImage = heroProducts[0]?.product.imageUrl || `${canonical}images/poeruum-email-logo.png`
+  const heroImage = heroProducts[0]?.product.imageUrl || `https://${storeDirectoryHost}/images/poeruum-email-logo.png`
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
@@ -443,13 +443,17 @@ createServer(async (req, res) => {
           'Cache-Control': 'public, max-age=0, s-maxage=300',
         })
       }
-      if (url.pathname !== '/') {
+      const horoscopeSign = getHoroscopeSignFromLocation(url)
+      if (horoscopeSign && url.pathname !== '/' && url.pathname !== getHoroscopeSharePath(horoscopeSign)) {
+        return send(res, 301, null, { Location: `${getHoroscopeSharePath(horoscopeSign)}${url.search}` })
+      }
+      if (url.pathname !== '/' && !horoscopeSign) {
         return send(res, 404, 'Lehte ei leitud.', {
           'Content-Type': 'text/plain; charset=utf-8',
           'X-Robots-Tag': 'noindex',
         })
       }
-      const sharedHoroscope = getHoroscopeShareMetadata(url.searchParams.get('horoskoop'))
+      const sharedHoroscope = getHoroscopeShareMetadata(horoscopeSign)
       const html = renderStoreDirectory(await templatePromise, await getStoreDirectory(), sharedHoroscope)
       return send(res, 200, req.method === 'HEAD' ? null : html, {
         'Content-Type': 'text/html; charset=utf-8',
