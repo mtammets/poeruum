@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
-import { decodeStoryImage, firstStoryQuestion, MAX_STORY_ANSWERS, nextStoryQuestion, parseStoryDraft, PHOTO_QUESTION, validStoryId, validStoryToken, writeStoryDraft, type StoryMessage } from '../_shared/story-interview.ts'
+import { addStoryName, decodeStoryImage, firstStoryQuestion, MAX_STORY_ANSWERS, NAME_QUESTION, nextStoryQuestion, parseStoryDraft, PHOTO_QUESTION, storyAnswerCount, storyRespondentName, validStoryId, validStoryToken, writeStoryDraft, type StoryMessage } from '../_shared/story-interview.ts'
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } })
@@ -45,7 +45,7 @@ async function snapshot(client: ReturnType<typeof db>, row: any) {
     imageUrl = data.signedUrl
   }
   return { id: row.id, storeName: store!.name, storeSlug: store!.slug, status: row.status,
-    version: row.version, messages: row.messages, draft: row.draft, imageUrl, imageAlt: row.image_alt,
+    version: row.version, messages: row.messages, needsName: row.status !== 'published' && !storyRespondentName(row.messages), draft: row.draft, imageUrl, imageAlt: row.image_alt,
     publishedUrl: article?.is_published ? articleUrl(article.slug) : null, lastRequestId: row.last_request_id,
   }
 }
@@ -79,7 +79,7 @@ async function adminAction(request: Request, client: ReturnType<typeof db>, body
     if (!store) return json({ error: 'Vali avaldatud pood.' }, 404)
     const token = newToken()
     const { data, error } = await client.from('story_interviews').insert({ store_id: store.id, created_by: user.id,
-      token_hash: await hashToken(token), messages: [{ role: 'assistant', content: firstStoryQuestion(store.name) }],
+      token_hash: await hashToken(token), messages: [{ role: 'assistant', content: firstStoryQuestion(), kind: 'name' }],
     }).select('id').single()
     if (error) throw new Error('Invitation creation failed')
     return json({ id: data.id, token })
@@ -136,11 +136,15 @@ Deno.serve(async (request) => {
     if (error) throw new Error('Interview lookup failed')
     if (!row || row.status === 'revoked' || Date.parse(row.expires_at) <= Date.now()) return unavailable()
     if (body.action === 'load') return json({ interview: await snapshot(client, row) })
-    if (!['answer', 'finish', 'upload', 'generate', 'save', 'publish'].includes(body.action)) return json({ error: 'Tundmatu tegevus.' }, 400)
+    if (!['name', 'answer', 'finish', 'upload', 'generate', 'save', 'publish'].includes(body.action)) return json({ error: 'Tundmatu tegevus.' }, 400)
     if (!validStoryId(body.requestId) || !Number.isInteger(body.version) || body.version < 0) return json({ error: 'Vigane päring.' }, 400)
     if (row.last_request_id === body.requestId || (row.status === 'published' && body.action === 'publish')) return json({ interview: await snapshot(client, row) })
     if (row.status === 'published') return json({ error: 'See lugu on juba valmis.' }, 409)
-    const isAi = body.action === 'answer' || body.action === 'generate'
+    const needsName = !storyRespondentName(row.messages)
+    const answeringName = row.messages.length === 1 && row.messages[0].content === NAME_QUESTION
+    const action = needsName && answeringName && body.action === 'answer' ? 'name' : body.action
+    if (needsName && action !== 'name') return json({ error: 'Kirjuta kõigepealt oma nimi.' }, 409)
+    const isAi = action === 'answer' || action === 'generate' || (action === 'name' && row.status === 'preview')
     const apiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
     if (isAi && !apiKey) return json({ error: 'Intervjueerija pole praegu saadaval. Proovi veidi hiljem.' }, 503)
     if (isAi) {
@@ -160,9 +164,19 @@ Deno.serve(async (request) => {
     if (storeError || !store) throw new Error('Interview store unavailable')
     const model = Deno.env.get('OPENAI_STORY_MODEL')?.trim() || 'gpt-5.4-mini'
     const messages = current.messages as StoryMessage[]
-    const answers = messages.filter((message) => message.role === 'user').length
+    const answers = storyAnswerCount(messages)
     let patch: Record<string, unknown> = {}
-    if (body.action === 'answer') {
+    if (action === 'name') {
+      if (storyRespondentName(messages)) return conflict()
+      if (typeof body.answer !== 'string' || !body.answer.trim() || body.answer.length > 120) return json({ error: 'Kirjuta nimi kuni 120 tähemärgiga.' }, 400)
+      const namedMessages = addStoryName(messages, body.answer.trim(), store.name)
+      patch = { messages: namedMessages }
+      if (current.status === 'preview') {
+        const draft = parseStoryDraft(current.draft)
+        if (!draft) return conflict()
+        patch.draft = await writeStoryDraft(apiKey!, model, store.name, namedMessages, draft)
+      }
+    } else if (action === 'answer') {
       if (current.status !== 'interview' || answers >= MAX_STORY_ANSWERS) return conflict()
       if (typeof body.answer !== 'string' || !body.answer.trim() || body.answer.length > 4000) return json({ error: 'Kirjuta vastus kuni 4000 tähemärgiga.' }, 400)
       const nextMessages: StoryMessage[] = [...messages, { role: 'user', content: body.answer.trim() }]

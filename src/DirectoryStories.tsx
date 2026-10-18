@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { directoryStoryPath, directoryStoryReadingMinutes, type DirectoryStory } from '../shared/directory-stories.mjs'
+import { directoryStoryPath, type DirectoryStory } from '../shared/directory-stories.mjs'
 import { initialDirectoryStories, listDirectoryStories, mergeDirectoryStories, STORY_PAGE_SIZE } from './lib/directoryStories'
 import { StoryArrow } from './StoryArrow'
 import DirectoryStoryDialog from './DirectoryStoryDialog'
@@ -78,7 +78,6 @@ export default function DirectoryStories() {
           <img src={story.image} alt={story.imageAlt} width="1536" height="2048" loading="lazy" decoding="async" />
         </div>
         <div className="directory-stories__copy">
-          <div className="directory-stories__meta"><span>{story.category}</span><span>{directoryStoryReadingMinutes(story)} min lugemist</span></div>
           <h3 id={`story-title-${story.slug}`}>{story.title}</h3>
           <p>{story.intro}</p>
           <span className="directory-stories__read" id={`story-read-${story.slug}`}>Loe lugu <StoryArrow /></span>

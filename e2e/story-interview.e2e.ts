@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
+import { addStoryName, storyAnswerCount, type StoryMessage } from '../supabase/functions/_shared/story-interview'
 
 test.use({ baseURL: 'http://poeruum.localhost:4174' })
 const token = 'a'.repeat(64)
@@ -10,7 +11,7 @@ const draft = { title: 'Köögilauast oma savistuudioni', intro: 'Liisi esimene 
 
 async function backend(page: Page) {
   const state = { id, storeName: 'Liisi Savipood', storeSlug: 'liisi-savipood', status: 'interview', version: 0,
-    messages: [{ role: 'assistant', content: 'Kuidas Liisi Savipood alguse sai?' }], draft: null as typeof draft | null,
+    needsName: true, messages: [{ role: 'assistant', content: 'Mis on sinu nimi?', kind: 'name' }] as StoryMessage[], draft: null as typeof draft | null,
     imageUrl: null as string | null, imageAlt: '', publishedUrl: null as string | null, lastRequestId: null as string | null }
   const calls: Record<string, any>[] = []
   const stores = [
@@ -40,11 +41,15 @@ async function backend(page: Page) {
       if (body.action === 'load') return reply(route, { interview: state })
       if (body.requestId === state.lastRequestId) return reply(route, { interview: state })
       if (body.version !== state.version) return reply(route, { error: 'Vestlus on vahepeal muutunud. Laadi see uuesti.' }, 409)
+      if (body.action === 'name') {
+        state.messages = addStoryName(state.messages, body.answer, state.storeName)
+        state.needsName = false
+      }
       if (body.action === 'answer') {
         if (failAnswer) return reply(route, { error: 'Ühendus katkes. Proovi uuesti.' }, 500)
         await new Promise((resolve) => setTimeout(resolve, 150))
         state.messages.push({ role: 'user', content: body.answer })
-        const count = state.messages.filter((message) => message.role === 'user').length
+        const count = storyAnswerCount(state.messages)
         if (count >= 3) { state.status = 'photo'; state.messages.push({ role: 'assistant', content: 'Lisa loole foto endast, oma töötoast või loomingust.' }) }
         else state.messages.push({ role: 'assistant', content: count === 1 ? 'Milline sinu esimene kruus oli?' : 'Kuidas jõudis esimene kruus ostjani?' })
       }
@@ -71,6 +76,7 @@ async function backend(page: Page) {
 }
 
 async function answerQuestions(page: Page) {
+  await answerName(page)
   for (const answer of ['Alustasin köögilaua taga kruuside tegemisega.', 'See oli sinine ja natuke viltune. Savi õpetas mulle kannatlikkust.', 'Naaber nägi kruusi ja tahtis samasugust oma õele.']) {
     await page.getByRole('textbox', { name: 'Sinu vastus' }).fill(answer)
     await page.getByRole('button', { name: 'Saada vastus' }).click()
@@ -78,20 +84,29 @@ async function answerQuestions(page: Page) {
   }
 }
 
+async function answerName(page: Page) {
+  await expect(page.getByText('Mis on sinu nimi?')).toBeVisible()
+  await page.getByRole('textbox', { name: 'Sinu vastus' }).fill('Liis')
+  await page.getByRole('button', { name: 'Saada vastus' }).click()
+  await expect(page.locator('.story-interview__working')).toHaveCount(0)
+}
+
 test('merchant completes a mobile interview, resumes, adds a photo, edits and publishes into the directory', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   const api = await backend(page)
   await page.goto(`/lugu/#token=${token}`)
-  await expect(page.getByText('Kuidas Liisi Savipood alguse sai?')).toBeVisible()
+  await expect(page.getByText('Mis on sinu nimi?')).toBeVisible()
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow')
   await expect(page.locator('meta[name="referrer"]')).toHaveAttribute('content', 'no-referrer')
   await page.screenshot({ path: 'output/story-interview-mobile.png', fullPage: true })
   await answerQuestions(page)
   await page.reload()
   await expect(page.getByRole('button', { name: 'Lisa foto' })).toBeVisible()
-  expect(api.state.messages.filter((message) => message.role === 'user')).toHaveLength(3)
+  expect(storyAnswerCount(api.state.messages)).toBe(3)
   await page.getByLabel('Lisa foto', { exact: true }).setInputFiles('public/images/poeruumi-lood-kohvihetk.webp')
   await expect(page.getByRole('heading', { name: draft.title })).toBeVisible()
+  await expect(page.getByText('Meie kaupmehed', { exact: true })).toHaveCount(0)
+  await expect(page.getByText(/\d+ min lugemist/)).toHaveCount(0)
   expect(api.calls.filter((call) => call.action === 'publish')).toHaveLength(0)
   await page.screenshot({ path: 'output/story-preview-mobile.png', fullPage: true })
   await page.getByRole('button', { name: 'Muuda', exact: true }).click()
@@ -120,9 +135,31 @@ test('merchant completes a mobile interview, resumes, adds a photo, edits and pu
   expect(api.calls.filter((call) => call.action === 'publish')).toHaveLength(1)
 })
 
+test('a legacy preview asks for the name and resumes with its saved photo and edits', async ({ page }) => {
+  const api = await backend(page)
+  api.state.status = 'preview'
+  api.state.draft = { ...draft, title: 'Minu parandatud pealkiri', imageCaption: 'Minu esimene kruus.' }
+  api.state.imageUrl = '/images/poeruumi-lood-kohvihetk.webp'
+  api.state.imageAlt = 'Sinine kruus'
+  api.state.messages = [{ role: 'assistant', content: 'Kuidas alustasid?' }, { role: 'user', content: 'Alustasin kodus.' }]
+  await page.goto(`/lugu/#token=${token}`)
+  await expect(page.getByRole('heading', { name: 'Minu parandatud pealkiri' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Avalda Poeruumis' })).toHaveCount(0)
+  await answerName(page)
+  await expect(page.getByRole('heading', { name: 'Minu parandatud pealkiri' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Sinine kruus' })).toBeVisible()
+  await expect(page.getByText('Minu esimene kruus.', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Avalda Poeruumis' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Sinu vastus' })).toHaveCount(0)
+  expect(api.calls.filter((call) => call.action === 'name')).toHaveLength(1)
+  expect(api.calls.filter((call) => call.action === 'publish')).toHaveLength(0)
+})
+
 test('failed answer and generation preserve input, uploaded photo and request identity for retry', async ({ page }) => {
   const api = await backend(page)
   await page.goto(`/lugu/#token=${token}`)
+  await answerName(page)
   api.failAnswer(true)
   const answer = page.getByRole('textbox', { name: 'Sinu vastus' })
   await answer.fill('Alustasin kodus.')
@@ -156,7 +193,7 @@ test('missing and expired links stay private and a stale tab recovers without lo
   await expect(page.getByRole('heading', { name: 'See link ei kehti enam.' })).toBeVisible()
   expect(api.calls).toHaveLength(0)
   await page.goto(`/lugu/#token=${token}`)
-  await expect(page.getByText('Kuidas Liisi Savipood alguse sai?')).toBeVisible()
+  await expect(page.getByText('Mis on sinu nimi?')).toBeVisible()
   api.state.version++
   await page.getByRole('textbox', { name: 'Sinu vastus' }).fill('Minu vastus jääb alles.')
   await page.getByRole('button', { name: 'Saada vastus' }).click()
@@ -173,6 +210,7 @@ test('long answers keep the next question above the mobile composer', async ({ p
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await backend(page)
   await page.goto(`/lugu/#token=${token}`)
+  await answerName(page)
   await page.getByRole('textbox', { name: 'Sinu vastus' }).fill('Alustasin köögilaua taga. '.repeat(65))
   await page.getByRole('button', { name: 'Saada vastus' }).click()
   const question = page.getByText('Milline sinu esimene kruus oli?')

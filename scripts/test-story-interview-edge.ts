@@ -101,6 +101,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     const invitation = await call({ action: 'admin-create', storeId: store.id }, true)
     const created = await invitation.json()
     assert(invitation.status === 200 && /^[a-f0-9]{64}$/.test(created.token), 'Admin invitation failed')
+    assert(createdInvitation.messages[0].content === 'Mis on sinu nimi?', 'Interview does not ask the name first')
     assert(createdInvitation.token_hash !== created.token && !JSON.stringify(createdInvitation).includes(created.token), 'Raw invitation persisted')
     assert((await call({ action: 'load', token: 'bad' })).status === 410, 'Malformed token accepted')
     assert((await call({ action: 'load', token: 'b'.repeat(64) })).status === 410, 'Wrong token accepted')
@@ -111,12 +112,19 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     allowed = false
     assert((await mutate('answer', { answer: 'Tere' })).status === 429 && modelCalls === 0, 'Rate-limited request billed')
     allowed = true
-    assert((await mutate('answer', { answer: 'x'.repeat(4001) })).status === 400, 'Oversized answer accepted')
+    assert((await mutate('answer', { answer: 'Alustasin kodus.' })).status === 409, 'Legacy interview answer silently used as a name')
+    assert((await mutate('name', { answer: 'x'.repeat(121) })).status === 400, 'Oversized name accepted')
     assert(row.operation_id === null, 'Invalid request kept a lease')
+    const nameRequestId = crypto.randomUUID()
+    assert((await mutate('name', { answer: 'Liis', requestId: nameRequestId })).status === 200 && modelCalls === 0, 'Name entry unnecessarily called AI')
+    assert((await mutate('name', { answer: 'Liis', requestId: nameRequestId, version: 0 })).status === 200, 'Name retry failed')
+    assert(row.messages.length === 3 && row.messages[1].content === 'Liis' && row.messages[2].content === 'Kuidas alustasid?', 'Name capture lost existing question')
+    assert((await mutate('finish')).status === 400, 'Name counted as interview content')
+    assert((await mutate('answer', { answer: 'x'.repeat(4001) })).status === 400, 'Oversized answer accepted')
     aiFailure = true
     const failed = await mutate('answer', { answer: 'Alustasin kodus.' })
     assert(failed.status === 500 && !(await failed.text()).includes('private provider'), 'Provider detail leaked')
-    assert(row.version === 0 && row.messages.length === 1 && row.operation_id === null, 'AI failure changed transcript')
+    assert(row.version === 1 && row.messages.length === 3 && row.operation_id === null, 'AI failure changed transcript')
     aiFailure = false
     const requestId = crypto.randomUUID()
     let release!: () => void
@@ -130,7 +138,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert((await first).status === 200, 'Answer failed')
     const callsBeforeRetry = modelCalls
     assert((await mutate('answer', { answer: 'Alustasin kodus.', requestId, version: 0 })).status === 200, 'Idempotent retry failed')
-    assert(modelCalls === callsBeforeRetry && row.messages.filter((m: any) => m.role === 'user').length === 1, 'Retry duplicated answer')
+    assert(modelCalls === callsBeforeRetry && row.messages.filter((m: any) => m.role === 'user' && m.kind !== 'name').length === 1, 'Retry duplicated answer')
     assert((await mutate('finish')).status === 400, 'Premature finish accepted')
     finish = true
     assert((await mutate('answer', { answer: 'Esimene kruus oli sinine.' })).status === 200 && row.status === 'photo', 'Interview did not finish')
@@ -142,6 +150,17 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert((await mutate('generate')).status === 200 && row.status === 'preview', 'Article generation failed')
     assert((await mutate('save', { draft: { ...draft, title: '' }, imageAlt: 'Kruus' })).status === 400, 'Invalid article saved')
     assert((await mutate('save', { draft: { ...draft, title: 'Minu muudetud lugu' }, imageAlt: 'Sinine kruus' })).status === 200, 'Article edit failed')
+    // Existing previews collect a missing name without losing the approved title or photo.
+    row.messages = row.messages.filter((message: any) => message.kind !== 'name')
+    const savedMessages = JSON.stringify(row.messages), savedImage = row.image_path
+    assert((await (await call({ action: 'load', token })).json()).interview.needsName, 'Legacy preview skipped name collection')
+    assert((await mutate('publish')).status === 409, 'Nameless preview published')
+    aiFailure = true
+    assert((await mutate('name', { answer: 'Liis' })).status === 500, 'Failed revision reported success')
+    assert(JSON.stringify(row.messages) === savedMessages && row.draft.title === 'Minu muudetud lugu' && row.image_path === savedImage, 'Failed name revision lost draft data')
+    aiFailure = false
+    assert((await mutate('name', { answer: 'Liis' })).status === 200 && row.status === 'preview', 'Legacy preview did not resume')
+    assert(row.draft.title === 'Minu muudetud lugu' && row.image_path === savedImage && row.image_alt === 'Sinine kruus', 'Name revision lost edits or photo')
     const publish = await mutate('publish')
     assert(publish.status === 200 && article.story.title === 'Minu muudetud lugu' && article.store_id === undefined, 'Publication lost approved text')
     assert((await mutate('publish')).status === 200 && publishedCount === 1, 'Publication duplicated')

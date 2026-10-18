@@ -21,7 +21,6 @@ import {
 import {
   directoryStories,
   directoryStoryPath,
-  directoryStoryReadingMinutes,
   directoryStorySchema,
   featuredDirectoryStory,
   getDirectoryStory,
@@ -254,14 +253,13 @@ const directoryNavigationMarkup = (isStory = false) => `<nav class="store-direct
 const directoryFooterMarkup = `<footer class="store-directory__footer"><span>© 2026 Poeruum</span><div><a href="https://${platformHost}/mis-on-poeruum/">Mis on Poeruum?</a><a href="https://${platformHost}/kasutustingimused">Kasutustingimused</a><a href="https://${platformHost}/privaatsus">Privaatsus</a><a href="https://${platformHost}/#hind">Loo oma pood ${arrowUpRight}</a></div></footer>`
 
 const storyArrowMarkup = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"></path></svg>'
-const storyMetaMarkup = (story) => `<div class="directory-stories__meta"><span>${escapeHtml(story.category)}</span><span>${directoryStoryReadingMinutes(story)} min lugemist</span></div>`
 
 function renderDirectoryStoryTeaser(stories) {
   return `<section class="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
     <header class="directory-stories__heading"><h2 id="directory-stories-heading">Poeruumi lood</h2><p>Lugemiseks ja kaasamõtlemiseks.</p></header>
     ${stories.map((story) => `<article class="directory-stories__feature"><a class="directory-stories__link" href="${directoryStoryPath(story)}" aria-labelledby="story-title-${story.slug} story-read-${story.slug}">
       <div class="directory-stories__image"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="2048" loading="lazy" decoding="async"></div>
-      <div class="directory-stories__copy">${storyMetaMarkup(story)}<h3 id="story-title-${story.slug}">${escapeHtml(story.title)}</h3><p>${escapeHtml(story.intro)}</p><span class="directory-stories__read" id="story-read-${story.slug}">Loe lugu ${storyArrowMarkup}</span></div>
+      <div class="directory-stories__copy"><h3 id="story-title-${story.slug}">${escapeHtml(story.title)}</h3><p>${escapeHtml(story.intro)}</p><span class="directory-stories__read" id="story-read-${story.slug}">Loe lugu ${storyArrowMarkup}</span></div>
     </a></article>`).join('')}
   </section>`
 }
@@ -274,7 +272,7 @@ function renderDirectoryStory(template, story) {
     <div class="directory-story-page">
       <a class="directory-story-page__back" href="/#poeruumi-lood">${storyArrowMarkup} Tagasi Poeruumi lugude juurde</a>
       <article>
-        <header class="directory-story-page__header">${storyMetaMarkup(story)}
+        <header class="directory-story-page__header">
           <h1>${escapeHtml(story.title)}</h1><p class="directory-story-page__intro">${escapeHtml(story.intro)}</p>
           <p class="directory-story-page__byline">Poeruumi lood <span aria-hidden="true">/</span> ${escapeHtml(story.author)}</p>
         </header>

@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { decodeStoryImage, parseStoryDraft, validStoryToken, writeStoryDraft, nextStoryQuestion } from './story-interview'
+import { addStoryName, decodeStoryImage, firstStoryQuestion, parseStoryDraft, storyAnswerCount, storyRespondentName, validStoryToken, writeStoryDraft, nextStoryQuestion } from './story-interview'
 
 const draft = { title: 'Köögilauast oma poeni', intro: 'Liis alustas kruuside tegemist kodus.', opening: ['Esimene kruus valmis köögilaua taga.'], quote: 'Väljamõeldud tsitaat.', sections: [], imageCaption: 'Väljamõeldud foto.' }
 describe('merchant story input boundaries', () => {
+  it('asks for a name before the shop story without counting it as an interview answer', () => {
+    const messages = addStoryName([{ role: 'assistant', content: firstStoryQuestion(), kind: 'name' }], 'Mari-Liis', 'Savipood')
+    expect(messages.map((message) => message.content)).toEqual(['Mis on sinu nimi?', 'Mari-Liis', 'Kuidas Savipood alguse sai?'])
+    expect(storyRespondentName(messages)).toBe('Mari-Liis')
+    expect(storyAnswerCount(messages)).toBe(0)
+    expect(storyAnswerCount([...messages, { role: 'user', content: 'Alustasin kodus.' }])).toBe(1)
+  })
   it('rejects malformed, oversized and empty articles without accepting extra fields', () => {
     expect(parseStoryDraft({ ...draft, title: ' ' })).toBeNull()
     expect(parseStoryDraft({ ...draft, sections: [{ title: 'Algus', paragraphs: [] }] })).toBeNull()

@@ -1,10 +1,9 @@
-import { directoryStoryReadingMinutes, type DirectoryStory } from '../shared/directory-stories.mjs'
+import type { DirectoryStory } from '../shared/directory-stories.mjs'
 import { StoryArrow } from './StoryArrow'
 
 export default function DirectoryStoryArticle({ story, preview = false, onDiscover }: { story: DirectoryStory; preview?: boolean; onDiscover?: () => void }) {
   return <article>
     <header className="directory-story-page__header">
-      <div className="directory-stories__meta"><span>{story.category}</span><span>{directoryStoryReadingMinutes(story)} min lugemist</span></div>
       <h1>{story.title}</h1>
       <p className="directory-story-page__intro">{story.intro}</p>
       <p className="directory-story-page__byline">Poeruumi lood <span aria-hidden="true">/</span> {story.author}</p>

@@ -3,6 +3,7 @@ import { Brand } from './Brand'
 import DirectoryStoryArticle from './DirectoryStoryArticle'
 import { callStoryInterview, prepareStoryImage, readInterviewToken, StoryRequestError, type StoryDraft, type StoryInterview as Interview } from './lib/storyInterview'
 import { applySeoMetadata } from './lib/seo'
+import { NAME_QUESTION, storyAnswerCount } from '../supabase/functions/_shared/story-interview'
 import './storyInterview.css'
 
 const Arrow = () => <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg>
@@ -73,7 +74,7 @@ function InterviewSession({ token }: { token: string | null }) {
   }, [token, reload])
 
   useEffect(() => {
-    if (!interview || !['interview', 'photo'].includes(interview.status)) return
+    if (!interview || (!interview.needsName && !['interview', 'photo'].includes(interview.status))) return
     end.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'end' })
   }, [interview, busy])
 
@@ -113,7 +114,11 @@ function InterviewSession({ token }: { token: string | null }) {
   const send = (event: FormEvent) => {
     event.preventDefault()
     if (!answer.trim()) return
-    void run('answer', async () => { await mutate('answer', { answer: answer.trim() }); setAnswer(''); input.current?.focus() })
+    void run('answer', async () => {
+      const next = await mutate(interview?.needsName ? 'name' : 'answer', { answer: answer.trim() })
+      setAnswer(''); input.current?.focus()
+      if (next.status === 'preview') window.scrollTo({ top: 0, behavior: 'instant' })
+    })
   }
   const generate = async (current = interview) => { setBusy('generate'); await mutate('generate', {}, current); window.scrollTo({ top: 0, behavior: 'instant' }) }
   const upload = (file?: File) => {
@@ -124,13 +129,13 @@ function InterviewSession({ token }: { token: string | null }) {
       if (next.status === 'photo') await generate(next)
     })
   }
-  const count = interview?.messages.filter((message) => message.role === 'user').length ?? 0
+  const count = interview ? storyAnswerCount(interview.messages) : 0
   const preview = interview?.draft && interview.imageUrl ? { ...interview.draft,
     slug: '', category: 'Meie kaupmehed', author: interview.storeName, publishedAt: '',
     image: interview.imageUrl, imageAlt: interview.imageAlt, storeName: interview.storeName, storeSlug: interview.storeSlug,
   } : null
 
-  return <main className={`story-interview${interview?.status === 'preview' ? ' story-interview--preview' : ''}`}>
+  return <main className={`story-interview${interview?.status === 'preview' && !interview.needsName ? ' story-interview--preview' : ''}`}>
     <header className="story-interview__header">
       <div className="story-interview__brand"><Brand /></div>
       <span className="story-interview__shop">{interview?.storeName}</span>
@@ -143,7 +148,7 @@ function InterviewSession({ token }: { token: string | null }) {
             <span className="story-interview__check" aria-hidden="true">✓</span><h1>{interview.publishedUrl ? 'Sinu lugu on avaldatud.' : 'Sinu lugu on valmis.'}</h1>
             {interview.publishedUrl && <a className="story-interview__primary" href={interview.publishedUrl}>Vaata oma lugu <Arrow /></a>}
           </div>
-            : interview.status === 'preview' && preview ? <div className="story-interview__preview">
+            : interview.status === 'preview' && preview && !interview.needsName ? <div className="story-interview__preview">
               {editing ? <DraftEditor draft={interview.draft!} imageAlt={interview.imageAlt} busy={Boolean(busy)} onCancel={() => setEditing(false)}
                 onSave={(draft, imageAlt) => void run('save', async () => { await mutate('save', { draft, imageAlt }); setEditing(false); window.scrollTo({ top: 0, behavior: 'instant' }) })} />
                 : <><div className="directory-story-page"><DirectoryStoryArticle story={preview} preview /></div>
@@ -156,12 +161,12 @@ function InterviewSession({ token }: { token: string | null }) {
             </div>
               : <div className="story-interview__conversation">
                 <div className="story-interview__messages" role="log" aria-label="Intervjuu" aria-live="polite" aria-relevant="additions">
-                  {interview.messages.map((message, index) => <div key={index} className={`story-interview__message story-interview__message--${message.role}`}><span className="story-interview__sr">{message.role === 'assistant' ? 'Intervjueerija: ' : 'Sina: '}</span>{message.content}</div>)}
+                  {(interview.needsName ? [{ role: 'assistant', content: NAME_QUESTION }] : interview.messages).map((message, index) => <div key={index} className={`story-interview__message story-interview__message--${message.role}`}><span className="story-interview__sr">{message.role === 'assistant' ? 'Intervjueerija: ' : 'Sina: '}</span>{message.content}</div>)}
                   {busy === 'answer' && <div className="story-interview__message story-interview__message--user">{answer}</div>}
                 </div>
                 {busy && <div className="story-interview__working" role="status"><Spinner /><span>{busy === 'generate' ? 'Kirjutan sinu lugu…' : busy === 'upload' ? 'Lisan fotot…' : 'Mõtlen kaasa…'}</span></div>}
                 {error && <p className="story-interview__error" role="alert">{error}</p>}
-                {interview.status === 'photo' && <div className="story-interview__photo">
+                {interview.status === 'photo' && !interview.needsName && <div className="story-interview__photo">
                   {interview.imageUrl && <img src={interview.imageUrl} alt={interview.imageAlt} />}
                   <button className="story-interview__primary" disabled={Boolean(busy)} onClick={() => interview.imageUrl ? void run('generate', () => generate()) : photoInput.current?.click()}>
                     {interview.imageUrl ? 'Loo eelvaade' : <><Photo /> Lisa foto</>}
@@ -169,13 +174,13 @@ function InterviewSession({ token }: { token: string | null }) {
                   {interview.imageUrl && <button className="story-interview__secondary" disabled={Boolean(busy)} onClick={() => photoInput.current?.click()}>Vaheta fotot</button>}
                 </div>}
                 <div ref={end} className="story-interview__end" />
-                {interview.status === 'interview' && <div className="story-interview__composer-wrap">
+                {(interview.status === 'interview' || interview.needsName) && <div className="story-interview__composer-wrap">
                   <form className="story-interview__composer" onSubmit={send}>
-                    <textarea ref={input} aria-label="Sinu vastus" placeholder="Kirjuta siia…" rows={1} maxLength={4000} value={answer} readOnly={Boolean(busy)} onChange={(event) => setAnswer(event.target.value)}
+                    <textarea ref={input} aria-label="Sinu vastus" placeholder="Kirjuta siia…" rows={1} maxLength={interview.needsName ? 120 : 4000} autoComplete={interview.needsName ? 'name' : 'off'} value={answer} readOnly={Boolean(busy)} onChange={(event) => setAnswer(event.target.value)}
                       onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && window.matchMedia('(pointer: fine)').matches) { event.preventDefault(); if (!busy && answer.trim()) send(event) } }} />
                     <button type="submit" aria-label="Saada vastus" disabled={Boolean(busy) || !answer.trim()}><Arrow /></button>
                   </form>
-                  {count >= 3 && <button className="story-interview__finish" disabled={Boolean(busy) || Boolean(answer.trim())} onClick={() => void run('finish', async () => { await mutate('finish') })}>Lõpeta vestlus</button>}
+                  {!interview.needsName && count >= 3 && <button className="story-interview__finish" disabled={Boolean(busy) || Boolean(answer.trim())} onClick={() => void run('finish', async () => { await mutate('finish') })}>Lõpeta vestlus</button>}
                 </div>}
               </div>}
   </main>
