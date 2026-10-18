@@ -45,10 +45,14 @@ try {
   assert.equal((await get('/lood/merchant-story')).status, 301)
   assert.match((await get('/')).body, /\/lood\/merchant-story\//)
   assert.match((await get('/sitemap.xml')).body, /\/lood\/merchant-story\//)
+  assert.doesNotMatch((await get('/')).body, /see-uks-tass|See üks tass/)
+  assert.doesNotMatch((await get('/sitemap.xml')).body, /see-uks-tass/)
   visible = false
   assert.equal((await get('/lood/merchant-story/')).status, 404)
   assert.doesNotMatch((await get('/sitemap.xml')).body, /merchant-story/)
-  assert.equal((await get('/lood/see-uks-tass/')).status, 200)
+  assert.equal((await get('/lood/see-uks-tass/')).status, 404)
+  assert.equal((await get('/lood/see-uks-tass')).status, 404)
+  assert.doesNotMatch((await get('/')).body, /id="poeruumi-lood"|see-uks-tass/)
   console.log('Story server routing, SEO, sitemap, privacy and unpublishing passed.')
 } finally {
   server.kill('SIGTERM'); await once(server, 'exit')

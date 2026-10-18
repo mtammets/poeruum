@@ -21,7 +21,7 @@ async function backend(page: Page) {
   ]
   let failAnswer = false, failGenerate = false, expired = false, hidden = false
   const story = () => ({ ...draft, ...state.draft, slug: 'liisi-lugu', category: 'Meie kaupmehed', author: state.storeName, storeName: state.storeName,
-    storeSlug: state.storeSlug, publishedAt: '2026-10-18', image: '/images/poeruumi-lood-kohvihetk.webp', imageAlt: state.imageAlt })
+    storeSlug: state.storeSlug, publishedAt: '2026-10-18', image: '/images/kaubamaja-example-ceramics.webp', imageAlt: state.imageAlt })
   const reply = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json',
     headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }, body: JSON.stringify(body) })
   await page.route('**/__e2e_supabase/**', async (route) => {
@@ -55,7 +55,7 @@ async function backend(page: Page) {
       }
       if (body.action === 'upload') {
         expect(body.image).toMatch(/^data:image\/webp;base64,/)
-        state.imageUrl = '/images/poeruumi-lood-kohvihetk.webp'; state.imageAlt = state.storeName
+        state.imageUrl = '/images/kaubamaja-example-ceramics.webp'; state.imageAlt = state.storeName
       }
       if (body.action === 'generate') {
         if (failGenerate) return reply(route, { error: 'Loo kirjutamine katkes. Proovi uuesti.' }, 500)
@@ -103,7 +103,7 @@ test('merchant completes a mobile interview, resumes, adds a photo, edits and pu
   await page.reload()
   await expect(page.getByRole('button', { name: 'Lisa foto' })).toBeVisible()
   expect(storyAnswerCount(api.state.messages)).toBe(3)
-  await page.getByLabel('Lisa foto', { exact: true }).setInputFiles('public/images/poeruumi-lood-kohvihetk.webp')
+  await page.getByLabel('Lisa foto', { exact: true }).setInputFiles('public/images/kaubamaja-example-ceramics.webp')
   await expect(page.getByRole('heading', { name: draft.title })).toBeVisible()
   await expect(page.getByText('Meie kaupmehed', { exact: true })).toHaveCount(0)
   await expect(page.getByText(/\d+ min lugemist/)).toHaveCount(0)
@@ -139,7 +139,7 @@ test('a legacy preview asks for the name and resumes with its saved photo and ed
   const api = await backend(page)
   api.state.status = 'preview'
   api.state.draft = { ...draft, title: 'Minu parandatud pealkiri', imageCaption: 'Minu esimene kruus.' }
-  api.state.imageUrl = '/images/poeruumi-lood-kohvihetk.webp'
+  api.state.imageUrl = '/images/kaubamaja-example-ceramics.webp'
   api.state.imageAlt = 'Sinine kruus'
   api.state.messages = [{ role: 'assistant', content: 'Kuidas alustasid?' }, { role: 'user', content: 'Alustasin kodus.' }]
   await page.goto(`/lugu/#token=${token}`)
@@ -176,7 +176,7 @@ test('failed answer and generation preserve input, uploaded photo and request id
     await expect(page.locator('.story-interview__working')).toHaveCount(0)
   }
   api.failGenerate(true)
-  await page.getByLabel('Lisa foto', { exact: true }).setInputFiles('public/images/poeruumi-lood-kohvihetk.webp')
+  await page.getByLabel('Lisa foto', { exact: true }).setInputFiles('public/images/kaubamaja-example-ceramics.webp')
   await expect(page.getByRole('alert')).toContainText('Loo kirjutamine katkes')
   await expect(page.locator('.story-interview__photo img')).toBeVisible()
   api.failGenerate(false)

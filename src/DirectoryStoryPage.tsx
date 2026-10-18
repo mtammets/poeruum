@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { directoryStoryPath, directoryStorySchema, getDirectoryStory, type DirectoryStory } from '../shared/directory-stories.mjs'
+import { directoryStoryPath, directoryStorySchema, type DirectoryStory } from '../shared/directory-stories.mjs'
 import { StoryArrow } from './StoryArrow'
 import StoreDirectoryLayout from './StoreDirectoryLayout'
 import { applySeoMetadata } from './lib/seo'
@@ -7,7 +7,7 @@ import DirectoryStoryArticle from './DirectoryStoryArticle'
 import { initialDirectoryStories, loadDirectoryStory } from './lib/directoryStories'
 
 export default function DirectoryStoryPage({ story: initialStory }: { story?: DirectoryStory }) {
-  const [story, setStory] = useState(() => initialStory || getDirectoryStory(window.location.pathname)
+  const [story, setStory] = useState(() => initialStory
     || initialDirectoryStories().find((story) => directoryStoryPath(story).replace(/\/$/, '') === window.location.pathname.replace(/\/$/, '')))
   const [loading, setLoading] = useState(!story)
   const [error, setError] = useState('')

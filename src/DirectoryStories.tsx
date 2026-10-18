@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { directoryStoryPath, type DirectoryStory } from '../shared/directory-stories.mjs'
-import { initialDirectoryStories, listDirectoryStories, mergeDirectoryStories, STORY_PAGE_SIZE } from './lib/directoryStories'
+import { initialDirectoryStories, listDirectoryStories, STORY_PAGE_SIZE } from './lib/directoryStories'
 import { StoryArrow } from './StoryArrow'
 import DirectoryStoryDialog from './DirectoryStoryDialog'
 
@@ -16,6 +16,15 @@ export default function DirectoryStories() {
   const openedStories = useRef(new Map<string, OpenStory>())
   const closing = useRef(false)
   const discoverAfterClose = useRef(false)
+  const initialAnchorHandled = useRef(false)
+  useEffect(() => {
+    if (!published.length || initialAnchorHandled.current) return
+    initialAnchorHandled.current = true
+    // The fragment can be resolved before asynchronously loaded stories exist.
+    if (window.location.hash === '#poeruumi-lood') {
+      document.getElementById('poeruumi-lood')?.scrollIntoView({ behavior: 'instant' })
+    }
+  }, [published.length])
   useEffect(() => {
     let frame = 0
     const syncStory = () => {
@@ -54,7 +63,7 @@ export default function DirectoryStories() {
   useEffect(() => {
     let active = true
     listDirectoryStories().then((stories) => { if (active) { setPublished(stories); setOffset(stories.length); setMore(stories.length === STORY_PAGE_SIZE) } })
-      .catch(() => { /* Keep server-rendered and editorial stories available. */ })
+      .catch(() => { /* Keep server-rendered stories available. */ })
     return () => { active = false }
   }, [])
   const loadMore = async () => {
@@ -67,11 +76,12 @@ export default function DirectoryStories() {
     } catch { setError('Lugusid ei õnnestunud laadida. Proovi uuesti.') }
     finally { setBusy(false) }
   }
+  if (!published.length) return null
   return <section className="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
     <header className="directory-stories__heading">
       <h2 id="directory-stories-heading">Poeruumi lood</h2>
     </header>
-    {mergeDirectoryStories(published).map((story) => <article key={story.slug} className="directory-stories__feature">
+    {published.map((story) => <article key={story.slug} className="directory-stories__feature">
       <a className="directory-stories__link" href={directoryStoryPath(story)} onClick={(event) => openStory(event, story)} aria-haspopup="dialog" aria-labelledby={`story-title-${story.slug} story-read-${story.slug}`}>
         <div className="directory-stories__image">
           <img src={story.image} alt={story.imageAlt} width="1536" height="2048" loading="lazy" decoding="async" />
