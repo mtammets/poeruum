@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { directoryStoryPath, directoryStorySchema, getDirectoryStory, type DirectoryStory } from '../shared/directory-stories.mjs'
-import { StoryArrow } from './DirectoryStories'
+import { StoryArrow } from './StoryArrow'
 import StoreDirectoryLayout from './StoreDirectoryLayout'
 import { applySeoMetadata } from './lib/seo'
 import DirectoryStoryArticle from './DirectoryStoryArticle'

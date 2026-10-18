@@ -1,7 +1,7 @@
 import { directoryStoryReadingMinutes, type DirectoryStory } from '../shared/directory-stories.mjs'
-import { StoryArrow } from './DirectoryStories'
+import { StoryArrow } from './StoryArrow'
 
-export default function DirectoryStoryArticle({ story, preview = false }: { story: DirectoryStory; preview?: boolean }) {
+export default function DirectoryStoryArticle({ story, preview = false, onDiscover }: { story: DirectoryStory; preview?: boolean; onDiscover?: () => void }) {
   return <article>
     <header className="directory-story-page__header">
       <div className="directory-stories__meta"><span>{story.category}</span><span>{directoryStoryReadingMinutes(story)} min lugemist</span></div>
@@ -23,7 +23,13 @@ export default function DirectoryStoryArticle({ story, preview = false }: { stor
       {!preview && <aside className="directory-story-page__discover" aria-labelledby="story-discover-heading">
         <h2 id="story-discover-heading">{story.storeName || 'Igal lemmikul on oma algus.'}</h2>
         {!story.storeSlug && <p>Avasta Poeruumis loodud Eesti e-poode ja tutvu nende tegijatega.</p>}
-        <a className="directory-stories__read" href={story.storeSlug ? `https://${story.storeSlug}.poeruum.ee/?from=kaubamaja` : '/#store-directory-heading'}>
+        <a className="directory-stories__read" href={story.storeSlug ? `https://${story.storeSlug}.poeruum.ee/?from=kaubamaja` : '/#store-directory-heading'}
+          onClick={(event) => {
+            if (!story.storeSlug && onDiscover && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+              event.preventDefault()
+              onDiscover()
+            }
+          }}>
           {story.storeSlug ? 'Külasta poodi' : 'Avasta poode'} <StoryArrow />
         </a>
       </aside>}

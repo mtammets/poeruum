@@ -172,6 +172,33 @@
 .directory-story-page__discover p { margin-bottom: 0; font-size: 1rem; }
 .directory-story-page__discover .directory-stories__read { margin-top: 1rem; }
 
+.directory-story-dialog {
+  box-sizing: border-box;
+  width: min(76rem, calc(100% - 3rem));
+  height: calc(100dvh - 3rem);
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 1.5rem;
+  background: #fbfaf5;
+  color: #15251b;
+  font-family: Manrope, sans-serif;
+  color-scheme: light;
+  box-shadow: 0 2rem 6rem #0b211b40;
+}
+.directory-story-dialog[open] { display: flex; flex-direction: column; }
+.directory-story-dialog::backdrop { background: #10251dcc; }
+.directory-story-dialog__toolbar { display: flex; flex: 0 0 auto; justify-content: flex-end; padding: .75rem 1rem; }
+.directory-story-dialog__close { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; padding: 0; border: 1px solid #265f4326; border-radius: 50%; background: transparent; color: #265f43; cursor: pointer; }
+.directory-story-dialog__close:hover { background: #265f430d; }
+.directory-story-dialog__close:focus-visible { outline: 2px solid #265f43; outline-offset: 3px; }
+.directory-story-dialog__close svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.directory-story-dialog__content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 clamp(1rem, 4vw, 3rem) max(3rem, env(safe-area-inset-bottom)); }
+.directory-story-dialog__content:focus-visible { outline: 2px solid #265f43; outline-offset: -2px; }
+
 @media (max-width: 64rem) {
   .directory-stories__link { grid-template-columns: 1fr 1fr; }
   .directory-stories__meta { gap: .4rem .7rem; }
@@ -179,6 +206,8 @@
 }
 
 @media (max-width: 48rem) {
+  .directory-story-dialog { width: 100%; height: 100dvh; border-radius: 0; }
+  .directory-story-dialog__toolbar { padding: max(.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) .5rem; }
   .directory-stories__heading { align-items: flex-start; flex-direction: column; gap: .65rem; margin-bottom: 1.35rem; }
   .directory-stories__link { grid-template-columns: 1fr; }
   .directory-stories__feature { border-radius: 1.25rem; }
