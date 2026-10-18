@@ -256,7 +256,7 @@ const storyArrowMarkup = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true
 
 function renderDirectoryStoryTeaser(stories) {
   return `<section class="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
-    <header class="directory-stories__heading"><h2 id="directory-stories-heading">Poeruumi lood</h2><p>Lugemiseks ja kaasamõtlemiseks.</p></header>
+    <header class="directory-stories__heading"><h2 id="directory-stories-heading">Poeruumi lood</h2></header>
     ${stories.map((story) => `<article class="directory-stories__feature"><a class="directory-stories__link" href="${directoryStoryPath(story)}" aria-labelledby="story-title-${story.slug} story-read-${story.slug}">
       <div class="directory-stories__image"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="2048" loading="lazy" decoding="async"></div>
       <div class="directory-stories__copy"><h3 id="story-title-${story.slug}">${escapeHtml(story.title)}</h3><p>${escapeHtml(story.intro)}</p><span class="directory-stories__read" id="story-read-${story.slug}">Loe lugu ${storyArrowMarkup}</span></div>

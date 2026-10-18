@@ -70,7 +70,6 @@ export default function DirectoryStories() {
   return <section className="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
     <header className="directory-stories__heading">
       <h2 id="directory-stories-heading">Poeruumi lood</h2>
-      <p>Lugemiseks ja kaasamõtlemiseks.</p>
     </header>
     {mergeDirectoryStories(published).map((story) => <article key={story.slug} className="directory-stories__feature">
       <a className="directory-stories__link" href={directoryStoryPath(story)} onClick={(event) => openStory(event, story)} aria-haspopup="dialog" aria-labelledby={`story-title-${story.slug} story-read-${story.slug}`}>
