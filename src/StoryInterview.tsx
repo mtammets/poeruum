@@ -57,14 +57,13 @@ function InterviewSession({ token }: { token: string | null }) {
   const end = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
-  const heading = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
     let active = true
     setLoading(true); setError(''); setUnavailable(false); setInterview(null); setEditing(false)
     if (!token) { setUnavailable(true); setLoading(false); return }
     callStoryInterview<{ interview: Interview }>({ action: 'load', token }).then(({ interview }) => {
-      if (active) { setInterview(interview); heading.current?.focus() }
+      if (active) setInterview(interview)
     }).catch((error) => {
       if (!active) return
       setUnavailable(error instanceof StoryRequestError && error.status === 410)
@@ -133,7 +132,7 @@ function InterviewSession({ token }: { token: string | null }) {
 
   return <main className={`story-interview${interview?.status === 'preview' ? ' story-interview--preview' : ''}`}>
     <header className="story-interview__header">
-      <div className="story-interview__brand"><Brand /><span>lood</span></div>
+      <div className="story-interview__brand"><Brand /></div>
       <span className="story-interview__shop">{interview?.storeName}</span>
     </header>
     <input ref={photoInput} className="story-interview__file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Lisa foto" disabled={Boolean(busy)} onChange={(event) => { upload(event.target.files?.[0]); event.target.value = '' }} />
@@ -156,8 +155,6 @@ function InterviewSession({ token }: { token: string | null }) {
               {error && <p className="story-interview__error" role="alert">{error}</p>}
             </div>
               : <div className="story-interview__conversation">
-                <h1 ref={heading} tabIndex={-1} className="story-interview__title">Sinu poe lugu.</h1>
-                <span className="story-interview__interviewer">Poeruumi AI-intervjueerija</span>
                 <div className="story-interview__messages" role="log" aria-label="Intervjuu" aria-live="polite" aria-relevant="additions">
                   {interview.messages.map((message, index) => <div key={index} className={`story-interview__message story-interview__message--${message.role}`}><span className="story-interview__sr">{message.role === 'assistant' ? 'Intervjueerija: ' : 'Sina: '}</span>{message.content}</div>)}
                   {busy === 'answer' && <div className="story-interview__message story-interview__message--user">{answer}</div>}

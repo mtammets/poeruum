@@ -7,14 +7,11 @@
 .story-interview__header { width: min(100%, 76rem); margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 6rem; border-bottom: 1px solid #213c2d18; }
 .story-interview__brand { display: flex; align-items: baseline; gap: .6rem; white-space: nowrap; }
 .story-interview__brand .platform-brand { font-size: 1.55rem; }
-.story-interview__brand > span { font-family: Georgia, serif; font-size: 1.5rem; font-style: italic; }
 .story-interview__shop { color: #617065; font-size: .8rem; text-align: right; overflow-wrap: anywhere; }
 .story-interview__center { min-height: 65svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; text-align: center; }
 .story-interview__center h1 { font: 400 clamp(2rem, 5vw, 3.3rem)/1.15 Georgia, serif; margin: 0; letter-spacing: -.04em; }
 .story-interview__center a { color: inherit; }
 .story-interview__conversation { width: min(100%, 43rem); margin: 0 auto; padding: 3.5rem 0 12rem; }
-.story-interview__title { font: 400 clamp(2.3rem, 6vw, 3.7rem)/1.08 Georgia, serif; letter-spacing: -.055em; margin: 0 0 .75rem; outline: none; }
-.story-interview__interviewer { display: block; color: #6c786c; font-size: .73rem; margin-bottom: 2.8rem; }
 .story-interview__messages { display: flex; flex-direction: column; gap: 1.75rem; }
 .story-interview__end { scroll-margin-bottom: 12rem; }
 .story-interview__message { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.08rem; line-height: 1.8; }
@@ -64,7 +61,6 @@
   .story-interview__conversation { padding-top: 2.5rem; }
   .story-interview__message { font-size: 1rem; }
   .story-interview__message--user { font-size: .95rem; padding: .8rem 1rem; }
-  .story-interview__interviewer { margin-bottom: 2rem; }
   .story-interview__preview { margin-top: 1.5rem; }
   .story-interview__preview-actions { gap: .25rem; }
   .story-interview__preview-actions .story-interview__primary { padding: .75rem 1rem; font-size: .8rem !important; }

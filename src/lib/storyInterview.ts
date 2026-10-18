@@ -24,7 +24,7 @@ export function readInterviewToken(hash = window.location.hash) {
   return token && /^[a-f0-9]{64}$/.test(token) ? token : null
 }
 
-export const interviewLink = (token: string) => `${window.location.origin}/lugu/#token=${token}`
+export const interviewLink = (token: string) => `https://poeruum.ee/lugu/#token=${token}`
 
 export async function callStoryInterview<T>(body: Record<string, unknown>, admin = false): Promise<T> {
   const url = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')

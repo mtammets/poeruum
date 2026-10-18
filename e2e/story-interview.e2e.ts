@@ -208,8 +208,10 @@ test('admin creates a shop-specific link and revokes it', async ({ page }) => {
   await page.goto('/admin/kaubamaja?view=stories')
   await page.getByLabel('Kaupmees', { exact: true }).selectOption(storeId)
   await page.getByRole('button', { name: 'Loo intervjuulink' }).click()
-  await expect(page.getByLabel('Intervjuulink', { exact: true })).toHaveValue(`http://poeruum.localhost:4174/lugu/#token=${token}`)
-  await expect(page.getByRole('link', { name: 'Ava SMS-is' })).toHaveAttribute('href', /^sms:/)
+  const publicLink = `https://poeruum.ee/lugu/#token=${token}`
+  await expect(page.getByLabel('Intervjuulink', { exact: true })).toHaveValue(publicLink)
+  await expect(page.getByRole('link', { name: 'Ava intervjuu ↗' })).toHaveAttribute('href', publicLink)
+  await expect(page.getByRole('link', { name: 'Ava SMS-is' })).toHaveAttribute('href', `sms:?&body=${encodeURIComponent(`Jaga oma poe lugu Poeruumis: ${publicLink}`)}`)
   expect(api.calls.find((call) => call.action === 'admin-create')?.storeId).toBe(storeId)
   await page.setViewportSize({ width: 390, height: 844 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
