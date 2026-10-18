@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -13,8 +14,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: Select checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      browser: ${{ steps.plan.outputs.browser }}
+      server: ${{ steps.plan.outputs.server }}
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Test scope selection and deployment gate
+        run: node --test scripts/test-ci-scope.mjs
+
+      - name: Select checks from the complete change
+        id: plan
+        run: node scripts/ci-scope.mjs plan
+
   application:
     name: Lint, test, build and audit
+    needs: scope
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -34,88 +64,170 @@ jobs:
         run: npm run lint
 
       - name: Type-check Edge Functions
+        if: needs.scope.outputs.mode == 'full'
         run: npm run check:edge
 
       - name: Admin push authorization, encryption and delivery
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:admin-push-edge
 
       - name: Support deletion authorization and attachment cleanup
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:support-delete-edge
 
       - name: Admin support conversation creation and email retries
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:support-create-edge
 
       - name: Admin payment diagnostics authorization and read-only Stripe access
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:admin-payment-status-edge
 
       - name: Seller changes authorization and Stripe verification
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:seller-settings-edge
       - name: Check payout session permissions
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:stripe-payouts-edge
       - name: Withdrawal API and confirmation queue
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:withdrawal-edge
 
       - name: Unit tests
         run: npm run test
 
       - name: Order email Edge authentication and retry test
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:order-email-edge
 
       - name: Order receipt Edge authorization and checkout test
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:order-receipt-edge
 
       - name: Campaign copy Edge authorization and limits
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:campaign-copy-edge
 
       - name: Merchant story invitations, interviews and publication
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:story-interview-edge
 
       - name: Signed payment event crash recovery
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:payment-recovery-edge
 
       - name: Private invoices, PDF rendering and delivery recovery
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:order-invoice-edge
 
       - name: Platform fee invoices and subscription VAT accounting
+        if: needs.scope.outputs.mode == 'full'
         run: |
           npm run test:platform-invoices-edge
           npm run test:subscription-invoices-edge
 
       - name: Merchant email activation enforcement
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:account-email-edge
 
       - name: External refund and dispute webhooks
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:payment-safeguards-edge
 
       - name: Production build
         run: npm run build:app
 
       - name: Merchant story public routing and SEO
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:story-server
 
       - name: Production receipt routing
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:order-receipt-server
 
       - name: Production directory highlights
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:directory-highlights-server
 
       - name: Horoscope sharing previews and images
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:horoscope-server
 
       - name: Closed storefront routing and content isolation
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:closed-storefront-server
 
       - name: Production campaign routing and assets
+        if: needs.scope.outputs.mode == 'full'
         run: npm run test:campaign-server
 
       - name: Push service worker and production assets
+        if: needs.scope.outputs.mode == 'full'
         run: node scripts/test-admin-push-worker.mjs
+
+      - name: Related server rendering checks
+        if: needs.scope.outputs.mode == 'ui'
+        env:
+          CI_SERVER_TESTS: ${{ needs.scope.outputs.server }}
+        run: node scripts/ci-scope.mjs server
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+  browser:
+    name: Browser tests (${{ matrix.shard }})
+    needs: scope
+    if: needs.scope.outputs.mode != 'docs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.scope.outputs.shards || '[1]') }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Browser smoke tests
-        run: npm run test:smoke
+      - name: Run selected browser checks
+        env:
+          CI_MODE: ${{ needs.scope.outputs.mode }}
+          CI_BROWSER_TESTS: ${{ needs.scope.outputs.browser }}
+          CI_SHARD: ${{ matrix.shard }}
+        run: node scripts/ci-scope.mjs browser
+
+  journeys:
+    name: Seller and payment journeys
+    needs: scope
+    if: needs.scope.outputs.mode == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Seller setup, Stripe return and first product journey
         run: npm run test:seller-preview -- --workers=1
@@ -123,11 +235,10 @@ jobs:
       - name: Payment preview navigation and Stripe return
         run: npm run test:payment-preview -- --workers=1
 
-      - name: Production dependency audit
-        run: npm audit --omit=dev --audit-level=high
-
   database:
     name: Migrations and database lint
+    needs: scope
+    if: needs.scope.outputs.mode == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -285,3 +396,23 @@ jobs:
       - name: Stop isolated Supabase database
         if: always()
         run: npx supabase stop --no-backup
+
+  ready:
+    name: CI ready
+    if: always()
+    needs: [scope, application, browser, journeys, database]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Require every selected check to pass
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: node scripts/ci-scope.mjs gate
