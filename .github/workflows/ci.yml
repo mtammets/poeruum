@@ -67,6 +67,9 @@ jobs:
       - name: Campaign copy Edge authorization and limits
         run: npm run test:campaign-copy-edge
 
+      - name: Merchant story invitations, interviews and publication
+        run: npm run test:story-interview-edge
+
       - name: Signed payment event crash recovery
         run: npm run test:payment-recovery-edge
 
@@ -86,6 +89,9 @@ jobs:
 
       - name: Production build
         run: npm run build:app
+
+      - name: Merchant story public routing and SEO
+        run: npm run test:story-server
 
       - name: Production receipt routing
         run: npm run test:order-receipt-server
@@ -269,6 +275,9 @@ jobs:
 
       - name: Test order phone recovery, persistence and deletion
         run: node scripts/test-order-customer-phone.mjs
+
+      - name: Test merchant story privacy, publication and retention
+        run: psql postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres --file scripts/test-story-interviews.sql
 
       - name: Lint database schemas
         run: npx supabase db lint --local --schema public,extensions --level warning --fail-on warning

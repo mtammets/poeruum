@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
 import { formatStoreDirectoryPrice, getStoreDirectoryHighlights, getStoreDirectoryVisitUrl, normalizeStoreDirectoryCatalog, storeDirectoryExamples } from '../shared/store-directory.mjs'
-import { getDirectoryStory } from '../shared/directory-stories.mjs'
 import { getHoroscopeShareMetadata, getHoroscopeSignFromLocation } from '../shared/horoscope-share.mjs'
 import DailyHoroscope from './DailyHoroscope'
 import DirectoryHero, { directoryHeroSlides } from './DirectoryHero'
@@ -92,7 +91,7 @@ const ProductCard = ({ store, product, index, placement = 'search' }: DirectoryP
 
 export default function Kaubamaja() {
   if (/^\/lood(?:\/|$)/.test(window.location.pathname)) {
-    return <DirectoryStoryPage story={getDirectoryStory(window.location.pathname)} />
+    return <DirectoryStoryPage />
   }
   return <StoreDirectory />
 }

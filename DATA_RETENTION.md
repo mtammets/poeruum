@@ -20,6 +20,9 @@ Rakenduse avalik privaatsuspoliitika ja tehniline kustutamisloogika kasutavad j�
 | Rate limit'i soolatud räsi ja loendur | Piiranguaken + kuni 5 minutit | `cleanup_security_observability()` |
 | Kasutaja online-oleku signaal | 24 tundi | `apply_data_retention()` |
 | Lõpetatud välise ressursi koristuskirje | 90 päeva | `apply_data_retention()` |
+| Avaldamata intervjuu, mustand ja foto | 30 päeva pärast lingi aegumist või sulgemist | `apply_story_interview_retention()` ja Storage koristusjärjekord |
+| Avaldatud loo aluseks olnud intervjuu ja mustand | 30 päeva avaldamisest | `apply_story_interview_retention()`; avalik artikkel ja foto säilivad |
+| Avaldatud kaupmehelugu ja selle foto | Poe omaniku konto kustutamiseni | Poe omaniku eemaldamise trigger, kaskaadkustutus ja Storage koristusjärjekord |
 
 Andmebaasi `pg_cron` käivitab `data-retention-reaper` funktsiooni iga päev kell 02:15 UTC. Funktsioon eemaldab esmalt aegunud tugimanused Storage API kaudu, kustutab tugivestlused ja rakendab seejärel ülejäänud andmebaasi säilitusreeglid.
 

@@ -8,6 +8,8 @@ export type DirectoryStory = {
   imageCaption: string
   author: string
   publishedAt: string
+  storeName?: string
+  storeSlug?: string
   opening: string[]
   quote: string
   sections: { title: string; paragraphs: string[] }[]

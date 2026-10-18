@@ -15,7 +15,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 type ResolvedConversation = { id: string }
 type SupportAttachment = { attachment_path: string | null }
 type StorageEntry = { id: string | null; name: string }
-type StorageCleanup = { id: string; resource_id: string }
+type StorageCleanup = { id: string; resource_id: string; resource_type: string }
 
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -99,23 +99,28 @@ Deno.serve(async (request) => {
     })
     if (leadRetentionError) throw leadRetentionError
 
+    const { error: storyRetentionError } = await admin.rpc('apply_story_interview_retention')
+    if (storyRetentionError) throw storyRetentionError
+
     const { data: storageCleanupRows, error: storageQueueError } = await admin
       .from('external_resource_cleanup')
-      .select('id,resource_id')
+      .select('id,resource_id,resource_type')
       .eq('provider', 'supabase_storage')
-      .eq('resource_type', 'product_image_prefix')
+      .in('resource_type', ['product_image_prefix', 'story_image_prefix'])
       .eq('status', 'pending')
       .order('created_at')
       .limit(100)
     if (storageQueueError) throw storageQueueError
 
     let cleanedDraftImagePrefixes = 0
+    let cleanedStoryImagePrefixes = 0
     let failedDraftImagePrefixes = 0
     for (const cleanup of (storageCleanupRows ?? []) as StorageCleanup[]) {
       try {
-        const paths = await listFiles('product-images', cleanup.resource_id)
+        const bucket = cleanup.resource_type === 'story_image_prefix' ? 'story-interviews' : 'product-images'
+        const paths = await listFiles(bucket, cleanup.resource_id)
         for (let index = 0; index < paths.length; index += 100) {
-          const { error: storageError } = await admin.storage.from('product-images').remove(paths.slice(index, index + 100))
+          const { error: storageError } = await admin.storage.from(bucket).remove(paths.slice(index, index + 100))
           if (storageError) throw storageError
         }
         const { error: completeError } = await admin.from('external_resource_cleanup').update({
@@ -124,7 +129,8 @@ Deno.serve(async (request) => {
           completed_at: new Date().toISOString(),
         }).eq('id', cleanup.id)
         if (completeError) throw completeError
-        cleanedDraftImagePrefixes += 1
+        if (cleanup.resource_type === 'story_image_prefix') cleanedStoryImagePrefixes += 1
+        else cleanedDraftImagePrefixes += 1
       } catch (cleanupError) {
         failedDraftImagePrefixes += 1
         const message = cleanupError instanceof Error ? cleanupError.message : 'Mustandi failide kustutamine ebaõnnestus.'
@@ -139,6 +145,7 @@ Deno.serve(async (request) => {
       support_conversations: deletedSupportConversations,
       support_attachments: deletedSupportAttachments,
       draft_image_prefixes: cleanedDraftImagePrefixes,
+      story_image_prefixes: cleanedStoryImagePrefixes,
       failed_draft_image_prefixes: failedDraftImagePrefixes,
       lead_outreach: retainedLeads ?? {},
       ...((retained ?? {}) as Record<string, unknown>),

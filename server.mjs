@@ -62,6 +62,20 @@ const absoluteImage = (value) => {
   if (!value) return null
   try { return new URL(value, `https://${platformHost}`).toString() } catch { return null }
 }
+
+async function getPublishedStories({ slug, offset = 0, sitemap = false } = {}) {
+  if (!supabaseUrl || !supabaseKey) return []
+  const query = new URLSearchParams({ select: sitemap ? 'slug' : 'story', is_published: 'eq.true', order: 'published_at.desc,id.desc',
+    limit: slug ? '1' : sitemap ? '1000' : '12', offset: String(offset) })
+  if (slug) query.set('slug', `eq.${slug}`)
+  const response = await fetch(`${supabaseUrl}/rest/v1/directory_stories?${query}`, {
+    headers: { apikey: supabaseKey }, signal: AbortSignal.timeout(5000),
+  })
+  if (!response.ok) throw new Error(`Published stories HTTP ${response.status}`)
+  const rows = await response.json()
+  return rows.map((row) => sitemap ? row : row.story)
+}
+const storiesDataMarkup = (stories) => `<script type="application/json" id="poeruum-stories-data">${JSON.stringify(stories).replaceAll('<', '\\u003c')}</script>`
 const productPrice = (product) => {
   const regular = Number(product.price ?? 0)
   const sale = product.sale_price == null ? null : Number(product.sale_price)
@@ -242,13 +256,13 @@ const directoryFooterMarkup = `<footer class="store-directory__footer"><span>© 
 const storyArrowMarkup = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"></path></svg>'
 const storyMetaMarkup = (story) => `<div class="directory-stories__meta"><span>${escapeHtml(story.category)}</span><span>${directoryStoryReadingMinutes(story)} min lugemist</span></div>`
 
-function renderDirectoryStoryTeaser(story) {
+function renderDirectoryStoryTeaser(stories) {
   return `<section class="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
     <header class="directory-stories__heading"><h2 id="directory-stories-heading">Poeruumi lood</h2><p>Lugemiseks ja kaasamõtlemiseks.</p></header>
-    <article class="directory-stories__feature"><a class="directory-stories__link" href="${directoryStoryPath(story)}" aria-labelledby="directory-story-title directory-story-read">
+    ${stories.map((story) => `<article class="directory-stories__feature"><a class="directory-stories__link" href="${directoryStoryPath(story)}" aria-labelledby="story-title-${story.slug} story-read-${story.slug}">
       <div class="directory-stories__image"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="2048" loading="lazy" decoding="async"></div>
-      <div class="directory-stories__copy">${storyMetaMarkup(story)}<h3 id="directory-story-title">${escapeHtml(story.title)}</h3><p>${escapeHtml(story.intro)}</p><span class="directory-stories__read" id="directory-story-read">Loe lugu ${storyArrowMarkup}</span></div>
-    </a></article>
+      <div class="directory-stories__copy">${storyMetaMarkup(story)}<h3 id="story-title-${story.slug}">${escapeHtml(story.title)}</h3><p>${escapeHtml(story.intro)}</p><span class="directory-stories__read" id="story-read-${story.slug}">Loe lugu ${storyArrowMarkup}</span></div>
+    </a></article>`).join('')}
   </section>`
 }
 
@@ -266,12 +280,12 @@ function renderDirectoryStory(template, story) {
         </header>
         <figure class="directory-story-page__figure"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="2048" fetchpriority="high" decoding="async"><figcaption>${escapeHtml(story.imageCaption)}</figcaption></figure>
         <div class="directory-story-page__body">
-          ${paragraphs(story.opening)}<blockquote>${escapeHtml(story.quote)}</blockquote>
+          ${paragraphs(story.opening)}${story.quote ? `<blockquote>${escapeHtml(story.quote)}</blockquote>` : ''}
           ${story.sections.map((section) => `<section><h2>${escapeHtml(section.title)}</h2>${paragraphs(section.paragraphs)}</section>`).join('')}
           <aside class="directory-story-page__discover" aria-labelledby="story-discover-heading">
-            <span class="directory-story-page__end-mark" aria-hidden="true">✳</span><h2 id="story-discover-heading">Igal lemmikul on oma algus.</h2>
-            <p>Avasta Poeruumis loodud Eesti e-poode ja tutvu nende tegijatega.</p>
-            <a class="directory-stories__read" href="/#store-directory-heading">Avasta poode ${storyArrowMarkup}</a>
+            <h2 id="story-discover-heading">${escapeHtml(story.storeName || 'Igal lemmikul on oma algus.')}</h2>
+            ${story.storeSlug ? '' : '<p>Avasta Poeruumis loodud Eesti e-poode ja tutvu nende tegijatega.</p>'}
+            <a class="directory-stories__read" href="${story.storeSlug ? `https://${escapeHtml(story.storeSlug)}.poeruum.ee/?from=kaubamaja` : '/#store-directory-heading'}">${story.storeSlug ? 'Külasta poodi' : 'Avasta poode'} ${storyArrowMarkup}</a>
           </aside>
         </div>
       </article>
@@ -279,14 +293,15 @@ function renderDirectoryStory(template, story) {
   return template
     .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
       title, description: story.intro, canonical,
-      image: `https://${storeDirectoryHost}${story.image}`,
+      image: new URL(story.image, `https://${storeDirectoryHost}`).href,
       type: 'article', noIndex: false, schema: directoryStorySchema(story),
     }))
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`)
+    .replace('</head>', `${storiesDataMarkup([story])}</head>`)
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
 }
 
-function renderStoreDirectory(template, stores, sharedHoroscope = null) {
+function renderStoreDirectory(template, stores, sharedHoroscope = null, publishedStories = []) {
   const canonical = sharedHoroscope?.url || `https://${storeDirectoryHost}/`
   const title = 'Poeruumi Kaubamaja – avasta Eesti väikeettevõtjate e-poode'
   const heading = 'Avasta Poeruumis loodud Eesti e-poode'
@@ -332,7 +347,7 @@ function renderStoreDirectory(template, stores, sharedHoroscope = null) {
   const heroMedia = heroProducts.length ? `<div class="store-directory__hero-media"><a class="store-directory__hero-photo is-active" href="${escapeHtml(getStoreDirectoryVisitUrl(heroProducts[0].store, heroProducts[0].product))}" aria-label="${escapeHtml(`${heroProducts[0].product.name} – ${heroProducts[0].store.name}`)}"><img src="${escapeHtml(heroProducts[0].product.imageUrl)}" alt="" fetchpriority="high" decoding="async"></a></div>` : ''
   const products = selectedProducts.map(({ store, product }) => `<article class="store-directory__product store-directory__product--highlight"><a href="${escapeHtml(getStoreDirectoryVisitUrl(store, product))}" aria-label="${escapeHtml(`${product.name} – ${store.name}`)}"><div class="store-directory__product-media"><img src="${escapeHtml(product.imageUrl)}" alt="" loading="lazy" decoding="async"></div><div class="store-directory__product-copy"><span class="store-directory__product-store">${escapeHtml(store.name)}</span><h3>${escapeHtml(product.name)}</h3><p class="store-directory__product-price"><strong>${escapeHtml(formatStoreDirectoryPrice(product.salePrice ?? product.price))}</strong>${product.salePrice !== null ? `<del>${escapeHtml(formatStoreDirectoryPrice(product.price))}</del>` : ''}</p><span class="store-directory__product-action" aria-hidden="true">Vaata toodet ${arrowUpRight}</span></div></a></article>`).join('')
   const highlights = products ? `<section class="store-directory__highlights" aria-labelledby="directory-products-heading"><div class="store-directory__section-head"><div><h2 id="directory-products-heading">Parimad kingiideed</h2><p class="store-directory__highlights-intro">Valik tooteid Eesti e-poodidest.</p></div></div><div class="store-directory__product-grid">${products}</div></section>` : ''
-  const content = `<main class="store-directory">${directoryNavigationMarkup()}<header class="store-directory__hero${heroProducts.length ? '' : ' store-directory__hero--text-only'}"><div class="store-directory__intro"><h1>${heading}</h1><p>${description}</p></div>${heroMedia}</header>${highlights}<section class="store-directory__stores" aria-labelledby="store-directory-heading"><div class="store-directory__section-head"><h2 id="store-directory-heading">Leia oma uus lemmikpood</h2></div><div class="store-directory__grid">${cards}</div>${renderDirectoryStoryTeaser(featuredDirectoryStory)}</section>${directoryFooterMarkup}</main>`
+  const content = `<main class="store-directory">${directoryNavigationMarkup()}<header class="store-directory__hero${heroProducts.length ? '' : ' store-directory__hero--text-only'}"><div class="store-directory__intro"><h1>${heading}</h1><p>${description}</p></div>${heroMedia}</header>${highlights}<section class="store-directory__stores" aria-labelledby="store-directory-heading"><div class="store-directory__section-head"><h2 id="store-directory-heading">Leia oma uus lemmikpood</h2></div><div class="store-directory__grid">${cards}</div>${renderDirectoryStoryTeaser([...publishedStories, featuredDirectoryStory])}</section>${directoryFooterMarkup}</main>`
   const initialData = JSON.stringify(stores).replace(/</g, '\\u003c')
 
   return template
@@ -350,7 +365,7 @@ function renderStoreDirectory(template, stores, sharedHoroscope = null) {
       schema,
     }))
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(sharedHoroscope?.title || title)}</title>`)
-    .replace('</head>', `<script type="application/json" id="poeruum-store-directory-data" data-highlight-seed="${highlightSeed}">${initialData}</script></head>`)
+    .replace('</head>', `<script type="application/json" id="poeruum-store-directory-data" data-highlight-seed="${highlightSeed}">${initialData}</script>${storiesDataMarkup(publishedStories)}</head>`)
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
 }
 
@@ -387,6 +402,14 @@ createServer(async (req, res) => {
       }
     }
 
+    if (/^\/lugu\/?$/.test(url.pathname)) {
+      const html = (await templatePromise).replace(/<title>[\s\S]*?<\/title>/, '<title>Sinu lugu — Poeruum</title>')
+        .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
+          title: 'Sinu lugu — Poeruum', description: '', canonical: `https://${host}/lugu/`, noIndex: true, type: 'website', schema: null,
+        })).replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, '<!-- poeruum:content:start --><!-- poeruum:content:end -->')
+      return send(res, 200, req.method === 'HEAD' ? null : html, { 'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' })
+    }
     if (url.pathname === '/stripe/connect/return' || url.pathname === '/taganemine') {
       return send(res, 200, req.method === 'HEAD' ? null : await templatePromise, {
         'Content-Type': 'text/html; charset=utf-8',
@@ -425,14 +448,21 @@ createServer(async (req, res) => {
         })
       }
       if (url.pathname === '/sitemap.xml') {
-        const entries = ['/', ...directoryStories.map(directoryStoryPath)]
+        const published = []
+        for (let offset = 0; ; offset += 1000) {
+          const page = await getPublishedStories({ sitemap: true, offset })
+          published.push(...page)
+          if (page.length < 1000) break
+        }
+        const entries = ['/', ...directoryStories.map(directoryStoryPath), ...published.map(directoryStoryPath)]
         const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.map((entry) => `  <url><loc>https://${storeDirectoryHost}${escapeHtml(entry)}</loc></url>`).join('\n')}\n</urlset>\n`
         return send(res, 200, xml, {
           'Content-Type': 'application/xml; charset=utf-8',
           'Cache-Control': 'public, max-age=300',
         })
       }
-      const story = getDirectoryStory(url.pathname)
+      const storySlug = /^\/lood\/([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/.exec(url.pathname)?.[1]
+      const story = getDirectoryStory(url.pathname) || (storySlug ? (await getPublishedStories({ slug: storySlug }))[0] : undefined)
       if (story) {
         if (url.pathname !== directoryStoryPath(story)) {
           return send(res, 301, null, { Location: `${directoryStoryPath(story)}${url.search}` })
@@ -454,7 +484,8 @@ createServer(async (req, res) => {
         })
       }
       const sharedHoroscope = getHoroscopeShareMetadata(horoscopeSign)
-      const html = renderStoreDirectory(await templatePromise, await getStoreDirectory(), sharedHoroscope)
+      const [stores, publishedStories] = await Promise.all([getStoreDirectory(), getPublishedStories().catch(() => [])])
+      const html = renderStoreDirectory(await templatePromise, stores, sharedHoroscope, publishedStories)
       return send(res, 200, req.method === 'HEAD' ? null : html, {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',

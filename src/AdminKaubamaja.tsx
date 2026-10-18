@@ -2,9 +2,10 @@ import { useState } from 'react'
 import AdminStoreDirectory from './AdminStoreDirectory'
 import AdminDirectoryAnalytics from './AdminDirectoryAnalytics'
 import AdminHomepageShowcase from './AdminHomepageShowcase'
+import AdminStories from './AdminStories'
 import './directoryAnalytics.css'
 
-const tabs = [['stats', 'Statistika'], ['order', 'Poodide järjekord'], ['homepage', 'Avalehe eelvaade']] as const
+const tabs = [['stats', 'Statistika'], ['order', 'Poodide järjekord'], ['homepage', 'Avalehe eelvaade'], ['stories', 'Poeruumi lood']] as const
 
 export default function AdminKaubamaja() {
   const requested = new URLSearchParams(window.location.search).get('view')
@@ -42,6 +43,9 @@ export default function AdminKaubamaja() {
     </div>
     <div id="directory-panel-homepage" role="tabpanel" aria-labelledby="directory-tab-homepage" hidden={tab !== 'homepage'}>
       {visited.has('homepage') && <AdminHomepageShowcase />}
+    </div>
+    <div id="directory-panel-stories" role="tabpanel" aria-labelledby="directory-tab-stories" hidden={tab !== 'stories'}>
+      {visited.has('stories') && <AdminStories />}
     </div>
   </div>
 }

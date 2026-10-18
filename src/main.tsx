@@ -26,8 +26,10 @@ const OrderReceiptPage = lazy(() => import('./OrderReceiptPage'))
 const CampaignStoreFrame = lazy(() => import('./campaigns/CampaignStoreFrame'))
 const StorefrontPreviewFrame = lazy(() => import('./StorefrontPreviewFrame'))
 const StripeConnectReturn = lazy(() => import('./StripeConnectReturn'))
+const StoryInterview = lazy(() => import('./StoryInterview'))
+const isStoryInterview = /^\/lugu\/?$/.test(window.location.pathname)
 const isStripeConnectReturn = window.location.pathname === '/stripe/connect/return'
-if (isStripeConnectReturn) {
+if (isStripeConnectReturn || isStoryInterview) {
   const referrer = document.createElement('meta')
   referrer.name = 'referrer'
   referrer.content = 'no-referrer'
@@ -244,6 +246,7 @@ function Root() {
   }, [])
 
   if (isStripeConnectReturn) return <Suspense fallback={<LoadingScreen />}><StripeConnectReturn /></Suspense>
+  if (isStoryInterview) return <Suspense fallback={<LoadingScreen />}><StoryInterview /></Suspense>
   if (window.location.pathname === '/taganemine') return <Suspense fallback={<LoadingScreen />}><WithdrawalPage /></Suspense>
   if (activeReceiptLocation) return <Suspense fallback={<LoadingScreen />}><OrderReceiptPage key={JSON.stringify(activeReceiptLocation.access)} location={activeReceiptLocation} /></Suspense>
   if (isStoreDirectorySurface) return <Suspense fallback={<LoadingScreen />}><Kaubamaja /></Suspense>
@@ -254,7 +257,7 @@ function Root() {
   return isPoeruumHomepage ? <Homepage /> : <PlatformWithSupport />
 }
 
-if (!isEmbeddedStorePreview && !isStripeConnectReturn) registerGlobalErrorMonitoring()
+if (!isEmbeddedStorePreview && !isStripeConnectReturn && !isStoryInterview) registerGlobalErrorMonitoring()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><ErrorBoundary>{isEmbeddedStorePreview

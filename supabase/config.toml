@@ -531,3 +531,6 @@ verify_jwt = false
 
 [functions.stripe-payouts]
 verify_jwt = false
+
+[functions.story-interview]
+verify_jwt = false

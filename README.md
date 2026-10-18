@@ -109,6 +109,43 @@ Tootepiltide eelvaade vajab migratsiooni `202610090001_admin_store_products.sql`
 Mõlemad tuleb juurutada enne kasutajaliidest; eelvaade võimaldab administraatoril
 vaadata ka avaldamata poe tooteid ilma poe avalikkust muutmata.
 
+## Poeruumi lood ja kaupmehe intervjuu
+
+Adminis **Kaubamaja → Poeruumi lood** (`/admin/kaubamaja?view=stories`) saab
+valida avaldatud poe ja luua personaalse intervjuulingi. **Kopeeri link** annab SMS-i
+lisatava aadressi; **Ava SMS-is** avab seadme sõnumirakenduse eeltäidetud tekstiga.
+Rakendus ise sõnumeid ei saada. Link kehtib 30 päeva; **Uuenda linki** säilitab
+vestluse ja muudab eelmise lingi kehtetuks. **Sulge link** lõpetab ligipääsu.
+
+Kaupmees avab `/lugu/#token=…` ilma kontosse sisenemata. AI küsib ühe küsimuse
+kaupa ja kasutab jätkuküsimusteks salvestatud vastuseid. Intervjuule järgnevad
+foto, muudetav artikli eelvaade ja kaupmehe kinnitatud avaldamine. Avaldatud lugu
+ilmub kaubamaja lugude hulka, saab oma `/lood/…/` aadressi, jagamismetadata ja
+sitemap-kirje. Admin saab loo peita või uuesti avaldada.
+
+Juurutusjärjekord:
+
+1. Rakenda migratsioon `202610180001_story_interviews.sql`.
+2. Juuruta `story-interview` (`verify_jwt = false`) ning uuendatud
+   `data-retention-reaper`. Funktsioon kontrollib iga privaatse päringu
+   intervjuuvõtit ja iga adminitoimingu puhul administraatori sessiooni.
+3. Serveriseaded: olemasolevad `SUPABASE_URL`, `POERUUM_SUPABASE_SECRET_KEY`,
+   `RATE_LIMIT_SALT`, `OPENAI_API_KEY`; valikuline `OPENAI_STORY_MODEL`
+   (vaikimisi `gpt-5.4-mini`). Ükski salajane võti ei lähe brauserisse.
+4. Ehita ja juuruta veebirakendus koos `server.mjs` muudatustega.
+
+Intervjuuvõti paikneb URL-i fragmendis ja andmebaasis hoitakse ainult selle
+SHA-256 räsi. Mustandid, vestlused ja fotod on privaatsed; foto avalik endpoint
+kontrollib avaldatud artikli olemasolu. Muudatused kasutavad versioonikontrolli
+ning päringu identifikaatorit, avaldamine on üks andmebaasitehing. AI päringud
+kasutavad [Responses API struktureeritud väljundit](https://developers.openai.com/api/docs/guides/structured-outputs)
+ja `store: false`; väljamõeldud väljatõstetud tsitaat eemaldatakse.
+
+Kontrollid: `npm run test:story-interview-edge`, `npm run test:story-server`,
+`npm run test:smoke -- e2e/story-interview.e2e.ts e2e/directory-stories.e2e.ts`,
+ning kohalikus andmebaasis `scripts/test-story-interviews.sql`. Veebitestid
+kasutavad isoleeritud API vastuseid; need ei avalda päris kaupmeeste lugusid.
+
 ## Deploy
 
 Render käivitab `npm run build`, mis ehitab rakenduse ja genereerib SEO-varad,

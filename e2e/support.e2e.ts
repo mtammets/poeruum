@@ -108,7 +108,7 @@ test('a lost shared session blocks sending without discarding the question or at
   await page.getByRole('dialog').locator('input[type=file]').setInputFiles({ name: 'viga.png', mimeType: 'image/png', buffer: Buffer.from('test-image') })
   // Freeze the periodic reload to exercise the preflight during the short
   // interval between a different origin clearing cookies and the next check.
-  await page.clock.pauseAt(new Date())
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000))
   await page.evaluate(() => {
     document.cookie = 'sb-localhost-auth-token=0; Path=/; Domain=poeruum.localhost; SameSite=Lax'
   })
