@@ -6,6 +6,7 @@ export type DirectoryStory = {
   image: string
   imageAlt: string
   imageCaption: string
+  bodyImage?: { src: string; alt: string; caption: string }
   author: string
   publishedAt: string
   storeName?: string

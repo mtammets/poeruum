@@ -38,14 +38,16 @@ async function snapshot(client: ReturnType<typeof db>, row: any) {
     client.from('directory_stories').select('slug,is_published').eq('interview_id', row.id).maybeSingle(),
   ])
   if (storeError || articleError) throw new Error('Story snapshot unavailable')
-  let imageUrl: string | null = null
-  if (row.image_path) {
-    const { data, error } = await client.storage.from('story-interviews').createSignedUrl(row.image_path, 3600)
+  const signedImage = async (path: string | null) => {
+    if (!path) return null
+    const { data, error } = await client.storage.from('story-interviews').createSignedUrl(path, 3600)
     if (error) throw new Error('Story image unavailable')
-    imageUrl = data.signedUrl
+    return data.signedUrl
   }
+  const [imageUrl, bodyImageUrl] = await Promise.all([signedImage(row.image_path), signedImage(row.body_image_path)])
   return { id: row.id, storeName: store!.name, storeSlug: store!.slug, status: row.status,
     version: row.version, messages: row.messages, needsName: row.status !== 'published' && !storyRespondentName(row.messages), draft: row.draft, imageUrl, imageAlt: row.image_alt,
+    bodyImageUrl, bodyImageAlt: row.body_image_alt || '', bodyImageCaption: row.body_image_caption || '',
     publishedUrl: article?.is_published ? articleUrl(article.slug) : null, lastRequestId: row.last_request_id,
   }
 }
@@ -112,12 +114,14 @@ Deno.serve(async (request) => {
   try {
     // Private Storage is exposed only through an existing, published article.
     if (request.method === 'GET') {
-      const id = new URL(request.url).searchParams.get('image')
-      if (!validStoryId(id)) return json({ error: 'Pilti ei leitud.' }, 404)
-      const { data: story, error } = await client.from('directory_stories').select('image_path').eq('id', id).eq('is_published', true).maybeSingle()
+      const params = new URL(request.url).searchParams
+      const id = params.get('image'), slot = params.get('slot') || 'cover'
+      if (!validStoryId(id) || !['cover', 'body'].includes(slot)) return json({ error: 'Pilti ei leitud.' }, 404)
+      const { data: story, error } = await client.from('directory_stories').select('image_path,body_image_path').eq('id', id).eq('is_published', true).maybeSingle()
       if (error) throw new Error('Public story image lookup failed')
-      if (!story) return json({ error: 'Pilti ei leitud.' }, 404)
-      const { data, error: downloadError } = await client.storage.from('story-interviews').download(story.image_path)
+      const imagePath = slot === 'body' ? story?.body_image_path : story?.image_path
+      if (!imagePath) return json({ error: 'Pilti ei leitud.' }, 404)
+      const { data, error: downloadError } = await client.storage.from('story-interviews').download(imagePath)
       if (downloadError || !data) throw new Error('Public story image download failed')
       return new Response(data, { headers: { ...cors, 'Content-Type': data.type || 'image/webp',
         'Cache-Control': 'public, max-age=60, s-maxage=300', 'X-Content-Type-Options': 'nosniff' } })
@@ -136,7 +140,7 @@ Deno.serve(async (request) => {
     if (error) throw new Error('Interview lookup failed')
     if (!row || row.status === 'revoked' || Date.parse(row.expires_at) <= Date.now()) return unavailable()
     if (body.action === 'load') return json({ interview: await snapshot(client, row) })
-    if (!['name', 'answer', 'finish', 'upload', 'generate', 'save', 'publish'].includes(body.action)) return json({ error: 'Tundmatu tegevus.' }, 400)
+    if (!['name', 'answer', 'finish', 'upload', 'remove-image', 'generate', 'save', 'publish'].includes(body.action)) return json({ error: 'Tundmatu tegevus.' }, 400)
     if (!validStoryId(body.requestId) || !Number.isInteger(body.version) || body.version < 0) return json({ error: 'Vigane päring.' }, 400)
     if (row.last_request_id === body.requestId || (row.status === 'published' && body.action === 'publish')) return json({ interview: await snapshot(client, row) })
     if (row.status === 'published') return json({ error: 'See lugu on juba valmis.' }, 409)
@@ -188,12 +192,19 @@ Deno.serve(async (request) => {
       patch = { status: 'photo', messages: [...messages, { role: 'assistant', content: PHOTO_QUESTION }] }
     } else if (body.action === 'upload') {
       if (!['photo', 'preview'].includes(current.status)) return conflict()
+      if (body.slot !== undefined && !['cover', 'body'].includes(body.slot)) return json({ error: 'Vali avafoto või foto artikli sisse.' }, 400)
       const image = decodeStoryImage(body.image)
       if (!image) return json({ error: 'Vali JPG-, PNG- või WebP-pilt kuni 5 MB.' }, 400)
       uploadedPath = `${current.id}/${crypto.randomUUID()}.${image.extension}`
       const { error } = await client.storage.from('story-interviews').upload(uploadedPath, image.bytes, { contentType: image.mime, upsert: false })
       if (error) throw new Error('Interview image upload failed')
-      patch = { image_path: uploadedPath, image_alt: current.image_alt || store.name }
+      patch = body.slot === 'body'
+        ? { body_image_path: uploadedPath, body_image_alt: current.body_image_alt || store.name }
+        : { image_path: uploadedPath, image_alt: current.image_alt || store.name }
+    } else if (body.action === 'remove-image') {
+      if (!['photo', 'preview'].includes(current.status)) return conflict()
+      if (body.slot !== 'body') return json({ error: 'Avafoto on loo jaoks vajalik.' }, 400)
+      patch = { body_image_path: null, body_image_alt: '', body_image_caption: '' }
     } else if (body.action === 'generate') {
       if (current.status !== 'photo' || !current.image_path || answers < 1) return conflict()
       patch = { draft: await writeStoryDraft(apiKey!, model, store.name, messages), status: 'preview' }
@@ -202,6 +213,12 @@ Deno.serve(async (request) => {
       const draft = parseStoryDraft(body.draft)
       if (!draft || typeof body.imageAlt !== 'string' || !body.imageAlt.trim() || body.imageAlt.length > 300) return json({ error: 'Kontrolli pealkirja, teksti ja pildi kirjeldust.' }, 400)
       patch = { draft, image_alt: body.imageAlt.trim() }
+      if (current.body_image_path) {
+        const alt = body.bodyImageAlt ?? current.body_image_alt
+        const caption = body.bodyImageCaption ?? current.body_image_caption
+        if (typeof alt !== 'string' || !alt.trim() || alt.length > 300 || typeof caption !== 'string' || caption.length > 300) return json({ error: 'Kontrolli teise foto kirjeldust ja allkirja.' }, 400)
+        patch.body_image_alt = alt.trim(); patch.body_image_caption = caption.trim()
+      }
     } else if (body.action === 'publish') {
       const draft = parseStoryDraft(current.draft)
       if (current.status !== 'preview' || !draft || !current.image_path) return conflict()
@@ -209,6 +226,10 @@ Deno.serve(async (request) => {
       const document = { ...draft, slug, category: 'Meie kaupmehed', author: store.name, storeSlug: store.slug, storeName: store.name,
         image: `${Deno.env.get('SUPABASE_URL')}/functions/v1/story-interview?image=${current.id}`,
         imageAlt: current.image_alt || store.name, publishedAt: new Date().toISOString(),
+        ...(current.body_image_path ? { bodyImage: {
+          src: `${Deno.env.get('SUPABASE_URL')}/functions/v1/story-interview?image=${current.id}&slot=body`,
+          alt: current.body_image_alt || store.name, caption: current.body_image_caption || '',
+        } } : {}),
       }
       const { error } = await client.rpc('publish_story_interview', { target_id: current.id, access_hash: accessHash,
         request_id: body.requestId, article_slug: slug, article_document: document })
@@ -227,7 +248,8 @@ Deno.serve(async (request) => {
     operation = null
     uploadedPath = null
     // Replaced photos are no longer referenced; failure to remove can be retried by retention maintenance.
-    if (body.action === 'upload' && current.image_path) await client.storage.from('story-interviews').remove([current.image_path])
+    const replacedPath = body.slot === 'body' ? current.body_image_path : current.image_path
+    if (['upload', 'remove-image'].includes(body.action) && replacedPath) await client.storage.from('story-interviews').remove([replacedPath])
     return json({ interview: await snapshot(client, saved) })
   } catch (error) {
     if (error instanceof Error && error.message === 'Request too large') return json({ error: 'Fail on liiga suur.' }, 413)
@@ -238,8 +260,8 @@ Deno.serve(async (request) => {
       if (operation) await client.from('story_interviews').update({ operation_id: null, busy_until: null }).eq('id', operation.id).eq('operation_id', operation.requestId)
       // Do not remove a possibly committed upload after an ambiguous network error.
       if (uploadedPath && operation) {
-        const { data, error } = await client.from('story_interviews').select('image_path').eq('id', operation.id).maybeSingle()
-        if (!error && data && data.image_path !== uploadedPath) await client.storage.from('story-interviews').remove([uploadedPath])
+        const { data, error } = await client.from('story_interviews').select('image_path,body_image_path').eq('id', operation.id).maybeSingle()
+        if (!error && data && data.image_path !== uploadedPath && data.body_image_path !== uploadedPath) await client.storage.from('story-interviews').remove([uploadedPath])
       }
     } catch { /* The operation lease expires; cleanup must not discard the response. */ }
   }

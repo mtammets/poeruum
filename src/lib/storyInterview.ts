@@ -8,6 +8,7 @@ export type StoryInterview = {
   version: number; messages: StoryMessage[]; draft: StoryDraft | null
   needsName?: boolean
   imageUrl: string | null; imageAlt: string; publishedUrl: string | null; lastRequestId: string | null
+  bodyImageUrl?: string | null; bodyImageAlt?: string; bodyImageCaption?: string
 }
 export type StoryAdminData = {
   aiAvailable: boolean

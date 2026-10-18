@@ -1,47 +1,23 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { directoryStoryPath, type DirectoryStory } from '../shared/directory-stories.mjs'
-import { initialDirectoryStories, listDirectoryStories, STORY_PAGE_SIZE } from './lib/directoryStories'
+import type { useDirectoryStories } from './useDirectoryStories'
 import { StoryArrow } from './StoryArrow'
 import DirectoryStoryDialog from './DirectoryStoryDialog'
 
 type OpenStory = { key: string; story: DirectoryStory; opener: HTMLAnchorElement }
 
-export default function DirectoryStories() {
-  const [published, setPublished] = useState(initialDirectoryStories)
-  const [offset, setOffset] = useState(published.length)
-  const [more, setMore] = useState(published.length === STORY_PAGE_SIZE)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+export default function DirectoryStories({ published, more, busy, error, loadMore }: ReturnType<typeof useDirectoryStories>) {
   const [selection, setSelection] = useState<OpenStory | null>(null)
   const openedStories = useRef(new Map<string, OpenStory>())
   const closing = useRef(false)
-  const discoverAfterClose = useRef(false)
-  const initialAnchorHandled = useRef(false)
   useEffect(() => {
-    if (!published.length || initialAnchorHandled.current) return
-    initialAnchorHandled.current = true
-    // The fragment can be resolved before asynchronously loaded stories exist.
-    if (window.location.hash === '#poeruumi-lood') {
-      document.getElementById('poeruumi-lood')?.scrollIntoView({ behavior: 'instant' })
-    }
-  }, [published.length])
-  useEffect(() => {
-    let frame = 0
     const syncStory = () => {
       const selected = openedStories.current.get(window.history.state?.poeruumDirectoryStory)
       setSelection(selected ?? null)
       closing.current = false
-      if (!selected && discoverAfterClose.current) {
-        discoverAfterClose.current = false
-        frame = window.requestAnimationFrame(() => {
-          const heading = document.getElementById('store-directory-heading')
-          heading?.scrollIntoView({ block: 'start' })
-          if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }) }
-        })
-      }
     }
     window.addEventListener('popstate', syncStory)
-    return () => { window.removeEventListener('popstate', syncStory); window.cancelAnimationFrame(frame) }
+    return () => window.removeEventListener('popstate', syncStory)
   }, [])
   const openStory = (event: MouseEvent<HTMLAnchorElement>, story: DirectoryStory) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
@@ -52,29 +28,12 @@ export default function DirectoryStories() {
     window.history.pushState({ ...window.history.state, poeruumDirectoryStory: selected.key }, '', window.location.href)
     setSelection(selected)
   }
-  const closeStory = (discover = false) => {
+  const closeStory = () => {
     if (closing.current) return
-    discoverAfterClose.current = discover
     if (selection && window.history.state?.poeruumDirectoryStory === selection.key) {
       closing.current = true
       window.history.back()
     } else setSelection(null)
-  }
-  useEffect(() => {
-    let active = true
-    listDirectoryStories().then((stories) => { if (active) { setPublished(stories); setOffset(stories.length); setMore(stories.length === STORY_PAGE_SIZE) } })
-      .catch(() => { /* Keep server-rendered stories available. */ })
-    return () => { active = false }
-  }, [])
-  const loadMore = async () => {
-    setBusy(true); setError('')
-    try {
-      const stories = await listDirectoryStories(offset)
-      setPublished((current) => [...current, ...stories.filter((story) => !current.some((existing) => existing.slug === story.slug))])
-      setOffset((current) => current + stories.length)
-      setMore(stories.length === STORY_PAGE_SIZE)
-    } catch { setError('Lugusid ei õnnestunud laadida. Proovi uuesti.') }
-    finally { setBusy(false) }
   }
   if (!published.length) return null
   return <section className="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
@@ -96,6 +55,6 @@ export default function DirectoryStories() {
     {more && <button className="directory-stories__more" disabled={busy} onClick={() => void loadMore()}>{busy ? 'Laadin…' : 'Veel lugusid'}</button>}
     {error && <p role="alert">{error}</p>}
     {selection && <DirectoryStoryDialog story={selection.story} opener={selection.opener}
-      onClose={() => closeStory()} onDiscover={() => closeStory(true)} />}
+      onClose={closeStory} />}
   </section>
 }

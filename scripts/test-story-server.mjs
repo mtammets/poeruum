@@ -42,8 +42,23 @@ try {
   assert.match(article.body, /content="https:\/\/example.invalid\/photo.webp"/)
   assert.match(article.body, /Külasta poodi/)
   assert.match(article.body, /id="poeruum-stories-data"/)
+  assert.doesNotMatch(article.body, /class="directory-story-page__body-image"/)
+  story.bodyImage = { src: 'https://example.invalid/detail.webp', alt: 'Savi & glasuur', caption: '<Detail> töötoast' }
+  for (const sections of [[], [{ title: 'Esimene osa', paragraphs: ['Algus.'] }, { title: 'Teine osa', paragraphs: ['Jätk.'] }]]) {
+    story.sections = sections
+    const illustrated = (await get('/lood/merchant-story/')).body
+    assert.equal((illustrated.match(/class="directory-story-page__body-image"/g) || []).length, 1)
+    assert.match(illustrated, /alt="Savi &amp; glasuur" loading="lazy"/)
+    assert.match(illustrated, /<figcaption>&lt;Detail&gt; töötoast<\/figcaption>/)
+    if (sections.length) assert.ok(illustrated.indexOf('Esimene osa</h2>') < illustrated.indexOf('class="directory-story-page__body-image"') && illustrated.indexOf('class="directory-story-page__body-image"') < illustrated.indexOf('Teine osa</h2>'))
+  }
   assert.equal((await get('/lood/merchant-story')).status, 301)
   assert.match((await get('/')).body, /\/lood\/merchant-story\//)
+  const directory = (await get('/')).body
+  assert.match(directory, /class="store-directory__hero directory-story-hero" id="poeruumi-lood"/)
+  assert.match(directory, /id="featured-story-title">Savi &amp; käed &lt;lugu&gt;/)
+  assert.match(directory, /Loe edasi/)
+  assert.doesNotMatch(directory, /class="directory-stories__feature"|store-directory__hero-photo/)
   assert.match((await get('/sitemap.xml')).body, /\/lood\/merchant-story\//)
   assert.doesNotMatch((await get('/')).body, /see-uks-tass|See üks tass/)
   assert.doesNotMatch((await get('/sitemap.xml')).body, /see-uks-tass/)

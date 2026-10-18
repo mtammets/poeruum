@@ -119,13 +119,17 @@ vestluse ja muudab eelmise lingi kehtetuks. **Sulge link** lõpetab ligipääsu.
 
 Kaupmees avab `/lugu/#token=…` ilma kontosse sisenemata. AI küsib ühe küsimuse
 kaupa ja kasutab jätkuküsimusteks salvestatud vastuseid. Intervjuule järgnevad
-foto, muudetav artikli eelvaade ja kaupmehe kinnitatud avaldamine. Avaldatud lugu
-ilmub kaubamaja lugude hulka, saab oma `/lood/…/` aadressi, jagamismetadata ja
-sitemap-kirje. Admin saab loo peita või uuesti avaldada.
+avafoto, valikuline teine foto artikli sisse ning muudetav eelvaade, mis kasutab
+sama kujundust nagu avaldatud artikkel. Kaupmees kinnitab avaldamise ise.
+Uusim avaldatud lugu asendab kaubamaja avabänneri ja avaneb samas lehes;
+varasemad lood jäävad lehe lõppu. Iga lugu saab oma `/lood/…/` aadressi,
+jagamismetadata ja sitemap-kirje. Admin saab loo peita või uuesti avaldada.
 
 Juurutusjärjekord:
 
-1. Rakenda migratsioon `202610180001_story_interviews.sql`.
+1. Rakenda migratsioonid `202610180001_story_interviews.sql` ja
+   `202610180002_story_body_image.sql`. Teise foto tugi vajab uut migratsiooni
+   ja `story-interview` funktsiooni enne kasutajaliidese uuendamist.
 2. Juuruta `story-interview` (`verify_jwt = false`) ning uuendatud
    `data-retention-reaper`. Funktsioon kontrollib iga privaatse päringu
    intervjuuvõtit ja iga adminitoimingu puhul administraatori sessiooni.

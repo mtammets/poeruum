@@ -5,6 +5,8 @@ import { getHoroscopeShareMetadata, getHoroscopeSignFromLocation } from '../shar
 import DailyHoroscope from './DailyHoroscope'
 import DirectoryHero, { directoryHeroSlides } from './DirectoryHero'
 import DirectoryStories from './DirectoryStories'
+import DirectoryStoryHero from './DirectoryStoryHero'
+import { useDirectoryStories } from './useDirectoryStories'
 import DirectoryStoryPage from './DirectoryStoryPage'
 import StoreDirectoryLayout, { ArrowUpRight } from './StoreDirectoryLayout'
 import StoreDirectoryCardContent from './StoreDirectoryCardContent'
@@ -97,6 +99,9 @@ export default function Kaubamaja() {
 }
 
 function StoreDirectory() {
+  const stories = useDirectoryStories()
+  const featuredStory = stories.published[0]
+  const storyAnchorHandled = useRef(false)
   const [sharedHoroscopeSign, setSharedHoroscopeSign] = useState(() => getHoroscopeSignFromLocation(window.location))
   const [stores, setStores] = useState<StoreDirectoryEntry[]>(readInitialStores)
   const [highlightSeed] = useState(readHighlightSeed)
@@ -109,7 +114,7 @@ function StoreDirectory() {
   const search = useMemo(() => createStoreDirectorySearch(stores), [stores])
   const highlights = useMemo(() => getStoreDirectoryHighlights(stores, highlightSeed), [stores, highlightSeed])
   const heroProducts = useMemo(() => highlights.slice(0, 4), [highlights])
-  const directoryHeroImage = heroProducts[0]?.product.imageUrl || `${directoryUrl}images/poeruum-email-logo.png`
+  const directoryHeroImage = featuredStory ? new URL(featuredStory.image, directoryUrl).href : heroProducts[0]?.product.imageUrl || `${directoryUrl}images/poeruum-email-logo.png`
   const results = useMemo(() => search(query), [search, query])
   const isSearching = query.trim().length > 0
   const hasResults = results.stores.length > 0 || results.products.length > 0
@@ -196,13 +201,22 @@ function StoreDirectory() {
     // The directory is loaded lazily, after the browser first resolves the fragment.
     const sharedHoroscope = getHoroscopeShareMetadata(getHoroscopeSignFromLocation(window.location))
     const target = window.location.hash.slice(1) || (sharedHoroscope ? 'horoskoop' : '')
-    if (target === 'poeruumi-lood' || target === 'store-directory-heading' || target === 'horoskoop') {
+    if (target === 'store-directory-heading' || target === 'horoskoop') {
       document.getElementById(target)?.scrollIntoView({ behavior: 'instant' })
     }
   }, [status])
 
+  useEffect(() => {
+    if (!stories.published.length || storyAnchorHandled.current) return
+    storyAnchorHandled.current = true
+    if (window.location.hash === '#poeruumi-lood') {
+      document.getElementById('poeruumi-lood')?.scrollIntoView({ behavior: 'instant' })
+    }
+  }, [stories.published.length])
+
   return <StoreDirectoryLayout>
-    <DirectoryHero products={heroProducts} />
+    {featuredStory ? <DirectoryStoryHero key={featuredStory.slug} story={featuredStory} isOnlyStory={stories.published.length === 1} />
+      : <DirectoryHero products={heroProducts} />}
 
     <div className="store-directory__marquee" aria-hidden="true">
       <div className="store-directory__marquee-track">
@@ -277,7 +291,7 @@ function StoreDirectory() {
       </div>
       {!isSearching ? <>
         <DailyHoroscope onSignChange={() => setSharedHoroscopeSign(getHoroscopeSignFromLocation(window.location))} />
-        <DirectoryStories />
+        <DirectoryStories {...stories} published={stories.published.slice(1)} />
       </> : null}
     </section>
   </StoreDirectoryLayout>

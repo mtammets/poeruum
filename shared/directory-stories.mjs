@@ -9,7 +9,7 @@ export const directoryStorySchema = (story, origin = 'https://kaubamaja.poeruum.
   '@type': 'Article',
   headline: story.title,
   description: story.intro,
-  image: new globalThis.URL(story.image, origin).href,
+  image: story.bodyImage ? [story.image, story.bodyImage.src].map(src => new globalThis.URL(src, origin).href) : new globalThis.URL(story.image, origin).href,
   url: `${origin}${directoryStoryPath(story)}`,
   mainEntityOfPage: `${origin}${directoryStoryPath(story)}`,
   inLanguage: 'et',

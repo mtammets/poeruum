@@ -251,6 +251,20 @@ const directoryFooterMarkup = `<footer class="store-directory__footer"><span>© 
 
 const storyArrowMarkup = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"></path></svg>'
 
+function renderDirectoryStoryHero(story, isOnlyStory) {
+  return `<article class="store-directory__hero directory-story-hero"${isOnlyStory ? ' id="poeruumi-lood"' : ''} aria-labelledby="featured-story-title">
+    <div class="directory-story-hero__preview">
+      <header class="directory-story-hero__intro">
+        ${story.storeName ? `<p class="directory-story-hero__byline">${escapeHtml(story.storeName)}</p>` : ''}
+        <h1 id="featured-story-title">${escapeHtml(story.title)}</h1>
+        <p class="directory-story-hero__excerpt">${escapeHtml(story.intro)}</p>
+        <a class="store-directory__browse directory-story-hero__toggle" href="${directoryStoryPath(story)}">Loe edasi ${storyArrowMarkup}</a>
+      </header>
+      <figure class="directory-story-hero__figure"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="2048" fetchpriority="high" decoding="async">${story.imageCaption ? `<figcaption>${escapeHtml(story.imageCaption)}</figcaption>` : ''}</figure>
+    </div>
+  </article>`
+}
+
 function renderDirectoryStoryTeaser(stories) {
   if (!stories.length) return ''
   return `<section class="directory-stories" id="poeruumi-lood" aria-labelledby="directory-stories-heading">
@@ -266,6 +280,7 @@ function renderDirectoryStory(template, story) {
   const title = `${story.title} — Poeruumi lood`
   const canonical = `https://${storeDirectoryHost}${directoryStoryPath(story)}`
   const paragraphs = (items) => items.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')
+  const photo = story.bodyImage ? `<figure class="directory-story-page__body-image"><img src="${escapeHtml(story.bodyImage.src)}" alt="${escapeHtml(story.bodyImage.alt)}" loading="lazy" decoding="async">${story.bodyImage.caption ? `<figcaption>${escapeHtml(story.bodyImage.caption)}</figcaption>` : ''}</figure>` : ''
   const content = `<main class="store-directory">${directoryNavigationMarkup(true)}
     <div class="directory-story-page">
       <a class="directory-story-page__back" href="/#poeruumi-lood">${storyArrowMarkup} Tagasi Poeruumi lugude juurde</a>
@@ -277,12 +292,12 @@ function renderDirectoryStory(template, story) {
         <figure class="directory-story-page__figure"><img src="${escapeHtml(story.image)}" alt="${escapeHtml(story.imageAlt)}" width="1536" height="2048" fetchpriority="high" decoding="async"><figcaption>${escapeHtml(story.imageCaption)}</figcaption></figure>
         <div class="directory-story-page__body">
           ${paragraphs(story.opening)}${story.quote ? `<blockquote>${escapeHtml(story.quote)}</blockquote>` : ''}
-          ${story.sections.map((section) => `<section><h2>${escapeHtml(section.title)}</h2>${paragraphs(section.paragraphs)}</section>`).join('')}
-          <aside class="directory-story-page__discover" aria-labelledby="story-discover-heading">
-            <h2 id="story-discover-heading">${escapeHtml(story.storeName || 'Igal lemmikul on oma algus.')}</h2>
-            ${story.storeSlug ? '' : '<p>Avasta Poeruumis loodud Eesti e-poode ja tutvu nende tegijatega.</p>'}
-            <a class="directory-stories__read" href="${story.storeSlug ? `https://${escapeHtml(story.storeSlug)}.poeruum.ee/?from=kaubamaja` : '/#store-directory-heading'}">${story.storeSlug ? 'Külasta poodi' : 'Avasta poode'} ${storyArrowMarkup}</a>
-          </aside>
+          ${!story.sections.length ? photo : ''}
+          ${story.sections.map((section, index) => `${index === Math.floor(story.sections.length / 2) ? photo : ''}<section><h2>${escapeHtml(section.title)}</h2>${paragraphs(section.paragraphs)}</section>`).join('')}
+          ${story.storeSlug ? `<aside class="directory-story-page__discover"${story.storeName ? ' aria-labelledby="story-discover-heading"' : ''}>
+            ${story.storeName ? `<h2 id="story-discover-heading">${escapeHtml(story.storeName)}</h2>` : ''}
+            <a class="directory-stories__read" href="https://${escapeHtml(story.storeSlug)}.poeruum.ee/?from=kaubamaja">Külasta poodi ${storyArrowMarkup}</a>
+          </aside>` : ''}
         </div>
       </article>
     </div>${directoryFooterMarkup}</main>`
@@ -305,7 +320,8 @@ function renderStoreDirectory(template, stores, sharedHoroscope = null, publishe
   const highlightSeed = Math.floor(Math.random() * 2 ** 32)
   const selectedProducts = getStoreDirectoryHighlights(stores, highlightSeed)
   const heroProducts = selectedProducts.slice(0, 4)
-  const heroImage = heroProducts[0]?.product.imageUrl || `https://${storeDirectoryHost}/images/poeruum-email-logo.png`
+  const featuredStory = publishedStories[0]
+  const heroImage = featuredStory ? new URL(featuredStory.image, `https://${storeDirectoryHost}`).href : heroProducts[0]?.product.imageUrl || `https://${storeDirectoryHost}/images/poeruum-email-logo.png`
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
@@ -343,7 +359,9 @@ function renderStoreDirectory(template, stores, sharedHoroscope = null, publishe
   const heroMedia = heroProducts.length ? `<div class="store-directory__hero-media"><a class="store-directory__hero-photo is-active" href="${escapeHtml(getStoreDirectoryVisitUrl(heroProducts[0].store, heroProducts[0].product))}" aria-label="${escapeHtml(`${heroProducts[0].product.name} – ${heroProducts[0].store.name}`)}"><img src="${escapeHtml(heroProducts[0].product.imageUrl)}" alt="" fetchpriority="high" decoding="async"></a></div>` : ''
   const products = selectedProducts.map(({ store, product }) => `<article class="store-directory__product store-directory__product--highlight"><a href="${escapeHtml(getStoreDirectoryVisitUrl(store, product))}" aria-label="${escapeHtml(`${product.name} – ${store.name}`)}"><div class="store-directory__product-media"><img src="${escapeHtml(product.imageUrl)}" alt="" loading="lazy" decoding="async"></div><div class="store-directory__product-copy"><span class="store-directory__product-store">${escapeHtml(store.name)}</span><h3>${escapeHtml(product.name)}</h3><p class="store-directory__product-price"><strong>${escapeHtml(formatStoreDirectoryPrice(product.salePrice ?? product.price))}</strong>${product.salePrice !== null ? `<del>${escapeHtml(formatStoreDirectoryPrice(product.price))}</del>` : ''}</p><span class="store-directory__product-action" aria-hidden="true">Vaata toodet ${arrowUpRight}</span></div></a></article>`).join('')
   const highlights = products ? `<section class="store-directory__highlights" aria-labelledby="directory-products-heading"><div class="store-directory__section-head"><div><h2 id="directory-products-heading">Parimad kingiideed</h2><p class="store-directory__highlights-intro">Valik tooteid Eesti e-poodidest.</p></div></div><div class="store-directory__product-grid">${products}</div></section>` : ''
-  const content = `<main class="store-directory">${directoryNavigationMarkup()}<header class="store-directory__hero${heroProducts.length ? '' : ' store-directory__hero--text-only'}"><div class="store-directory__intro"><h1>${heading}</h1><p>${description}</p></div>${heroMedia}</header>${highlights}<section class="store-directory__stores" aria-labelledby="store-directory-heading"><div class="store-directory__section-head"><h2 id="store-directory-heading">Leia oma uus lemmikpood</h2></div><div class="store-directory__grid">${cards}</div>${renderDirectoryStoryTeaser(publishedStories)}</section>${directoryFooterMarkup}</main>`
+  const hero = featuredStory ? renderDirectoryStoryHero(featuredStory, publishedStories.length === 1)
+    : `<header class="store-directory__hero${heroProducts.length ? '' : ' store-directory__hero--text-only'}"><div class="store-directory__intro"><h1>${heading}</h1><p>${description}</p></div>${heroMedia}</header>`
+  const content = `<main class="store-directory">${directoryNavigationMarkup()}${hero}${highlights}<section class="store-directory__stores" aria-labelledby="store-directory-heading"><div class="store-directory__section-head"><h2 id="store-directory-heading">Leia oma uus lemmikpood</h2></div><div class="store-directory__grid">${cards}</div>${renderDirectoryStoryTeaser(publishedStories.slice(1))}</section>${directoryFooterMarkup}</main>`
   const initialData = JSON.stringify(stores).replace(/</g, '\\u003c')
 
   return template

@@ -31,18 +31,20 @@ do $$ declare row public.story_interviews; article public.directory_stories; beg
   update public.story_interviews set busy_until = now() - interval '1 second', version = 1 where id = row.id;
   begin perform public.claim_story_interview(row.id, repeat('a',64), 0, gen_random_uuid()); raise exception 'Stale version accepted'; exception when serialization_failure then null; end;
   row := public.claim_story_interview(row.id, repeat('a',64), 1, 'c7310000-0000-4000-8000-000000000005');
-  update public.story_interviews set status = 'preview', draft = '{"title":"Lugu"}', image_path = 'private/photo.webp' where id = row.id;
+  update public.story_interviews set status = 'preview', draft = '{"title":"Lugu"}', image_path = 'private/photo.webp', body_image_path = 'private/detail.webp' where id = row.id;
   article := public.publish_story_interview(row.id, repeat('a',64), row.operation_id, 'test-merchant-story', '{"title":"Lugu"}');
   perform public.publish_story_interview(row.id, repeat('a',64), row.operation_id, 'test-merchant-story', '{"title":"Overwrite"}');
   if (select count(*) from public.directory_stories where interview_id = row.id) <> 1 then raise exception 'Duplicate article'; end if;
   if (select story->>'title' from public.directory_stories where id = article.id) <> 'Lugu' then raise exception 'Retry overwrote article'; end if;
   if (select status from public.story_interviews where id = row.id) <> 'published' then raise exception 'Publication not atomic'; end if;
+  if article.body_image_path is distinct from 'private/detail.webp' then raise exception 'Second photo not published atomically'; end if;
 end $$;
 reset role;
 set local role anon;
 do $$ begin
   if not exists(select id from public.directory_stories where slug = 'test-merchant-story') then raise exception 'Published story invisible'; end if;
   begin perform image_path from public.directory_stories; raise exception 'Private photo path exposed'; exception when insufficient_privilege then null; end;
+  begin perform body_image_path from public.directory_stories; raise exception 'Private second photo path exposed'; exception when insufficient_privilege then null; end;
 end $$;
 reset role;
 update public.directory_stories set is_published = false where slug = 'test-merchant-story';

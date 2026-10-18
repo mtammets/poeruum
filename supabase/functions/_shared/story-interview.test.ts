@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { addStoryName, decodeStoryImage, firstStoryQuestion, parseStoryDraft, storyAnswerCount, storyRespondentName, validStoryToken, writeStoryDraft, nextStoryQuestion } from './story-interview'
 
 const draft = { title: 'Köögilauast oma poeni', intro: 'Liis alustas kruuside tegemist kodus.', opening: ['Esimene kruus valmis köögilaua taga.'], quote: 'Väljamõeldud tsitaat.', sections: [], imageCaption: 'Väljamõeldud foto.' }
@@ -47,5 +47,31 @@ describe('merchant story input boundaries', () => {
       output = { question: '', finished: true }
       expect(await nextStoryQuestion('test', 'test-model', 'Savipood', transcript)).toEqual(output)
     } finally { globalThis.fetch = originalFetch }
+  })
+  it('keeps the generated photo credit for a named interview without adding another AI request', async () => {
+    const transcript = addStoryName([{ role: 'user', content: 'Alustasin köögilaua taga.' }], 'Mari-Liis Tamm', 'Savipood')
+    const output = { ...draft, intro: 'Mari-Liis alustas kodus.', imageCaption: 'Foto: Mari-Liisi Tamme erakogu' }
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(output) }] }],
+    })))
+    try {
+      const result = await writeStoryDraft('test', 'test-model', 'Savipood', transcript)
+      expect(result.imageCaption).toBe(output.imageCaption)
+      expect(fetch).toHaveBeenCalledTimes(1)
+      const request = JSON.parse(String(fetch.mock.calls[0][1]?.body))
+      expect(JSON.parse(request.input[0].content).messages).toEqual(transcript)
+    } finally { fetch.mockRestore() }
+  })
+  it.each(['Foto: Kati Kask', 'Minu esimene kruus.', ''])('preserves an existing photo caption, including an intentionally empty one: %j', async (imageCaption) => {
+    const original = { ...draft, imageCaption }
+    const output = { ...draft, title: 'AI muudetud pealkiri', imageCaption: 'Foto: Mari Tamme erakogu' }
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(output) }] }],
+    })))
+    try {
+      const result = await writeStoryDraft('test', 'test-model', 'Savipood', addStoryName([], 'Mari Tamm', 'Savipood'), original)
+      expect(result.title).toBe(original.title)
+      expect(result.imageCaption).toBe(imageCaption)
+    } finally { fetch.mockRestore() }
   })
 })

@@ -10,7 +10,7 @@ export type StoryDraft = {
 
 export const MAX_STORY_ANSWERS = 14
 export const MAX_STORY_IMAGE_BYTES = 5 * 1024 * 1024
-export const PHOTO_QUESTION = 'Lisa loole foto endast, oma töötoast või loomingust.'
+export const PHOTO_QUESTION = 'Lisa loole foto endast, oma töötoast või loomingust. Soovi korral lisa ka teine foto artikli sisse.'
 export const NAME_QUESTION = 'Mis on sinu nimi?'
 export const firstStoryQuestion = () => NAME_QUESTION
 export const storyRespondentName = (messages: StoryMessage[]) => messages.find((message) => message.role === 'user' && message.kind === 'name')?.content || ''
@@ -109,13 +109,16 @@ export async function nextStoryQuestion(apiKey: string, model: string, storeName
 export async function writeStoryDraft(apiKey: string, model: string, storeName: string, messages: StoryMessage[], existingDraft?: StoryDraft) {
   const draft = parseStoryDraft(await storyCompletion(apiKey, model, `${sourceRules}\n${[
     'Koosta intervjuu põhjal Poeruumi lugude rubriiki ajakirjanduslik portreelugu. Säilita kaupmehe hääl ja tema öeldu mõte.',
-    'Tutvusta loo alguses inimest tema enda öeldud nimega. Edasi kasuta nime ja asesõnu loomulikult. Kui nimevastus ei sisalda nime või inimene soovib jääda anonüümseks, ära mõtle nime välja.',
+    'Kasuta artikli pealkirjas, sissejuhatuses ja põhitekstis inimese eesnime, ka esimesel tutvustamisel. Nimevastuses antud täisnimi ei ole põhjus seda artiklisse lisada. Täisnime kasuta ainult siis, kui see on loo mõistmiseks hädavajalik, näiteks samanimeliste inimeste eristamiseks.',
+    'Kasuta eesnime ja asesõnu loomulikult; ära korda nime iga lõigu ega tsitaadi juures. Säilita inimese antud liit- või sidekriipsuga eesnimi. Kui nimevastus ei sisalda nime või inimene soovib jääda anonüümseks, ära mõtle nime välja.',
     'Jutusta konkreetselt ja sujuvalt. Ära kasuta üldisi omistusi „kaupmehe sõnul”, „kaupmees ütles”, „poe omaniku sõnul” ega korduvat „ta räägib”. Vajadusel omista tsitaat või isiklik hinnang inimese nimele; ära esita hinnanguid kontrollitud faktidena.',
     'Kui existingDraft on antud, säilita selle pealkiri, struktuur, faktid, tsitaadid ja inimese tehtud muudatused. Paranda üksnes nime kasutust ja kohmakaid üldisi omistusi; ära kirjuta lugu tervikuna ümber.',
     'Leia selge keskne teema ja konkreetne pealkiri. Intro on 1–3 lauset. Opening alustab lugu; sections jätkavad seda 0–4 lühikese alapealkirjaga.',
     'Pikkus sõltub saadud materjalist, tavaliselt 300–600 sõna. Napi materjali korral kirjuta lühem lugu. Ära täida puuduvat infot oletustega.',
     'Quote võib sisaldada ainult kaupmehe vastuses täpselt esinevat lauset või fraasi. Sobiva tsitaadi puudumisel jäta quote tühjaks.',
-    'Ära kirjelda fotot, mida sa pole näinud. Jäta imageCaption tühjaks; kaupmees saab selle ise lisada.',
+    'imageCaption on vaikimisi „Foto: [inimese antud nimi omastavas käändes] erakogu”. Foto all kasuta nimevastuses antud täisnime, kui see on olemas. Näiteks nime „Mari Tamm” korral on artiklis „Mari” ja foto all „Foto: Mari Tamme erakogu”. Ainult eesnime korral ära lisa oletatavat perekonnanime.',
+    'Kui inimene on nimetanud foto fotograafi, kirjuta „Foto: [fotograafi nimi nimetavas käändes]”, näiteks „Foto: Jüri Saar”. Ära lisa selle järele sõnu „foto” või „erakogu”. Muu antud fotoallika korral märgi see erakogu asemel. Ära kirjelda fotot, mida sa pole näinud, ega mõtle foto autorit või allikat välja. Kui nimi puudub või inimene soovib jääda anonüümseks ja muud fotoallikat pole antud, jäta imageCaption tühjaks.',
+    'Kui existingDraft on antud, säilita selle imageCaption täpselt, ka siis, kui kasutaja on selle tühjaks jätnud. Fotoallkirja saab inimene ise muuta.',
     'Ära kirjuta intervjuu küsimusi ega avaldamise juhiseid artiklisse. Tagasta ainult nõutud artikli struktuur.',
   ].join('\n')}`, { storeName, messages, ...(existingDraft ? { existingDraft } : {}) }, storyDraftSchema, true))
   if (!draft) throw new Error('Invalid story draft')
@@ -127,8 +130,10 @@ export async function writeStoryDraft(apiKey: string, model: string, storeName: 
     draft.title = existingDraft.title
     draft.quote = existingDraft.quote
     draft.sections.forEach((section, index) => { section.title = existingDraft.sections[index].title })
+    draft.imageCaption = existingDraft.imageCaption
+  } else if (!storyRespondentName(messages).trim()) {
+    draft.imageCaption = ''
   }
-  draft.imageCaption = existingDraft?.imageCaption || ''
   return draft
 }
 

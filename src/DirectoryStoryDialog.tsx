@@ -4,11 +4,10 @@ import type { DirectoryStory } from '../shared/directory-stories.mjs'
 import DirectoryStoryArticle from './DirectoryStoryArticle'
 import ModalCloseButton from './ModalCloseButton'
 
-export default function DirectoryStoryDialog({ story, opener, onClose, onDiscover }: {
+export default function DirectoryStoryDialog({ story, opener, onClose }: {
   story: DirectoryStory
   opener: HTMLElement | null
   onClose: () => void
-  onDiscover: () => void
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   useEffect(() => {
@@ -38,7 +37,7 @@ export default function DirectoryStoryDialog({ story, opener, onClose, onDiscove
       <ModalCloseButton className="directory-story-dialog__close" onClose={onClose} />
     </div>
     <div className="directory-story-dialog__content" tabIndex={0}>
-      <DirectoryStoryArticle story={story} onDiscover={onDiscover} />
+      <DirectoryStoryArticle story={story} />
     </div>
   </dialog>, document.body)
 }

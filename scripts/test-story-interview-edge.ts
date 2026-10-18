@@ -9,7 +9,8 @@ Deno.test('story interview enforces invitations, admin access, state transitions
   const tokenHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))), (byte) => byte.toString(16).padStart(2, '0')).join('')
   const row: any = { id: 'c7310000-0000-4000-8000-000000000003', store_id: 'c7310000-0000-4000-8000-000000000002', token_hash: tokenHash,
     expires_at: '2099-10-18T00:00:00Z', status: 'interview', messages: [{ role: 'assistant', content: 'Kuidas alustasid?' }],
-    draft: null, image_path: null, image_alt: '', version: 0, last_request_id: null, operation_id: null, busy_until: null }
+    draft: null, image_path: null, image_alt: '', body_image_path: null, body_image_alt: '', body_image_caption: '',
+    version: 0, last_request_id: null, operation_id: null, busy_until: null }
   const store = { id: row.store_id, name: 'Savipood', slug: 'savipood', is_published: true, owner_id: 'c7310000-0000-4000-8000-000000000001', deleted_at: null }
   const excludedStores = [
     { ...store, id: crypto.randomUUID(), name: 'Avaldamata pood', is_published: false },
@@ -22,6 +23,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
   let modelCalls = 0, publishedCount = 0, uploads = 0
   let article: any = null, createdInvitation: any = null
   let aiBarrier: Promise<void> | null = null
+  const removed: string[] = [], downloaded: string[] = []
   try {
     for (const [key, value] of Object.entries(values)) Deno.env.set(key, value)
     Deno.serve = ((callback: Handler) => { handler = callback; return {} }) as typeof Deno.serve
@@ -63,14 +65,15 @@ Deno.test('story interview enforces invitations, admin access, state transitions
       }
       if (url.pathname.endsWith('/rpc/publish_story_interview')) {
         assert(row.status === 'preview' && row.draft && row.image_path, 'Published incomplete interview')
-        if (!article) { publishedCount++; article = { id: row.id, slug: body.article_slug, story: body.article_document, image_path: row.image_path, is_published: true } }
+        if (!article) { publishedCount++; article = { id: row.id, slug: body.article_slug, story: body.article_document, image_path: row.image_path, body_image_path: row.body_image_path, is_published: true } }
         row.status = 'published'; row.version++; row.last_request_id = body.request_id; row.operation_id = null; row.busy_until = null
         return json(article)
       }
-      if (url.pathname.includes('/storage/v1/object/sign/')) return json({ signedURL: '/object/sign/story-interviews/test.webp?token=private' })
+      if (url.pathname.includes('/storage/v1/object/sign/')) return json({ signedURL: `/object/sign/${url.pathname.split('/object/sign/')[1]}?token=private` })
       if (url.pathname.includes('/storage/v1/object/')) {
         if (method === 'POST') { uploads++; return json({ Key: 'test.webp' }) }
-        if (method === 'DELETE') return json([])
+        if (method === 'DELETE') { removed.push(...body.prefixes); return json([]) }
+        downloaded.push(url.pathname.split('/story-interviews/')[1])
         return new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/webp' } })
       }
       if (url.origin === 'https://api.openai.com') {
@@ -145,11 +148,34 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert((await mutate('upload', { image: 'data:image/png;base64,PHNjcmlwdD4=' })).status === 400 && uploads === 0, 'Invalid image stored')
     const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jLe0AAAAASUVORK5CYII='
     assert((await mutate('upload', { image: png })).status === 200 && uploads === 1, 'Photo upload failed')
+    const coverPath = row.image_path
+    assert((await mutate('upload', { image: png, slot: 'third' })).status === 400 && uploads === 1, 'An unsupported photo slot was stored')
+    assert((await mutate('upload', { image: png, slot: 'body' })).status === 200 && uploads === 2, 'Second photo upload failed')
+    const firstBodyPath = row.body_image_path
+    const uploadedSnapshot = (await (await call({ action: 'load', token })).json()).interview
+    assert(uploadedSnapshot.imageUrl !== uploadedSnapshot.bodyImageUrl && uploadedSnapshot.bodyImageUrl.includes(firstBodyPath), 'Both photo slots are not restored separately')
+    assert(row.image_path === coverPath && !removed.includes(coverPath), 'Second photo replaced or deleted the cover')
     const privateImage = await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))
     assert(privateImage.status === 404, 'Draft image exposed publicly')
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 404, 'Second draft photo exposed publicly')
     assert((await mutate('generate')).status === 200 && row.status === 'preview', 'Article generation failed')
     assert((await mutate('save', { draft: { ...draft, title: '' }, imageAlt: 'Kruus' })).status === 400, 'Invalid article saved')
     assert((await mutate('save', { draft: { ...draft, title: 'Minu muudetud lugu' }, imageAlt: 'Sinine kruus' })).status === 200, 'Article edit failed')
+    assert((await mutate('save', { draft: row.draft, imageAlt: 'Sinine kruus', bodyImageAlt: '', bodyImageCaption: '' })).status === 400, 'Empty second photo description accepted')
+    assert((await mutate('save', { draft: row.draft, imageAlt: 'Sinine kruus', bodyImageAlt: 'Kruusid töötoas', bodyImageCaption: 'x'.repeat(301) })).status === 400, 'Oversized second caption accepted')
+    assert((await mutate('save', { draft: row.draft, imageAlt: 'Sinine kruus', bodyImageAlt: 'Kruusid töötoas', bodyImageCaption: 'Foto: Liis' })).status === 200, 'Second photo metadata not saved')
+    const replacementId = crypto.randomUUID()
+    assert((await mutate('upload', { image: png, slot: 'body', requestId: replacementId })).status === 200, 'Second photo replacement failed')
+    assert(row.body_image_path !== firstBodyPath && removed.includes(firstBodyPath) && !removed.includes(coverPath), 'Replacement removed the wrong photo')
+    assert(row.body_image_alt === 'Kruusid töötoas' && row.body_image_caption === 'Foto: Liis', 'Replacing a photo lost its description')
+    const uploadsBeforeRetry = uploads
+    assert((await mutate('upload', { image: png, slot: 'body', requestId: replacementId, version: 0 })).status === 200 && uploads === uploadsBeforeRetry, 'Retry duplicated second upload')
+    assert((await mutate('remove-image', { slot: 'cover' })).status === 400 && row.image_path === coverPath, 'Required cover can be removed')
+    const removedBodyPath = row.body_image_path
+    assert((await mutate('remove-image', { slot: 'body' })).status === 200 && row.body_image_path === null && row.body_image_alt === '' && row.body_image_caption === '', 'Second photo removal failed')
+    assert(removed.includes(removedBodyPath) && !removed.includes(coverPath), 'Removal deleted the wrong photo')
+    assert((await mutate('upload', { image: png, slot: 'body' })).status === 200, 'Second photo could not be added again')
+    assert((await mutate('save', { draft: row.draft, imageAlt: 'Sinine kruus', bodyImageAlt: 'Kruusid töötoas', bodyImageCaption: 'Foto: Liis' })).status === 200, 'Second photo metadata not saved again')
     // Existing previews collect a missing name without losing the approved title or photo.
     row.messages = row.messages.filter((message: any) => message.kind !== 'name')
     const savedMessages = JSON.stringify(row.messages), savedImage = row.image_path
@@ -163,11 +189,20 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert(row.draft.title === 'Minu muudetud lugu' && row.image_path === savedImage && row.image_alt === 'Sinine kruus', 'Name revision lost edits or photo')
     const publish = await mutate('publish')
     assert(publish.status === 200 && article.story.title === 'Minu muudetud lugu' && article.store_id === undefined, 'Publication lost approved text')
+    assert(article.body_image_path === row.body_image_path && article.story.bodyImage.src.endsWith('&slot=body') && article.story.bodyImage.alt === 'Kruusid töötoas' && article.story.bodyImage.caption === 'Foto: Liis', 'Publication lost the second photo')
+    assert(!JSON.stringify(article.story).includes(row.body_image_path), 'Private storage path leaked into public article')
     assert((await mutate('publish')).status === 200 && publishedCount === 1, 'Publication duplicated')
     const publicImage = await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))
     assert(publicImage.status === 200 && publicImage.headers.get('Content-Type') === 'image/webp', 'Published photo unavailable')
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 200 && downloaded.at(-1) === article.body_image_path, 'Published second photo unavailable or wrong')
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=third`))).status === 404, 'Unknown public photo slot accepted')
+    const publishedBodyPath = article.body_image_path
+    article.body_image_path = null
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 404, 'Missing second photo returns cover')
+    article.body_image_path = publishedBodyPath
     article.is_published = false
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))).status === 404, 'Hidden photo exposed')
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 404, 'Hidden second photo exposed')
     row.expires_at = '2000-01-01'
     assert((await call({ action: 'load', token })).status === 410, 'Expired invitation accepted')
     row.expires_at = '2099-01-01'; row.status = 'revoked'
