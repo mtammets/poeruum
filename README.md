@@ -120,16 +120,22 @@ vestluse ja muudab eelmise lingi kehtetuks. **Sulge link** lõpetab ligipääsu.
 Kaupmees avab `/lugu/#token=…` ilma kontosse sisenemata. AI küsib ühe küsimuse
 kaupa ja kasutab jätkuküsimusteks salvestatud vastuseid. Intervjuule järgnevad
 avafoto, valikuline teine foto artikli sisse ning muudetav eelvaade, mis kasutab
-sama kujundust nagu avaldatud artikkel. Kaupmees kinnitab avaldamise ise.
+sama kujundust nagu avaldatud artikkel. **Valmis** saadab loo administraatorile
+kinnitamiseks. Olekus **Ootab kinnitamist** jäävad lugu ja fotod privaatseks;
+kaupmees enam teksti ega fotosid muuta ei saa. Admin avab **Vaata üle** ja
+avaldab loo nupuga **Kinnita ja avalda**. Intervjuulingi aegumine ei kustuta
+kinnitamise ootel lugu ega takista administraatori kinnitust.
 Uusim avaldatud lugu asendab kaubamaja avabänneri ja avaneb samas lehes;
 varasemad lood jäävad lehe lõppu. Iga lugu saab oma `/lood/…/` aadressi,
 jagamismetadata ja sitemap-kirje. Admin saab loo peita või uuesti avaldada.
 
 Juurutusjärjekord:
 
-1. Rakenda migratsioonid `202610180001_story_interviews.sql` ja
-   `202610180002_story_body_image.sql`. Teise foto tugi vajab uut migratsiooni
-   ja `story-interview` funktsiooni enne kasutajaliidese uuendamist.
+1. Rakenda migratsioonid `202610180001_story_interviews.sql`,
+   `202610180002_story_body_image.sql` ja `202610190001_story_approval.sql`.
+   Kinnitamise migratsioon sulgeb vana otseavaldamise funktsiooni. Seejärel
+   uuenda `story-interview` funktsioon enne kasutajaliidest: vanade avatud
+   lehtede `publish` päring saadab samuti loo ainult kinnitamisele.
 2. Juuruta `story-interview` (`verify_jwt = false`) ning uuendatud
    `data-retention-reaper`. Funktsioon kontrollib iga privaatse päringu
    intervjuuvõtit ja iga adminitoimingu puhul administraatori sessiooni.

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { callStoryInterview, interviewLink, type StoryAdminData } from './lib/storyInterview'
+import { callStoryInterview, interviewLink, storyInterviewPreview, type StoryAdminData, type StoryInterview } from './lib/storyInterview'
+import DirectoryStoryArticle from './DirectoryStoryArticle'
+import './directoryStories.css'
 import './adminStories.css'
 
-const statuses = { interview: 'Vestlus', photo: 'Foto ootel', preview: 'Eelvaade', published: 'Avaldatud', revoked: 'Link suletud' }
+const statuses = { interview: 'Vestlus', photo: 'Foto ootel', preview: 'Eelvaade', pending_review: 'Ootab kinnitamist', published: 'Avaldatud', revoked: 'Link suletud' }
 
 export default function AdminStories() {
   const [data, setData] = useState<StoryAdminData | null>(null)
@@ -13,6 +15,8 @@ export default function AdminStories() {
   const [invite, setInvite] = useState<{ id: string; url: string } | null>(null)
   const [copied, setCopied] = useState(false)
   const [refresh, setRefresh] = useState(0)
+  const [review, setReview] = useState<StoryInterview | null>(null)
+  const preview = storyInterviewPreview(review)
   const stores = data?.stores.filter((store) => store.is_published) ?? []
   const selectedStoreId = stores.some((store) => store.id === storeId) ? storeId : ''
   useEffect(() => {
@@ -28,7 +32,9 @@ export default function AdminStories() {
     if (busy) return
     setBusy(true); setError(''); setCopied(false)
     try {
-      const result = await callStoryInterview<{ id: string; token?: string }>(body, true)
+      const result = await callStoryInterview<{ id: string; token?: string; interview?: StoryInterview }>(body, true)
+      if (body.action === 'admin-review' && result.interview) { setReview(result.interview); window.scrollTo({ top: 0, behavior: 'instant' }) }
+      if (body.action === 'admin-approve') setReview(null)
       if (result.token) setInvite({ id: result.id, url: interviewLink(result.token) })
       else if (body.action === 'admin-revoke' && body.id === invite?.id) setInvite(null)
       setRefresh((n) => n + 1)
@@ -40,6 +46,15 @@ export default function AdminStories() {
     try { await navigator.clipboard.writeText(invite.url); setCopied(true) }
     catch { setError('Kopeeri link lingiväljalt.') }
   }
+  if (review && preview) return <section className="admin-stories" aria-labelledby="admin-story-review-title">
+    <header className="admin-stories__heading"><h2 id="admin-story-review-title">Loo kinnitamine</h2>
+      <button disabled={busy} onClick={() => { setReview(null); setError('') }}>Tagasi lugude juurde</button></header>
+    <p>{review.storeName} · Ootab kinnitamist</p>
+    <div className="admin-stories__review"><DirectoryStoryArticle story={preview} preview /></div>
+    {error && <p role="alert" className="admin-stories__error">{error}</p>}
+    <div className="admin-stories__review-actions"><button className="admin-stories__primary" disabled={busy}
+      onClick={() => void action({ action: 'admin-approve', id: review.id, version: review.version })}>{busy ? 'Avaldan…' : 'Kinnita ja avalda'}</button></div>
+  </section>
   return <section className="admin-stories" aria-labelledby="admin-stories-title">
     <header className="admin-stories__heading"><h2 id="admin-stories-title">Poeruumi lood</h2><button type="button" onClick={() => setRefresh((n) => n + 1)} disabled={busy || loading}>Värskenda</button></header>
     {error && <p role="alert" className="admin-stories__error">{error}</p>}
@@ -60,13 +75,15 @@ export default function AdminStories() {
           <a href={invite.url} target="_blank" rel="noopener noreferrer">Ava intervjuu ↗</a></div>
       </div>}
       <ul className="admin-stories__list" aria-label="Intervjuud">
-        {data.interviews.map((interview) => {
+        {[...data.interviews].sort((a, b) => Number(b.status === 'pending_review') - Number(a.status === 'pending_review')).map((interview) => {
           const expired = new Date(interview.expires_at).getTime() < Date.now()
-          const active = !['published', 'revoked'].includes(interview.status)
+          const active = !['pending_review', 'published', 'revoked'].includes(interview.status)
           return <li key={interview.id}>
             <div className="admin-stories__identity"><strong>{interview.store_name || data.stores.find((store) => store.id === interview.store_id)?.name || 'Pood'}</strong>
               <span>{interview.article && !interview.article.is_published ? 'Peidetud' : active && expired ? 'Link aegunud' : statuses[interview.status]} · {new Date(interview.created_at).toLocaleDateString('et-EE')}</span></div>
             <div className="admin-stories__row-actions">
+              {interview.status === 'pending_review' && <button className="admin-stories__primary" disabled={busy}
+                onClick={() => void action({ action: 'admin-review', id: interview.id })}>Vaata üle</button>}
               {active && <><button disabled={busy} onClick={() => void action({ action: 'admin-renew', id: interview.id })}>Uuenda linki</button>
                 <button disabled={busy} onClick={() => void action({ action: 'admin-revoke', id: interview.id })}>Sulge link</button></>}
               {interview.article && <>

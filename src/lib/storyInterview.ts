@@ -4,7 +4,7 @@ export type { StoryDraft, StoryMessage }
 
 export type StoryInterview = {
   id: string; storeName: string; storeSlug: string
-  status: 'interview' | 'photo' | 'preview' | 'published'
+  status: 'interview' | 'photo' | 'preview' | 'pending_review' | 'published'
   version: number; messages: StoryMessage[]; draft: StoryDraft | null
   needsName?: boolean
   imageUrl: string | null; imageAlt: string; publishedUrl: string | null; lastRequestId: string | null
@@ -27,6 +27,14 @@ export function readInterviewToken(hash = window.location.hash) {
 }
 
 export const interviewLink = (token: string) => `https://poeruum.ee/lugu/#token=${token}`
+
+export function storyInterviewPreview(interview: StoryInterview | null) {
+  return interview?.draft && interview.imageUrl ? { ...interview.draft,
+    slug: '', category: 'Meie kaupmehed', author: interview.storeName, publishedAt: '',
+    image: interview.imageUrl, imageAlt: interview.imageAlt, storeName: interview.storeName, storeSlug: interview.storeSlug,
+    ...(interview.bodyImageUrl ? { bodyImage: { src: interview.bodyImageUrl, alt: interview.bodyImageAlt || '', caption: interview.bodyImageCaption || '' } } : {}),
+  } : null
+}
 
 export async function callStoryInterview<T>(body: Record<string, unknown>, admin = false): Promise<T> {
   const url = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Brand } from './Brand'
 import DirectoryStoryHero from './DirectoryStoryHero'
-import { callStoryInterview, prepareStoryImage, readInterviewToken, StoryRequestError, type StoryDraft, type StoryInterview as Interview } from './lib/storyInterview'
+import { callStoryInterview, prepareStoryImage, readInterviewToken, storyInterviewPreview, StoryRequestError, type StoryDraft, type StoryInterview as Interview } from './lib/storyInterview'
 import { applySeoMetadata } from './lib/seo'
 import { NAME_QUESTION, storyAnswerCount } from '../supabase/functions/_shared/story-interview'
 import './storyInterview.css'
@@ -173,11 +173,7 @@ function InterviewSession({ token }: { token: string | null }) {
   }
   const removeBodyPhoto = () => void run('remove-image', async () => { await mutate('remove-image', { slot: 'body' }) })
   const count = interview ? storyAnswerCount(interview.messages) : 0
-  const preview = interview?.draft && interview.imageUrl ? { ...interview.draft,
-    slug: '', category: 'Meie kaupmehed', author: interview.storeName, publishedAt: '',
-    image: interview.imageUrl, imageAlt: interview.imageAlt, storeName: interview.storeName, storeSlug: interview.storeSlug,
-    ...(interview.bodyImageUrl ? { bodyImage: { src: interview.bodyImageUrl, alt: interview.bodyImageAlt || '', caption: interview.bodyImageCaption || '' } } : {}),
-  } : null
+  const preview = storyInterviewPreview(interview)
 
   return <main className={`story-interview${interview?.status === 'preview' && !interview.needsName ? ' story-interview--preview' : ''}`}>
     <header className="story-interview__header">
@@ -189,6 +185,10 @@ function InterviewSession({ token }: { token: string | null }) {
     {loading ? <div className="story-interview__center" role="status" aria-label="Avan vestlust"><Spinner /></div>
       : unavailable ? <div className="story-interview__center"><h1>See link ei kehti enam.</h1><a href="mailto:info@poeruum.ee">Küsi uut linki</a></div>
         : !interview ? <div className="story-interview__center"><p role="alert">{error}</p><button className="story-interview__primary" onClick={() => setReload((n) => n + 1)}>Proovi uuesti</button></div>
+          : interview.status === 'pending_review' ? <div className="story-interview__center story-interview__done">
+            <span className="story-interview__check" aria-hidden="true">✓</span><h1>Aitäh! Sinu lugu on valmis.</h1>
+            <p>Lugu ootab Poeruumi administraatori kinnitust. Pärast kinnitamist ilmub see Poeruumis.</p>
+          </div>
           : interview.status === 'published' ? <div className="story-interview__center story-interview__done">
             <span className="story-interview__check" aria-hidden="true">✓</span><h1>{interview.publishedUrl ? 'Sinu lugu on avaldatud.' : 'Sinu lugu on valmis.'}</h1>
             {interview.publishedUrl && <a className="story-interview__primary" href={interview.publishedUrl}>Vaata oma lugu <Arrow /></a>}
@@ -201,7 +201,7 @@ function InterviewSession({ token }: { token: string | null }) {
                   <div className="story-interview__preview-actions">
                     <button className="story-interview__secondary" disabled={Boolean(busy)} onClick={() => setEditing('story')}>Muuda</button>
                     <button className="story-interview__photo-change" disabled={Boolean(busy)} onClick={() => { setEditing('photos'); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-label="Fotod" title="Lisa või muuda fotosid"><Photo /></button>
-                    <button className="story-interview__primary" disabled={Boolean(busy)} onClick={() => void run('publish', async () => { await mutate('publish') })}>{busy === 'publish' ? 'Avaldan…' : 'Avalda Poeruumis'}</button>
+                    <button className="story-interview__primary" disabled={Boolean(busy)} onClick={() => void run('submit', async () => { await mutate('submit'); window.scrollTo({ top: 0, behavior: 'instant' }) })}>{busy === 'submit' ? 'Saadan…' : 'Valmis'}</button>
                   </div></>}
               {error && <p className="story-interview__error" role="alert">{error}</p>}
             </div>

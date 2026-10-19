@@ -63,10 +63,11 @@ Deno.test('story interview enforces invitations, admin access, state transitions
         row.operation_id = body.request_id; row.busy_until = new Date(Date.now() + 120000).toISOString()
         return json({ ...row })
       }
-      if (url.pathname.endsWith('/rpc/publish_story_interview')) {
-        assert(row.status === 'preview' && row.draft && row.image_path, 'Published incomplete interview')
+      if (url.pathname.endsWith('/rpc/approve_story_interview')) {
+        assert(role === 'admin' && row.status === 'pending_review' && row.draft && row.image_path, 'Published unreviewed interview')
+        if (body.expected_version !== row.version) return json({ code: '40001' }, 409)
         if (!article) { publishedCount++; article = { id: row.id, slug: body.article_slug, story: body.article_document, image_path: row.image_path, body_image_path: row.body_image_path, is_published: true } }
-        row.status = 'published'; row.version++; row.last_request_id = body.request_id; row.operation_id = null; row.busy_until = null
+        row.status = 'published'; row.version++; row.operation_id = null; row.busy_until = null
         return json(article)
       }
       if (url.pathname.includes('/storage/v1/object/sign/')) return json({ signedURL: `/object/sign/${url.pathname.split('/object/sign/')[1]}?token=private` })
@@ -92,7 +93,13 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     const mutate = (action: string, extra: Record<string, unknown> = {}) => call({ action, token, version: row.version, requestId: crypto.randomUUID(), ...extra })
     assert((await call({ action: 'admin-create', storeId: store.id })).status === 401, 'Anonymous creates invitation')
     assert((await call({ action: 'admin-create', storeId: store.id }, true)).status === 403, 'Merchant creates invitation')
+    for (const action of ['admin-review', 'admin-approve']) {
+      assert((await call({ action, id: row.id, token, version: row.version })).status === 401, 'Invitation grants admin access')
+      assert((await call({ action, id: row.id, version: row.version }, true)).status === 403, 'Merchant reviews or approves a story')
+    }
     role = 'admin'
+    assert((await call({ action: 'admin-review', id: row.id }, true)).status === 409, 'Unsubmitted interview reviewed')
+    assert((await call({ action: 'admin-approve', id: row.id, version: row.version }, true)).status === 409, 'Unsubmitted interview approved')
     const listing = await call({ action: 'admin-list' }, true)
     const listed = await listing.json()
     assert(listing.status === 200 && listed.stores.length === 1 && listed.stores[0].id === store.id, 'Store selector includes an unpublished or deleted store')
@@ -111,6 +118,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     const loaded = await call({ action: 'load', token })
     assert(loaded.status === 200 && !(await loaded.text()).includes(tokenHash), 'Private token hash leaked')
     assert((await mutate('publish')).status === 409 && publishedCount === 0, 'Premature publish accepted')
+    assert((await mutate('submit')).status === 409 && publishedCount === 0, 'Premature submission accepted')
     assert((await mutate('generate')).status === 409 && modelCalls === 0, 'Premature generation billed')
     allowed = false
     assert((await mutate('answer', { answer: 'Tere' })).status === 429 && modelCalls === 0, 'Rate-limited request billed')
@@ -187,11 +195,34 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     aiFailure = false
     assert((await mutate('name', { answer: 'Liis' })).status === 200 && row.status === 'preview', 'Legacy preview did not resume')
     assert(row.draft.title === 'Minu muudetud lugu' && row.image_path === savedImage && row.image_alt === 'Sinine kruus', 'Name revision lost edits or photo')
-    const publish = await mutate('publish')
-    assert(publish.status === 200 && article.story.title === 'Minu muudetud lugu' && article.store_id === undefined, 'Publication lost approved text')
+    const submitId = crypto.randomUUID(), submissionVersion = row.version
+    const submitted = await mutate('submit', { requestId: submitId })
+    assert(submitted.status === 200 && row.status === 'pending_review' && article === null && publishedCount === 0, 'Submission published a story')
+    assert((await submitted.json()).interview.publishedUrl === null, 'Submission exposed a public URL')
+    assert((await mutate('submit', { requestId: submitId, version: submissionVersion })).status === 200 && row.version === submissionVersion + 1, 'Submission retry duplicated changes')
+    assert((await mutate('publish')).status === 200 && article === null, 'Legacy publish bypassed approval')
+    // An old tab submitting a different preview must also enter the review queue.
+    row.status = 'preview'
+    assert((await mutate('publish')).status === 200 && row.status === 'pending_review' && article === null, 'Legacy preview published directly')
+    for (const action of ['save', 'upload', 'remove-image', 'generate', 'name', 'answer', 'finish']) {
+      assert((await mutate(action, { draft, imageAlt: 'Changed', image: png, slot: 'body', answer: 'Changed' })).status === 409, 'Submitted story changed before review')
+    }
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))).status === 404, 'Pending cover exposed')
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 404, 'Pending body photo exposed')
+    assert((await call({ action: 'admin-visibility', id: row.id, published: true }, true)).status === 404 && publishedCount === 0, 'Visibility action bypassed review')
+    const review = await call({ action: 'admin-review', id: row.id }, true)
+    const reviewed = (await review.json()).interview
+    assert(review.status === 200 && reviewed.draft.title === row.draft.title && reviewed.bodyImageUrl && !reviewed.publishedUrl, 'Admin cannot inspect the pending story and both photos')
+    assert((await call({ action: 'admin-approve', id: row.id, version: row.version - 1 }, true)).status === 409 && publishedCount === 0, 'Stale approval accepted')
+    row.expires_at = '2000-01-01'
+    assert((await call({ action: 'admin-review', id: row.id }, true)).status === 200, 'Expired invitation blocked admin review')
+    const publish = await call({ action: 'admin-approve', id: row.id, version: reviewed.version }, true)
+    assert(publish.status === 200 && article.story.title === 'Minu muudetud lugu' && article.store_id === undefined, 'Approval lost submitted text or failed after link expiry')
     assert(article.body_image_path === row.body_image_path && article.story.bodyImage.src.endsWith('&slot=body') && article.story.bodyImage.alt === 'Kruusid töötoas' && article.story.bodyImage.caption === 'Foto: Liis', 'Publication lost the second photo')
     assert(!JSON.stringify(article.story).includes(row.body_image_path), 'Private storage path leaked into public article')
-    assert((await mutate('publish')).status === 200 && publishedCount === 1, 'Publication duplicated')
+    assert((await call({ action: 'admin-approve', id: row.id, version: reviewed.version }, true)).status === 200 && publishedCount === 1, 'Approval duplicated publication')
+    row.expires_at = '2099-01-01'
+    assert((await mutate('submit')).status === 200 && publishedCount === 1, 'Submission retry changed published story')
     const publicImage = await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))
     assert(publicImage.status === 200 && publicImage.headers.get('Content-Type') === 'image/webp', 'Published photo unavailable')
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 200 && downloaded.at(-1) === article.body_image_path, 'Published second photo unavailable or wrong')

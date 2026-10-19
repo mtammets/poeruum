@@ -15,6 +15,9 @@
 .admin-stories__identity { display: flex; flex-direction: column; gap: .4rem; min-width: 0; overflow-wrap: anywhere; }
 .admin-stories__identity strong { font-weight: 600; }.admin-stories__identity span { opacity: .55; font-size: .75rem; }
 .admin-stories__row-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.admin-stories__review { padding: clamp(1rem, 4vw, 3rem); border-radius: 1rem; background: #f4f2e9; color: #213c2d; font-family: Manrope, sans-serif; }
+.admin-stories__review .directory-story-page__header { padding-top: 0; }
+.admin-stories__review-actions { display: flex; justify-content: flex-end; margin-top: 1.5rem; }
 .admin-stories__error { color: #f0a89a; font-size: .85rem; }.admin-stories__empty { opacity: .55; font-size: .85rem; }
 .admin-stories :is(button, input, select, a):focus-visible { outline: 2px solid var(--admin-accent, #d9ef72); outline-offset: 3px; }
 @media (max-width: 640px) { .admin-stories__list li { align-items: flex-start; flex-direction: column; }.admin-stories__create > div { flex-direction: column; }.admin-stories__create select { width: 100%; } }

@@ -46,7 +46,7 @@ async function snapshot(client: ReturnType<typeof db>, row: any) {
   }
   const [imageUrl, bodyImageUrl] = await Promise.all([signedImage(row.image_path), signedImage(row.body_image_path)])
   return { id: row.id, storeName: store!.name, storeSlug: store!.slug, status: row.status,
-    version: row.version, messages: row.messages, needsName: row.status !== 'published' && !storyRespondentName(row.messages), draft: row.draft, imageUrl, imageAlt: row.image_alt,
+    version: row.version, messages: row.messages, needsName: !['pending_review', 'published'].includes(row.status) && !storyRespondentName(row.messages), draft: row.draft, imageUrl, imageAlt: row.image_alt,
     bodyImageUrl, bodyImageAlt: row.body_image_alt || '', bodyImageCaption: row.body_image_caption || '',
     publishedUrl: article?.is_published ? articleUrl(article.slug) : null, lastRequestId: row.last_request_id,
   }
@@ -87,6 +87,35 @@ async function adminAction(request: Request, client: ReturnType<typeof db>, body
     return json({ id: data.id, token })
   }
   if (!validStoryId(body.id)) return json({ error: 'Vigane intervjuu.' }, 400)
+  if (body.action === 'admin-review' || body.action === 'admin-approve') {
+    const { data: row, error } = await client.from('story_interviews').select('*').eq('id', body.id).maybeSingle()
+    if (error) throw new Error('Story review lookup failed')
+    if (!row) return json({ error: 'Lugu ei leitud.' }, 404)
+    if (body.action === 'admin-approve' && row.status === 'published') return json({ interview: await snapshot(client, row) })
+    if (row.status !== 'pending_review') return json({ error: 'See lugu ei oota kinnitamist.' }, 409)
+    if (body.action === 'admin-review') return json({ interview: await snapshot(client, row) })
+    if (!Number.isInteger(body.version) || body.version < 0) return json({ error: 'Vigane päring.' }, 400)
+    const draft = parseStoryDraft(row.draft)
+    if (!draft || !row.image_path) return conflict()
+    const { data: store, error: storeError } = await client.from('stores').select('name,slug').eq('id', row.store_id).single()
+    if (storeError || !store) throw new Error('Story store unavailable')
+    const slug = `${store.slug}-${row.id.replaceAll('-', '')}`
+    const document = { ...draft, slug, category: 'Meie kaupmehed', author: store.name, storeSlug: store.slug, storeName: store.name,
+      image: `${Deno.env.get('SUPABASE_URL')}/functions/v1/story-interview?image=${row.id}`,
+      imageAlt: row.image_alt || store.name, publishedAt: new Date().toISOString(),
+      ...(row.body_image_path ? { bodyImage: {
+        src: `${Deno.env.get('SUPABASE_URL')}/functions/v1/story-interview?image=${row.id}&slot=body`,
+        alt: row.body_image_alt || store.name, caption: row.body_image_caption || '',
+      } } : {}),
+    }
+    const { error: approvalError } = await client.rpc('approve_story_interview', {
+      target_id: row.id, expected_version: body.version, reviewer_id: user.id, article_slug: slug, article_document: document,
+    })
+    if (approvalError?.code === '40001') return conflict()
+    if (approvalError?.code === '42501') return json({ error: 'Seda lugu ei saa kinnitada.' }, 403)
+    if (approvalError) throw new Error('Story approval failed')
+    return json({ interview: await snapshot(client, { ...row, status: 'published', version: row.version + 1 }) })
+  }
   if (body.action === 'admin-renew' || body.action === 'admin-revoke') {
     const token = newToken()
     const patch = body.action === 'admin-renew'
@@ -140,10 +169,12 @@ Deno.serve(async (request) => {
     if (error) throw new Error('Interview lookup failed')
     if (!row || row.status === 'revoked' || Date.parse(row.expires_at) <= Date.now()) return unavailable()
     if (body.action === 'load') return json({ interview: await snapshot(client, row) })
-    if (!['name', 'answer', 'finish', 'upload', 'remove-image', 'generate', 'save', 'publish'].includes(body.action)) return json({ error: 'Tundmatu tegevus.' }, 400)
+    if (!['name', 'answer', 'finish', 'upload', 'remove-image', 'generate', 'save', 'submit', 'publish'].includes(body.action)) return json({ error: 'Tundmatu tegevus.' }, 400)
     if (!validStoryId(body.requestId) || !Number.isInteger(body.version) || body.version < 0) return json({ error: 'Vigane päring.' }, 400)
-    if (row.last_request_id === body.requestId || (row.status === 'published' && body.action === 'publish')) return json({ interview: await snapshot(client, row) })
-    if (row.status === 'published') return json({ error: 'See lugu on juba valmis.' }, 409)
+    // Old open tabs may still send "publish"; both actions only submit for review.
+    const submitting = ['submit', 'publish'].includes(body.action)
+    if (row.last_request_id === body.requestId || (['pending_review', 'published'].includes(row.status) && submitting)) return json({ interview: await snapshot(client, row) })
+    if (['pending_review', 'published'].includes(row.status)) return json({ error: 'See lugu on juba valmis.' }, 409)
     const needsName = !storyRespondentName(row.messages)
     const answeringName = row.messages.length === 1 && row.messages[0].content === NAME_QUESTION
     const action = needsName && answeringName && body.action === 'answer' ? 'name' : body.action
@@ -219,30 +250,15 @@ Deno.serve(async (request) => {
         if (typeof alt !== 'string' || !alt.trim() || alt.length > 300 || typeof caption !== 'string' || caption.length > 300) return json({ error: 'Kontrolli teise foto kirjeldust ja allkirja.' }, 400)
         patch.body_image_alt = alt.trim(); patch.body_image_caption = caption.trim()
       }
-    } else if (body.action === 'publish') {
+    } else if (submitting) {
       const draft = parseStoryDraft(current.draft)
       if (current.status !== 'preview' || !draft || !current.image_path) return conflict()
-      const slug = `${store.slug}-${current.id.replaceAll('-', '')}`
-      const document = { ...draft, slug, category: 'Meie kaupmehed', author: store.name, storeSlug: store.slug, storeName: store.name,
-        image: `${Deno.env.get('SUPABASE_URL')}/functions/v1/story-interview?image=${current.id}`,
-        imageAlt: current.image_alt || store.name, publishedAt: new Date().toISOString(),
-        ...(current.body_image_path ? { bodyImage: {
-          src: `${Deno.env.get('SUPABASE_URL')}/functions/v1/story-interview?image=${current.id}&slot=body`,
-          alt: current.body_image_alt || store.name, caption: current.body_image_caption || '',
-        } } : {}),
-      }
-      const { error } = await client.rpc('publish_story_interview', { target_id: current.id, access_hash: accessHash,
-        request_id: body.requestId, article_slug: slug, article_document: document })
-      if (error?.code === '42501') return unavailable()
-      if (error?.code === '40001') return conflict()
-      if (error) throw new Error('Story publication failed')
-      operation = null
-      return json({ interview: await snapshot(client, { ...current, status: 'published', version: current.version + 1, last_request_id: body.requestId }) })
+      patch = { status: 'pending_review' }
     }
     const { data: saved, error: saveError } = await client.from('story_interviews').update({ ...patch,
       version: current.version + 1, last_request_id: body.requestId, updated_at: new Date().toISOString(), operation_id: null, busy_until: null,
     }).eq('id', current.id).eq('operation_id', body.requestId).eq('token_hash', accessHash)
-      .gt('expires_at', new Date().toISOString()).neq('status', 'revoked').select('*').maybeSingle()
+      .gt('expires_at', new Date().toISOString()).in('status', ['interview', 'photo', 'preview']).select('*').maybeSingle()
     if (saveError) throw new Error('Interview save failed')
     if (!saved) return conflict()
     operation = null

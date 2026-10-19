@@ -34,9 +34,14 @@ async function backend(page: Page) {
       const body = request.postDataJSON()
       calls.push(body)
       if (body.action === 'admin-list') return reply(route, { aiAvailable: true, stores,
-        interviews: calls.some((call) => call.action === 'admin-create') ? [{ id, store_id: storeId, store_name: state.storeName, status: expired ? 'revoked' : state.status, expires_at: '2099-11-18', created_at: '2026-10-18',
+        interviews: (calls.some((call) => call.action === 'admin-create') || ['pending_review', 'published'].includes(state.status)) ? [{ id, store_id: storeId, store_name: state.storeName, status: expired ? 'revoked' : state.status, expires_at: '2099-11-18', created_at: '2026-10-18',
           article: state.status === 'published' ? { id, slug: 'liisi-lugu', is_published: !hidden } : null }] : [] })
       if (body.action === 'admin-create' || body.action === 'admin-renew') return reply(route, { id, token })
+      if (body.action === 'admin-review') return reply(route, { interview: state })
+      if (body.action === 'admin-approve') {
+        state.status = 'published'; state.version++; state.publishedUrl = 'http://kaubamaja.poeruum.localhost:4174/lood/liisi-lugu/'
+        return reply(route, { interview: state })
+      }
       if (body.action === 'admin-revoke') { expired = true; return reply(route, { id }) }
       if (body.action === 'admin-visibility') { hidden = !body.published; return reply(route, { ok: true }) }
       if (expired || body.token !== token) return reply(route, { error: 'See intervjuulink ei kehti enam.' }, 410)
@@ -69,7 +74,7 @@ async function backend(page: Page) {
         state.draft = body.draft; state.imageAlt = body.imageAlt
         if (state.bodyImageUrl) { state.bodyImageAlt = body.bodyImageAlt; state.bodyImageCaption = body.bodyImageCaption }
       }
-      if (body.action === 'publish') { state.status = 'published'; state.publishedUrl = 'http://kaubamaja.poeruum.localhost:4174/lood/liisi-lugu/' }
+      if (body.action === 'submit' || body.action === 'publish') state.status = 'pending_review'
       state.version++; state.lastRequestId = body.requestId
       return reply(route, { interview: state })
     }
@@ -98,7 +103,7 @@ async function answerName(page: Page) {
   await expect(page.locator('.story-interview__working')).toHaveCount(0)
 }
 
-test('merchant completes a mobile interview, resumes, adds two photos, edits and publishes into the directory', async ({ page }) => {
+test('merchant completes a mobile interview, resumes, adds two photos, edits and submits for admin approval before appearing in the directory', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   const api = await backend(page)
   await page.goto(`/lugu/#token=${token}`)
@@ -125,7 +130,7 @@ test('merchant completes a mobile interview, resumes, adds two photos, edits and
   await expect(page.locator('.directory-story-page__body-image img')).toBeVisible()
   await expect(page.getByText('Meie kaupmehed', { exact: true })).toHaveCount(0)
   await expect(page.getByText(/\d+ min lugemist/)).toHaveCount(0)
-  expect(api.calls.filter((call) => call.action === 'publish')).toHaveLength(0)
+  expect(api.calls.filter((call) => call.action === 'submit')).toHaveLength(0)
   await page.screenshot({ path: 'output/story-preview-mobile.png', fullPage: true })
   await page.getByRole('button', { name: 'Muuda', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Pildiallkiri', exact: true })).toHaveValue('Foto: Liisi Tamme erakogu')
@@ -147,7 +152,17 @@ test('merchant completes a mobile interview, resumes, adds two photos, edits and
   await expect(page.locator('figcaption')).toHaveText(['Liisi esimene kruus.', 'Nõud Liisi töötoas.'])
   await expect(page.getByRole('img', { name: 'Kausid ja kruusid töötoas' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
-  await page.getByRole('button', { name: 'Avalda Poeruumis' }).click()
+  await page.getByRole('button', { name: 'Valmis', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Aitäh! Sinu lugu on valmis.' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Vaata oma lugu' })).toHaveCount(0)
+  await expect(page.getByText('Lugu ootab Poeruumi administraatori kinnitust.', { exact: false })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Aitäh! Sinu lugu on valmis.' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Muuda', exact: true })).toHaveCount(0)
+  await page.goto('http://kaubamaja.poeruum.localhost:4174/')
+  await expect(page.getByRole('heading', { name: 'Sinine kruus ja uus algus' })).toHaveCount(0)
+  await approveSubmittedStory(page)
+  await page.goto(`/lugu/#token=${token}`)
   await expect(page.getByRole('heading', { name: 'Sinu lugu on avaldatud.' })).toBeVisible()
   await page.getByRole('link', { name: 'Vaata oma lugu' }).click()
   await expect(page.getByRole('heading', { name: 'Sinine kruus ja uus algus' })).toBeVisible()
@@ -163,7 +178,7 @@ test('merchant completes a mobile interview, resumes, adds two photos, edits and
   await expect(hero.getByRole('link', { name: 'Külasta poodi' })).toHaveAttribute('href', 'https://liisi-savipood.poeruum.ee/?from=kaubamaja')
   await hero.locator('.directory-story-hero__close').click()
   await expect(hero.getByRole('button', { name: 'Loe edasi' })).toBeFocused()
-  expect(api.calls.filter((call) => call.action === 'publish')).toHaveLength(1)
+  expect(api.calls.filter((call) => call.action === 'submit')).toHaveLength(1)
 })
 
 test('an older server cannot accidentally replace the cover with a second photo', async ({ page }) => {
@@ -219,7 +234,11 @@ test('the optional second photo can be added, replaced and removed without chang
   await expect(page.locator('.story-interview__photos img')).toHaveCount(1)
   await page.getByRole('button', { name: 'Salvesta', exact: true }).click()
   await expect(page.locator('.directory-story-page__body-image')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Avalda Poeruumis' }).click()
+  await page.getByRole('button', { name: 'Valmis', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Aitäh! Sinu lugu on valmis.' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Vaata oma lugu' })).toHaveCount(0)
+  await approveSubmittedStory(page)
+  await page.goto(`/lugu/#token=${token}`)
   await page.getByRole('link', { name: 'Vaata oma lugu' }).click()
   await expect(page.getByRole('img', { name: 'Avafoto kruusist' })).toBeVisible()
   await expect(page.locator('.directory-story-page__body-image')).toHaveCount(0)
@@ -262,18 +281,22 @@ for (const width of [1440, 320]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
     await expect(page.getByRole('button', { name: 'Muuda', exact: true })).toBeInViewport()
     await expect(page.getByRole('button', { name: 'Fotod', exact: true })).toBeInViewport()
-    await expect(page.getByRole('button', { name: 'Avalda Poeruumis' })).toBeInViewport()
-    expect(api.calls.filter((call) => call.action === 'publish')).toHaveLength(0)
+    await expect(page.getByRole('button', { name: 'Valmis', exact: true })).toBeInViewport()
+    expect(api.calls.filter((call) => call.action === 'submit')).toHaveLength(0)
     await page.screenshot({ path: `output/story-preview-magazine-${width}.png`, fullPage: true })
 
-    await page.getByRole('button', { name: 'Avalda Poeruumis' }).click()
+    await page.getByRole('button', { name: 'Valmis', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Aitäh! Sinu lugu on valmis.' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Vaata oma lugu' })).toHaveCount(0)
+    await approveSubmittedStory(page)
+    await page.goto(`/lugu/#token=${token}`)
     await expect(page.getByRole('heading', { name: 'Sinu lugu on avaldatud.' })).toBeVisible()
     await page.goto('http://kaubamaja.poeruum.localhost:4174/')
     await page.getByRole('button', { name: 'Loe edasi' }).click()
     await expect(page.locator('.directory-story-hero__expansion')).toHaveAttribute('aria-hidden', 'false')
     await page.evaluate(() => document.fonts.ready)
     await expect.poll(measureArticle).toEqual(previewLayout)
-    expect(api.calls.filter((call) => call.action === 'publish')).toHaveLength(1)
+    expect(api.calls.filter((call) => call.action === 'submit')).toHaveLength(1)
   })
 }
 
@@ -286,16 +309,16 @@ test('a legacy preview asks for the name and resumes with its saved photo and ed
   api.state.messages = [{ role: 'assistant', content: 'Kuidas alustasid?' }, { role: 'user', content: 'Alustasin kodus.' }]
   await page.goto(`/lugu/#token=${token}`)
   await expect(page.getByRole('heading', { name: 'Minu parandatud pealkiri' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Avalda Poeruumis' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Valmis', exact: true })).toHaveCount(0)
   await answerName(page)
   await expect(page.getByRole('heading', { name: 'Minu parandatud pealkiri' })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Sinine kruus' })).toBeVisible()
   await expect(page.getByText('Minu esimene kruus.', { exact: true })).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Avalda Poeruumis' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Valmis', exact: true })).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'Sinu vastus' })).toHaveCount(0)
   expect(api.calls.filter((call) => call.action === 'name')).toHaveLength(1)
-  expect(api.calls.filter((call) => call.action === 'publish')).toHaveLength(0)
+  expect(api.calls.filter((call) => call.action === 'submit')).toHaveLength(0)
 })
 
 for (const action of ['name', 'answer']) {
@@ -409,6 +432,22 @@ async function adminSession(page: Page) {
   await page.addInitScript((session) => localStorage.setItem('sb-localhost-auth-token', JSON.stringify(session)), session)
   await page.route('**/__e2e_supabase/auth/v1/user', (route) => route.fulfill({ json: user }))
   await page.route('**/__e2e_supabase/auth/v1/token*', (route) => route.fulfill({ json: session }))
+}
+
+async function approveSubmittedStory(page: Page) {
+  await adminSession(page)
+  await page.goto('/admin/kaubamaja?view=stories')
+  await expect(page.getByText('Ootab kinnitamist', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Kinnita ja avalda' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Vaata üle' }).click()
+  await expect(page.getByRole('heading', { name: 'Loo kinnitamine' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Esimene tellimus' })).toBeVisible()
+  await expect(page.locator('.admin-stories__review img').first()).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width)
+  await page.screenshot({ path: `output/story-admin-review-${page.viewportSize()!.width}.png`, fullPage: true })
+  await page.getByRole('button', { name: 'Kinnita ja avalda' }).click()
+  await expect(page.getByRole('link', { name: 'Vaata lugu ↗' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Vaata üle' })).toHaveCount(0)
 }
 
 test('admin can retry a failed list request without a stuck loading message', async ({ page }) => {
