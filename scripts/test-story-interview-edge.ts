@@ -19,7 +19,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     { ...store, id: crypto.randomUUID(), deleted_at: '2026-10-01' },
   ]
   const draft = { title: 'Kruusist algas oma pood', intro: 'Liis alustas kodus.', opening: ['Esimene kruus oli sinine.'], quote: '', sections: [], imageCaption: '' }
-  let handler: Handler | undefined, role = 'merchant', allowed = true, aiFailure = false, finish = false
+  let handler: Handler | undefined, role = 'merchant', allowed = true, aiFailure = false, saveFailure = false, finish = false
   let modelCalls = 0, publishedCount = 0, uploads = 0
   let article: any = null, createdInvitation: any = null
   let aiBarrier: Promise<void> | null = null
@@ -46,6 +46,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
         if (method === 'POST') { createdInvitation = body; return json({ id: row.id }) }
         if (method === 'PATCH') {
           if (url.searchParams.has('operation_id') && url.searchParams.get('operation_id') !== `eq.${row.operation_id}`) return json(null)
+          if (saveFailure && body.messages) return json({ code: 'XX000' }, 500)
           Object.assign(row, body)
           return json({ ...row })
         }
@@ -204,7 +205,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     // An old tab submitting a different preview must also enter the review queue.
     row.status = 'preview'
     assert((await mutate('publish')).status === 200 && row.status === 'pending_review' && article === null, 'Legacy preview published directly')
-    for (const action of ['save', 'upload', 'remove-image', 'generate', 'name', 'answer', 'finish']) {
+    for (const action of ['save', 'upload', 'remove-image', 'generate', 'name', 'answer', 'finish', 'restart']) {
       assert((await mutate(action, { draft, imageAlt: 'Changed', image: png, slot: 'body', answer: 'Changed' })).status === 409, 'Submitted story changed before review')
     }
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))).status === 404, 'Pending cover exposed')
@@ -223,6 +224,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert((await call({ action: 'admin-approve', id: row.id, version: reviewed.version }, true)).status === 200 && publishedCount === 1, 'Approval duplicated publication')
     row.expires_at = '2099-01-01'
     assert((await mutate('submit')).status === 200 && publishedCount === 1, 'Submission retry changed published story')
+    assert((await mutate('restart')).status === 409 && publishedCount === 1, 'Published story restarted')
     const publicImage = await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))
     assert(publicImage.status === 200 && publicImage.headers.get('Content-Type') === 'image/webp', 'Published photo unavailable')
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 200 && downloaded.at(-1) === article.body_image_path, 'Published second photo unavailable or wrong')
@@ -236,8 +238,48 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 404, 'Hidden second photo exposed')
     row.expires_at = '2000-01-01'
     assert((await call({ action: 'load', token })).status === 410, 'Expired invitation accepted')
+    assert((await mutate('restart')).status === 410, 'Expired invitation restarted')
     row.expires_at = '2099-01-01'; row.status = 'revoked'
     assert((await call({ action: 'load', token })).status === 410, 'Revoked invitation accepted')
+    assert((await mutate('restart')).status === 410, 'Revoked invitation restarted')
+
+    // Restart fixtures cover every editable phase, including a legacy nameless preview.
+    article = null
+    for (const status of ['interview', 'photo', 'preview']) {
+      Object.assign(row, { status, messages: [{ role: 'assistant', content: 'Kuidas alustasid?' }, { role: 'user', content: 'Vana vastus.' }],
+        draft: status === 'preview' ? { ...draft } : null,
+        image_path: status === 'interview' ? null : `${row.id}/${status}-cover.webp`, image_alt: 'Vana avafoto',
+        body_image_path: status === 'interview' ? null : `${row.id}/${status}-body.webp`, body_image_alt: 'Vana teine foto', body_image_caption: 'Vana allkiri' })
+      const previous = structuredClone(row), removedBefore = removed.length, callsBefore = modelCalls
+      const restartId = crypto.randomUUID()
+      assert((await mutate('restart', { token: 'b'.repeat(64) })).status === 410, 'Wrong invitation restarted another interview')
+      assert((await mutate('restart', { version: row.version - 1 })).status === 409, 'Stale tab restarted newer work')
+      row.busy_until = new Date(Date.now() + 120000).toISOString()
+      assert((await mutate('restart')).status === 409, 'Restart raced an in-flight operation')
+      row.busy_until = null
+      saveFailure = true
+      assert((await mutate('restart', { requestId: restartId })).status === 500, 'Failed reset reported success')
+      assert(JSON.stringify(row.messages) === JSON.stringify(previous.messages) && row.image_path === previous.image_path
+        && JSON.stringify(row.draft) === JSON.stringify(previous.draft) && removed.length === removedBefore, 'Failed reset destroyed existing work or photos')
+      saveFailure = false
+      Deno.env.delete('OPENAI_API_KEY')
+      const reset = await mutate('restart', { requestId: restartId })
+      Deno.env.set('OPENAI_API_KEY', values.OPENAI_API_KEY)
+      const fresh = (await reset.json()).interview
+      assert(reset.status === 200 && row.status === 'interview' && fresh.needsName && row.messages.length === 1
+        && row.messages[0].content === 'Mis on sinu nimi?' && row.messages[0].kind === 'name', 'Restart did not start a fresh name question')
+      assert(row.draft === null && row.image_path === null && row.body_image_path === null && row.image_alt === ''
+        && row.body_image_alt === '' && row.body_image_caption === '', 'Restart retained a draft or photo metadata')
+      assert(row.id === previous.id && row.token_hash === previous.token_hash && row.expires_at === previous.expires_at
+        && row.version === previous.version + 1 && modelCalls === callsBefore, 'Restart changed invitation, reset version or billed AI')
+      const oldPaths = [previous.image_path, previous.body_image_path].filter(Boolean)
+      assert(JSON.stringify(removed.slice(removedBefore)) === JSON.stringify(oldPaths), 'Restart removed incorrect photos')
+      assert((await mutate('restart', { requestId: restartId, version: previous.version })).status === 200
+        && row.version === previous.version + 1 && removed.length === removedBefore + oldPaths.length, 'Restart retry repeated deletion')
+      assert((await mutate('name', { answer: 'Uus nimi' })).status === 200, 'Restarted interview could not continue')
+      assert((await mutate('restart', { requestId: restartId, version: previous.version })).status === 409
+        && row.messages[1].content === 'Uus nimi', 'Delayed restart retry erased the new interview')
+    }
   } finally {
     Deno.serve = originalServe; globalThis.fetch = originalFetch
     for (const [key, value] of previous) { if (value === undefined) Deno.env.delete(key); else Deno.env.set(key, value) }

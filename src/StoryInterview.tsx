@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Brand } from './Brand'
 import DirectoryStoryHero from './DirectoryStoryHero'
 import { callStoryInterview, prepareStoryImage, readInterviewToken, storyInterviewPreview, StoryRequestError, type StoryDraft, type StoryInterview as Interview } from './lib/storyInterview'
@@ -12,7 +12,7 @@ const Spinner = () => <span className="story-interview__dots" aria-hidden="true"
 
 type PhotoSlot = 'cover' | 'body'
 
-function PhotoUploadProgress() {
+function useInterviewDialog() {
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const element = dialog.current!
@@ -27,8 +27,30 @@ function PhotoUploadProgress() {
       document.body.style.paddingRight = paddingRight
     }
   }, [])
+  return dialog
+}
+
+function PhotoUploadProgress() {
+  const dialog = useInterviewDialog()
   return <dialog ref={dialog} className="story-interview__upload-progress" aria-label="Foto lisamine" onCancel={(event) => event.preventDefault()}>
     <div role="status" aria-atomic="true"><Spinner /><p>Lisan fotot…</p></div>
+  </dialog>
+}
+
+function RestartInterviewDialog({ busy, error, onCancel, onConfirm }: {
+  busy: boolean; error: string; onCancel: () => void; onConfirm: () => void
+}) {
+  const dialog = useInterviewDialog()
+  const titleId = useId(), descriptionId = useId()
+  return <dialog ref={dialog} className="story-interview__restart-dialog" role="alertdialog" aria-labelledby={titleId} aria-describedby={descriptionId}
+    onCancel={(event) => { event.preventDefault(); if (!busy) onCancel() }}>
+    <h2 id={titleId}>Alustad intervjuud uuesti?</h2>
+    <p id={descriptionId}>Senised vastused, loo mustand ja lisatud fotod kustutatakse. Seda ei saa tagasi võtta.</p>
+    {error && <p className="story-interview__error" role="alert">{error}</p>}
+    <div className="story-interview__actions">
+      <button type="button" className="story-interview__secondary" autoFocus disabled={busy} onClick={onCancel}>Jätka intervjuud</button>
+      <button type="button" className="story-interview__primary" disabled={busy} onClick={onConfirm}>{busy ? 'Alustan uuesti…' : 'Alusta uuesti'}</button>
+    </div>
   </dialog>
 }
 
@@ -104,6 +126,7 @@ function InterviewSession({ token }: { token: string | null }) {
   const [error, setError] = useState('')
   const [unavailable, setUnavailable] = useState(false)
   const [editing, setEditing] = useState<'story' | 'photos' | null>(null)
+  const [restartOpen, setRestartOpen] = useState(false)
   const [reload, setReload] = useState(0)
   const inFlight = useRef(false)
   const pending = useRef<{ signature: string; requestId: string } | null>(null)
@@ -192,13 +215,24 @@ function InterviewSession({ token }: { token: string | null }) {
     })
   }
   const removeBodyPhoto = () => void run('remove-image', async () => { await mutate('remove-image', { slot: 'body' }) })
+  const restart = () => void run('restart', async () => {
+    await mutate('restart')
+    setAnswer(''); setSendingAnswer(''); setEditing(null); setRestartOpen(false)
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  })
   const count = interview ? storyAnswerCount(interview.messages) : 0
   const preview = storyInterviewPreview(interview)
+  const canRestart = !loading && !unavailable && interview && ['interview', 'photo', 'preview'].includes(interview.status)
+    && Boolean(interview.messages.some((message) => message.role === 'user') || interview.draft || interview.imageUrl || interview.bodyImageUrl || answer.trim())
+  const showRestart = restartOpen && canRestart
 
   return <main className={`story-interview${interview?.status === 'preview' && !interview.needsName ? ' story-interview--preview' : ''}`}>
     <header className="story-interview__header">
       <div className="story-interview__brand"><Brand /></div>
-      <span className="story-interview__shop">{interview?.storeName}</span>
+      <div className="story-interview__header-actions">
+        <span className="story-interview__shop">{interview?.storeName}</span>
+        {canRestart && <button type="button" className="story-interview__restart" disabled={Boolean(busy)} onClick={() => { setError(''); setRestartOpen(true) }}>Alusta uuesti</button>}
+      </div>
     </header>
     <input ref={photoInput} className="story-interview__file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Lisa foto" disabled={Boolean(busy)} onChange={(event) => { upload('cover', event.target.files?.[0]); event.target.value = '' }} />
     <input ref={bodyPhotoInput} className="story-interview__file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Lisa teine foto" disabled={Boolean(busy)} onChange={(event) => { upload('body', event.target.files?.[0]); event.target.value = '' }} />
@@ -223,7 +257,7 @@ function InterviewSession({ token }: { token: string | null }) {
                     <button className="story-interview__photo-change" disabled={Boolean(busy)} onClick={() => { setEditing('photos'); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-label="Fotod" title="Lisa või muuda fotosid"><Photo /></button>
                     <button className="story-interview__primary" disabled={Boolean(busy)} onClick={() => void run('submit', async () => { await mutate('submit'); window.scrollTo({ top: 0, behavior: 'instant' }) })}>{busy === 'submit' ? 'Saadan…' : 'Valmis'}</button>
                   </div></>}
-              {error && <p className="story-interview__error" role="alert">{error}</p>}
+              {error && !showRestart && <p className="story-interview__error" role="alert">{error}</p>}
             </div>
               : <div className="story-interview__conversation">
                 <div className="story-interview__messages" role="log" aria-label="Intervjuu" aria-live="polite" aria-relevant="additions">
@@ -231,7 +265,7 @@ function InterviewSession({ token }: { token: string | null }) {
                   {sendingAnswer && <div className="story-interview__message story-interview__message--user"><span className="story-interview__sr">Sina: </span>{sendingAnswer}</div>}
                 </div>
                 {busy && busy !== 'upload' && <div className="story-interview__working" role="status"><Spinner /><span>{busy === 'generate' ? 'Kirjutan sinu lugu…' : 'Mõtlen kaasa…'}</span></div>}
-                {error && <p className="story-interview__error" role="alert">{error}</p>}
+                {error && !showRestart && <p className="story-interview__error" role="alert">{error}</p>}
                 {interview.status === 'photo' && !interview.needsName && <div className="story-interview__photo">
                   <StoryPhotos interview={interview} busy={Boolean(busy)} onPick={pickPhoto} onRemove={removeBodyPhoto} />
                   {interview.imageUrl && <button className="story-interview__primary" disabled={Boolean(busy)} onClick={() => void run('generate', () => generate())}>Loo eelvaade</button>}
@@ -247,5 +281,6 @@ function InterviewSession({ token }: { token: string | null }) {
                 </div>}
               </div>}
     {busy === 'upload' && <PhotoUploadProgress />}
+    {showRestart && <RestartInterviewDialog busy={Boolean(busy)} error={error} onCancel={() => { setRestartOpen(false); setError('') }} onConfirm={restart} />}
   </main>
 }

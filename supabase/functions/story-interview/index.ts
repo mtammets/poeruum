@@ -169,7 +169,7 @@ Deno.serve(async (request) => {
     if (error) throw new Error('Interview lookup failed')
     if (!row || row.status === 'revoked' || Date.parse(row.expires_at) <= Date.now()) return unavailable()
     if (body.action === 'load') return json({ interview: await snapshot(client, row) })
-    if (!['name', 'answer', 'finish', 'upload', 'remove-image', 'generate', 'save', 'submit', 'publish'].includes(body.action)) return json({ error: 'Tundmatu tegevus.' }, 400)
+    if (!['name', 'answer', 'finish', 'upload', 'remove-image', 'generate', 'save', 'restart', 'submit', 'publish'].includes(body.action)) return json({ error: 'Tundmatu tegevus.' }, 400)
     if (!validStoryId(body.requestId) || !Number.isInteger(body.version) || body.version < 0) return json({ error: 'Vigane päring.' }, 400)
     // Old open tabs may still send "publish"; both actions only submit for review.
     const submitting = ['submit', 'publish'].includes(body.action)
@@ -178,7 +178,7 @@ Deno.serve(async (request) => {
     const needsName = !storyRespondentName(row.messages)
     const answeringName = row.messages.length === 1 && row.messages[0].content === NAME_QUESTION
     const action = needsName && answeringName && body.action === 'answer' ? 'name' : body.action
-    if (needsName && action !== 'name') return json({ error: 'Kirjuta kõigepealt oma nimi.' }, 409)
+    if (needsName && !['name', 'restart'].includes(action)) return json({ error: 'Kirjuta kõigepealt oma nimi.' }, 409)
     const isAi = action === 'answer' || action === 'generate' || (action === 'name' && row.status === 'preview')
     const apiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
     if (isAi && !apiKey) return json({ error: 'Intervjueerija pole praegu saadaval. Proovi veidi hiljem.' }, 503)
@@ -201,7 +201,11 @@ Deno.serve(async (request) => {
     const messages = current.messages as StoryMessage[]
     const answers = storyAnswerCount(messages)
     let patch: Record<string, unknown> = {}
-    if (action === 'name') {
+    if (action === 'restart') {
+      if (!['interview', 'photo', 'preview'].includes(current.status)) return conflict()
+      patch = { status: 'interview', messages: [{ role: 'assistant', content: firstStoryQuestion(), kind: 'name' }], draft: null,
+        image_path: null, image_alt: '', body_image_path: null, body_image_alt: '', body_image_caption: '' }
+    } else if (action === 'name') {
       if (storyRespondentName(messages)) return conflict()
       if (typeof body.answer !== 'string' || !body.answer.trim() || body.answer.length > 120) return json({ error: 'Kirjuta nimi kuni 120 tähemärgiga.' }, 400)
       const namedMessages = addStoryName(messages, body.answer.trim(), store.name)
@@ -266,6 +270,10 @@ Deno.serve(async (request) => {
     // Replaced photos are no longer referenced; failure to remove can be retried by retention maintenance.
     const replacedPath = body.slot === 'body' ? current.body_image_path : current.image_path
     if (['upload', 'remove-image'].includes(body.action) && replacedPath) await client.storage.from('story-interviews').remove([replacedPath])
+    if (body.action === 'restart') {
+      const paths = [...new Set([current.image_path, current.body_image_path].filter((path): path is string => typeof path === 'string' && Boolean(path)))]
+      if (paths.length) await client.storage.from('story-interviews').remove(paths)
+    }
     return json({ interview: await snapshot(client, saved) })
   } catch (error) {
     if (error instanceof Error && error.message === 'Request too large') return json({ error: 'Fail on liiga suur.' }, 413)

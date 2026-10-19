@@ -48,6 +48,9 @@ async function backend(page: Page) {
       if (body.action === 'load') return reply(route, { interview: state })
       if (body.requestId === state.lastRequestId) return reply(route, { interview: state })
       if (body.version !== state.version) return reply(route, { error: 'Vestlus on vahepeal muutunud. Laadi see uuesti.' }, 409)
+      if (body.action === 'restart') Object.assign(state, { status: 'interview', needsName: true,
+        messages: [{ role: 'assistant', content: 'Mis on sinu nimi?', kind: 'name' }], draft: null,
+        imageUrl: null, imageAlt: '', bodyImageUrl: null, bodyImageAlt: '', bodyImageCaption: '' })
       if (body.action === 'name') {
         state.messages = addStoryName(state.messages, body.answer, state.storeName)
         state.needsName = false
@@ -502,4 +505,85 @@ test('admin only selects published stores and cannot reuse a selection after unp
   await expect(page.getByRole('button', { name: 'Loo intervjuulink' })).toBeDisabled()
   await expect(page.getByRole('list', { name: 'Intervjuud' })).toContainText('Liisi Savipood')
   expect(api.calls.filter((call) => call.action === 'admin-create')).toHaveLength(1)
+})
+
+for (const status of ['interview', 'photo', 'preview']) {
+  test(`merchant can cancel or confirm restarting from ${status} without changing the invitation`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    const api = await backend(page)
+    Object.assign(api.state, { status, needsName: false,
+      messages: [{ role: 'assistant', content: 'Mis on sinu nimi?', kind: 'name' }, { role: 'user', content: 'Liis', kind: 'name' }, { role: 'assistant', content: 'Kuidas alustasid?' }],
+      draft: status === 'preview' ? structuredClone(draft) : null,
+      imageUrl: status === 'interview' ? null : '/images/kaubamaja-example-ceramics.webp', imageAlt: 'Avafoto',
+      bodyImageUrl: status === 'interview' ? null : '/images/kaubamaja-example-ceramics.webp', bodyImageAlt: 'Töötoa foto', bodyImageCaption: 'Töötoas.' })
+    await page.goto(`/lugu/#token=${token}`)
+    if (status === 'interview') await page.getByRole('textbox', { name: 'Sinu vastus' }).fill('Pooleli vastus')
+    const original = structuredClone(api.state)
+    await page.getByRole('button', { name: 'Alusta uuesti', exact: true }).click()
+    const dialog = page.getByRole('alertdialog', { name: 'Alustad intervjuud uuesti?' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Jätka intervjuud' })).toBeFocused()
+    await expect(dialog).toContainText('Senised vastused, loo mustand ja lisatud fotod kustutatakse.')
+    await dialog.getByRole('button', { name: 'Jätka intervjuud' }).click()
+    await expect(dialog).toHaveCount(0)
+    expect(api.state).toEqual(original)
+    expect(api.calls.filter(call => call.action === 'restart')).toHaveLength(0)
+    if (status === 'interview') await expect(page.getByRole('textbox', { name: 'Sinu vastus' })).toHaveValue('Pooleli vastus')
+    await page.getByRole('button', { name: 'Alusta uuesti', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    expect(api.calls.filter(call => call.action === 'restart')).toHaveLength(0)
+    await page.getByRole('button', { name: 'Alusta uuesti', exact: true }).click()
+    if (status === 'preview') await page.screenshot({ path: 'output/story-restart-mobile.png' })
+    await dialog.getByRole('button', { name: 'Alusta uuesti', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('textbox', { name: 'Sinu vastus' })).toHaveValue('')
+    await expect(page.getByRole('log')).toHaveText('Intervjueerija: Mis on sinu nimi?')
+    await expect(page.getByRole('button', { name: 'Alusta uuesti', exact: true })).toHaveCount(0)
+    expect(api.state.draft).toBeNull()
+    expect(api.state.imageUrl).toBeNull()
+    expect(api.state.bodyImageUrl).toBeNull()
+    expect(api.state.bodyImageCaption).toBe('')
+    await page.reload()
+    await expect(page.getByRole('log')).toHaveText('Intervjueerija: Mis on sinu nimi?')
+    await expect(page).toHaveURL(new RegExp(`/lugu/#token=${token}$`))
+    expect(api.calls.filter(call => call.action === 'restart')).toHaveLength(1)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('')
+  })
+}
+
+test('failed restart keeps the current draft and photos and can be retried safely', async ({ page }) => {
+  const api = await backend(page)
+  Object.assign(api.state, { status: 'preview', needsName: false, draft: structuredClone(draft),
+    imageUrl: '/images/kaubamaja-example-ceramics.webp', imageAlt: 'Avafoto' })
+  const attempts: Record<string, any>[] = []
+  await page.route('**/__e2e_supabase/functions/v1/story-interview', async route => {
+    const body = route.request().postDataJSON()
+    if (body?.action !== 'restart') return route.fallback()
+    attempts.push(body)
+    if (attempts.length === 1) return route.fulfill({ status: 500, json: { error: 'Ühendus katkes. Proovi uuesti.' }, headers: { 'Access-Control-Allow-Origin': '*' } })
+    return route.fallback()
+  })
+  await page.goto(`/lugu/#token=${token}`)
+  await page.getByRole('button', { name: 'Alusta uuesti', exact: true }).click()
+  const dialog = page.getByRole('alertdialog')
+  await dialog.getByRole('button', { name: 'Alusta uuesti', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toContainText('Ühendus katkes')
+  expect(api.state.draft).toEqual(draft)
+  expect(api.state.imageUrl).toBeTruthy()
+  await dialog.getByRole('button', { name: 'Alusta uuesti', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('log')).toHaveText('Intervjueerija: Mis on sinu nimi?')
+  expect(attempts[0].requestId).toBe(attempts[1].requestId)
+})
+
+test('stories awaiting approval or already published have no restart action', async ({ page }) => {
+  const api = await backend(page)
+  for (const status of ['pending_review', 'published']) {
+    Object.assign(api.state, { status, needsName: false, draft: structuredClone(draft), imageUrl: '/images/kaubamaja-example-ceramics.webp' })
+    await page.goto(`/lugu/#token=${token}`)
+    await expect(page.getByRole('heading', { name: status === 'pending_review' ? 'Aitäh! Sinu lugu on valmis.' : 'Sinu lugu on valmis.' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Alusta uuesti', exact: true })).toHaveCount(0)
+  }
 })

@@ -118,7 +118,11 @@ Rakendus ise sõnumeid ei saada. Link kehtib 30 päeva; **Uuenda linki** säilit
 vestluse ja muudab eelmise lingi kehtetuks. **Sulge link** lõpetab ligipääsu.
 
 Kaupmees avab `/lugu/#token=…` ilma kontosse sisenemata. AI küsib ühe küsimuse
-kaupa ja kasutab jätkuküsimusteks salvestatud vastuseid. Intervjuule järgnevad
+kaupa ja kasutab jätkuküsimusteks salvestatud vastuseid. Enne loo kinnitamisele
+saatmist saab päises valida **Alusta uuesti**. Pärast eraldi kinnitust
+kustutatakse vastused, mustand ja mõlemad fotod ning alustatakse nime küsimisest.
+Sama intervjuulink jääb kehtima; selle aegumisaeg ja AI kasutuspiirang ei muutu.
+Intervjuule järgnevad
 avafoto, valikuline teine foto artikli sisse ning muudetav eelvaade, mis kasutab
 sama kujundust nagu avaldatud artikkel. **Valmis** saadab loo administraatorile
 kinnitamiseks. Olekus **Ootab kinnitamist** jäävad lugu ja fotod privaatseks;

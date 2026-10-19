@@ -8,6 +8,8 @@
 .story-interview__brand { display: flex; align-items: baseline; gap: .6rem; white-space: nowrap; }
 .story-interview__brand .platform-brand { font-size: 1.55rem; }
 .story-interview__shop { color: #617065; font-size: .8rem; text-align: right; overflow-wrap: anywhere; }
+.story-interview__header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; min-width: 0; }
+.story-interview__restart { min-height: 36px; padding: .35rem .15rem; border: 0; background: transparent; color: #617065; font-size: .72rem !important; text-decoration: underline; text-underline-offset: .2em; }
 .story-interview__center { min-height: 65svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; text-align: center; }
 .story-interview__center h1 { font: 400 clamp(2rem, 5vw, 3.3rem)/1.15 Georgia, serif; margin: 0; letter-spacing: -.04em; }
 .story-interview__center a { color: inherit; }
@@ -37,6 +39,13 @@
 .story-interview__upload-progress p { margin: .85rem 0 0; font-size: 1.15rem; font-weight: 650; line-height: 1.5; }
 .story-interview__upload-progress .story-interview__dots { gap: .5rem; }
 .story-interview__upload-progress .story-interview__dots i { width: .55rem; height: .55rem; background: #265f43; }
+.story-interview__restart-dialog { position: fixed; inset: 0; width: min(30rem, calc(100% - 2.5rem)); max-height: calc(100% - 2.5rem); margin: auto; padding: 1.75rem; border: 1px solid #213c2d18; border-radius: 1.4rem; background: #fcfbf7; color: #213c2d; font: inherit; box-shadow: 0 1.5rem 5rem #102c2433; }
+.story-interview__restart-dialog::backdrop { background: #172f2266; backdrop-filter: blur(3px); }
+.story-interview__restart-dialog h2 { margin: 0 0 1rem; font: 400 1.8rem/1.2 Georgia, serif; letter-spacing: -.03em; }
+.story-interview__restart-dialog p { margin: 0 0 1.5rem; font-size: .9rem; line-height: 1.7; }
+.story-interview__restart-dialog .story-interview__actions { flex-wrap: wrap; }
+.story-interview__restart-dialog .story-interview__primary { background: #943e30; }
+.story-interview__restart-dialog .story-interview__primary:hover:not(:disabled) { background: #793023; }
 .story-interview__dots { display: inline-flex; gap: 5px; align-items: center; min-height: 24px; }
 .story-interview__dots i { width: 6px; height: 6px; border-radius: 50%; background: #80927c; animation: story-dot 1.3s ease infinite; }
 .story-interview__dots i:nth-child(2) { animation-delay: .17s; }.story-interview__dots i:nth-child(3) { animation-delay: .34s; }
@@ -70,7 +79,8 @@
   .story-interview__photos { grid-template-columns: minmax(0, 1fr); }
   .story-interview { padding: 0 1.25rem; }
   .story-interview__header { min-height: 4.75rem; }
-  .story-interview__shop { max-width: 46%; font-size: .73rem; }
+  .story-interview__header-actions { max-width: 46%; }
+  .story-interview__shop { font-size: .73rem; }
   .story-interview__conversation { padding-top: 2.5rem; }
   .story-interview__message { font-size: 1rem; }
   .story-interview__message--user { font-size: .95rem; padding: .8rem 1rem; }
