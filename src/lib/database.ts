@@ -379,7 +379,8 @@ export async function cancelStripeBilling() {
 }
 
 export async function listProducts(storeId: string) {
-  const { data, error } = await requireSupabase().from('products').select('*').eq('store_id', storeId).order('sort_order').order('created_at')
+  const { data, error } = await requireSupabase().from('products').select('*').eq('store_id', storeId)
+    .order('sort_order').order('created_at', { ascending: false }).order('id')
   throwIfError(error)
   return (data ?? []).filter((row) => isSupabaseProductImageUrl(row.image_url)).map(productFromRow)
 }

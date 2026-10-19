@@ -1182,7 +1182,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         delete next[draftProductId]
         return next
       })
-      setActiveIndex((index) => Math.max(0, index - 1))
+      setActiveIndex(0)
       setDraftProductId(null)
     }
     if (storeId && uploadedDuringEditRef.current.size) {
@@ -1432,7 +1432,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       const id = `product-${Date.now()}`
       images.forEach((url) => committedEditImageUrlsRef.current.add(url))
       if (storeId) images.forEach((url) => uploadedDuringEditRef.current.add(url))
-      setAddedProducts((current) => [...current, {
+      setAddedProducts((current) => [{
         id,
         name: '',
         description: '',
@@ -1441,8 +1441,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         imageVariants,
         alt: 'Uue toote pilt',
         searchVisible: true,
-      }])
-      setActiveIndex(displayProducts.length)
+      }, ...current])
+      setActiveIndex(0)
       setSelectedImages((current) => ({ ...current, [id]: 0 }))
       setEditProductImages(images)
       setEditImageTransforms({})
@@ -1489,7 +1489,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }
 
   activeIndexRef.current = activeIndex
-  const displayProducts = [...persistedProducts, ...addedProducts]
+  const displayProducts = [...addedProducts, ...persistedProducts]
     .filter((product) => !deletedProductIds.includes(product.id))
     .map((product) => ({ ...product, ...(productEdits[product.id] ?? {}) }))
   const renderedProducts = displayProducts.length
@@ -2069,7 +2069,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       if (storeId) {
         setPersistedProducts((current) => {
           const exists = current.some((product) => product.id === persisted.id)
-          return exists ? current.map((product) => product.id === persisted.id ? persisted : product) : [...current, persisted]
+          return exists ? current.map((product) => product.id === persisted.id ? persisted : product) : [persisted, ...current]
         })
         setAddedProducts((current) => current.filter((product) => product.id !== activeProduct.id && product.id !== persisted.id))
         setProductEdits((current) => {
@@ -2677,16 +2677,16 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     try {
       if (storeId) {
         const persisted = await saveProduct(storeId, product)
-        setPersistedProducts((current) => [...current, persisted])
+        setPersistedProducts((current) => [persisted, ...current])
       } else {
-        setAddedProducts((current) => [...current, product])
+        setAddedProducts((current) => [product, ...current])
       }
     } catch (error) {
       addProductSubmitLockRef.current = false
       setAddProductError(error instanceof Error ? error.message : 'Toote salvestamine ebaõnnestus')
       return
     }
-    setActiveIndex(displayProducts.length)
+    setActiveIndex(0)
     setIsAddOpen(false)
     setAddProductStep('source')
     setAddProductImages([])
