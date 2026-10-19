@@ -242,10 +242,12 @@ function InterviewSession({ token }: { token: string | null }) {
           : interview.status === 'pending_review' ? <div className="story-interview__center story-interview__done">
             <span className="story-interview__check" aria-hidden="true">✓</span><h1>Aitäh! Sinu lugu on valmis.</h1>
             <p>Lugu ootab Poeruumi administraatori kinnitust. Pärast kinnitamist ilmub see Poeruumis.</p>
+            <a className="story-interview__primary" href="https://kaubamaja.poeruum.ee/">Vaata kaubamaja</a>
           </div>
           : interview.status === 'published' ? <div className="story-interview__center story-interview__done">
             <span className="story-interview__check" aria-hidden="true">✓</span><h1>{interview.publishedUrl ? 'Sinu lugu on avaldatud.' : 'Sinu lugu on valmis.'}</h1>
             {interview.publishedUrl && <a className="story-interview__primary" href={interview.publishedUrl}>Vaata oma lugu <Arrow /></a>}
+            <a className={interview.publishedUrl ? 'story-interview__secondary' : 'story-interview__primary'} href="https://kaubamaja.poeruum.ee/">Vaata kaubamaja</a>
           </div>
             : interview.status === 'preview' && preview && !interview.needsName ? <div className="story-interview__preview">
               {editing ? <DraftEditor draft={interview.draft!} interview={interview} photosOnly={editing === 'photos'} busy={Boolean(busy)}
