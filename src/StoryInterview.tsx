@@ -109,7 +109,7 @@ function DraftEditor({ draft, interview, photosOnly, busy, onPick, onRemove, onS
 export default function StoryInterview() {
   const [token, setToken] = useState(readInterviewToken)
   useEffect(() => {
-    applySeoMetadata({ title: 'Sinu lugu — Poeruum', description: '', canonicalUrl: `${window.location.origin}/lugu/`, noIndex: true })
+    applySeoMetadata({ title: 'Intervjuu — Poeruum', description: '', canonicalUrl: `${window.location.origin}/lugu/`, noIndex: true })
     const sync = () => setToken(readInterviewToken())
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)

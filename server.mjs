@@ -417,9 +417,9 @@ createServer(async (req, res) => {
     }
 
     if (/^\/lugu\/?$/.test(url.pathname)) {
-      const html = (await templatePromise).replace(/<title>[\s\S]*?<\/title>/, '<title>Sinu lugu — Poeruum</title>')
+      const html = (await templatePromise).replace(/<title>[\s\S]*?<\/title>/, '<title>Intervjuu — Poeruum</title>')
         .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
-          title: 'Sinu lugu — Poeruum', description: '', canonical: `https://${host}/lugu/`, noIndex: true, type: 'website', schema: null,
+          title: 'Intervjuu — Poeruum', description: '', canonical: `https://${host}/lugu/`, noIndex: true, type: 'website', schema: null,
         })).replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, '<!-- poeruum:content:start --><!-- poeruum:content:end -->')
       return send(res, 200, req.method === 'HEAD' ? null : html, { 'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' })

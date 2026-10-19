@@ -35,7 +35,7 @@ try {
   assert.equal(interview.headers['cache-control'], 'private, no-store')
   assert.equal(interview.headers['referrer-policy'], 'no-referrer')
   assert.equal(interview.headers['x-robots-tag'], 'noindex, nofollow')
-  assert.match(interview.body, /Sinu lugu — Poeruum/)
+  assert.match(interview.body, /<meta property="og:title" content="Intervjuu — Poeruum"/)
   const article = await get('/lood/merchant-story/')
   assert.equal(article.status, 200)
   assert.match(article.body, /Savi &amp; käed &lt;lugu&gt;/)
