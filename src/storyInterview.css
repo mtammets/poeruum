@@ -32,6 +32,11 @@
 .story-interview__secondary:hover:not(:disabled) { background: #e4e8db; }
 .story-interview__photo-change { width: 48px; padding: .7rem; color: #344e38; background: #e4e8db; }
 .story-interview__working { display: flex; align-items: center; gap: 1rem; color: #6c786c; font-size: .8rem; padding: 1.75rem 0; }
+.story-interview__upload-progress { position: fixed; inset: 0; width: min(22rem, calc(100% - 2.5rem)); max-height: calc(100% - 2.5rem); margin: auto; padding: 2.25rem 1.5rem; border: 1px solid #213c2d18; border-radius: 1.4rem; outline: none; background: #fcfbf7; color: #213c2d; font: inherit; text-align: center; box-shadow: 0 1.5rem 5rem #102c2433; }
+.story-interview__upload-progress::backdrop { background: #172f2266; backdrop-filter: blur(3px); }
+.story-interview__upload-progress p { margin: .85rem 0 0; font-size: 1.15rem; font-weight: 650; line-height: 1.5; }
+.story-interview__upload-progress .story-interview__dots { gap: .5rem; }
+.story-interview__upload-progress .story-interview__dots i { width: .55rem; height: .55rem; background: #265f43; }
 .story-interview__dots { display: inline-flex; gap: 5px; align-items: center; min-height: 24px; }
 .story-interview__dots i { width: 6px; height: 6px; border-radius: 50%; background: #80927c; animation: story-dot 1.3s ease infinite; }
 .story-interview__dots i:nth-child(2) { animation-delay: .17s; }.story-interview__dots i:nth-child(3) { animation-delay: .34s; }

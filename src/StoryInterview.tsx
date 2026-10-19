@@ -12,6 +12,26 @@ const Spinner = () => <span className="story-interview__dots" aria-hidden="true"
 
 type PhotoSlot = 'cover' | 'body'
 
+function PhotoUploadProgress() {
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const element = dialog.current!
+    const { overflow, paddingRight } = document.body.style
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${parseFloat(getComputedStyle(document.body).paddingRight) + scrollbarWidth}px`
+    document.body.style.overflow = 'hidden'
+    element.showModal()
+    return () => {
+      element.close()
+      document.body.style.overflow = overflow
+      document.body.style.paddingRight = paddingRight
+    }
+  }, [])
+  return <dialog ref={dialog} className="story-interview__upload-progress" aria-label="Foto lisamine" onCancel={(event) => event.preventDefault()}>
+    <div role="status" aria-atomic="true"><Spinner /><p>Lisan fotot…</p></div>
+  </dialog>
+}
+
 function StoryPhotos({ interview, busy, onPick, onRemove }: {
   interview: Interview; busy: boolean; onPick: (slot: PhotoSlot) => void; onRemove: () => void
 }) {
@@ -108,7 +128,7 @@ function InterviewSession({ token }: { token: string | null }) {
   }, [token, reload])
 
   useEffect(() => {
-    if (!interview || (!interview.needsName && !['interview', 'photo'].includes(interview.status))) return
+    if (busy === 'upload' || !interview || (!interview.needsName && !['interview', 'photo'].includes(interview.status))) return
     end.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'end' })
   }, [interview, busy])
 
@@ -210,7 +230,7 @@ function InterviewSession({ token }: { token: string | null }) {
                   {(interview.needsName ? [{ role: 'assistant', content: NAME_QUESTION }] : interview.messages).map((message, index) => <div key={index} className={`story-interview__message story-interview__message--${message.role}`}><span className="story-interview__sr">{message.role === 'assistant' ? 'Intervjueerija: ' : 'Sina: '}</span>{message.content}</div>)}
                   {sendingAnswer && <div className="story-interview__message story-interview__message--user"><span className="story-interview__sr">Sina: </span>{sendingAnswer}</div>}
                 </div>
-                {busy && <div className="story-interview__working" role="status"><Spinner /><span>{busy === 'generate' ? 'Kirjutan sinu lugu…' : busy === 'upload' ? 'Lisan fotot…' : 'Mõtlen kaasa…'}</span></div>}
+                {busy && busy !== 'upload' && <div className="story-interview__working" role="status"><Spinner /><span>{busy === 'generate' ? 'Kirjutan sinu lugu…' : 'Mõtlen kaasa…'}</span></div>}
                 {error && <p className="story-interview__error" role="alert">{error}</p>}
                 {interview.status === 'photo' && !interview.needsName && <div className="story-interview__photo">
                   <StoryPhotos interview={interview} busy={Boolean(busy)} onPick={pickPhoto} onRemove={removeBodyPhoto} />
@@ -226,5 +246,6 @@ function InterviewSession({ token }: { token: string | null }) {
                   {!interview.needsName && count >= 3 && <button className="story-interview__finish" disabled={Boolean(busy) || Boolean(answer.trim())} onClick={() => void run('finish', async () => { await mutate('finish') })}>Lõpeta vestlus</button>}
                 </div>}
               </div>}
+    {busy === 'upload' && <PhotoUploadProgress />}
   </main>
 }
