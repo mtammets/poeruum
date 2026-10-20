@@ -110,7 +110,19 @@ export default function StoryInterview() {
   const [token, setToken] = useState(readInterviewToken)
   useEffect(() => {
     applySeoMetadata({ title: 'Intervjuu — Poeruum', description: '', canonicalUrl: `${window.location.origin}/lugu/`, noIndex: true })
-    const sync = () => setToken(readInterviewToken())
+    // A generic canonical URL can replace a personal invitation in link previews.
+    document.head.querySelectorAll('link[rel="canonical"], meta[property="og:url"]').forEach(element => element.remove())
+    const sync = () => {
+      const nextToken = readInterviewToken()
+      if (nextToken) {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('token')
+        url.hash = new URLSearchParams({ token: nextToken }).toString()
+        if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+      }
+      setToken(nextToken)
+    }
+    sync()
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
   }, [])
@@ -237,7 +249,11 @@ function InterviewSession({ token }: { token: string | null }) {
     <input ref={photoInput} className="story-interview__file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Lisa foto" disabled={Boolean(busy)} onChange={(event) => { upload('cover', event.target.files?.[0]); event.target.value = '' }} />
     <input ref={bodyPhotoInput} className="story-interview__file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Lisa teine foto" disabled={Boolean(busy)} onChange={(event) => { upload('body', event.target.files?.[0]); event.target.value = '' }} />
     {loading ? <div className="story-interview__center" role="status" aria-label="Avan vestlust"><Spinner /></div>
-      : unavailable ? <div className="story-interview__center"><h1>See link ei kehti enam.</h1><a href="mailto:info@poeruum.ee">Küsi uut linki</a></div>
+      : unavailable ? <div className="story-interview__center">
+        <h1>{token ? 'See link ei kehti enam.' : 'Intervjuulink on poolik.'}</h1>
+        {!token && <p>Ava sulle saadetud täispikk intervjuulink. Sõnumirakenduses proovi link kopeerida ja avada telefoni veebibrauseris.</p>}
+        <a href="mailto:info@poeruum.ee">Küsi uut linki</a>
+      </div>
         : !interview ? <div className="story-interview__center"><p role="alert">{error}</p><button className="story-interview__primary" onClick={() => setReload((n) => n + 1)}>Proovi uuesti</button></div>
           : interview.status === 'pending_review' ? <div className="story-interview__center story-interview__done">
             <span className="story-interview__check" aria-hidden="true">✓</span><h1>Aitäh! Sinu lugu on valmis.</h1>

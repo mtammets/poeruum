@@ -144,7 +144,7 @@ const seoBlock = ({ title, description, canonical, socialUrl = canonical, image,
     <meta property="og:title" content="${escapeHtml(title)}" />
     <meta property="og:description" content="${escapeHtml(description)}" />
     <meta property="og:type" content="${type}" />
-    <meta property="og:url" content="${escapeHtml(socialUrl)}" />
+    ${socialUrl ? `<meta property="og:url" content="${escapeHtml(socialUrl)}" />` : ''}
     <meta property="og:locale" content="et_EE" />
     <meta property="og:site_name" content="${escapeHtml(schema?.brand?.name || schema?.isPartOf?.name || schema?.name || 'Poeruum')}" />
     ${resolvedImage ? `<meta property="og:image" content="${escapeHtml(resolvedImage)}" />
@@ -157,7 +157,7 @@ const seoBlock = ({ title, description, canonical, socialUrl = canonical, image,
     <meta name="twitter:title" content="${escapeHtml(title)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     ${resolvedImage ? `<meta name="twitter:image" content="${escapeHtml(resolvedImage)}" />` : ''}
-    <link rel="canonical" href="${escapeHtml(canonical)}" />
+    ${canonical ? `<link rel="canonical" href="${escapeHtml(canonical)}" />` : ''}
     ${verification ? `<meta name="google-site-verification" content="${escapeHtml(verification)}" />` : ''}
     <script type="application/ld+json" data-poeruum-structured-data>${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>
     <!-- poeruum:seo:end -->`
@@ -420,7 +420,7 @@ createServer(async (req, res) => {
     if (/^\/lugu\/?$/.test(url.pathname)) {
       const html = (await templatePromise).replace(/<title>[\s\S]*?<\/title>/, '<title>Intervjuu — Poeruum</title>')
         .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
-          title: 'Intervjuu — Poeruum', description: '', canonical: `https://${host}/lugu/`, noIndex: true, type: 'website', schema: null,
+          title: 'Intervjuu — Poeruum', description: '', noIndex: true, type: 'website', schema: null,
         })).replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, '<!-- poeruum:content:start --><!-- poeruum:content:end -->')
       return send(res, 200, req.method === 'HEAD' ? null : html, { 'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' })

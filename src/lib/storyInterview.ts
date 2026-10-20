@@ -21,12 +21,15 @@ export class StoryRequestError extends Error {
   constructor(message: string, readonly status: number) { super(message) }
 }
 
-export function readInterviewToken(hash = window.location.hash) {
-  const token = new URLSearchParams(hash.replace(/^#/, '')).get('token')
-  return token && /^[a-f0-9]{64}$/.test(token) ? token : null
+export function readInterviewToken(hash = window.location.hash, search = window.location.search) {
+  // Some link wrappers append their query after the fragment.
+  const fragment = new URLSearchParams(hash.replace(/^#/, '').replace('?', '&'))
+  const query = new URLSearchParams(search)
+  const tokens = [...new Set([...fragment.getAll('token'), ...query.getAll('token')])]
+  return tokens.length === 1 && /^[a-f0-9]{64}$/.test(tokens[0]) ? tokens[0] : null
 }
 
-export const interviewLink = (token: string) => `https://poeruum.ee/lugu/#token=${token}`
+export const interviewLink = (token: string) => `https://poeruum.ee/lugu/?token=${token}`
 
 export function storyInterviewPreview(interview: StoryInterview | null) {
   return interview?.draft && interview.imageUrl ? { ...interview.draft,

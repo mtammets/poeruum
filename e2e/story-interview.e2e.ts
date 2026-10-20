@@ -395,10 +395,25 @@ test('failed answer and generation preserve input, uploaded photo and request id
   await page.screenshot({ path: 'output/story-preview-desktop.png', fullPage: true })
 })
 
+test('shared query links survive tracking parameters and reload privately', async ({ page }) => {
+  const api = await backend(page)
+  await page.goto(`/lugu/?token=${token}&fbclid=messenger-test`)
+  await expect(page.getByText('Mis on sinu nimi?')).toBeVisible()
+  await expect(page).toHaveURL(`/lugu/?fbclid=messenger-test#token=${token}`)
+  await expect(page.locator('meta[property="og:url"], link[rel="canonical"]')).toHaveCount(0)
+  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute('content', 'no-referrer')
+  expect(api.calls.find(call => call.action === 'load')?.token).toBe(token)
+  await page.reload()
+  await expect(page.getByText('Mis on sinu nimi?')).toBeVisible()
+  await page.goto(`/lugu/#token=${token}?fbclid=messenger-test`)
+  await expect(page.getByText('Mis on sinu nimi?')).toBeVisible()
+  await expect(page).toHaveURL(`/lugu/#token=${token}`)
+})
+
 test('missing and expired links stay private and a stale tab recovers without losing the unsent answer', async ({ page }) => {
   const api = await backend(page)
   await page.goto('/lugu/')
-  await expect(page.getByRole('heading', { name: 'See link ei kehti enam.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Intervjuulink on poolik.' })).toBeVisible()
   expect(api.calls).toHaveLength(0)
   await page.goto(`/lugu/#token=${token}`)
   await expect(page.getByText('Mis on sinu nimi?')).toBeVisible()
@@ -478,7 +493,7 @@ test('admin creates a shop-specific link and revokes it', async ({ page }) => {
   await page.goto('/admin/kaubamaja?view=stories')
   await page.getByLabel('Kaupmees', { exact: true }).selectOption(storeId)
   await page.getByRole('button', { name: 'Loo intervjuulink' }).click()
-  const publicLink = `https://poeruum.ee/lugu/#token=${token}`
+  const publicLink = `https://poeruum.ee/lugu/?token=${token}`
   await expect(page.getByLabel('Intervjuulink', { exact: true })).toHaveValue(publicLink)
   await expect(page.getByRole('link', { name: 'Ava intervjuu ↗' })).toHaveAttribute('href', publicLink)
   await expect(page.getByRole('link', { name: 'Ava SMS-is' })).toHaveAttribute('href', `sms:?&body=${encodeURIComponent(`Jaga oma poe lugu Poeruumis: ${publicLink}`)}`)

@@ -117,7 +117,12 @@ lisatava aadressi; **Ava SMS-is** avab seadme sõnumirakenduse eeltäidetud teks
 Rakendus ise sõnumeid ei saada. Link kehtib 30 päeva; **Uuenda linki** säilitab
 vestluse ja muudab eelmise lingi kehtetuks. **Sulge link** lõpetab ligipääsu.
 
-Kaupmees avab `/lugu/#token=…` ilma kontosse sisenemata. AI küsib ühe küsimuse
+Kaupmees avab `/lugu/?token=…` ilma kontosse sisenemata. Jagamislink kasutab
+päringuparameetrit, et kutse ei sõltuks sõnumirakenduses URL-i fragmendi säilimisest.
+Avamisel viiakse võti kohe `#token=…` fragmenti; ka varasemad fragmendilingid
+töötavad. Intervjuulehel puuduvad üldisele `/lugu/` aadressile osutavad
+`canonical` ja `og:url` viited, mis võiksid isikliku jagamislingi asendada.
+AI küsib ühe küsimuse
 kaupa ja kasutab jätkuküsimusteks salvestatud vastuseid. Enne loo kinnitamisele
 saatmist saab päises valida **Alusta uuesti**. Pärast eraldi kinnitust
 kustutatakse vastused, mustand ja mõlemad fotod ning alustatakse nime küsimisest.
@@ -148,7 +153,7 @@ Juurutusjärjekord:
    (vaikimisi `gpt-5.4-mini`). Ükski salajane võti ei lähe brauserisse.
 4. Ehita ja juuruta veebirakendus koos `server.mjs` muudatustega.
 
-Intervjuuvõti paikneb URL-i fragmendis ja andmebaasis hoitakse ainult selle
+Avatud intervjuu võti paikneb URL-i fragmendis ja andmebaasis hoitakse ainult selle
 SHA-256 räsi. Mustandid, vestlused ja fotod on privaatsed; foto avalik endpoint
 kontrollib avaldatud artikli olemasolu. Muudatused kasutavad versioonikontrolli
 ning päringu identifikaatorit, avaldamine on üks andmebaasitehing. AI päringud
