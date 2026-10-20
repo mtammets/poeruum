@@ -77,19 +77,26 @@ test('the newest story replaces the carousel and expands inline without stretchi
 })
 
 for (const width of [1440, 390]) {
-  test(`the green header closes the story and returns to its opening at ${width}px`, async ({ page }) => {
+  test(`the green header opens and closes the story at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto(directoryUrl)
     const hero = page.locator('.directory-story-hero')
     const header = hero.locator('.directory-story-hero__preview')
     const toggle = hero.getByRole('button', { name: 'Loe edasi', exact: true })
-    for (const target of ['background', 'heading', 'keyboard']) {
+    for (const target of ['background', 'image', 'heading', 'keyboard']) {
       await expect(header.locator('.directory-story-hero__header-close')).toHaveCount(0)
-      await toggle.click()
+      if (target === 'background') await header.click({ position: { x: 8, y: 64 } })
+      else if (target === 'image') await header.getByRole('img').click()
+      else if (target === 'heading') await header.locator('h1').click()
+      else {
+        await toggle.focus()
+        await page.keyboard.press('Enter')
+      }
       await expect.poll(async () => Math.abs((await hero.locator('.directory-story-hero__expansion').boundingBox())!.y)).toBeLessThanOrEqual(1)
       await hero.locator('.directory-story-page__body > p').first().click()
       await expect(hero).toHaveClass(/is-expanded/)
       if (target === 'background') await header.click({ position: { x: 8, y: 64 } })
+      else if (target === 'image') await header.getByRole('img').click()
       else if (target === 'heading') {
         await header.locator('h1').evaluate(element => {
           const range = document.createRange()
@@ -142,12 +149,12 @@ for (const width of [1440, 390]) {
 
 test.describe('touch interaction', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
-  test('tapping beside the article or on its green header closes it', async ({ page }) => {
+  test('tapping the cover opens the article and tapping outside or its header closes it', async ({ page }) => {
     await page.goto(directoryUrl)
     const hero = page.locator('.directory-story-hero')
     const toggle = hero.getByRole('button', { name: 'Loe edasi', exact: true })
     for (const target of ['outside', 'header']) {
-      await toggle.tap()
+      await hero.locator('.directory-story-hero__figure img').tap()
       await expect.poll(async () => Math.abs((await hero.locator('.directory-story-hero__expansion').boundingBox())!.y)).toBeLessThanOrEqual(1)
       if (target === 'outside') await page.touchscreen.tap(4, 400)
       else await hero.locator('.directory-story-hero__preview').tap({ position: { x: 8, y: 64 } })

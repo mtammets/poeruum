@@ -51,10 +51,11 @@ export default function DirectoryStoryHero({ story, isOnlyStory = false, preview
 
   return <article ref={hero} id={isOnlyStory ? 'poeruumi-lood' : undefined}
     className={`store-directory__hero directory-story-hero${expanded ? ' is-expanded' : ''}`} aria-labelledby="featured-story-title">
-    <div className="directory-story-hero__preview" data-collapsible={canCollapse || undefined}
-      onClick={canCollapse ? event => {
+    <div className="directory-story-hero__preview" data-interactive={!preview || undefined}
+      onClick={!preview ? event => {
         if ((event.target as Element).closest('button, a') || window.getSelection()?.toString()) return
-        close()
+        if (expanded) close()
+        else setOpened(true)
       } : undefined}>
       {canCollapse && <button type="button" className="directory-story-hero__header-close" aria-label="Tagasi"
         aria-controls="featured-story-body" aria-expanded={expanded} onClick={close} />}

@@ -14,36 +14,36 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
   align-items: center;
-  gap: clamp(1.75rem, 3vw, 3.25rem);
-  padding: clamp(1.25rem, 2vw, 1.75rem);
+  gap: clamp(1.5rem, 2.5vw, 2.5rem);
+  padding: clamp(1rem, 1.75vw, 1.5rem);
   background: radial-gradient(circle at 5% 4%, rgba(229, 242, 90, .13), transparent 28%), #173d2b;
   color: #f8f7ef;
 }
 
-.directory-story-hero__preview[data-collapsible] { cursor: pointer; }
+.directory-story-hero__preview[data-interactive] { cursor: pointer; }
 .directory-story-hero__header-close { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; background: transparent; cursor: pointer; }
 .directory-story-hero__header-close:focus-visible { outline: 2px solid #e5f25a; outline-offset: -6px; }
 /* Preserve text selection and heading semantics above the keyboard-accessible action. */
 .directory-story-hero__preview > :is(header, figure) { position: relative; }
 
-.directory-story-hero__intro { min-width: 0; padding: clamp(1.5rem, 3vw, 3rem) clamp(.5rem, 1.4vw, 1rem) clamp(1.5rem, 3vw, 3rem) clamp(1rem, 2.8vw, 2.5rem); }
-.directory-story-hero__byline { margin: 0 0 2rem; color: #d4dbbb; font-family: Manrope, sans-serif; font-size: .7rem; font-weight: 600; letter-spacing: .16em; line-height: 1.7; text-transform: uppercase; overflow-wrap: anywhere; }
+.directory-story-hero__intro { min-width: 0; padding: clamp(1rem, 1.5vw, 1.5rem) clamp(.5rem, 1.4vw, 1rem) clamp(1rem, 1.5vw, 1.5rem) clamp(.75rem, 2vw, 1.75rem); }
+.directory-story-hero__byline { margin: 0 0 1.5rem; color: #d4dbbb; font-family: Manrope, sans-serif; font-size: .7rem; font-weight: 600; letter-spacing: .16em; line-height: 1.7; text-transform: uppercase; overflow-wrap: anywhere; }
 .directory-story-hero__intro h1 {
-  margin: 0 0 2rem;
+  margin: 0 0 1.5rem;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(3rem, 4.6vw, 4.75rem);
+  font-size: clamp(2.5rem, 3.9vw, 3.875rem);
   font-weight: 400;
   letter-spacing: -.045em;
-  line-height: 1.04;
+  line-height: 1.07;
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
-.directory-story-hero__excerpt { max-width: 38ch; margin: 0; color: #cbd7cd; font-size: clamp(1rem, 1.25vw, 1.125rem); line-height: 1.8; overflow-wrap: anywhere; }
-.directory-story-hero__toggle { margin-top: 2rem; border: 0; cursor: pointer; }
+.directory-story-hero__excerpt { max-width: 42ch; margin: 0; color: #cbd7cd; font-size: clamp(1rem, 1.1vw, 1.0625rem); line-height: 1.7; overflow-wrap: anywhere; }
+.directory-story-hero__toggle { margin-top: 1.25rem; border: 0; cursor: pointer; }
 /* Keep the header's geometry when the reading action disappears. */
 .directory-story-hero__toggle[aria-hidden="true"] { visibility: hidden; pointer-events: none; }
 .directory-story-hero__figure { min-width: 0; margin: 0; }
-.directory-story-hero__figure img { display: block; width: 100%; height: clamp(25rem, 38vw, 34rem); border-radius: .65rem; object-fit: cover; background: #294d39; }
+.directory-story-hero__figure img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; border-radius: .65rem; object-fit: cover; background: #294d39; }
 .directory-story-hero__figure figcaption { margin-top: .85rem; padding: 0 .15rem; color: #b9c8bb; font-size: .7rem; letter-spacing: .015em; line-height: 1.5; }
 
 .directory-story-hero__expansion { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 450ms ease, visibility 0s 450ms; }
@@ -251,13 +251,13 @@
 }
 
 @media (max-width: 48rem) {
-  .directory-story-hero__preview { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .directory-story-hero__preview { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
   .directory-story-hero__figure { grid-row: 1; }
-  .directory-story-hero__figure img { height: auto; aspect-ratio: 4 / 3; }
+  .directory-story-hero__figure img { height: auto; aspect-ratio: 3 / 2; }
   .directory-story-hero__intro { padding: .5rem .35rem 1rem; }
-  .directory-story-hero__intro h1 { margin-bottom: 1.5rem; font-size: clamp(2.5rem, 9.5vw, 3.75rem); }
-  .directory-story-hero__byline { margin-bottom: 1.5rem; font-size: .65rem; }
-  .directory-story-hero__toggle { margin-top: 1.5rem; }
+  .directory-story-hero__intro h1 { margin-bottom: 1rem; font-size: clamp(2.15rem, 8vw, 3.15rem); }
+  .directory-story-hero__byline { margin-bottom: 1rem; font-size: .65rem; }
+  .directory-story-hero__toggle { margin-top: 1rem; }
   .directory-story-hero .directory-story-page__body p { font-size: 1.08rem; line-height: 1.8; }
   .directory-story-hero .directory-story-page__body > p:first-child::first-letter { font-size: 3.8em; }
   .directory-story-hero .directory-story-page__body blockquote { margin: 2.5rem 0; }
