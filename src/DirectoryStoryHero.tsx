@@ -77,6 +77,7 @@ export default function DirectoryStoryHero({ story, isOnlyStory = false, preview
     <div ref={body} id="featured-story-body" className="directory-story-hero__expansion" tabIndex={-1} aria-hidden={!expanded} inert={!expanded}>
       <div className="directory-story-hero__overflow">
         <div className="directory-story-hero__full-story">
+          <p className="directory-story-hero__body-intro">{story.intro}</p>
           <DirectoryStoryBody story={story} preview={preview} />
           {!preview && <div className="directory-story-hero__end">
             <button type="button" className="directory-story-hero__close" onClick={close}>Tagasi <span aria-hidden="true">↑</span></button>

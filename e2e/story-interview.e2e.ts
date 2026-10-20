@@ -258,13 +258,14 @@ for (const width of [1440, 320]) {
     const measureArticle = () => page.locator('.directory-story-hero').evaluate((hero) => {
       const bounds = hero.getBoundingClientRect()
       return ['.directory-story-hero__byline', '.directory-story-hero__intro h1', '.directory-story-hero__excerpt',
-        '.directory-story-hero__figure img', '.directory-story-hero__figure figcaption',
+        '.directory-story-hero__figure img', '.directory-story-hero__figure figcaption', '.directory-story-hero__body-intro',
         '.directory-story-page__body > p:first-child', '.directory-story-page__body blockquote', '.directory-story-page__body > section h2',
         '.directory-story-page__body-image img', '.directory-story-page__body-image figcaption',
       ].map((selector) => {
         const element = hero.querySelector(selector)!
         const box = element.getBoundingClientRect()
         const style = getComputedStyle(element)
+        if (style.display === 'none') return { selector, display: 'none' }
         return { selector, x: Math.round(box.x - bounds.x), y: Math.round(box.y - bounds.y),
           width: Math.round(box.width), height: Math.round(box.height),
           font: style.fontFamily, size: style.fontSize, lineHeight: style.lineHeight, color: style.color }

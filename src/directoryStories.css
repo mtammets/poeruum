@@ -51,6 +51,7 @@
 .directory-story-hero.is-expanded .directory-story-hero__expansion { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows 450ms ease, visibility 0s; }
 .directory-story-hero__overflow { min-height: 0; overflow: hidden; }
 .directory-story-hero__full-story { padding: clamp(2.5rem, 6vw, 5.5rem) clamp(1.25rem, 4vw, 3rem); overflow-wrap: anywhere; }
+.directory-story-hero__body-intro { display: none; }
 .directory-story-hero .directory-story-page__body { max-width: 42rem; margin: 0 auto; padding: 0; }
 .directory-story-hero .directory-story-page__body p { margin-bottom: 1.5rem; color: #34473a; font-family: Georgia, 'Times New Roman', serif; font-size: 1.2rem; line-height: 1.85; }
 .directory-story-hero .directory-story-page__body > p:first-child { display: flow-root; }
@@ -257,7 +258,9 @@
   .directory-story-hero__intro { padding: .5rem .35rem 1rem; }
   .directory-story-hero__intro h1 { margin-bottom: 1rem; font-size: clamp(2.15rem, 8vw, 3.15rem); }
   .directory-story-hero__byline { margin-bottom: 1rem; font-size: .65rem; }
+  .directory-story-hero__excerpt { display: none; }
   .directory-story-hero__toggle { margin-top: 1rem; }
+  .directory-story-hero__body-intro { display: block; max-width: 42rem; margin: 0 auto 1.5rem; color: #34473a; font: 1.08rem/1.8 Georgia, 'Times New Roman', serif; }
   .directory-story-hero .directory-story-page__body p { font-size: 1.08rem; line-height: 1.8; }
   .directory-story-hero .directory-story-page__body > p:first-child::first-letter { font-size: 3.8em; }
   .directory-story-hero .directory-story-page__body blockquote { margin: 2.5rem 0; }
