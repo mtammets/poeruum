@@ -129,7 +129,7 @@ test('merchant completes a mobile interview, resumes, adds two photos, edits and
   await expect(page.getByRole('heading', { name: 'Esimene tellimus' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Loe edasi' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Tagasi', exact: true })).toHaveCount(0)
-  await expect(page.locator('figcaption')).toHaveText('Foto: Liisi Tamme erakogu')
+  await expect(page.locator('.directory-story-hero__figure figcaption')).toHaveCount(0)
   await expect(page.locator('.directory-story-page__body-image img')).toBeVisible()
   await expect(page.getByText('Meie kaupmehed', { exact: true })).toHaveCount(0)
   await expect(page.getByText(/\d+ min lugemist/)).toHaveCount(0)
@@ -152,7 +152,7 @@ test('merchant completes a mobile interview, resumes, adds two photos, edits and
   await page.getByRole('button', { name: 'Salvesta', exact: true }).click()
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Sinine kruus ja uus algus' })).toBeVisible()
-  await expect(page.locator('figcaption')).toHaveText(['Liisi esimene kruus.', 'Nõud Liisi töötoas.'])
+  await expect(page.locator('figcaption')).toHaveText(['Nõud Liisi töötoas.'])
   await expect(page.getByRole('img', { name: 'Kausid ja kruusid töötoas' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   await page.getByRole('button', { name: 'Valmis', exact: true }).click()
@@ -169,6 +169,7 @@ test('merchant completes a mobile interview, resumes, adds two photos, edits and
   await expect(page.getByRole('heading', { name: 'Sinu lugu on avaldatud.' })).toBeVisible()
   await page.getByRole('link', { name: 'Vaata oma lugu' }).click()
   await expect(page.getByRole('heading', { name: 'Sinine kruus ja uus algus' })).toBeVisible()
+  await expect(page.locator('figcaption')).toHaveText(['Liisi esimene kruus.', 'Nõud Liisi töötoas.'])
   await expect(page.getByRole('img', { name: 'Kausid ja kruusid töötoas' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Külasta poodi' })).toHaveAttribute('href', 'https://liisi-savipood.poeruum.ee/?from=kaubamaja')
   await page.goto('http://kaubamaja.poeruum.localhost:4174/')
@@ -176,7 +177,7 @@ test('merchant completes a mobile interview, resumes, adds two photos, edits and
   await hero.getByRole('button', { name: 'Loe edasi' }).click()
   await expect(page).toHaveURL('http://kaubamaja.poeruum.localhost:4174/')
   await expect(hero.getByRole('heading', { level: 1, name: 'Sinine kruus ja uus algus' })).toBeVisible()
-  await expect(hero.locator('figcaption')).toHaveText(['Liisi esimene kruus.', 'Nõud Liisi töötoas.'])
+  await expect(hero.locator('figcaption')).toHaveText(['Nõud Liisi töötoas.'])
   await expect(hero.getByRole('img', { name: 'Kausid ja kruusid töötoas' })).toBeVisible()
   await expect(hero.getByRole('link', { name: 'Külasta poodi' })).toHaveAttribute('href', 'https://liisi-savipood.poeruum.ee/?from=kaubamaja')
   await hero.locator('.directory-story-hero__close').click()
@@ -258,7 +259,7 @@ for (const width of [1440, 320]) {
     const measureArticle = () => page.locator('.directory-story-hero').evaluate((hero) => {
       const bounds = hero.getBoundingClientRect()
       return ['.directory-story-hero__byline', '.directory-story-hero__intro h1', '.directory-story-hero__excerpt',
-        '.directory-story-hero__figure img', '.directory-story-hero__figure figcaption', '.directory-story-hero__body-intro',
+        '.directory-story-hero__figure img', '.directory-story-hero__body-intro',
         '.directory-story-page__body > p:first-child', '.directory-story-page__body blockquote', '.directory-story-page__body > section h2',
         '.directory-story-page__body-image img', '.directory-story-page__body-image figcaption',
       ].map((selector) => {
@@ -317,7 +318,9 @@ test('a legacy preview asks for the name and resumes with its saved photo and ed
   await answerName(page)
   await expect(page.getByRole('heading', { name: 'Minu parandatud pealkiri' })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Sinine kruus' })).toBeVisible()
-  await expect(page.getByText('Minu esimene kruus.', { exact: true })).toBeVisible()
+  await expect(page.locator('.directory-story-hero__figure figcaption')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Muuda', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: 'Pildiallkiri', exact: true })).toHaveValue('Minu esimene kruus.')
   await page.reload()
   await expect(page.getByRole('button', { name: 'Valmis', exact: true })).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'Sinu vastus' })).toHaveCount(0)
