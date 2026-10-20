@@ -71,7 +71,6 @@ export default function DirectoryStoryHero({ story, isOnlyStory = false, preview
       </header>
       <figure className="directory-story-hero__figure">
         <img src={story.image} alt={story.imageAlt} width="1536" height="2048" fetchPriority="high" decoding="async" />
-        {story.imageCaption && <figcaption>{story.imageCaption}</figcaption>}
       </figure>
     </div>
     <div ref={body} id="featured-story-body" className="directory-story-hero__expansion" tabIndex={-1} aria-hidden={!expanded} inert={!expanded}>
