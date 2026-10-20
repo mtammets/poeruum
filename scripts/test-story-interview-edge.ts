@@ -1,3 +1,5 @@
+import { invoiceLogoFixtures } from './fixtures/invoice-logo.ts'
+
 type Handler = (request: Request) => Response | Promise<Response>
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message) }
 
@@ -76,7 +78,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
         if (method === 'POST') { uploads++; return json({ Key: 'test.webp' }) }
         if (method === 'DELETE') { removed.push(...body.prefixes); return json([]) }
         downloaded.push(url.pathname.split('/story-interviews/')[1])
-        return new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/webp' } })
+        return new Response(Uint8Array.from(atob(invoiceLogoFixtures.webp), (char) => char.charCodeAt(0)), { headers: { 'Content-Type': 'image/webp' } })
       }
       if (url.origin === 'https://api.openai.com') {
         modelCalls++
@@ -166,6 +168,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert(row.image_path === coverPath && !removed.includes(coverPath), 'Second photo replaced or deleted the cover')
     const privateImage = await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))
     assert(privateImage.status === 404, 'Draft image exposed publicly')
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`, { method: 'HEAD' }))).status === 404, 'Draft photo metadata exposed')
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 404, 'Second draft photo exposed publicly')
     assert((await mutate('generate')).status === 200 && row.status === 'preview', 'Article generation failed')
     assert((await mutate('save', { draft: { ...draft, title: '' }, imageAlt: 'Kruus' })).status === 400, 'Invalid article saved')
@@ -219,6 +222,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert((await call({ action: 'admin-review', id: row.id }, true)).status === 200, 'Expired invitation blocked admin review')
     const publish = await call({ action: 'admin-approve', id: row.id, version: reviewed.version }, true)
     assert(publish.status === 200 && article.story.title === 'Minu muudetud lugu' && article.store_id === undefined, 'Approval lost submitted text or failed after link expiry')
+    assert(article.story.imageWidth === 120 && article.story.imageHeight === 40 && article.story.imageType === 'image/webp', 'Publication lost cover dimensions')
     assert(article.body_image_path === row.body_image_path && article.story.bodyImage.src.endsWith('&slot=body') && article.story.bodyImage.alt === 'Kruusid töötoas' && article.story.bodyImage.caption === 'Foto: Liis', 'Publication lost the second photo')
     assert(!JSON.stringify(article.story).includes(row.body_image_path), 'Private storage path leaked into public article')
     assert((await call({ action: 'admin-approve', id: row.id, version: reviewed.version }, true)).status === 200 && publishedCount === 1, 'Approval duplicated publication')
@@ -227,6 +231,11 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert((await mutate('restart')).status === 409 && publishedCount === 1, 'Published story restarted')
     const publicImage = await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))
     assert(publicImage.status === 200 && publicImage.headers.get('Content-Type') === 'image/webp', 'Published photo unavailable')
+    const publicHead = await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`, { method: 'HEAD' }))
+    assert(publicHead.status === 200 && (await publicHead.arrayBuffer()).byteLength === 0, 'Published cover HEAD failed or returned a body')
+    for (const header of ['Content-Type', 'Content-Length', 'Cache-Control']) {
+      assert(publicHead.headers.get(header) === publicImage.headers.get(header), `HEAD differs from GET: ${header}`)
+    }
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 200 && downloaded.at(-1) === article.body_image_path, 'Published second photo unavailable or wrong')
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=third`))).status === 404, 'Unknown public photo slot accepted')
     const publishedBodyPath = article.body_image_path
@@ -234,6 +243,7 @@ Deno.test('story interview enforces invitations, admin access, state transitions
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 404, 'Missing second photo returns cover')
     article.body_image_path = publishedBodyPath
     article.is_published = false
+    assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`, { method: 'HEAD' }))).status === 404, 'Hidden photo metadata exposed')
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}`))).status === 404, 'Hidden photo exposed')
     assert((await handler!(new Request(`https://edge.example.invalid/story-interview?image=${row.id}&slot=body`))).status === 404, 'Hidden second photo exposed')
     row.expires_at = '2000-01-01'

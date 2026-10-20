@@ -136,7 +136,7 @@ async function getStoreDirectory() {
   }
 }
 
-const seoBlock = ({ title, description, canonical, socialUrl = canonical, image, imageWidth, imageHeight, imageType, type, noIndex, schema, verification }) => {
+const seoBlock = ({ title, description, canonical, socialUrl = canonical, image, imageWidth, imageHeight, imageType, imageAlt = title, type, noIndex, schema, verification }) => {
   const resolvedImage = absoluteImage(image)
   return `<!-- poeruum:seo:start -->
     <meta name="description" content="${escapeHtml(description)}" />
@@ -149,9 +149,9 @@ const seoBlock = ({ title, description, canonical, socialUrl = canonical, image,
     <meta property="og:site_name" content="${escapeHtml(schema?.brand?.name || schema?.isPartOf?.name || schema?.name || 'Poeruum')}" />
     ${resolvedImage ? `<meta property="og:image" content="${escapeHtml(resolvedImage)}" />
     <meta property="og:image:secure_url" content="${escapeHtml(resolvedImage)}" />
-    <meta property="og:image:alt" content="${escapeHtml(title)}" />
+    <meta property="og:image:alt" content="${escapeHtml(imageAlt)}" />
     ${imageType ? `<meta property="og:image:type" content="${escapeHtml(imageType)}" />` : ''}
-    ${imageWidth && imageHeight ? `<meta property="og:image:width" content="${imageWidth}" />
+    ${Number.isInteger(imageWidth) && imageWidth > 0 && Number.isInteger(imageHeight) && imageHeight > 0 ? `<meta property="og:image:width" content="${imageWidth}" />
     <meta property="og:image:height" content="${imageHeight}" />` : ''}` : ''}
     <meta name="twitter:card" content="${resolvedImage ? 'summary_large_image' : 'summary'}" />
     <meta name="twitter:title" content="${escapeHtml(title)}" />
@@ -305,6 +305,7 @@ function renderDirectoryStory(template, story) {
     .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
       title, description: story.intro, canonical,
       image: new URL(story.image, `https://${storeDirectoryHost}`).href,
+      imageWidth: story.imageWidth, imageHeight: story.imageHeight, imageType: story.imageType, imageAlt: story.imageAlt,
       type: 'article', noIndex: false, schema: directoryStorySchema(story),
     }))
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`)

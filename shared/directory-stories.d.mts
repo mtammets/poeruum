@@ -4,6 +4,9 @@ export type DirectoryStory = {
   category: string
   intro: string
   image: string
+  imageWidth?: number
+  imageHeight?: number
+  imageType?: string
   imageAlt: string
   imageCaption: string
   bodyImage?: { src: string; alt: string; caption: string }

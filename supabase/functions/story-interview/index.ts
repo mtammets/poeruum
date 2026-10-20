@@ -1,8 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { captureEdgeError, checkRateLimit, rateLimitResponse } from '../_shared/security.ts'
+import { storyImageMetadata } from '../_shared/story-image.ts'
 import { addStoryName, decodeStoryImage, firstStoryQuestion, MAX_STORY_ANSWERS, NAME_QUESTION, nextStoryQuestion, parseStoryDraft, PHOTO_QUESTION, storyAnswerCount, storyRespondentName, validStoryId, validStoryToken, writeStoryDraft, type StoryMessage } from '../_shared/story-interview.ts'
 
-const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }
+const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS' }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } })
 const db = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('POERUUM_SUPABASE_SECRET_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } })
 const hashToken = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), (byte) => byte.toString(16).padStart(2, '0')).join('')
@@ -99,9 +100,13 @@ async function adminAction(request: Request, client: ReturnType<typeof db>, body
     if (!draft || !row.image_path) return conflict()
     const { data: store, error: storeError } = await client.from('stores').select('name,slug').eq('id', row.store_id).single()
     if (storeError || !store) throw new Error('Story store unavailable')
+    const { data: cover, error: coverError } = await client.storage.from('story-interviews').download(row.image_path)
+    if (coverError || !cover) throw new Error('Story cover unavailable')
+    const imageMetadata = storyImageMetadata(new Uint8Array(await cover.arrayBuffer()))
     const slug = `${store.slug}-${row.id.replaceAll('-', '')}`
     const document = { ...draft, slug, category: 'Meie kaupmehed', author: store.name, storeSlug: store.slug, storeName: store.name,
       image: `${Deno.env.get('SUPABASE_URL')}/functions/v1/story-interview?image=${row.id}`,
+      ...imageMetadata,
       imageAlt: row.image_alt || store.name, publishedAt: new Date().toISOString(),
       ...(row.body_image_path ? { bodyImage: {
         src: `${Deno.env.get('SUPABASE_URL')}/functions/v1/story-interview?image=${row.id}&slot=body`,
@@ -142,7 +147,7 @@ Deno.serve(async (request) => {
   let uploadedPath: string | null = null
   try {
     // Private Storage is exposed only through an existing, published article.
-    if (request.method === 'GET') {
+    if (request.method === 'GET' || request.method === 'HEAD') {
       const params = new URL(request.url).searchParams
       const id = params.get('image'), slot = params.get('slot') || 'cover'
       if (!validStoryId(id) || !['cover', 'body'].includes(slot)) return json({ error: 'Pilti ei leitud.' }, 404)
@@ -152,7 +157,8 @@ Deno.serve(async (request) => {
       if (!imagePath) return json({ error: 'Pilti ei leitud.' }, 404)
       const { data, error: downloadError } = await client.storage.from('story-interviews').download(imagePath)
       if (downloadError || !data) throw new Error('Public story image download failed')
-      return new Response(data, { headers: { ...cors, 'Content-Type': data.type || 'image/webp',
+      return new Response(request.method === 'HEAD' ? null : data, { headers: { ...cors, 'Content-Type': data.type || 'image/webp',
+        'Content-Length': String(data.size),
         'Cache-Control': 'public, max-age=60, s-maxage=300', 'X-Content-Type-Options': 'nosniff' } })
     }
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)

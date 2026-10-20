@@ -43,6 +43,13 @@ try {
   assert.match(article.body, /Külasta poodi/)
   assert.match(article.body, /id="poeruum-stories-data"/)
   assert.doesNotMatch(article.body, /class="directory-story-page__body-image"/)
+  assert.doesNotMatch(article.body, /property="og:image:width"/)
+  Object.assign(story, { imageWidth: 1672, imageHeight: 941, imageType: 'image/png' })
+  const socialArticle = (await get('/lood/merchant-story/')).body
+  assert.match(socialArticle, /property="og:image:width" content="1672"/)
+  assert.match(socialArticle, /property="og:image:height" content="941"/)
+  assert.match(socialArticle, /property="og:image:type" content="image\/png"/)
+  assert.match(socialArticle, /property="og:image:alt" content="Kruus"/)
   story.bodyImage = { src: 'https://example.invalid/detail.webp', alt: 'Savi & glasuur', caption: '<Detail> töötoast' }
   for (const sections of [[], [{ title: 'Esimene osa', paragraphs: ['Algus.'] }, { title: 'Teine osa', paragraphs: ['Jätk.'] }]]) {
     story.sections = sections
