@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 // Only reviewed, isolated views get a smaller suite. Everything else is full CI.
 export const uiScopes = [
   {
-    files: ['src/DirectoryStories.tsx', 'src/DirectoryStoryArticle.tsx', 'src/DirectoryStoryPage.tsx', 'src/DirectoryStoryDialog.tsx', 'src/StoryArrow.tsx', 'src/StoryInterview.tsx', 'src/directoryStories.css', 'src/storyInterview.css'],
+    files: ['src/DirectoryStories.tsx', 'src/DirectoryStoryHero.tsx', 'src/DirectoryStoryArticle.tsx', 'src/DirectoryStoryPage.tsx', 'src/DirectoryStoryDialog.tsx', 'src/StoryArrow.tsx', 'src/StoryInterview.tsx', 'src/directoryStories.css', 'src/storyInterview.css', 'e2e/directory-stories.e2e.ts', 'e2e/story-interview.e2e.ts'],
     browser: ['e2e/directory-stories.e2e.ts', 'e2e/story-interview.e2e.ts'],
     server: ['test:story-server'],
   },

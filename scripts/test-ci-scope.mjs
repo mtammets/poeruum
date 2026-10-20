@@ -16,6 +16,17 @@ test('story changes select both the interview and public article, including serv
   assert.deepEqual(plan.shards, [1])
 })
 
+test('story cover and related test edits stay within story checks, alone or together', () => {
+  const paths = ['src/DirectoryStoryHero.tsx', 'src/directoryStories.css', 'e2e/directory-stories.e2e.ts', 'e2e/story-interview.e2e.ts']
+  for (const changes of [...paths.map((path) => modified(path)), modified(...paths)]) {
+    const plan = classifyChanges(changes)
+    assert.equal(plan.mode, 'ui')
+    assert.deepEqual(plan.browser, ['e2e/directory-stories.e2e.ts', 'e2e/story-interview.e2e.ts'])
+    assert.deepEqual(plan.server, ['test:story-server'])
+    assert.deepEqual(plan.shards, [1])
+  }
+})
+
 test('multiple views combine all related checks without duplicates', () => {
   const plan = classifyChanges(modified('src/Kaubamaja.tsx', 'src/StoryInterview.tsx', 'src/DailyHoroscope.tsx'))
   for (const scope of uiScopes.slice(0, 3)) {
@@ -39,12 +50,13 @@ test('docs skip unrelated suites; every unreviewed or shared change forces full 
   const docs = classifyChanges(modified('README.md', 'docs/ci.md'))
   assert.equal(docs.mode, 'docs')
   assert.deepEqual(docs.browser, [])
-  for (const path of ['src/App.tsx', 'src/styles.css', 'src/brand.css', 'src/lib/storyInterview.ts', 'src/StorefrontCart.tsx', 'shared/directory-stories.mjs', 'server.mjs', 'package.json', 'package-lock.json', '.github/workflows/ci.yml', 'scripts/ci-scope.mjs', 'supabase/migrations/new.sql', 'supabase/functions/story-interview/index.ts', 'e2e/story-interview.e2e.ts', 'src/NewView.tsx', 'public/new.svg', 'AGENTS.md']) {
+  for (const path of ['src/App.tsx', 'src/styles.css', 'src/brand.css', 'src/lib/storyInterview.ts', 'src/StorefrontCart.tsx', 'shared/directory-stories.mjs', 'server.mjs', 'package.json', 'package-lock.json', '.github/workflows/ci.yml', 'scripts/ci-scope.mjs', 'supabase/migrations/new.sql', 'supabase/functions/story-interview/index.ts', 'e2e/unknown.e2e.ts', 'src/NewView.tsx', 'public/new.svg', 'AGENTS.md']) {
     const plan = classifyChanges(modified('src/storyInterview.css', path))
     assert.equal(plan.mode, 'full', path)
     assert.deepEqual(plan.shards, [1, 2, 3, 4])
   }
   assert.equal(classifyChanges([]).mode, 'full')
+  assert.equal(classifyChanges(modified('e2e/story-interview.e2e.ts', 'server.mjs')).mode, 'full')
 })
 
 test('removed, renamed and type-changed files always run full CI', () => {

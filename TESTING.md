@@ -25,6 +25,12 @@ npx supabase stop --no-backup
 
 GitHub Actionsi `CI` töövoog teeb need kontrollid iga pull request’i ja `main` haru push’i järel puhtas keskkonnas. Ükski CI põhikontroll ei kasuta tootmise Supabase’i ega Stripe’i võtmeid.
 
+Lugude vaadete, sealhulgas `DirectoryStoryHero.tsx`, stiilide ja seotud
+`directory-stories.e2e.ts` / `story-interview.e2e.ts` testide muudatused käivitavad
+ainult mõlemad lugude brauseritestid ja `test:story-server` kontrolli.
+Lint, üksustestid, rakenduse build ja sõltuvuste audit jäävad üldkontrollideks.
+Ühise loogika, andmebaasi või CI seadistuse muudatused käivitavad kogu komplekti.
+
 ## Ajutine staging E2E
 
 `Ephemeral Staging E2E` on käsitsi käivitatav. See loob Micro-suuruses Supabase’i projekti ja Stripe’i testkonfiguratsiooni ainult testi ajaks ning kustutab mõlemad töö lõpus ka vea korral. Iga käivitus kasutab ligikaudu ühe tunni Micro compute’i. Eraldi kahe tunni järel töötav koristaja kustutab üle kolme tunni vanused `poeruum-e2e-*` projektid, mis võisid jääda alles katkestatud GitHub Actionsi job’ist.
