@@ -384,7 +384,7 @@ function renderStoreDirectory(template, stores, sharedHoroscope = null, publishe
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
 }
 
-const mime = { '.webmanifest': 'application/manifest+json; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2', '.m4a': 'audio/mp4', '.mp4': 'video/mp4' }
+const mime = { '.webmanifest': 'application/manifest+json; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.mp4': 'video/mp4' }
 const send = (res, status, body, headers = {}) => {
   res.writeHead(status, { ...securityHeaders, ...headers })
   res.end(body)
@@ -404,7 +404,7 @@ createServer(async (req, res) => {
     }
     const assetPath = path.normalize(decodedPathname).replace(/^(\.\.(\/|\\|$))+/, '')
     const file = path.join(dist, assetPath)
-    const isStaticAsset = ['/assets/', '/images/', '/data/', '/campaigns/'].some((prefix) => url.pathname.startsWith(prefix))
+    const isStaticAsset = ['/assets/', '/images/', '/data/', '/campaigns/', '/fonts/', '/audio/'].some((prefix) => url.pathname.startsWith(prefix))
       || ['/favicon.ico', '/manifest.webmanifest', '/admin.webmanifest', '/admin-push-sw.js', '/closed-storefront.js'].includes(url.pathname)
     if (isStaticAsset && !url.pathname.endsWith('/') && file.startsWith(dist)) {
       const fileStat = await stat(file).catch(() => null)
