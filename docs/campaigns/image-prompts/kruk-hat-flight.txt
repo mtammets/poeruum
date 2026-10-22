@@ -1,0 +1,16 @@
+Mütsi esiplaanile lendamise pildikihid — 2026-10-21
+Tööriist: sisseehitatud image_gen (imagegen-oskuse vaikeviis).
+Mõlemad tulemused genereeriti läbipaistva taustaga, teisendati WebP-ks
+(cwebp -q 92 -alpha_q 100) ja salvestati projekti.
+
+1. public/images/campaigns/kruk-cap-cutout-v1.webp
+Sisend: Krük-Krüki avaliku kataloogi nokkmütsi tootefoto (output/kruk-cap.webp).
+Prompt:
+Use case: background-extraction. Edit target: the supplied product photo of a black Krük-Krük mesh trucker cap with an embroidered pair of white outline woodpeckers with red heads. Remove ONLY the forest, rock, moss, and everything outside the cap. Preserve the actual cap's exact shape, proportions, viewing angle, bill, black mesh, seams, fabric, and especially the embroidery design without redrawing or inventing any logo details. Produce a crisp high-resolution isolated product cutout on a genuinely transparent background. Center the cap with a small even transparent margin around it. The cap alone should fill about 85% of the image width. No ground, no background, no text, no added objects, no cast shadow.
+
+2. public/images/campaigns/musta-rahni-bareheaded-v1.webp
+Sisend: public/images/campaigns/musta-rahni-cutout-v2.webp.
+Veebis kasutatakse sellest ainult väikest peapiirkonda; linnu ja ülejäänud
+ratsaniku pikslid jäävad algsest pildist.
+Prompt:
+Use case: precise-object-edit. Edit target: the supplied transparent image of a man in brown outdoor clothes riding a giant flying black woodpecker. Remove ONLY the man's black baseball cap. Reconstruct the top of his head underneath with natural very short dark hair. Keep his face, sunglasses, moustache, expression, head orientation, body, clothing, pose, bird, feathers, lighting and ALL other pixels exactly unchanged. Keep the same full image framing, aspect ratio, placement and size of the man and bird so this can be layered on top of the original and align perfectly. The removed cap's protruding bill becomes genuine transparency. Preserve genuine transparent background everywhere else, including between feathers. Do not zoom, crop, move, rescale, add or remove anything else. Output the complete original composition, only with the man bareheaded.

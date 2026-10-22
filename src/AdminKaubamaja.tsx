@@ -3,9 +3,10 @@ import AdminStoreDirectory from './AdminStoreDirectory'
 import AdminDirectoryAnalytics from './AdminDirectoryAnalytics'
 import AdminHomepageShowcase from './AdminHomepageShowcase'
 import AdminStories from './AdminStories'
+import AdminDirectoryCampaign from './AdminDirectoryCampaign'
 import './directoryAnalytics.css'
 
-const tabs = [['stats', 'Statistika'], ['order', 'Poodide järjekord'], ['homepage', 'Avalehe eelvaade'], ['stories', 'Poeruumi lood']] as const
+const tabs = [['stats', 'Statistika'], ['order', 'Poodide järjekord'], ['homepage', 'Avalehe eelvaade'], ['stories', 'Poeruumi lood'], ['campaign', 'Kampaania']] as const
 
 export default function AdminKaubamaja() {
   const requested = new URLSearchParams(window.location.search).get('view')
@@ -46,6 +47,9 @@ export default function AdminKaubamaja() {
     </div>
     <div id="directory-panel-stories" role="tabpanel" aria-labelledby="directory-tab-stories" hidden={tab !== 'stories'}>
       {visited.has('stories') && <AdminStories />}
+    </div>
+    <div id="directory-panel-campaign" role="tabpanel" aria-labelledby="directory-tab-campaign" hidden={tab !== 'campaign'}>
+      {visited.has('campaign') && <AdminDirectoryCampaign />}
     </div>
   </div>
 }

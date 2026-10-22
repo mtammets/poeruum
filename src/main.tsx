@@ -73,6 +73,9 @@ if (isDeindexedTestStorePath) {
 const isPoeruumHomepage = /^(?:www\.)?poeruum\.ee$/i.test(window.location.hostname)
   && window.location.pathname === '/' && !hasAppReturnState
 const isStoreDirectorySurface = isStoreDirectoryHostname(window.location.hostname)
+  // A LAN IP has no Kaubamaja subdomain; allow the local phone preview explicitly.
+  || (import.meta.env.DEV && window.location.pathname === '/'
+    && new URLSearchParams(window.location.search).get('preview') === 'kaubamaja')
 const isStorefrontSubdomain = getStoreSlugFromHostname(window.location.hostname) !== null
 const isPlatformSurface = isStoreDirectorySurface
   || (isPlatformHostname(window.location.hostname) && !isStorefrontSubdomain)

@@ -1,0 +1,15 @@
+Mode: built-in image_gen, natural outdoor portrait compositing.
+Input: public/images/campaigns/kruk-cap-model-v1.webp (user-supplied model extracted from original photo).
+Final asset: public/images/campaigns/kruk-cap-forest-model-v1.webp.
+Typography, pricing and purchase controls are rendered separately in HTML/CSS.
+
+Use case: compositing / identity-preserve.
+Create one premium outdoor apparel advertising photograph using the supplied transparent portrait as the edit target. The reference contains the exact man and cap to preserve. Output a SQUARE 1:1 photographic composition, no typography or graphic design baked into the photo.
+
+IDENTITY AND PRODUCT: Keep this exact recognizable moustached man, age, face, calm deadpan expression, brown zip fleece jacket, dark rectangular sunglasses, black mesh trucker cap and exact small embroidered two-woodpecker logo with red crowns and white linework. Do not invent a different face, hat shape, or logo. He faces toward camera-right as in the reference. Do not mirror the photo. Keep the entire cap brim comfortably inside the frame.
+
+NEW NATURAL SETTING: Place him naturally in a quiet northern European pine forest, with deep muted moss-green vegetation and softly blurred pine trunks receding into the distance. Warm low afternoon sunlight from the upper right matches the portrait's existing warm rim lighting. Sophisticated outdoor fashion campaign photography, real natural atmosphere, subtle depth and film-like texture, restrained color, rich pine greens and warm earthy browns. No studio backdrop, red background, vivid orange wash, giant birds, wings, feathers, mystical effects, graphic shapes or artificial halo. This is a new forest scene, not the original reference's forest.
+
+COMPOSITION IS CRITICAL: A relaxed medium portrait from mid-chest up, not a gigantic face close-up. Place the model in the RIGHT HALF of the square image. Center of face around 72% image width and 54% image height. Top of cap around 24% image height. Keep the head and complete cap between 53% and 92% image width, with generous air above and to the right. Shoulders and the brown jacket continue naturally through the bottom-right edge; reconstruct the missing jacket area as necessary, absolutely no hard vertical cutout edge on either shoulder. The person should look photographed in this forest, not pasted on.
+Reserve the LEFT 45% as quiet dark softly defocused pine forest, with no sharp branches, bright highlights or other subjects. Reserve the TOP 15% and BOTTOM 18% as relatively dark low-detail photo areas for later real HTML brand text and product information. Bottom foreground can have subtle out-of-focus natural greenery, never obscuring the face or cap. The photograph should have elegant photographic depth and a purposeful balanced asymmetrical composition.
+No text, captions, fake logo additions, borders, watermarks, buttons, pricing, stars or decoration. Photorealistic.

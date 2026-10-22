@@ -1,0 +1,786 @@
+@font-face {
+  font-family: 'Caveat Campaign';
+  src: url('/fonts/caveat/Caveat-Variable.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Anton Cry';
+  src: url('/fonts/anton/Anton-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bodoni Campaign';
+  src: url('/fonts/bodoni-moda/BodoniModa-Semibold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bodoni Campaign';
+  src: url('/fonts/bodoni-moda/BodoniModa-Italic.ttf') format('truetype');
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@property --black-friday-flight-phase {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+:root:has(.store-directory[data-directory-theme='black-friday']),
+:root:has(.store-directory[data-directory-theme='black-friday']) body,
+:root:has(.store-directory[data-directory-theme='black-friday']) #root {
+  background: #f0eadc;
+}
+.store-directory[data-directory-theme='black-friday'] {
+  --black-friday-paper: #f0eadc;
+  --black-friday-ink: #531b25;
+  --black-friday-accent: #bc2b29;
+  --platform-ink: var(--black-friday-ink);
+  --platform-green: var(--black-friday-ink);
+  --platform-lime: var(--black-friday-paper);
+  background: var(--black-friday-paper);
+  overflow-x: clip;
+}
+
+/* The campaign occupies its own row before the regular store cards. */
+.store-directory[data-directory-theme='black-friday'] .kruk-store-card {
+  container-type: inline-size;
+  grid-column: 1 / -1;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0;
+  border-radius: .6rem;
+  background: #531b25;
+  color: #faf3e5;
+  box-shadow: none;
+}
+.kruk-store-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse at 77% 42%, #b1695966, transparent 53%);
+  content: '';
+  pointer-events: none;
+}
+.kruk-store-card__stage {
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  grid-template-columns: 47% 53%;
+  grid-template-areas: 'brand image' 'heading image' 'offer image';
+  gap: 2.5cqw 0;
+  min-height: 43cqw;
+  padding: 3.8cqw 4.5cqw 4cqw;
+}
+.kruk-store-card__store {
+  grid-area: brand;
+  position: relative;
+  z-index: 2;
+  justify-self: start;
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 1.4rem;
+  color: inherit;
+  text-decoration: none;
+}
+.kruk-store-card__store > span:first-child {
+  font: 800 clamp(1.2rem, 2.05cqw, 1.8rem)/1 Manrope, sans-serif;
+  letter-spacing: -.055em;
+}
+.kruk-store-card__visit {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font: 600 .75rem/1.2 Manrope, sans-serif;
+  opacity: .78;
+}
+.kruk-store-card__store:hover .kruk-store-card__visit { opacity: 1; text-decoration: underline; text-underline-offset: .25em; }
+.kruk-store-card__campaign {
+  grid-area: heading;
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  align-self: center;
+}
+.kruk-store-card__title {
+  display: flex;
+  flex-direction: column;
+  gap: .16em;
+  font: 400 clamp(3.6rem, 8.5cqw, 7.4rem)/1.02 'Anton Cry', Impact, sans-serif;
+  letter-spacing: -.025em;
+}
+.kruk-store-card__title > span { display: block; }
+.kruk-store-card__edition {
+  display: block;
+  margin-top: 1.25rem;
+  font: 800 clamp(.9rem, 1.45cqw, 1.25rem)/1.3 Manrope, sans-serif;
+  letter-spacing: .14em;
+}
+.kruk-store-card__photo {
+  grid-area: image;
+  position: relative;
+  align-self: center;
+  width: 112%;
+  margin-left: -16%;
+  transform: rotate(-12deg);
+}
+.kruk-store-card__cap {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  filter: drop-shadow(0 2.5cqw 1.5cqw #18080c55);
+  transition: transform 650ms cubic-bezier(.16, 1, .3, 1);
+}
+.kruk-store-card__offer { grid-area: offer; position: relative; z-index: 2; align-self: end; }
+.kruk-store-card__product {
+  display: inline-block;
+  margin-bottom: .65rem;
+  color: inherit;
+  font: 500 clamp(.85rem, 1.1cqw, 1rem)/1.3 Manrope, sans-serif;
+  text-decoration: none;
+}
+.kruk-store-card__product:hover { text-decoration: underline; text-underline-offset: .25em; }
+.kruk-store-card__purchase { display: flex; flex-wrap: wrap; align-items: center; gap: 1.2rem 2rem; }
+.kruk-store-card__price { display: flex; flex-wrap: wrap; align-items: baseline; gap: .65rem; margin: 0; }
+.kruk-store-card__price strong { font: 600 clamp(1.8rem, 3cqw, 2.8rem)/1 Manrope, sans-serif; letter-spacing: -.06em; white-space: nowrap; }
+.kruk-store-card__price del { font: 500 .85rem/1.3 Manrope, sans-serif; color: #d8b7b6; white-space: nowrap; }
+.kruk-store-card__buy {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  min-height: 3.4rem;
+  padding: 1rem 1.3rem;
+  border: 1px solid transparent;
+  border-radius: .2rem;
+  background: #faf3e5;
+  color: #531b25;
+  font: 800 clamp(.8rem, 1.1cqw, 1rem)/1.2 Manrope, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 180ms ease, transform 180ms ease;
+}
+.kruk-store-card__buy:hover { background: #fff; transform: translateY(-2px); }
+.kruk-store-card__buy:disabled { cursor: wait; opacity: .7; }
+.kruk-store-card__buy svg,
+.kruk-store-card__visit svg { width: 1.15rem; height: 1.15rem; stroke: currentColor; stroke-width: 1.5; }
+.kruk-store-card :is(a, button):focus-visible { outline: 2px solid #faf3e5; outline-offset: 5px; }
+.kruk-store-card__error { margin: 1rem 0 0; font-size: .9rem; }
+.kruk-store-card__error a { color: inherit; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .kruk-store-card__photo:hover .kruk-store-card__cap { transform: translateY(-.8rem) rotate(5deg) scale(1.04); }
+}
+@container (max-width: 560px) {
+  .kruk-store-card__stage {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'brand' 'heading' 'image' 'offer';
+    gap: 1.5rem;
+    min-height: 0;
+    padding: clamp(1.35rem, 5.5cqw, 2.5rem);
+  }
+  .kruk-store-card__store { width: 100%; justify-content: space-between; }
+  .kruk-store-card__store > span:first-child { font-size: 1.3rem; }
+  .kruk-store-card__title { flex-direction: row; gap: .2em; font-size: 11.2cqw; }
+  .kruk-store-card__edition { margin-top: .75rem; font-size: clamp(.8rem, 2.5cqw, 1.1rem); }
+  .kruk-store-card__photo { width: 100%; margin: -1cqw 0; }
+  .kruk-store-card__offer { padding-top: .3rem; }
+  .kruk-store-card__purchase { justify-content: space-between; gap: 1rem .75rem; }
+  .kruk-store-card__price { flex-direction: column; gap: .3rem; }
+  .kruk-store-card__price strong { font-size: clamp(1.9rem, 6.7cqw, 2.8rem); }
+  .kruk-store-card__price del { font-size: .8rem; }
+  .kruk-store-card__buy { gap: .65rem; padding: .9rem 1rem; font-size: clamp(.8rem, 2.5cqw, 1rem); }
+}
+@container (max-width: 340px) {
+  .kruk-store-card__purchase { column-gap: .4rem; }
+  .kruk-store-card__buy { gap: .4rem; padding-inline: .75rem; font-size: .75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kruk-store-card__cap,
+  .kruk-store-card__buy { transition: none; }
+  .kruk-store-card__buy:hover { transform: none; }
+}
+
+.store-directory[data-directory-theme='black-friday'] .black-friday-banner {
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  width: min(100%, 92rem);
+  height: auto;
+  aspect-ratio: 2.22;
+  margin: .75rem auto 3rem;
+  border-top: 1px solid #531b2533;
+  border-bottom: 1px solid #531b2533;
+  color: var(--black-friday-ink);
+}
+
+.store-directory[data-directory-theme='black-friday'] .black-friday-banner__title {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1.5cqw;
+  margin: 0;
+  font-family: 'Bodoni Campaign', Georgia, serif;
+  font-weight: 600;
+  font-synthesis: none;
+  line-height: .95;
+  pointer-events: none;
+}
+
+.black-friday-banner__musta,
+.black-friday-banner__rahni,
+.black-friday-banner__paevad {
+  display: block;
+  white-space: nowrap;
+  letter-spacing: -.065em;
+  /* Keep the display font's hairlines legible over the moving forest. */
+  -webkit-text-stroke: clamp(.55px, .008em, 1.5px) currentColor;
+  paint-order: stroke fill;
+}
+.black-friday-banner__musta {
+  font-size: 12.9cqw;
+  font-weight: 500;
+  font-style: italic;
+  animation: black-friday-type-in 1200ms cubic-bezier(.16, 1, .3, 1) both;
+}
+.black-friday-banner__closing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2cqw;
+}
+.black-friday-banner__rahni {
+  font-family: 'Bodoni Campaign', Georgia, serif;
+  font-size: 14.3cqw;
+  font-style: normal;
+  font-weight: 600;
+  line-height: .95;
+  font-synthesis: none;
+}
+.black-friday-banner__paevad {
+  font-size: 11.6cqw;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.black-friday-banner__flight {
+  position: absolute;
+  z-index: 4;
+  top: 5%;
+  right: 0;
+  width: 54%;
+  transform: translate3d(var(--pointer-x, 0px), var(--pointer-y, 0px), 0) rotate(var(--pointer-bank, 0deg));
+  transition: transform 950ms cubic-bezier(.16, 1, .3, 1);
+}
+.black-friday-banner__bird {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  cursor: pointer;
+  transform-origin: 58% 45%;
+  -webkit-tap-highlight-color: transparent;
+}
+.black-friday-banner__arrival {
+  --flight-far-scale: 1.1;
+  --flight-near-scale: 1.38;
+  --flight-far-x: -1.5cqw;
+  --flight-near-x: 2.5cqw;
+  --flight-near-y: 2cqw;
+  --flight-depth: calc((1 - cos(var(--black-friday-flight-phase))) / 2);
+  transform-origin: 58% 45%;
+  translate:
+    calc(var(--flight-far-x) + (var(--flight-near-x) - var(--flight-far-x)) * var(--flight-depth) + .9cqw * sin(var(--black-friday-flight-phase)))
+    calc((var(--flight-near-y) - 1.2cqw) / 2 - (var(--flight-near-y) + 1.2cqw) / 2 * cos(var(--black-friday-flight-phase)) - 1.4cqw * sin(var(--black-friday-flight-phase)));
+  rotate: calc(-1deg + 6deg * cos(var(--black-friday-flight-phase)));
+  scale: calc(var(--flight-far-scale) + (var(--flight-near-scale) - var(--flight-far-scale)) * var(--flight-depth));
+  animation:
+    black-friday-arrival 1800ms cubic-bezier(.16, 1, .3, 1) both,
+    black-friday-drift 20000ms linear -5000ms infinite;
+}
+.black-friday-banner__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  user-select: none;
+  filter: drop-shadow(0 1.5rem 1rem #5b351318);
+}
+.black-friday-banner__beak,
+.black-friday-banner__mouth { visibility: hidden; }
+.black-friday-banner__beak {
+  transform-box: view-box;
+  transform-origin: 265px 490px;
+}
+.black-friday-banner[data-calling] .black-friday-banner__beak,
+.black-friday-banner[data-calling] .black-friday-banner__mouth { visibility: visible; }
+.black-friday-banner[data-calling] .black-friday-banner__beak {
+  animation: black-friday-call 1300ms ease-in-out both;
+}
+.black-friday-banner__cry {
+  --cry-start-x: -6.1em;
+  --cry-exit-x: -110vw;
+  --cry-exit-y: -25vh;
+  --spray-direction: -1;
+  position: absolute;
+  left: 4.3%;
+  top: 45.3%;
+  width: 0;
+  height: 0;
+  color: var(--black-friday-accent);
+  font-family: 'Anton Cry', Impact, sans-serif;
+  font-size: clamp(1.25rem, 3.35cqw, 3.1rem);
+  font-weight: 400;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+.black-friday-banner__cry-letter {
+  --fly-x: calc(var(--cry-start-x) + var(--letter-index) * .62em);
+  --fly-y: calc(-2.05em + var(--letter-index) * .1em);
+  --tilt: calc(-14deg + var(--letter-index) * 3deg);
+  --pop-scale: 1;
+  position: absolute;
+  top: -.5em;
+  left: -.25em;
+  opacity: 0;
+  transform-origin: 50% 60%;
+  -webkit-text-stroke: .07em var(--black-friday-paper);
+  paint-order: stroke fill;
+  text-shadow: .035em .055em 0 var(--black-friday-ink);
+}
+.black-friday-banner__cry-letter:nth-child(3),
+.black-friday-banner__cry-letter:nth-child(8) { --pop-scale: 1.24; }
+.black-friday-banner__cry-drop {
+  position: absolute;
+  width: .13em;
+  height: .35em;
+  border-radius: 70% 30% 60% 40%;
+  background: currentColor;
+  box-shadow: 0 0 0 .025em var(--black-friday-paper);
+  opacity: 0;
+}
+.black-friday-banner[data-calling] .black-friday-banner__cry-letter {
+  animation: black-friday-cry 940ms cubic-bezier(.2, .7, .3, 1) both;
+  animation-delay: var(--letter-delay);
+}
+.black-friday-banner[data-calling] .black-friday-banner__cry-drop {
+  animation: black-friday-spray 700ms ease-out both;
+  animation-delay: var(--drop-delay);
+}
+.black-friday-banner__shop {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  bottom: -2.5rem;
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: .75rem;
+  color: var(--black-friday-ink);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.black-friday-banner__shop span { font-size: 1.1rem; }
+.black-friday-banner__shop:hover { color: var(--black-friday-accent); }
+.black-friday-banner__shop:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+
+/* The offer belongs to the campaign composition, underneath the rider. */
+.store-directory[data-directory-theme='black-friday'] .black-friday-banner[data-shopping] {
+  aspect-ratio: 1.88;
+  margin-bottom: 2.5rem;
+}
+.black-friday-banner[data-shopping] .black-friday-banner__flight { top: -2%; }
+.black-friday-banner[data-shopping] .black-friday-banner__arrival { --flight-near-y: -1.5cqw; }
+.black-friday-banner[data-shopping] .black-friday-banner__title { justify-content: flex-start; padding-top: 4cqw; }
+.black-friday-banner__hat {
+  position: absolute;
+  top: 16.5%;
+  left: 46%;
+  width: 9%;
+  height: 7%;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--black-friday-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.black-friday-banner__hat-note {
+  position: absolute;
+  left: calc(50% - 4.375rem);
+  bottom: calc(100% - .5rem);
+  display: block;
+  width: 6.25rem;
+  height: 3.75rem;
+  transition: color 180ms ease, opacity 180ms ease;
+}
+.black-friday-banner__hat-note > span { position: absolute; top: .15rem; left: 0; font: 600 2rem / 1 'Caveat Campaign', cursive; transform: rotate(-10deg); }
+.black-friday-banner__hat-note svg { display: block; width: 100%; height: 100%; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.black-friday-banner__hat:hover .black-friday-banner__hat-note,
+.black-friday-banner__hat:focus-visible .black-friday-banner__hat-note { color: var(--black-friday-accent); }
+.black-friday-banner__hat:focus-visible .black-friday-banner__hat-note > span { text-decoration: underline; text-underline-offset: .15em; }
+.black-friday-banner__hat:focus-visible { outline: none; }
+.black-friday-banner__hat:disabled { cursor: wait; }
+.black-friday-banner__beak-note {
+  position: absolute;
+  left: 4.3%;
+  top: calc(43.5% + .7rem);
+  width: 6.25rem;
+  height: 3.75rem;
+  color: var(--black-friday-ink);
+  text-align: left;
+  transition: color 180ms ease, opacity 180ms ease;
+}
+.black-friday-banner__beak-note > span { position: absolute; top: 1.6rem; left: 1.25rem; font: 600 2rem / 1 'Caveat Campaign', cursive; transform: rotate(-10deg); }
+.black-friday-banner__beak-note svg { display: block; width: 100%; height: 100%; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.black-friday-banner__hat-note,
+.black-friday-banner__beak-note { opacity: 0; pointer-events: none; }
+.black-friday-banner__arrival:has(:focus-visible) :where(.black-friday-banner__hat-note, .black-friday-banner__beak-note) { opacity: 1; pointer-events: auto; }
+.black-friday-banner__bird:hover .black-friday-banner__beak-note,
+.black-friday-banner__bird:focus-visible .black-friday-banner__beak-note { color: var(--black-friday-accent); }
+.black-friday-banner__bird:focus-visible .black-friday-banner__beak-note > span { text-decoration: underline; text-underline-offset: .15em; }
+.black-friday-banner[data-calling] .black-friday-banner__beak-note { opacity: 0; }
+.black-friday-banner__hat-highlight { opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+.black-friday-banner__hat-highlight image { filter: brightness(1.35) saturate(1.1); }
+.black-friday-banner__hat-highlight path { fill: none; stroke: #fff6d9; stroke-width: 3; stroke-linejoin: round; filter: drop-shadow(0 0 5px #fff6d9aa); }
+.black-friday-banner:has(.black-friday-banner__hat:focus-visible) .black-friday-banner__hat-highlight,
+.black-friday-banner:has(.black-friday-banner__hat:active) .black-friday-banner__hat-highlight { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .black-friday-banner__arrival:hover :where(.black-friday-banner__hat-note, .black-friday-banner__beak-note) { opacity: 1; pointer-events: auto; }
+  .black-friday-banner:has(.black-friday-banner__hat:hover) .black-friday-banner__hat-highlight { opacity: 1; }
+  .black-friday-banner__hat:hover .black-friday-banner__hat-note > span { text-decoration: underline; text-underline-offset: .15em; }
+}
+.kruk-offer {
+  position: absolute;
+  z-index: 5;
+  left: 55%;
+  bottom: 1.5cqw;
+  width: 36%;
+  color: var(--black-friday-ink);
+}
+.kruk-offer a { color: inherit; text-decoration: none; }
+.kruk-offer__product { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .5em; font-size: .65rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
+.kruk-offer__product:hover { text-decoration: underline; text-underline-offset: .25em; }
+.kruk-offer__headline {
+  margin: .6rem 0 .2rem;
+  font-family: 'Bodoni Campaign', Georgia, serif;
+  font-size: clamp(2rem, 3.8cqw, 3.5rem);
+  font-weight: 500;
+  font-style: italic;
+  line-height: 1.1;
+  letter-spacing: -.045em;
+  -webkit-text-stroke: clamp(.55px, .008em, 1px) currentColor;
+  paint-order: stroke fill;
+}
+.kruk-offer__aside { margin: 0; font-size: .85rem; }
+.kruk-offer__buy {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: .85rem 0;
+  border: 0;
+  border-top: 1px solid #531b2540;
+  background: transparent;
+  color: inherit;
+  font: 600 .95rem Manrope, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+.kruk-offer__price { display: inline-flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: .6rem; margin-left: auto; }
+.kruk-offer__price strong { font-size: 1.25rem; font-weight: 500; white-space: nowrap; }
+.kruk-offer__price del { opacity: .55; font-size: .7rem; white-space: nowrap; }
+.kruk-offer__buy svg { width: 1.4rem; height: 1.4rem; stroke: currentColor; stroke-width: 1.5; flex-shrink: 0; transition: transform 240ms ease; }
+.kruk-offer__buy:hover svg { transform: translateX(.35rem); }
+.kruk-offer__buy:hover { color: var(--black-friday-accent); }
+.kruk-offer__buy:disabled { cursor: wait; opacity: .6; }
+.kruk-offer__buy:focus-visible,
+.kruk-offer a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.kruk-offer__error { margin: .5rem 0 0; font-size: .8rem; }
+.kruk-offer__error a { text-decoration: underline; text-underline-offset: .2em; }
+.kruk-checkout { --store-accent: #f0eadc; --store-accent-ink: #531b25; font-family: Manrope, sans-serif; }
+
+.store-directory[data-directory-theme='black-friday'] .store-directory__nav { border-bottom: 0; }
+.store-directory[data-directory-theme='black-friday'] .store-directory__brand-edition,
+.store-directory[data-directory-theme='black-friday'] .store-directory__manage { color: var(--black-friday-ink); }
+.store-directory[data-directory-theme='black-friday'] .store-directory__create {
+  background: transparent;
+  border: 1px solid #531b2566;
+  color: var(--black-friday-ink);
+  box-shadow: none;
+}
+.store-directory[data-directory-theme='black-friday'] .store-directory__create:hover {
+  background: var(--black-friday-ink);
+  color: var(--black-friday-paper);
+}
+
+@keyframes black-friday-type-in {
+  from { opacity: 0; transform: translate3d(0, 1rem, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes black-friday-arrival {
+  from { opacity: 0; transform: translate3d(10%, 7%, 0) rotate(-7deg) scale(.93); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) rotate(0) scale(1); }
+}
+/* A constant-speed phase drives continuous sine curves, with no keyframe stops.
+   The vertical arc is offset from the depth change, so the bird keeps drifting
+   even at its closest/farthest point. Individual transforms compose with the
+   entrance. The bird stays close and passes in front
+   of the title; purchase controls remain above the flight layer. */
+@keyframes black-friday-drift {
+  from { --black-friday-flight-phase: 0deg; }
+  to { --black-friday-flight-phase: 360deg; }
+}
+/* Six syllables, aligned with the local 1.3-second recording. */
+@keyframes black-friday-call {
+  0%, 100% { transform: rotate(0); }
+  10%, 31%, 47%, 62%, 77%, 91% { transform: rotate(-16deg); }
+  24%, 40%, 55%, 70%, 84%, 97% { transform: rotate(-2deg); }
+}
+@keyframes black-friday-cry {
+  0% { opacity: 0; transform: translate(0, 0) rotate(-25deg) scale(.05); }
+  10% { opacity: 1; }
+  25% {
+    opacity: 1;
+    transform: translate(var(--fly-x), var(--fly-y)) rotate(var(--tilt)) scale(calc(var(--pop-scale) * 1.2), calc(var(--pop-scale) * .85));
+  }
+  36% {
+    opacity: 1;
+    transform: translate(var(--fly-x), var(--fly-y)) rotate(var(--tilt)) scale(var(--pop-scale));
+  }
+  46% {
+    transform: translate(calc(var(--fly-x) - var(--spray-direction) * .2em), var(--fly-y)) rotate(calc(var(--tilt) - 8deg)) scale(calc(var(--pop-scale) * .8), calc(var(--pop-scale) * 1.2));
+  }
+  52% {
+    opacity: 1;
+    transform: translate(var(--fly-x), var(--fly-y)) rotate(var(--tilt)) scale(calc(var(--pop-scale) * 1.18), calc(var(--pop-scale) * .9));
+    animation-timing-function: cubic-bezier(.65, 0, 1, .45);
+  }
+  99% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(var(--cry-exit-x), var(--cry-exit-y)) rotate(calc(var(--tilt) + var(--spray-direction) * 35deg)) scale(1.6, .7);
+  }
+}
+@keyframes black-friday-spray {
+  0% { opacity: 0; transform: translate(0, 0) scale(.1); }
+  15% { opacity: 1; }
+  45% { opacity: .9; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--drop-x) * var(--spray-direction)), var(--drop-y)) rotate(70deg) scale(.3);
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .store-directory[data-directory-theme='black-friday'] .black-friday-banner[data-shopping] { aspect-ratio: auto; }
+  .store-directory[data-directory-theme='black-friday'] .black-friday-banner[data-shopping] .black-friday-banner__title { position: relative; height: 50cqw; }
+  .black-friday-banner[data-shopping] .black-friday-banner__flight { top: 1cqw; }
+  .kruk-offer { position: relative; left: auto; bottom: auto; width: min(66%, 32rem); margin: 0 auto 1.5rem; }
+}
+
+@media (max-width: 760px) {
+  .store-directory[data-directory-theme='black-friday'] .black-friday-banner {
+    aspect-ratio: 2 / 3;
+    margin: .5rem auto 3rem;
+  }
+  .store-directory[data-directory-theme='black-friday'] .black-friday-banner__title { display: block; }
+  .black-friday-banner__musta { position: absolute; top: 2cqw; left: 0; font-size: 17cqw; }
+  .black-friday-banner__closing {
+    position: absolute;
+    inset-inline: 0 2cqw;
+    bottom: 2cqw;
+    align-items: flex-end;
+    gap: 1cqw;
+  }
+  .black-friday-banner__rahni { font-size: 30.2cqw; letter-spacing: -.075em; }
+  .black-friday-banner__flight { width: 100%; right: 0; top: 23cqw; }
+  .black-friday-banner__arrival {
+    --flight-near-scale: 1.28;
+    --flight-far-x: 5.5cqw;
+    --flight-near-x: 10cqw;
+    --flight-near-y: .5cqw;
+  }
+  .black-friday-banner__paevad { font-size: 21cqw; }
+  .black-friday-banner__cry {
+    --cry-start-x: .35em;
+    --cry-exit-x: 110vw;
+    --cry-exit-y: -55vh;
+    --spray-direction: 1;
+    font-size: 7.5cqw;
+  }
+  .store-directory[data-directory-theme='black-friday'] .black-friday-banner[data-shopping] {
+    aspect-ratio: auto;
+    padding-bottom: 0;
+    margin-bottom: 2rem;
+  }
+  .store-directory[data-directory-theme='black-friday'] .black-friday-banner[data-shopping] .black-friday-banner__title { position: relative; height: 150cqw; padding-top: 0; }
+  .black-friday-banner[data-shopping] .black-friday-banner__flight { top: 23cqw; }
+  .black-friday-banner[data-shopping] .black-friday-banner__arrival { --flight-near-y: .5cqw; }
+  .black-friday-banner__hat-note { width: 5rem; height: 3rem; left: calc(50% - 3.5rem); bottom: calc(100% - .4rem); }
+  .black-friday-banner__hat-note > span { font-size: 1.65rem; }
+  .black-friday-banner__beak-note { width: 5rem; height: 3rem; top: calc(43.5% + .55rem); }
+  .black-friday-banner__beak-note > span { font-size: 1.65rem; top: 1.28rem; left: 1rem; }
+  .kruk-offer { position: relative; left: auto; bottom: auto; width: auto; margin: 1.25rem 1rem .75rem; }
+  .kruk-offer__headline { font-size: clamp(2.4rem, 9.6cqw, 4rem); margin-top: .65rem; }
+  .kruk-offer__product { font-size: .6rem; }
+  .kruk-offer__aside { font-size: .8rem; }
+  .kruk-offer__buy { margin-top: 1.25rem; min-height: 3.5rem; }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .black-friday-banner__musta,
+  .black-friday-banner__bird,
+  .black-friday-banner__arrival,
+  .black-friday-banner[data-calling] .black-friday-banner__beak,
+  .black-friday-banner[data-calling] .black-friday-banner__cry-letter,
+  .black-friday-banner[data-calling] .black-friday-banner__cry-drop { animation: none; }
+  .black-friday-banner__arrival { translate: none; rotate: none; scale: none; }
+  .black-friday-banner__flight { transform: none; transition: none; }
+  .black-friday-banner__hat-note,
+  .black-friday-banner__beak-note,
+  .black-friday-banner__hat-highlight,
+  .kruk-offer__buy svg { transition: none; }
+}
+
+/* Development controls; not part of the published campaign. */
+.directory-theme-preview {
+  display: flex;
+  width: min(100%, 84rem);
+  margin: 0 auto;
+  padding: .6rem 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  color: #6a665f;
+  font-size: .7rem;
+}
+.directory-theme-preview > span { margin-right: auto; }
+.directory-theme-preview a {
+  padding: .4rem .6rem;
+  border: 1px solid #bdb8ac;
+  border-radius: .25rem;
+  color: inherit;
+  text-decoration: none;
+}
+.directory-theme-preview a[aria-current='page'] { background: #5e5650; color: #fff; }
+.directory-theme-preview a:focus-visible { outline: 2px solid #531b25; outline-offset: 3px; }
+
+/* A product reveal launched from the rider's actual, animated hat position. */
+.black-friday-banner[data-hat-away] .black-friday-banner__hat { visibility: hidden; }
+.kruk-hat {
+  --black-friday-paper: #f0eadc;
+  --black-friday-ink: #531b25;
+  --black-friday-accent: #bc2b29;
+  position: fixed;
+  z-index: 55;
+  inset: 0;
+  color: var(--black-friday-ink);
+  font-family: Manrope, sans-serif;
+  isolation: isolate;
+}
+.kruk-hat__backdrop {
+  position: absolute;
+  inset: 0;
+  background: #f0eadce8;
+  backdrop-filter: blur(5px);
+  animation: kruk-hat-backdrop 650ms ease both;
+}
+.kruk-hat__return {
+  position: absolute;
+  z-index: 3;
+  top: max(1.5rem, env(safe-area-inset-top));
+  right: max(2rem, env(safe-area-inset-right));
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  min-height: 44px;
+  padding: .5rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: 600 .85rem Manrope, sans-serif;
+  cursor: pointer;
+}
+.kruk-hat__return > svg { width: 1.25rem; height: 1.25rem; stroke: currentColor; stroke-width: 1.5; }
+.kruk-hat__return:hover { color: var(--black-friday-accent); }
+.kruk-hat__return:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.kruk-hat__return:disabled { opacity: .5; cursor: default; }
+.kruk-hat__composition {
+  position: absolute;
+  inset: 5rem 5vw 3rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 1fr);
+  align-items: center;
+  gap: 5vw;
+  max-width: 80rem;
+  margin: auto;
+  pointer-events: none;
+}
+.kruk-hat__stage { position: relative; width: 100%; aspect-ratio: 4 / 3; }
+.kruk-hat__flight { position: absolute; inset: 0; transform-origin: center; will-change: transform; }
+.kruk-hat__original,
+.kruk-hat__product { position: absolute; display: block; inset: 0; width: 100%; height: 100%; }
+.kruk-hat__product { opacity: 0; }
+.kruk-hat__product img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2rem 1.25rem #32140b26); }
+.kruk-hat[data-arrived]:not([data-returning]) .kruk-hat__product img { animation: kruk-hat-hover 5s ease-in-out infinite; }
+.kruk-hat__details { position: relative; pointer-events: auto; animation: kruk-hat-details 550ms 600ms ease both; }
+.kruk-hat .kruk-offer { position: relative; inset: auto; width: 100%; margin: 0; }
+.kruk-hat .kruk-offer__headline { margin: 1rem 0 .5rem; font-size: clamp(2.75rem, 4.5vw, 4.5rem); }
+.kruk-hat .kruk-offer__product { font-size: .7rem; }
+.kruk-hat .kruk-offer__aside { font-size: 1rem; }
+.kruk-hat .kruk-offer__buy { margin-top: 2rem; padding-block: 1rem; }
+.kruk-hat .kruk-offer__price strong { font-size: 1.5rem; }
+.kruk-hat[data-returning] .kruk-hat__backdrop { animation: kruk-hat-backdrop 600ms ease reverse both; }
+.kruk-hat[data-returning] .kruk-hat__details { animation: kruk-hat-details 200ms ease reverse both; pointer-events: none; }
+.kruk-hat[data-returning] .kruk-hat__return { opacity: 0; pointer-events: none; }
+@keyframes kruk-hat-backdrop { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kruk-hat-details { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes kruk-hat-hover { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-10px) rotate(1.5deg); } }
+@media (max-width: 760px) {
+  .kruk-hat__composition { inset: 4.5rem 1.5rem 1.5rem; display: flex; flex-direction: column; justify-content: center; gap: .5rem; }
+  .kruk-hat__stage { flex: 0 0 auto; width: min(100%, 54vh); width: min(100%, 54dvh); }
+  .kruk-hat__details { width: min(100%, 28rem); }
+  .kruk-hat__return { top: max(.75rem, env(safe-area-inset-top)); right: 1.5rem; }
+  .kruk-hat .kruk-offer__headline { font-size: clamp(2.5rem, 10vw, 3.5rem); }
+  .kruk-hat .kruk-offer__buy { margin-top: 1.25rem; }
+  .kruk-hat .kruk-offer__product { font-size: .6rem; }
+}
+@media (max-height: 540px) and (min-width: 600px) {
+  .kruk-hat__composition { inset: 3.5rem 4vw 1rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4vw; }
+  .kruk-hat__stage { width: min(100%, 75dvh); margin: auto; }
+  .kruk-hat .kruk-offer__headline { font-size: 2.25rem; }
+  .kruk-hat .kruk-offer__buy { margin-top: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kruk-hat__backdrop,
+  .kruk-hat__details,
+  .kruk-hat[data-returning] .kruk-hat__backdrop,
+  .kruk-hat[data-returning] .kruk-hat__details,
+  .kruk-hat[data-arrived]:not([data-returning]) .kruk-hat__product img { animation: none; }
+}

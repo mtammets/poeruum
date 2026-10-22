@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react'
+import type { StoreDirectoryEntry } from '../shared/store-directory.mjs'
 import { Brand } from './Brand'
 import { getMerchantLoginUrl } from './lib/storefrontUrl'
+import { useDirectoryTheme, type DirectoryTheme } from './lib/directoryTheme'
+import BlackFridayBanner from './themes/black-friday/BlackFridayBanner'
+import './themes/black-friday/blackFriday.css'
 
 export const ArrowUpRight = ({ className = '' }: { className?: string }) => <svg
   className={className}
@@ -11,8 +15,26 @@ export const ArrowUpRight = ({ className = '' }: { className?: string }) => <svg
   <path d="M5 15 15 5M7 5h8v8" />
 </svg>
 
-export default function StoreDirectoryLayout({ children, isStory = false }: { children: ReactNode; isStory?: boolean }) {
-  return <main className="store-directory">
+export default function StoreDirectoryLayout({ children, isStory = false, campaignStore }: {
+  children: ReactNode
+  isStory?: boolean
+  campaignStore?: StoreDirectoryEntry
+}) {
+  const { theme, canPreview, preview } = useDirectoryTheme()
+  const previewUrl = (nextTheme: DirectoryTheme | null) => {
+    const url = new URL(window.location.href)
+    if (nextTheme === null) url.searchParams.delete('theme')
+    else url.searchParams.set('theme', nextTheme)
+    return `${url.pathname}${url.search}${url.hash}`
+  }
+
+  return <main className="store-directory" data-directory-theme={theme}>
+    {canPreview && <nav className="directory-theme-preview" aria-label="Kujunduse eelvaade">
+      <span>Kujunduse eelvaade</span>
+      <a href={previewUrl(null)} aria-current={preview === null ? 'page' : undefined}>Avalik vaade</a>
+      <a href={previewUrl('default')} aria-current={preview === 'default' ? 'page' : undefined}>Tavaline</a>
+      <a href={previewUrl('black-friday')} aria-current={preview === 'black-friday' ? 'page' : undefined}>Musta rähni päevad</a>
+    </nav>}
     <nav className="store-directory__nav" aria-label="Poeruumi Kaubamaja">
       <a className="store-directory__brand" href={isStory ? '/' : 'https://poeruum.ee/'} aria-label={isStory ? 'Kaubamaja avaleht' : 'Poeruumi avaleht'}>
         <Brand />
@@ -28,6 +50,7 @@ export default function StoreDirectoryLayout({ children, isStory = false }: { ch
         </a>
       </div>
     </nav>
+    {theme === 'black-friday' && !isStory && <BlackFridayBanner store={campaignStore} />}
     {children}
     <footer className="store-directory__footer">
       <span>© 2026 Poeruum</span>

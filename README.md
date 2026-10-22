@@ -68,6 +68,13 @@ http://127.0.0.1:4185/previews/payments.html; konto loomist pole vaja.
 Päris Stripe’i testvormi võtmed ja kasutusjuhend on failis
 [previews/README.md](previews/README.md).
 
+Musta reede kujunduse eraldi arenduskeskkond ja eelvaade:
+[arendusjuhend](docs/black-friday-development.md).
+
+Kaubamaja kampaania kuvamist saab hallata adminis **Kaubamaja → Kampaania**:
+väljas, kohe sees või algus- ja lõpuajaga ajastatud (Eesti aeg).
+Vajalik migratsioon: `202610220001_directory_campaign.sql`; vaikimisi on kampaania väljas.
+
 ## Kvaliteedikontroll
 
 ```sh

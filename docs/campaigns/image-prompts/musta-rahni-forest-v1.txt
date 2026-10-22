@@ -1,0 +1,26 @@
+Mode: built-in image_gen, new asset, transparent background.
+Use case: photorealistic-natural
+Asset type: seamless horizontal forest-canopy layer for a parallax website campaign.
+
+Create a very wide panoramic photorealistic cutout of an Estonian Scots pine
+forest canopy, seen from slightly ABOVE the treetops, looking obliquely across
+the forest as if flying low over it. Landscape approximately 3:1, ideally
+2304 x 768. Dense irregular crowns of real Scots pines and a few muted golden
+autumn birches, delicate needles, warm low morning sunlight from the upper
+right, gentle atmospheric haze. Natural forest texture, photographic detail,
+restrained olive, warm ochre and smoky taupe colours, editorial quality.
+
+Composition: a continuous horizontal belt of tree crowns with an irregular
+silhouette against GENUINE TRANSPARENCY, no visible sky or backdrop. The top
+15 percent is transparent air. Canopy begins at varying heights around the
+upper third and fills the lower two thirds, becoming denser towards the bottom.
+The LEFT and RIGHT edges must TILE SEAMLESSLY, with exactly matching canopy
+height, colours, scale and lighting. Even density across the panorama; no
+central focal tree, no isolated island of forest and no side margins.
+Fine branches and needles have clean natural alpha edges. Soft mist inside
+the forest, not an opaque rectangular sky. Flat terrain, no mountains.
+
+This is only scenery behind an existing giant flying woodpecker and its rider.
+Do not include any birds, people, animals, buildings, roads, objects, words,
+logos, frames or watermarks. No illustration, no vector silhouettes, no cartoon
+triangle trees, no heavily saturated greens, no artificial radial blur.
