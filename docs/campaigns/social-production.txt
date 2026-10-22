@@ -1,0 +1,39 @@
+MUSTA RÄHNI PÄEVAD – REKLAAMIFAILIDE TOOTMINE
+
+Kampaania Facebooki kaanepilt:
+public/images/social/musta-rahni-paevad-facebook-cover-v1.png
+
+Piltide loomine toimus built-in image_gen abil. Täpsed juhised on
+docs/campaigns/image-prompts/social-pack/ all; failide v2-juhised kirjeldavad
+valitud lõppversioonide parandusi. Juhistes olevad absoluutsed sisenditeed
+on algse tootmiskorra viited, mitte rakenduse sõltuvused.
+
+Videote korduv eksport (Node 22, Playwright Chromium, ffmpeg PATH-is):
+node scripts/render-black-friday-reel.mjs
+node scripts/render-black-friday-reel.mjs --youtube
+node scripts/render-black-friday-bumper.mjs
+
+Esimesed kaks käsku toetavad --preview ja --audio-only lippu.
+Need kasutavad repo kampaaniapilte, fonte ja CC0 rähnihäält. Veebi ega
+tootmisandmebaasi renderdamisel ei muudeta. Väljundid on output/ kaustas.
+
+Pakendamine:
+node scripts/package-black-friday-assets.mjs
+
+Pakendaja kasutab käsitsi kinnitatud image_gen väljundeid kirjeldavat
+output/musta-rahni-campaign-pack/manifest.json faili. Selle jobs-massiivi
+kirjed sisaldavad id, w, h, sourcePath ja vajadusel version: 2. Iga sourcePath
+peab viitama valitud kohalikule PNG-le. Lisaks on vaja kruk-logo.webp faili
+samas töökaustas ja mõlema 15-sekundilise video renderdatud väljundit.
+Reelsi kaanepilt peab asuma ekspordikaustas nimega
+Musta-rahni-paevad-Reels-kaas.jpg.
+
+Pakendaja säilitab originaalid, ekspordib täpsed paigutusmõõdud, kontrollib
+PNG-de mõõte, ZIP-i terviklikkust ja failikoopiate SHA-256 räsi. Olemasolevat
+paketti üle ei kirjutata. Väljund on vaikimisi ~/Downloads; uue ekspordi
+asukoha saab valida CAMPAIGN_EXPORT_DIR keskkonnamuutujaga.
+
+Valmis pakett: 9 reklaamipilti, eraldi logo, 3 videot, 2 kaanepilti,
+kasutusjuhis, reklaamilingid ja kohalik HTML-eelvaade. Suuri videoekspordifaile
+ei lisata veebirakenduse public/ kausta. Reklaamikontodele faile automaatselt
+ei laadita. Kampaania aktiveerimine ja ajastus jääb olemasoleva adminiseade alla.

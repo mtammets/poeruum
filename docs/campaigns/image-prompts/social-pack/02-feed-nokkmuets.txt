@@ -1,0 +1,20 @@
+Mode: built-in image_gen
+Final export: 1080 × 1350 px
+References:
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/campaigns/kruk-cap-cutout-v1.webp
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/output/musta-rahni-campaign-pack/kruk-logo.webp
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/social/musta-rahni-paevad-facebook-cover-v1.png
+
+Use case: ads-marketing. Finished premium Krük-Krük cap advertisement, not a website mockup.
+Reference 1: actual product cutout, preserve the exact black mesh trucker cap shape, visor, seams and especially the white embroidered two-woodpecker logo with two red crowns. Do not invent a new emblem.
+Reference 2: official Krük-Krük black square logo, place once alongside the brand name, faithfully preserving the white line drawing and red accents.
+Reference 3: campaign cover for palette and visual quality only; do not include the rider or large flying bird in this product ad.
+Art direction: exceptionally beautiful nature-inspired product editorial. A large sharp photoreal cap on a softly lit mossy stone, surrounded by restrained out-of-focus pine forest detail. Natural warm rim light. Deep burgundy #531b25 shadows in the upper background merge naturally into muted olive and golden forest in the lower image. Cream #fff5e5 typography, elegant confident modern sans serif for headline and price; NOT condensed block type or fragile hairline type. The product dominates, the logo embroidery is clear. No studio cyclorama or plain red gradient. No rectangular panels, nested boxes, fake button or price badge.
+Exact text, no additions:
+"Krük-Krük" next to the small official logo.
+"Viska nokk ette." as the main headline.
+"NOKKMÜTS \"2RÄHN\"" as a smaller product label.
+"19,90 €" as a very legible price.
+"Osta nokkmüts ↗" as an elegant plain text call to action, no button box.
+No crossed-out price, percentage, date, website, claims or other text. Preserve Estonian diacritics and decimal comma.
+Composition: portrait 4:5, render 1440x1800 or larger in EXACT 4:5. Small logo+brand at top left with generous 7% margins. Headline just below at y=17–29%, in two lines "Viska nokk" / "ette.". Large whole cap occupies middle 35–73%, fully visible with breathing room around the visor. Product label and price at bottom left, CTA aligned bottom right, all inside bottom 8% margin. Carefully balanced, luxurious readable typography and beautiful product photography.

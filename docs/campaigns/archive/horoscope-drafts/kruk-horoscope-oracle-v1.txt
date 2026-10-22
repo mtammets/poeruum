@@ -1,0 +1,11 @@
+Mode: built-in image_gen, transparent background edit.
+Input: user-supplied E2FBC5D5-1560-4A38-A29D-E9565F5914B5 2.PNG.
+Final asset: public/images/campaigns/kruk-horoscope-oracle-v1.webp.
+
+Use case: background-extraction.
+Asset type: transparent photographic portrait cutout for an elegant, humorous Estonian horoscope section.
+Input image 1 is the exact edit target: the close-up photograph of a serious moustached man wearing dark sunglasses and a black embroidered two-woodpecker baseball cap, riding a giant black woodpecker in a sunlit forest.
+Remove only the forest background and the tall fan of wing feathers behind the man. Keep the man and the dark bird feathers across the bottom foreground. Produce genuinely transparent alpha around the subject.
+Preserve his exact facial identity, serious expression, moustache, skin texture, head angle, sunglasses shape and existing reflections, the black cap and its red/white embroidered two-bird logo, brown jacket, warm original sunlight and photographic detail. Do not change or redraw his appearance, clothes or pose. Do not add props, stars, text, outlines, shadows or a background.
+Keep the original 1448 by 1086 composition and exact placement/scale of the man and glasses within it, including the head at the center-right. The remaining background should be empty transparent space. Preserve the fine hair and cap edges cleanly without a white halo. Do not invent missing body parts. Keep the lower foreground feather contour as in the photo.
+Output one high-quality photorealistic transparent PNG cutout, same landscape 4:3 framing.
