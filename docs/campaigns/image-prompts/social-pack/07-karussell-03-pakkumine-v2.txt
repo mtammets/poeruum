@@ -1,0 +1,7 @@
+Mode: built-in image_gen edit
+References:
+/Users/marektammets/.codex/generated_images/01a15e20-2a99-7ef0-9fc2-38cd8ebcc97c/exec-9b5cb5e2-ec02-4d16-98fd-de7658eaaabb.png
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/campaigns/kruk-cap-cutout-v1.webp
+
+Use case: precise-object-edit. Reference1 is the finished square purchase-offer ad to edit. Reference2 is the original cap product.
+Make a single targeted composition fix: the cap's top button is overlapping the bottom of the word ERIPAKKUMINE. Scale the entire cap down about 8% and move it down/right slightly so there is an obvious clean gap of at least 35 pixels (at this 1254px size) between the bottom of the headline and the top of the cap. The entire visor must also have at least 50px of right margin. Preserve the exact cap design and logo embroidery. Keep all typography exactly unchanged, with all characters of "MUSTA RÄHNI ERIPAKKUMINE" completely unobscured. Keep official brand/logo, "NOKKMÜTS \"2RÄHN\"", "19,90 €", and "Osta nokkmüts ↗" unchanged. Keep background moss, forest, burgundy palette and square aspect ratio unchanged. No new words or elements.

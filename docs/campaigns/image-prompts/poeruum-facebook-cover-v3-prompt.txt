@@ -1,0 +1,10 @@
+Generator: built-in image_gen
+Edit target: public/images/social/poeruum-facebook-cover-v2.png
+Final: public/images/social/poeruum-facebook-cover-v3-no-metadata.png
+Export: C2PA chunk omitted per the user's earlier request; image data unchanged during export. Original generated file retained.
+
+Use case: precise-object-edit.
+Edit the supplied full Facebook cover image with one strictly localized cleanup at the TOP OF THE PHONE SCREEN.
+Remove BOTH (1) the thin white/grey segmented horizontal story progress lines just above the store header and (2) the black rounded pill / Dynamic Island at the top of the phone display. Fill only these removed elements with a seamless continuation of the existing soft warm beige shop-photo background visible on the screen. The screen should extend cleanly up to the inner edge of the existing phone bezel, without a notch, camera dot, status bar, or progress bars.
+Preserve the phone's black OUTER FRAME and its exact shape, angle, position, size, lighting and realistic reflections.
+Keep EVERYTHING ELSE unchanged: full original wide canvas and framing, forest green background, headline exactly "Sinu e-pood." and "Otse telefonist.", same typography, positions and spacing, real cup, hand, linen, table, box, colors and shadows. Preserve the storefront logo, exact MOREAMORECERAMICS store name, search/cart icons, product photograph, and yellow-green Osta / 20 € button. Do not regenerate or redesign the layout. Do not crop or zoom in. Output the complete cover at the original 1942 x 809 aspect ratio. No added text or graphics.

@@ -1,0 +1,8 @@
+Mode: built-in image_gen
+Final export: 1200 × 1200 px
+References:
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/campaigns/kruk-cap-cutout-v1.webp
+
+Use case: product-mockup. Premium photoreal text-free product marketing image for Google Display. Square EXACT 1:1, render 1600x1600 or larger.
+Reference 1: actual black mesh trucker cap, preserve identical shape, proportions, seams, visor and exact white embroidered two woodpeckers with red crowns. One cap only.
+Entire cap hero on a beautiful moss-covered granite stone in a sunlit Estonian pine forest. Cap centered at 72% of image width, full cap visible with generous margins. Golden backlight outlines mesh and brim, rich olive/forest-green natural bokeh, realistic detail, premium outdoors editorial photography. Moss and small natural pine needles anchor the product. No humans, animals or additional products. No added text, graphic logos, watermark, border, collage, boxes or buttons. The real embroidered cap logo is preserved.

@@ -1,0 +1,7 @@
+Mode: built-in image_gen edit
+References:
+/Users/marektammets/.codex/generated_images/01a15e20-2a99-7ef0-9fc2-38cd8ebcc97c/exec-35941a28-8e4a-42c1-b0ae-877292264f91.png
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/output/musta-rahni-campaign-pack/kruk-logo.webp
+
+Use case: precise-object-edit. Reference1 is the finished square advertisement to edit. Reference2 is the official Krük-Krük logo to insert faithfully.
+Change ONLY the small top-left brand lockup: replace its inverted black line-art emblem with the actual official logo from reference2, white woodpeckers and red crowns inside a BLACK SQUARE. Keep it compact in the existing top-left area, with "Krük-Krük" in the existing black type underneath. Preserve the original white/red shapes inside the black logo square. Keep EVERY other pixel/compositional element as close as possible: exact cap, embroidery, forest, title "Viska nokk ette.", product label, colors, crop, square dimensions, lighting and image quality. No additional words, buttons or decoration.

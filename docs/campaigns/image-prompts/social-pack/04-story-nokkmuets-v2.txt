@@ -1,0 +1,9 @@
+Mode: built-in image_gen edit
+References:
+/Users/marektammets/.codex/generated_images/01a15e20-2a99-7ef0-9fc2-38cd8ebcc97c/exec-51614801-afb1-4f13-a717-0fda6038ad94.png
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/campaigns/kruk-cap-cutout-v1.webp
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/output/musta-rahni-campaign-pack/kruk-logo.webp
+
+Use case: compositing. Edit target reference 1 is the finished 9:16 Story ad. Supporting reference 2 is the authoritative actual cap; reference 3 is the authoritative official logo.
+Make only a layout safety correction. Preserve the same image style, golden forest, burgundy sky, exact cap shape/embroidery and all existing wording and price. Keep exact 9:16 ratio.
+Recompose the content within the Story safe zone: NOTHING essential in the upper 16% or lower 23%. Put the official black-square logo plus "Krük-Krük" with top edge at 18% of total image height. Headline "Viska nokk ette." at 26–36%, cap from 39–63% (slightly smaller to fit), product label at 66%, price "19,90 €" and "Osta nokkmüts ↗" at 70–74%. Leave the entire upper16% as uninterrupted atmospheric burgundy sky and bottom23% as forest/moss with no text or essential cap details. All text within x=9–90%. Exact label: NOKKMÜTS "2RÄHN". Do not add any new copy, UI, button box or badge. Keep price clear and the entire cap including visor visible. Natural harmonious composition.

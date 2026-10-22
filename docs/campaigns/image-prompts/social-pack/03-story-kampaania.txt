@@ -1,0 +1,12 @@
+Mode: built-in image_gen
+Final export: 1080 × 1920 px
+References:
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/social/musta-rahni-paevad-facebook-cover-v1.png
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/campaigns/musta-rahni-cutout-v2.webp
+
+Use case: ads-marketing. Final finished premium campaign artwork, not a webpage or device mockup.
+Reference 1: approved wide campaign cover, authoritative palette, typography and photographic style.
+Reference 2: original transparent woodpecker and rider, authoritative subject identity. Preserve the exact man's face, moustache, sunglasses, cap embroidery, brown jacket, grey trousers and pose. Preserve the photoreal giant black woodpecker, red crest and left-facing beak.
+Warm cream #f0eadc sky and full-bleed layers of natural golden/olive forest canopy. Deep burgundy #531b25 Bodoni Moda-style high-contrast serif typography, with confidently visible hairlines. MUSTA italic, RÄHNI upright, PÄEVAD italic. Only exact text: "MUSTA RÄHNI PÄEVAD", arranged on three lines. Preserve both Ä umlauts. Large editorial type, intelligent breathing room, a dramatic floating bird and rider. Humour comes from the surreal giant bird, not added decorations.
+Every letter must remain entirely legible; do not put wings or beak over the words. No extra copy, prices, logos, boxes, dotted lines, stars, badges, arrows, watermark or additional people.
+Composition: tall 9:16, render 1440x2560 or larger in EXACT 9:16. Design specifically for Stories with top 15% and bottom 22% reserved for platform UI: only soft scenery in those zones. Put the title in upper-middle x=9–88%, y=17–42%, three lines, slightly smaller than a poster to leave room for the subject. Whole rider, face, cap, bird face and beak must fit in x=8–88%, y=43–73%. Bird wings may extend above and to the margins but never obscure text. The bottom 23% is beautiful forest scenery with no essential content, allowing a link sticker. This is a dedicated portrait composition.

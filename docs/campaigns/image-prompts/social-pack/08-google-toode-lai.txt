@@ -1,0 +1,8 @@
+Mode: built-in image_gen
+Final export: 1200 × 628 px
+References:
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/campaigns/kruk-cap-cutout-v1.webp
+
+Use case: product-mockup. A premium photoreal text-free marketing image for responsive Google Display ads. Wide landscape EXACT aspect ratio 1200:628 (1.91:1), at least 1800 pixels wide.
+Reference 1: the actual black mesh trucker cap. Preserve the exact shape, proportions, seams, visor and white embroidered two-woodpecker logo with two red crowns. One cap only, no people.
+Place the entire cap on a beautiful natural moss-covered granite rock in a golden Estonian pine forest. Cap centered, taking 58% of canvas width, enough margin on all sides for responsive cropping. Soft rich olive forest bokeh, warm golden late-afternoon side light, tactile black cotton and mesh, natural premium outdoor product photography. All edges of cap and visor fully inside canvas. No studio background. No added text, headline, graphic logo, watermark, border, collage, decorative elements or button. Only the real embroidered logo on the cap remains.

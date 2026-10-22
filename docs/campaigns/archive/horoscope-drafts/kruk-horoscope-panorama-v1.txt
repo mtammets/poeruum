@@ -1,0 +1,12 @@
+Mode: built-in image_gen, photographic side extension.
+Input: user-supplied E2FBC5D5-1560-4A38-A29D-E9565F5914B5 2.PNG.
+Final asset: public/images/campaigns/kruk-horoscope-panorama-v1.webp (2172 × 724).
+
+Use case: precise-object-edit / photographic outpainting.
+Asset type: a full-width 3:1 panoramic photograph beneath a website's horoscope heading.
+Input image 1 is the edit target. It shows a serious moustached man in dark sunglasses, a black cap with two embroidered woodpeckers, and a brown jacket riding a giant black woodpecker through a sunny Estonian autumn pine forest.
+Extend this EXACT photograph horizontally to the LEFT and RIGHT, creating a seamless wide panorama. Do not cut out the person. Keep the original photographic forest background.
+Target composition: landscape 3:1 canvas, equivalent to 3258 by 1086. Keep the original 1448 by 1086 photograph at its original scale, approximately at x=1200, y=0, and extend the scene with about 1200 pixels on the left and 610 pixels on the right. The man's face should be near 65% of the final width, at its original height. Keep the full cap and original face visible. The upper left half should be a richly photographic softly defocused forest with room for an HTML caption later.
+Preserve the original man's facial identity, serious expression, moustache, sunglasses with their existing reflections, black cap with exact red/white bird embroidery, jacket, pose, bird feather details, warm sunlight and photographic colors. The original central photo must remain unchanged: this is side extension, not a new illustration or a new portrait.
+Extend the original pines, golden birch leaves, patches of blue sky, right-side sunlight and subtle lateral motion blur naturally across both new side areas. Continue the black feathered bird foreground across the lower left edge where needed, but let most new side areas show forest. Any continuation of jacket and bird should be anatomically plausible and unobtrusive. No second bird or person, no additional heads or limbs, no text, no graphics, no vignette, no border, no logos added.
+Output a single continuous photorealistic landscape panorama with no transparency, no visible seams, no blank areas.

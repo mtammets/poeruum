@@ -1,0 +1,10 @@
+Generator: built-in image_gen
+Edit target: public/images/social/poeruum-facebook-cover-v3-no-metadata.png
+Final: public/images/social/poeruum-facebook-cover-v4-no-metadata.png
+Export: C2PA chunk omitted per the user's earlier request; image data unchanged during export. Original generated file retained.
+
+Use case: precise-object-edit.
+Edit the supplied finished Facebook cover with ONE small localized change inside the phone screen: MOVE THE ENTIRE STOREFRONT HEADER ROW UP, right to the top of the display.
+The row contains four things: round white merchant logo on the left, the exact name MOREAMORECERAMICS, circular magnifying-glass search button, and circular shopping-cart button with its small 0 badge on the right. Move all four together upward approximately 55 pixels at the current 1942 x 809 image scale, following the existing phone perspective. Keep their sizes, horizontal spacing, alignment, typography, icons and colors unchanged. Their top edges should have only a small consistent 12–18 pixel margin inside the top black phone bezel. Make this visibly top-anchored like a real mobile shop app header, with no big empty band above it. Keep everything fully inside the rounded screen; do not overlap the bezel.
+Erase the old lower header row completely and seamlessly fill its former area with the existing warm beige blurred product-photo background. There must be exactly ONE header row.
+DO NOT change anything else. Preserve the complete original 1942 x 809 wide composition and framing; preserve the phone frame, its position and angle, hand, both cups and their textures, tabletop, cloth, box, shadows, green background. Preserve the left headline exactly "Sinu e-pood." and "Otse telefonist.", same font and placement. Preserve the in-phone product photo and bottom yellow-green Osta / 20 € button. Keep the phone screen free of story progress lines, status bars, camera cutouts and black oval notches. No new graphics or text. Do not crop or zoom.
