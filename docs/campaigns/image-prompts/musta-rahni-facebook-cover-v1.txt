@@ -1,0 +1,26 @@
+Mode: built-in image_gen
+Intent: generate with existing campaign references
+
+Use case: ads-marketing
+Asset type: finished Facebook Page campaign cover image, ultra-wide landscape, target 2400 × 1008 pixels (approximately 2.4:1). This is the final artwork, not a website mockup.
+
+Primary request: Adapt the existing MUSTA RÄHNI PÄEVAD campaign into an exquisitely composed panoramic cover. Match its cream background, deep burgundy fashion-editorial typography, photoreal black woodpecker with its adult male rider, and soft forest canopy. Premium, confident, subtly absurd and funny because an ordinary man is calmly riding a giant woodpecker.
+
+Input images:
+1. Compositing subject / identity reference: the transparent woodpecker and male rider. Preserve the exact man, face, moustache, sunglasses, black embroidered cap, brown jacket, grey trousers, pose, woodpecker anatomy, left-facing beak, black feathers and red crest. Use this subject rather than inventing a different rider or bird.
+2. Background reference: the forest canopy. Use these natural golden and olive pine trees as a panoramic atmospheric backdrop.
+3. Style reference ONLY: the existing campaign website. Match its palette and typography. Do not copy any website navigation, buttons, prices, logos, captions or other UI.
+
+Composition:
+Create a beautifully balanced wide editorial composition. The three-line title occupies the central-left region (roughly x=18–49% of canvas), with the subject on the right. All text must fit comfortably within the central 70% of the canvas width. Place the rider's face around x=68%, y=36%, and the woodpecker's face around x=54%, y=53%. Large swept wings extend toward the right and upper margins, with generous intentional framing. Bird and rider float above the forest; retain feather detail and warm natural rim light. The beak can approach the title, but must not cover ANY letter. Keep the complete title, rider's face, cap and woodpecker's face away from the outer edges. Lower-left outer corner contains only background, allowing for a Facebook profile picture overlay.
+The cream upper atmosphere fills the canvas edge-to-edge. A continuous photographic pine and birch forest canopy across the lower half creates depth, softly fading into the cream sky. Trees behind the lettering remain pale and understated. Use slightly richer golden forest detail on the right, still atmospheric. No hard horizon, no rectangular photo edges.
+
+Typography:
+Very large exquisite high-contrast Bodoni Moda-style serif lettering in solid deep burgundy #531b25. Three lines, precisely:
+MUSTA
+RÄHNI
+PÄEVAD
+MUSTA and PÄEVAD in elegant italic, RÄHNI upright. Carefully balanced line lengths and line spacing, similar to reference 3. Refine thin strokes so every letter remains confidently visible at small social-cover size; no broken, disappearing or outline-only strokes. Preserve the Estonian Ä with two dots in both RÄHNI and PÄEVAD. Do not add quotation marks.
+
+Palette: warm ivory / cream #f0eadc, wine-burgundy #531b25, natural muted olive and golden forest, black bird and vivid red crest.
+Constraints: Only the exact three-word campaign title appears. No extra copy, dates, sale percentages, pricing, slogans, website UI, decorative stars, dotted lines, orbital ellipses, borders, boxes, speech bubbles, badges or watermark. Maintain photoreal subject and exact rider identity. Clean premium output, no distorted anatomy, no extra people or birds, no black transparency background.

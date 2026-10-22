@@ -1,0 +1,10 @@
+Mode: built-in image_gen
+Final export: 1080 × 1080 px
+References:
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/campaigns/kruk-cap-cutout-v1.webp
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/output/musta-rahni-campaign-pack/kruk-logo.webp
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/social/musta-rahni-paevad-facebook-cover-v1.png
+
+Use case: ads-marketing. Final square 1:1 editorial campaign card, 1440x1440 or larger, second card of a 3-panel carousel.
+Reference 1: actual black mesh cap, preserve identical silhouette, details and exact white two-woodpecker/red-crown embroidery. Reference 2: exact official Krük-Krük logo. Reference 3: approved campaign palette and aesthetic.
+Warm cream #f0eadc background fading into softly sunlit golden pine forest and a mossy stone at the bottom. Huge cap rests naturally on the mossy stone in the center, fully visible, luxurious tactile detail and warm rim light. Small official logo and "Krük-Krük" at top left. A large beautifully set burgundy headline at top: "Viska nokk ette." in a confident modern sans serif. Below the cap a single small label: "NOKKMÜTS \"2RÄHN\"". No price or CTA on this middle storytelling card, no other text. Balanced 7% margins, strong cap focus. No panels, badges, boxes, plain studio background or extra products. Exact diacritics.

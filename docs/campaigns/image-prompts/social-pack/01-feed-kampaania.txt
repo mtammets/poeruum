@@ -1,0 +1,12 @@
+Mode: built-in image_gen
+Final export: 1080 × 1350 px
+References:
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/social/musta-rahni-paevad-facebook-cover-v1.png
+/Users/marektammets/Documents/CODE/Poeruum-black-friday/public/images/campaigns/musta-rahni-cutout-v2.webp
+
+Use case: ads-marketing. Final finished premium campaign artwork, not a webpage or device mockup.
+Reference 1: approved wide campaign cover, authoritative palette, typography and photographic style.
+Reference 2: original transparent woodpecker and rider, authoritative subject identity. Preserve the exact man's face, moustache, sunglasses, cap embroidery, brown jacket, grey trousers and pose. Preserve the photoreal giant black woodpecker, red crest and left-facing beak.
+Warm cream #f0eadc sky and full-bleed layers of natural golden/olive forest canopy. Deep burgundy #531b25 Bodoni Moda-style high-contrast serif typography, with confidently visible hairlines. MUSTA italic, RÄHNI upright, PÄEVAD italic. Only exact text: "MUSTA RÄHNI PÄEVAD", arranged on three lines. Preserve both Ä umlauts. Large editorial type, intelligent breathing room, a dramatic floating bird and rider. Humour comes from the surreal giant bird, not added decorations.
+Every letter must remain entirely legible; do not put wings or beak over the words. No extra copy, prices, logos, boxes, dotted lines, stars, badges, arrows, watermark or additional people.
+Composition: portrait 4:5, render 1440x1800 or larger in EXACT 4:5. The title is in the upper half, three beautifully fitted lines within x=8–88%, y=9–48%. Bird and rider fly across the lower half, wings sweeping upward beside the title without covering letters; keep rider face and beak inside x=10–90%, y=48–80%. Golden forest fills the bottom. Intentional edge-to-edge composition, not a cropped landscape banner.
