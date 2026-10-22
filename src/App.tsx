@@ -1736,9 +1736,11 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   }, [isCartOpen, isEditOpen, isProductVisualActive, displayProducts.length, singleProductId, singleProductImageCount, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, productRouteSlug])
 
   const goToProduct = (index: number) => {
+    if (!displayProducts.length) return
     const track = trackRef.current
+    // Adjacent clone slides keep the last/first transition moving one step.
     track?.scrollTo({ left: (index + 1) * track.clientWidth, behavior: 'smooth' })
-    const product = displayProducts[index]
+    const product = displayProducts[(index + displayProducts.length) % displayProducts.length]
     if (embeddedPreview || !isSeoStorefront || !storeSlug || !product) return
     const nextSlug = getProductUrlSlug(product)
     const nextPath = isDedicatedStorefrontHostname(window.location.hostname)
@@ -2922,8 +2924,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         )}
 
         {activeProduct && <div className="desktop-arrows" aria-label="Toote vahetamine">
-          <button onClick={() => goToProduct(Math.max(0, activeIndex - 1))} disabled={activeIndex === 0} aria-label="Eelmine toode">←</button>
-          <button onClick={() => goToProduct(Math.min(displayProducts.length - 1, activeIndex + 1))} disabled={activeIndex === displayProducts.length - 1} aria-label="Järgmine toode">→</button>
+          <button onClick={() => goToProduct(activeIndex - 1)} disabled={displayProducts.length < 2} aria-label="Eelmine toode">←</button>
+          <button onClick={() => goToProduct(activeIndex + 1)} disabled={displayProducts.length < 2} aria-label="Järgmine toode">→</button>
         </div>}
 
       </section>
