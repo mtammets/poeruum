@@ -16,6 +16,10 @@ import { applySeoMetadata } from './lib/seo'
 import { isSupabaseConfigured } from './lib/supabase'
 import { startDirectoryAnalytics, trackDirectoryEvent } from './lib/directoryAnalytics'
 import { useDirectoryImpression } from './useDirectoryImpression'
+import { useDirectoryTheme } from './lib/directoryTheme'
+import DirectoryCampaignProvider from './DirectoryCampaignProvider'
+import KrukStoreCard from './themes/black-friday/KrukStoreCard'
+import KrukModelAd from './themes/black-friday/KrukModelAd'
 
 const directoryUrl = 'https://kaubamaja.poeruum.ee/'
 const directoryName = 'Poeruumi Kaubamaja'
@@ -92,15 +96,15 @@ const ProductCard = ({ store, product, index, placement = 'search' }: DirectoryP
 }
 
 export default function Kaubamaja() {
-  if (/^\/lood(?:\/|$)/.test(window.location.pathname)) {
-    return <DirectoryStoryPage />
-  }
-  return <StoreDirectory />
+  return <DirectoryCampaignProvider>
+    {/^\/lood(?:\/|$)/.test(window.location.pathname) ? <DirectoryStoryPage /> : <StoreDirectory />}
+  </DirectoryCampaignProvider>
 }
 
 function StoreDirectory() {
   const stories = useDirectoryStories()
-  const featuredStory = stories.published[0]
+  const isBlackFriday = useDirectoryTheme().theme === 'black-friday'
+  const featuredStory = isBlackFriday ? undefined : stories.published[0]
   const storyAnchorHandled = useRef(false)
   const [sharedHoroscopeSign, setSharedHoroscopeSign] = useState(() => getHoroscopeSignFromLocation(window.location))
   const [stores, setStores] = useState<StoreDirectoryEntry[]>(readInitialStores)
@@ -111,8 +115,15 @@ function StoreDirectory() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(
     isSupabaseConfigured ? 'loading' : 'ready',
   )
+  const campaignStore = isBlackFriday ? stores.find(store => store.slug === 'kruk-kruk') : undefined
+  const directoryStores = useMemo(() => campaignStore
+    ? [campaignStore, ...stores.filter(store => store.id !== campaignStore.id)]
+    : stores, [stores, campaignStore])
   const search = useMemo(() => createStoreDirectorySearch(stores), [stores])
-  const highlights = useMemo(() => getStoreDirectoryHighlights(stores, highlightSeed), [stores, highlightSeed])
+  const highlights = useMemo(() => getStoreDirectoryHighlights(
+    campaignStore ? stores.filter(store => store.id !== campaignStore.id) : stores,
+    highlightSeed,
+  ), [stores, highlightSeed, campaignStore])
   const heroProducts = useMemo(() => highlights.slice(0, 4), [highlights])
   const directoryHeroImage = featuredStory ? new URL(featuredStory.image, directoryUrl).href : heroProducts[0]?.product.imageUrl || `${directoryUrl}images/poeruum-email-logo.png`
   const results = useMemo(() => search(query), [search, query])
@@ -214,17 +225,18 @@ function StoreDirectory() {
     }
   }, [stories.published.length])
 
-  return <StoreDirectoryLayout>
-    {featuredStory ? <DirectoryStoryHero key={featuredStory.slug} story={featuredStory} isOnlyStory={stories.published.length === 1} />
-      : <DirectoryHero products={heroProducts} />}
+  return <StoreDirectoryLayout campaignStore={campaignStore}>
+    {!isBlackFriday && (featuredStory ? <DirectoryStoryHero key={featuredStory.slug} story={featuredStory} isOnlyStory={stories.published.length === 1} />
+      : <DirectoryHero products={heroProducts} />)}
 
-    <div className="store-directory__marquee" aria-hidden="true">
+    {!isBlackFriday && <div className="store-directory__marquee" aria-hidden="true">
       <div className="store-directory__marquee-track">
         {[0, 1].map((group) => <div className="store-directory__marquee-group" key={group}>
           {marqueeLoop.map((message, index) => <span key={`${group}-${index}`}>{message}<i>✦</i></span>)}
         </div>)}
       </div>
-    </div>
+    </div>}
+
 
     {!isSearching && highlights.length > 0 && <section className="store-directory__highlights" aria-labelledby="directory-products-heading">
       <div className="store-directory__section-head"><div>
@@ -285,13 +297,17 @@ function StoreDirectory() {
           </section> : null}
           {!hasResults && (stores.length > 0 || status === 'ready') ? <div className="store-directory__empty"><p>Vasteid ei leitud. Proovi teist märksõna.</p></div> : null}
         </> : <div className="store-directory__grid">
-          {stores.map((store, index) => <StoreCard key={store.id} store={store} index={index} visitUrl={getStoreDirectoryVisitUrl(store)} />)}
+          {directoryStores.map((store, index) => store.id === campaignStore?.id
+            ? <KrukStoreCard key={store.id} store={store} index={index} />
+            : <StoreCard key={store.id} store={store} index={index} visitUrl={getStoreDirectoryVisitUrl(store)} />)}
           {storeDirectoryExamples.map((store, index) => <StoreCard key={store.id} store={store} index={stores.length + index} visitUrl={store.url} isExample />)}
+          {campaignStore && (directoryStores.length - 1 + storeDirectoryExamples.length) % 2 === 1 &&
+            <KrukModelAd store={campaignStore} index={directoryStores.length + storeDirectoryExamples.length} />}
         </div>}
       </div>
       {!isSearching ? <>
         <DailyHoroscope onSignChange={() => setSharedHoroscopeSign(getHoroscopeSignFromLocation(window.location))} />
-        <DirectoryStories {...stories} published={stories.published.slice(1)} />
+        <DirectoryStories {...stories} published={stories.published.slice(featuredStory ? 1 : 0)} />
       </> : null}
     </section>
   </StoreDirectoryLayout>

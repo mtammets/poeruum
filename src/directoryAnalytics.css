@@ -1,6 +1,6 @@
 .admin-kaubamaja { min-width: 0; }
 .admin-kaubamaja [hidden] { display: none !important; }
-.admin-kaubamaja__tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--admin-line); margin-bottom: 28px; }
+.admin-kaubamaja__tabs { display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--admin-line); margin-bottom: 28px; }
 .admin-kaubamaja__tabs button { border: 0; border-bottom: 3px solid transparent; background: none; color: var(--admin-muted); padding: 14px 18px; min-height: 48px; font: inherit; font-weight: 700; cursor: pointer; border-radius: .6rem .6rem 0 0; }
 .admin-kaubamaja__tabs button[aria-selected="true"] { color: var(--admin-accent-ink); border-color: var(--admin-accent); background: var(--admin-accent); }
 .directory-analytics { display: grid; gap: 24px; min-width: 0; color: var(--admin-ink); }

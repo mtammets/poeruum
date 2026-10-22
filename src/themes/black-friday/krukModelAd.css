@@ -1,0 +1,139 @@
+.store-directory__card.kruk-model-ad {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  isolation: isolate;
+  min-height: 30rem;
+  overflow: hidden;
+  border: 0;
+  color: #fff5e5;
+  background: #1b261c;
+  box-shadow: none;
+  font-family: Manrope, sans-serif;
+}
+.store-directory__card.kruk-model-ad:hover { transform: none; box-shadow: none; }
+.kruk-model-ad::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(0deg, #101e17f5 0%, #101e1799 15%, transparent 48%),
+    linear-gradient(90deg, #0e1a1266, transparent 65%);
+  content: '';
+  pointer-events: none;
+}
+.kruk-model-ad__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  transition: transform 1.2s cubic-bezier(.2, .7, .3, 1);
+  user-select: none;
+  pointer-events: none;
+}
+.kruk-model-ad__stage {
+  flex: 1;
+  min-height: 22rem;
+}
+.kruk-model-ad__brand {
+  position: absolute;
+  z-index: 4;
+  top: 5.5cqw;
+  left: 6cqw;
+  display: inline-flex;
+  align-items: center;
+  gap: .6rem;
+  color: inherit;
+  text-decoration: none;
+  font-size: clamp(.85rem, 2.8cqw, 1.15rem);
+  font-weight: 750;
+  letter-spacing: -.04em;
+}
+.kruk-model-ad__brand svg { width: 1rem; height: 1rem; stroke: currentColor; stroke-width: 1.6; }
+.kruk-model-ad__logo {
+  width: clamp(2rem, 7cqw, 2.75rem);
+  height: clamp(2rem, 7cqw, 2.75rem);
+  object-fit: contain;
+  border-radius: .35rem;
+}
+.kruk-model-ad__brand:hover { text-decoration: underline; text-underline-offset: .2em; }
+.kruk-model-ad__label { position: absolute; z-index: 2; top: 6cqw; right: 6cqw; font-size: .55rem; text-transform: uppercase; letter-spacing: .14em; opacity: .8; }
+.kruk-model-ad .kruk-model-ad__headline {
+  position: relative;
+  z-index: 2;
+  width: fit-content;
+  margin: 23cqw 0 6cqw 6cqw;
+  font: 750 clamp(2rem, 7.5cqw, 3.2rem)/1.04 Manrope, sans-serif;
+  letter-spacing: -.055em;
+  color: inherit;
+  pointer-events: none;
+}
+.kruk-model-ad__headline span { display: block; }
+.kruk-model-ad__offer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .4rem;
+  padding: clamp(1.1rem, 4cqw, 1.65rem) 6cqw;
+}
+.kruk-model-ad__offer > div { position: relative; z-index: 2; }
+.kruk-model-ad__product { margin: 0 0 .3rem; font-size: clamp(.65rem, 2cqw, .8rem); }
+.kruk-model-ad__price { display: flex; flex-wrap: wrap; align-items: baseline; gap: .55rem; margin: 0; }
+.kruk-model-ad__price strong { font-size: clamp(1.4rem, 4.5cqw, 1.9rem); font-weight: 600; line-height: 1.2; white-space: nowrap; }
+.kruk-model-ad__price del { font-size: .7rem; opacity: .7; }
+.kruk-model-ad__buy {
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.4rem;
+  min-height: 44px;
+  padding: .4rem 0;
+  border: 0;
+  border-bottom: 1px solid #fff5e580;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: 650 clamp(.85rem, 2.2cqw, .95rem)/1.25 Manrope, sans-serif;
+  cursor: pointer;
+  transition: border-color 180ms ease;
+}
+/* Stretch the single purchase button across the ad; the store link remains above it. */
+.kruk-model-ad__buy::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  border-radius: inherit;
+}
+.kruk-model-ad__buy svg { width: 1.15rem; height: 1.15rem; flex-shrink: 0; stroke: currentColor; stroke-width: 1.6; transition: transform 180ms ease; }
+.kruk-model-ad__buy:hover { border-color: currentColor; }
+.kruk-model-ad__buy:disabled { cursor: wait; opacity: .65; }
+.kruk-model-ad__buy:focus-visible, .kruk-model-ad__brand:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.kruk-model-ad__buy:focus-visible::after { outline: 2px solid currentColor; outline-offset: -5px; border-radius: 1.25rem; }
+.kruk-model-ad__error { position: relative; z-index: 4; margin: 0; font-size: .75rem; }
+.kruk-model-ad__error a { color: inherit; text-decoration: underline; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .kruk-model-ad:hover .kruk-model-ad__photo { transform: scale(1.02); }
+  .kruk-model-ad__buy:hover svg { transform: translateX(3px); }
+}
+@container (max-width: 450px) {
+  .kruk-model-ad__photo {
+    top: 23%;
+    height: 77%;
+    mask-image: linear-gradient(transparent, #000 24%);
+  }
+  .kruk-model-ad .kruk-model-ad__headline {
+    margin-top: 20cqw;
+    font-size: clamp(2rem, 9.8cqw, 2.7rem);
+    line-height: 1.02;
+  }
+}
+@container (max-width: 350px) {
+  .kruk-model-ad__photo { object-position: right top; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kruk-model-ad__photo, .kruk-model-ad__buy, .kruk-model-ad__buy svg { transition: none; }
+}

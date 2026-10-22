@@ -1,0 +1,13 @@
+Mode: built-in image_gen, transparent portrait extraction.
+Input: user-supplied E2FBC5D5-1560-4A38-A29D-E9565F5914B5 2.PNG.
+Final asset: public/images/campaigns/kruk-cap-model-v1.webp.
+The red studio background is rendered separately in CSS.
+
+Use case: background-extraction / identity-preserve.
+Asset type: transparent model cutout for a high-end baseball-cap advertisement.
+Input image 1 is the exact edit target. Isolate ONLY the man wearing the black two-woodpecker embroidered cap, dark rectangular sunglasses, moustache and brown zip jacket.
+Completely remove the forest, every part of the giant bird, all wing feathers and the large feathered foreground. Background must be genuinely transparent alpha.
+Keep the man's exact recognizable face, age, moustache, hair, serious deadpan expression, head angle, sunglasses, and the exact black cap shape with its small red-and-white two-woodpecker embroidery. The hat is the advertised product: preserve it very faithfully. Do not replace the logo or add text. Preserve the natural photographic texture and original warm light.
+Create a clean chest-up fashion model cutout, the whole cap and both shoulders visible. Where the bird obscured the lower chest, naturally continue the same plain brown zip jacket, with anatomically plausible shoulders and chest. No hands need to be shown. Crop at the mid-chest. Do not add arms, objects, jewelry or props.
+Composition: portrait 4:5 canvas, the man centered, cap top with a little transparent breathing room, silhouette including both shoulders cleanly separated, jacket reaching the bottom edge. This is still the same man in the same pose, not a new person or an illustration.
+No forest, no birds, no feathers, no scenery, no shadow baked into the background, no white outline, no border, no watermarks. Output one photorealistic transparent PNG.
