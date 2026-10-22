@@ -1,0 +1,20 @@
+Generator: built-in image_gen
+Reference: public/campaigns/screen-1.jpg
+Output: public/images/social/poeruum-facebook-cover-v2.png
+
+Use case: ads-marketing / compositing.
+Create a finished, premium Facebook cover image for Poeruum, the Estonian platform for running a small online shop directly from a phone.
+OUTPUT: a very wide landscape banner, 2400 x 1000 pixels, aspect ratio 2.4:1, full bleed, no frame. This is the actual cover artwork, not a Facebook page mockup.
+
+SUPPORTING INSERT: The supplied reference image is an actual Poeruum merchant storefront screenshot. Preserve this exact screen design and its existing content inside the smartphone in the final image: the MOREAMORECERAMICS header, the photo of the deep indigo-and-speckled-cream ceramic cup, and the yellow-green Osta / 20 € purchase control. Do not invent a different storefront, cards, grids, extra controls, or a Poeruum logo. The screenshot is an insert, not a layout reference for the whole banner.
+
+ART DIRECTION: sophisticated editorial small-business campaign photography, warm human scale, restrained, tactile and credible. One coherent photograph of a ceramic maker's worktable. Warm oak tabletop, a small folded flax linen cloth, one handmade small handleless cup with deep indigo glaze over a speckled cream lower half matching the exact product in the phone screenshot. A maker's natural hand, entering gently from the lower right, holds a slim black smartphone nearly facing the camera, with a slight believable tilt; the phone shows the supplied actual shop screenshot clearly, with natural subtle glass reflections that do not obscure the interface. No face or identifiable person. Cup sits next to the phone. Include at most one subtle kraft packing-paper edge in the far background; keep the scene uncluttered. Realistic ceramic texture, believable hand anatomy and phone proportions. No floating objects or floating UI.
+
+COMPOSITION: left half calm negative space in very dark forest green #183f30, smoothly integrated into the same scene as a softly shadowed dark green workshop wall and darkened left edge of the worktable. Right half has warm daylight, phone and actual ceramic cup. Do not make a hard split-panel collage. Phone centered around 69% of banner width, entire phone within 22%-79% of banner height. Cup around 82% width, 66% height. Keep objects and text inside the central safe area; outer 10% left/right and top/bottom may be cropped. Lower left corner should remain empty for Facebook's separate profile picture. Natural oblique sunlight from the upper right, soft real shadows, detailed but quiet background, photographic grain subtle and elegant.
+
+TEXT: Add exactly these two lines, in Estonian:
+"Sinu e-pood."
+"Otse telefonist."
+Place them left aligned, x approximately 15% of the canvas, first line around 38% canvas height, second line around 50%. Large confident modern geometric sans serif, bold, beautifully kerned, warm ivory #f4f1e7, excellent readability. Same size on both lines, generous leading. This is the only added advertising copy. Do not add any other headline, tagline, website, CTA button, caption, watermark or credit.
+
+ABSOLUTE CONSTRAINTS: no Poeruum logo, no shopping-bag icon, no duplicated profile picture, no Facebook chrome, no logo panel, no 3D clay illustration, no generic ecommerce dashboard. No additional decorative objects, no busy collage. The two-line headline and the real product-to-phone connection must be understood instantly. Finish at professional advertising campaign quality.
