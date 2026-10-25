@@ -1,0 +1,96 @@
+/* The native modal makes the covered page inert while preserving its scroll position. */
+body:has(.black-friday-screensaver[open]) #root { visibility: hidden; }
+body:has(.black-friday-screensaver[open]) .store-directory * { animation-play-state: paused !important; }
+.black-friday-screensaver {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: #f0eadc;
+  cursor: none;
+}
+.black-friday-screensaver::backdrop { background: #f0eadc; }
+.black-friday-screensaver__scene {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(ellipse at 40% 5%, #faf5e9, #f0eadc 70%);
+  cursor: none;
+  touch-action: none;
+  animation: black-friday-screensaver-in 900ms ease both;
+}
+.black-friday-screensaver .banner-forest {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  translate: 0 var(--flight-landscape-y, 0px);
+  scale: var(--flight-landscape-scale, 1);
+  transform-origin: 50% 70%;
+}
+.black-friday-screensaver .banner-forest::after {
+  background: linear-gradient(180deg, #f0eadc 0%, #f0eadc00 32%, #f0eadc00 90%, #f0eadc33 100%);
+}
+.black-friday-screensaver .banner-forest__layer--far {
+  --forest-tile: max(130vw, 150vh);
+  --forest-height: 72vh;
+  --forest-bottom: 18vh;
+  --forest-opacity: .45;
+}
+.black-friday-screensaver .banner-forest__layer--middle {
+  --forest-tile: max(105vw, 120vh);
+  --forest-height: 62vh;
+  --forest-bottom: 0vh;
+  --forest-opacity: .75;
+}
+.black-friday-screensaver .banner-forest__layer--near {
+  --forest-tile: max(120vw, 140vh);
+  --forest-height: 66vh;
+  --forest-bottom: -15vh;
+  --forest-opacity: 1;
+}
+.black-friday-screensaver__flight {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 43%;
+  width: min(74vw, 112dvh);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.black-friday-screensaver__bird {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  transform-origin: 58% 45%;
+  translate: var(--flight-x, 0px) var(--flight-y, 0px);
+  rotate: var(--flight-bank, 0deg);
+  scale: var(--flight-scale, .8);
+  filter: drop-shadow(0 2rem 1.5rem #38201320);
+  user-select: none;
+  will-change: translate, rotate, scale;
+}
+@keyframes black-friday-screensaver-in { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 760px) {
+  .black-friday-screensaver__flight { width: min(110vw, 105dvh); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .black-friday-screensaver__scene,
+  .black-friday-screensaver__bird { animation: none; }
+  .black-friday-screensaver__bird { will-change: auto; }
+  .black-friday-screensaver__flight { width: min(95vw, 112dvh); }
+}
