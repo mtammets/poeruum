@@ -7,6 +7,7 @@ import KrukCheckout from './KrukCheckout'
 import { useKrukPurchase } from './useKrukPurchase'
 import KrukHatShowcase from './KrukHatShowcase'
 import BannerForest from './BannerForest'
+import BlackFridayScreensaver from './BlackFridayScreensaver'
 import { bareheadedImage, birdImage, capImage, capOutline, getHatOrigin, headPatch, type HatOrigin } from './krukHatMotion'
 
 // The lower mandible in the original image's 1448 × 1086 coordinate space.
@@ -102,6 +103,7 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
   }, [])
 
   return <section ref={banner} className="black-friday-banner" data-hat-away={Boolean(hatOrigin) || undefined} data-shopping={Boolean(purchase.product) || undefined} data-calling={calling || undefined} aria-labelledby="black-friday-heading">
+    <BlackFridayScreensaver paused={Boolean(hatOrigin || purchase.purchase || purchase.busy)} />
     <BannerForest />
     <h1 id="black-friday-heading" className="black-friday-banner__title" aria-label="MUSTA RÄHNI PÄEVAD">
       <span className="black-friday-banner__musta" aria-hidden="true">MUSTA</span>

@@ -100,6 +100,29 @@ Salvestise allikas, CC0-litsents ja töötlus on kirjas
 Sisenemisanimatsioon, hõljumine, hiireliikumine ja noka animatsioon arvestavad vähendatud liikumise eelistust.
 Kampaaniavaates ei kuvata tavalist loo avaplokki ega liikuvat tekstiriba.
 
+Kui lehel pole 60 sekundit hiire-, puute-, kerimis- ega klaviatuuritegevust,
+avaneb täisekraani lennuvaade. Alles jäävad kolm liikuvat metsakihti ning rähn
+koos ratsanikuga. 28-sekundilisel sujuval lennukaarel muutub linnu skaala
+0,48-st 1,55-ni; lähiplaanil võivad tiivad ulatuda üle ekraani serva.
+Nooleklahvid võtavad lennu juhtimise üle: vasak lisab hoogu, parem pidurdab,
+üles viib linnu kaugemale ja alla toob lähemale. Hoida saab mitut noolt korraga.
+Hoog muudab ka metsakihtide möödumise kiirust; lind kaldub ja kaamera järgib
+lähenemist nii, et nokk ja ratsanik püsivad ka kitsal ekraanil nähtaval.
+Kiirendus ja sügavuse muutus on sujuvad, klahvide vabastamisel hajub inerts
+ning kiirus taastub tasapisi tavaliseks. Valitud kaugus säilib. Kui juhtimist
+ei kasutata, jätkub automaatne lennukaar. Brauseri fookuse kaotamisel vabastatakse
+kõik all hoitud juhtnupud. Nooled ei kerita peidetud lehte ega sule lennuvaadet.
+Hiire liigutamine, puudutus, kerimine, Escape või muu klahv taastab lehe koos
+senise kerimiskoha ja klaviatuurifookusega. Äratusvajutus ei aktiveeri peidus
+ostunuppu. Mütsi tootevaate, ostukorvi ja teiste dialoogide ajal lennuvaade
+ei käivitu. Peidetud brauserivahelehel taimer peatub; naasmisel algab uus minut.
+Vähendatud liikumise eelistuse korral on lennuvaade paigal; noole vajutus muudab
+asendit väikese sammuga, ilma automaatse liikumise või inertsita.
+Teostus: `src/themes/black-friday/BlackFridayScreensaver.tsx` ja
+`blackFridayScreensaver.css`, juhtimine `useScreensaverFlight.ts` ja
+`screensaverFlight.ts`; käitumiskontrollid:
+`e2e/black-friday-screensaver.e2e.ts` ning `screensaverFlight.test.ts`.
+
 Bänneri sisse on sobitatud kataloogi poe `kruk-kruk` nokkmütsi `nokkmuts`
 ostuvõimalus. Käsikirjaline „Müts” (kohalik Caveat font) ja vabakäelise ilmega
 lühike kaarjas nool osutavad mütsile, jättes nooleotsa ja mütsi vahele õhuvahe.
@@ -121,15 +144,20 @@ avanevad ja sulguvad vaated kohe. Lendamise tootevaatest saab avada ostu;
 tellimusvormi sulgemine toob tagasi sama mütsi juurde.
 Pildikihid ja imagegeni täpsed juhised on failis
 `docs/campaigns/image-prompts/kruk-hat-flight.txt`.
-Ostu avab ka paigal püsiv „Osta nokkmüts” koos hinnaga bänneri paremas alanurgas. Telefonis
-on ostupakkumine pealkirja all samal taustal. Tekst „Võta müts maha.
-Rähn jääb meile.” seob ostu kampaaniapildi naljaga. Eraldi tootekaarti pole.
+Ostu avab ka bänneri allosas taustata mütsi pilt koos käsikirjalise „Võta nokkmüts”
+ja hinnaga. Mütsi suurendati veerandi võrra üles-vasakule, hoides hinna senises
+asukohas. Seitsmesekundiline hõljumine tõstab mütsi 6 pikslit ja kallutab 1,5°;
+hiire või klaviatuurifookuse korral läheneb müts veel veidi. Liikumine peatub
+väljaspool vaatevälja, peidetud vahelehel, ostu laadimisel ja lennuvaate ajal.
+Vähendatud liikumise eelistuse korral on müts paigal. Telefonis on ostupakkumine
+pealkirja all samal taustal ning mütsi suurus kohandub vaba ruumiga.
+Eraldi tootekaarti pole.
 Nimi, hind, soodushind ja saadavus tulevad samast avalikust kataloogist
 nagu ülejäänud kaubamajal. Bänneri ja mütsi tootevaate ostunupud avavad olemasoleva
 tellimusvormi samal lehel, üks müts juba valitud. Enne avamist laaditakse üle
 toote hind, laoseis, maksete valmidus ja poe tarneviisid. Mitme valikuga
 toote korral suunab veateate link tootelehele valikuid tegema.
-Poe ja toote nimega link avab tootelehe ning säilitab kaubamaja külastuse päritolu.
+Veateate juures olev link avab tootelehe ning säilitab kaubamaja külastuse päritolu.
 Kui müts pole saadaval või pood puudub kataloogist, ostupakkumist ei kuvata.
 Krük-Krüki tooteid ei korrata selle vaate üldises kingiideede valikus;
 otsingus ja poodide nimekirjas on need endiselt leitavad.

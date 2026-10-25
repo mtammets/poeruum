@@ -474,49 +474,72 @@
   .black-friday-banner__hat:hover .black-friday-banner__hat-note > span { text-decoration: underline; text-underline-offset: .15em; }
 }
 .kruk-offer {
+  --kruk-cap-size: clamp(7.5rem, 16cqw, 15rem);
   position: absolute;
   z-index: 5;
-  left: 55%;
+  left: 47%;
   bottom: 1.5cqw;
   width: 36%;
   color: var(--black-friday-ink);
 }
 .kruk-offer a { color: inherit; text-decoration: none; }
-.kruk-offer__product { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .5em; font-size: .65rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
-.kruk-offer__product:hover { text-decoration: underline; text-underline-offset: .25em; }
-.kruk-offer__headline {
-  margin: .6rem 0 .2rem;
-  font-family: 'Bodoni Campaign', Georgia, serif;
-  font-size: clamp(2rem, 3.8cqw, 3.5rem);
-  font-weight: 500;
-  font-style: italic;
-  line-height: 1.1;
-  letter-spacing: -.045em;
-  -webkit-text-stroke: clamp(.55px, .008em, 1px) currentColor;
-  paint-order: stroke fill;
+.kruk-offer__cap {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  width: calc(var(--kruk-cap-size) * 1.25);
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  transform: rotate(-10deg);
+  transform-origin: 75% 75%;
+  animation: kruk-offer-float 7s ease-in-out infinite;
+  transition: translate 450ms cubic-bezier(.2, .7, .2, 1), scale 450ms cubic-bezier(.2, .7, .2, 1);
 }
-.kruk-offer__aside { margin: 0; font-size: .85rem; }
+.black-friday-banner:has(.banner-forest[data-running='false']) .kruk-offer__cap,
+.kruk-offer__buy:disabled .kruk-offer__cap { animation-play-state: paused; }
+@keyframes kruk-offer-float {
+  0%, 100% { transform: translateY(0) rotate(-10deg); }
+  50% { transform: translateY(-6px) rotate(-8.5deg); }
+}
+.kruk-offer__details {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  padding-bottom: .7rem;
+  white-space: nowrap;
+  transform: rotate(-5deg);
+}
+.kruk-offer__label { font: 600 clamp(1.4rem, 2.2cqw, 2rem) / 1.15 'Caveat Campaign', cursive; }
+.kruk-offer__price {
+  display: block;
+  font: 600 clamp(2.6rem, 4cqw, 4rem) / 1 'Caveat Campaign', cursive;
+}
 .kruk-offer__buy {
   display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding: .85rem 0;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 3rem;
+  align-items: flex-end;
+  gap: clamp(1rem, 1.6cqw, 1.6rem);
+  margin: 0 auto;
+  padding: .5rem 0;
   border: 0;
-  border-top: 1px solid #531b2540;
+  border-radius: .25rem;
   background: transparent;
   color: inherit;
-  font: 600 .95rem Manrope, sans-serif;
   text-align: left;
   cursor: pointer;
 }
-.kruk-offer__price { display: inline-flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: .6rem; margin-left: auto; }
-.kruk-offer__price strong { font-size: 1.25rem; font-weight: 500; white-space: nowrap; }
-.kruk-offer__price del { opacity: .55; font-size: .7rem; white-space: nowrap; }
-.kruk-offer__buy svg { width: 1.4rem; height: 1.4rem; stroke: currentColor; stroke-width: 1.5; flex-shrink: 0; transition: transform 240ms ease; }
-.kruk-offer__buy:hover svg { transform: translateX(.35rem); }
-.kruk-offer__buy:hover { color: var(--black-friday-accent); }
+.kruk-offer__buy:focus-visible { color: var(--black-friday-accent); }
+@media (hover: hover) and (pointer: fine) {
+  .kruk-offer__buy:enabled:hover { color: var(--black-friday-accent); }
+  .kruk-offer__buy:enabled:hover .kruk-offer__cap { translate: 0 -.3rem; scale: 1.04; }
+}
+.kruk-offer__buy:enabled:focus-visible .kruk-offer__cap { translate: 0 -.3rem; scale: 1.04; }
+@media (min-width: 1101px) {
+  /* Grow toward the left while keeping the price in its existing position. */
+  .black-friday-banner .kruk-offer__buy { transform: translateX(calc(var(--kruk-cap-size) * -.125)); }
+}
 .kruk-offer__buy:disabled { cursor: wait; opacity: .6; }
 .kruk-offer__buy:focus-visible,
 .kruk-offer a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
@@ -646,10 +669,6 @@
   .black-friday-banner__beak-note { width: 5rem; height: 3rem; top: calc(43.5% + .55rem); }
   .black-friday-banner__beak-note > span { font-size: 1.65rem; top: 1.28rem; left: 1rem; }
   .kruk-offer { position: relative; left: auto; bottom: auto; width: auto; margin: 1.25rem 1rem .75rem; }
-  .kruk-offer__headline { font-size: clamp(2.4rem, 9.6cqw, 4rem); margin-top: .65rem; }
-  .kruk-offer__product { font-size: .6rem; }
-  .kruk-offer__aside { font-size: .8rem; }
-  .kruk-offer__buy { margin-top: 1.25rem; min-height: 3.5rem; }
 
 }
 
@@ -665,7 +684,9 @@
   .black-friday-banner__hat-note,
   .black-friday-banner__beak-note,
   .black-friday-banner__hat-highlight,
-  .kruk-offer__buy svg { transition: none; }
+  .kruk-offer__cap { transition: none; }
+  .kruk-offer__cap { animation: none; }
+  .kruk-offer__buy:enabled:is(:hover, :focus-visible) .kruk-offer__cap { translate: none; scale: none; }
 }
 
 /* Development controls; not part of the published campaign. */
@@ -751,11 +772,8 @@
 .kruk-hat[data-arrived]:not([data-returning]) .kruk-hat__product img { animation: kruk-hat-hover 5s ease-in-out infinite; }
 .kruk-hat__details { position: relative; pointer-events: auto; animation: kruk-hat-details 550ms 600ms ease both; }
 .kruk-hat .kruk-offer { position: relative; inset: auto; width: 100%; margin: 0; }
-.kruk-hat .kruk-offer__headline { margin: 1rem 0 .5rem; font-size: clamp(2.75rem, 4.5vw, 4.5rem); }
-.kruk-hat .kruk-offer__product { font-size: .7rem; }
-.kruk-hat .kruk-offer__aside { font-size: 1rem; }
-.kruk-hat .kruk-offer__buy { margin-top: 2rem; padding-block: 1rem; }
-.kruk-hat .kruk-offer__price strong { font-size: 1.5rem; }
+.kruk-hat .kruk-offer__buy { margin: 0; }
+.kruk-hat .kruk-offer__price { font-size: clamp(3rem, 5vw, 5rem); }
 .kruk-hat[data-returning] .kruk-hat__backdrop { animation: kruk-hat-backdrop 600ms ease reverse both; }
 .kruk-hat[data-returning] .kruk-hat__details { animation: kruk-hat-details 200ms ease reverse both; pointer-events: none; }
 .kruk-hat[data-returning] .kruk-hat__return { opacity: 0; pointer-events: none; }
@@ -767,15 +785,11 @@
   .kruk-hat__stage { flex: 0 0 auto; width: min(100%, 54vh); width: min(100%, 54dvh); }
   .kruk-hat__details { width: min(100%, 28rem); }
   .kruk-hat__return { top: max(.75rem, env(safe-area-inset-top)); right: 1.5rem; }
-  .kruk-hat .kruk-offer__headline { font-size: clamp(2.5rem, 10vw, 3.5rem); }
-  .kruk-hat .kruk-offer__buy { margin-top: 1.25rem; }
-  .kruk-hat .kruk-offer__product { font-size: .6rem; }
+  .kruk-hat .kruk-offer__buy { margin-inline: auto; }
 }
 @media (max-height: 540px) and (min-width: 600px) {
   .kruk-hat__composition { inset: 3.5rem 4vw 1rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4vw; }
   .kruk-hat__stage { width: min(100%, 75dvh); margin: auto; }
-  .kruk-hat .kruk-offer__headline { font-size: 2.25rem; }
-  .kruk-hat .kruk-offer__buy { margin-top: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .kruk-hat__backdrop,
