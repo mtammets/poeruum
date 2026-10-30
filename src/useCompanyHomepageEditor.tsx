@@ -112,25 +112,24 @@ export default function useCompanyHomepageEditor(store: PublicStoreRecord, produ
   }
   const toolbar = canEdit ? <aside className={`company-editor${active ? ' is-active' : ''}`} aria-label="Kodulehe muutmine">
     {active ? <>
-      <div className="company-editor__info"><strong>{preview ? 'Kodulehe eelvaade' : 'Klõpsa tekstil ja kirjuta'}</strong>
-        <span>{review ? 'Muudatused salvestuvad sellesse eelvaatesse.' : ownerId ? 'Muudatused avalduvad salvestamisel.' : 'Kohalik eelvaade · salvestub ainult selles brauseris.'}</span>
-      </div>
       <div className="company-editor__actions">
         <button type="button" onClick={() => setPreview(value => !value)} disabled={busy} aria-pressed={preview}>{preview ? 'Jätka muutmist' : 'Eelvaade'}</button>
         <button type="button" onClick={close} disabled={busy}>{dirty ? 'Loobu' : 'Valmis'}</button>
         <button type="button" className="company-editor__save" onClick={() => void save()} disabled={busy || !dirty}>{busy ? 'Salvestan…' : review || ownerId ? 'Salvesta' : 'Salvesta eelvaade'}</button>
       </div>
-      <p className={`company-editor__status${error ? ' is-error' : ''}`} role={error ? 'alert' : 'status'}>
-        {error || notice || (dirty ? 'Salvestamata muudatused' : 'Kõik muudatused on salvestatud')}
-      </p>
+      {(error || notice || dirty) && <p className={`company-editor__status${error ? ' is-error' : ''}`} role={error ? 'alert' : 'status'}>
+        {error || notice || 'Salvestamata muudatused'}
+      </p>}
     </> : <>
       {discarded && <div className="company-editor__undo"><span role="status">Muudatused tühistatud.</span><button type="button" onClick={() => {
         setDraft(discarded); setDiscarded(null); setActive(true); setPreview(false)
       }}>Võta tagasi</button></div>}
-      <button type="button" className="company-editor__open" onClick={() => { setDraft(saved); setDiscarded(null); setActive(true); setPreview(false) }}>
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15l-1 5Z" /></svg>Muuda
-      </button>
-      {review && <button type="button" className="company-editor__logout" onClick={review.logout}>Välju</button>}
+      <div className="company-editor__closed-actions">
+        <button type="button" className="company-editor__open" onClick={() => { setDraft(saved); setDiscarded(null); setActive(true); setPreview(false) }}>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15l-1 5Z" /></svg>Muuda
+        </button>
+        {review && <button type="button" className="company-editor__logout" onClick={review.logout}>Välju</button>}
+      </div>
     </>}
   </aside> : null
   return {
