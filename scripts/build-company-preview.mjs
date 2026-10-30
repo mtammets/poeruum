@@ -20,6 +20,8 @@ for (const asset of [
 }
 try {
   await build({ configFile: false, root, base: process.env.COMPANY_REVIEW_BASE_PATH || '/eelvaade/kruk-kruk/', envDir: false, plugins: [react()], publicDir,
+    // The password session is independent of the shop owner's Supabase login.
+    define: { 'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(''), 'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify('') },
     build: { outDir: out, emptyOutDir: true, sourcemap: false },
   })
 } finally { await rm(publicDir, { recursive: true, force: true }) }
