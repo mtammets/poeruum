@@ -12,9 +12,9 @@ const password = 'test-only-review-password'
 const salt = randomBytes(16).toString('hex')
 const passwordHash = `scrypt:${salt}:${scryptSync(password, salt, 64).toString('hex')}`
 
-async function fixture(assets) {
+async function fixture(assets, basePath = '/') {
   let copy = {}, revision = 1, writes = 0
-  const server = createReviewServer({ passwordHash, sessionSecret: randomBytes(32).toString('hex'), secureCookies: false, assets,
+  const server = createReviewServer({ passwordHash, sessionSecret: randomBytes(32).toString('hex'), secureCookies: false, assets, basePath,
     load: async () => ({
       store: { id: 'review-shop', name: 'Krük-Krük', slug: 'kruk-kruk', is_published: true, shipping: [], settings: { companyHomepage: copy, contactEmail: 'madis@example.invalid' } },
       products: [{ id: 'hat', slug: 'nokkmuts', name: 'Nokkmüts', price: 25, image: '/images/campaigns/kruk-cap-cutout-v1.webp' }], revision, shopUrl: 'https://kruk-kruk.poeruum.ee/',
@@ -73,13 +73,14 @@ test('password protects content, assets and editing; sessions, CSRF and conflict
 })
 
 test('client can sign in, edit, save across browsers and sign out', async () => {
-  const app = await fixture(path.resolve('dist-company-preview'))
+  const basePath = '/eelvaade/kruk-kruk/'
+  const app = await fixture(path.resolve('dist-company-preview'), basePath)
   const browser = await chromium.launch()
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
-    await page.goto(app.origin)
+    await page.goto(`${app.origin}${basePath}`)
     await page.getByLabel('Parool').fill(password)
     await page.getByRole('button', { name: 'Ava koduleht' }).click()
     await page.getByRole('button', { name: 'Muuda', exact: true }).click()
@@ -89,14 +90,14 @@ test('client can sign in, edit, save across browsers and sign out', async () => 
     await page.getByRole('button', { name: 'Valmis', exact: true }).click()
     assert.equal(await page.getByRole('link', { name: 'Vaata toodet e-poes' }).getAttribute('href'), 'https://kruk-kruk.poeruum.ee/toode/nokkmuts/')
     const second = await browser.newPage()
-    await second.goto(app.origin)
+    await second.goto(`${app.origin}${basePath}`)
     await second.getByLabel('Parool').fill(password)
     await second.getByRole('button', { name: 'Ava koduleht' }).click()
     await second.getByRole('heading', { name: 'Kliendi uus tekst metsa.' }).waitFor()
     assert.equal(await page.evaluate(() => globalThis.document.documentElement.scrollWidth > globalThis.innerWidth), false)
     await page.getByRole('button', { name: 'Välju', exact: true }).click()
     await page.getByLabel('Parool').waitFor()
-    assert.equal((await page.request.get(`${app.origin}/api/homepage`)).status(), 401)
+    assert.equal((await page.request.get(`${app.origin}${basePath}api/homepage`)).status(), 401)
     assert.deepEqual(errors, [])
   } finally { await browser.close(); await app.close() }
 })

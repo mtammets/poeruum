@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import calls from './woodpeckerCalls.json'
+import recordings from './woodpeckerCalls.json'
+import { publicAssetUrl } from '../../lib/publicAssetUrl'
+
+const calls = recordings.map(call => ({ ...call, src: publicAssetUrl(call.src) }))
 
 export const woodpeckerCalls = calls
 

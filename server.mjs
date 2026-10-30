@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import { createReviewHandler, reviewBackend } from './previews/company-homepage/server.mjs'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -391,10 +392,19 @@ const send = (res, status, body, headers = {}) => {
 }
 
 const templatePromise = readFile(path.join(dist, 'index.html'), 'utf8')
+let companyReviewHandler
 createServer(async (req, res) => {
   try {
     const host = String(req.headers['x-forwarded-host'] || req.headers.host || platformHost).split(',')[0].trim().toLowerCase().split(':')[0]
     const url = new URL(req.url || '/', `https://${host}`)
+    if (url.pathname === '/eelvaade/kruk-kruk' || url.pathname.startsWith('/eelvaade/kruk-kruk/')) {
+      companyReviewHandler ??= createReviewHandler({
+        basePath: '/eelvaade/kruk-kruk/', passwordHash: process.env.COMPANY_REVIEW_PASSWORD_HASH,
+        sessionSecret: process.env.COMPANY_REVIEW_ACCESS_KEY,
+        ...reviewBackend({ ...process.env, SUPABASE_URL: supabaseUrl, SUPABASE_ANON_KEY: supabaseKey }),
+      })
+      return companyReviewHandler(req, res)
+    }
     const decodedPathname = decodePathname(url.pathname)
     if (decodedPathname === null) {
       return send(res, 400, 'Vigane veebiaadress.', {

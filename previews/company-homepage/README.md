@@ -1,7 +1,7 @@
 # Krük-Krüki privaatne kliendieelvaade
 
-Eraldi Renderi teenus kasutab sama `CompanyHomepage` komponenti, kujundust ja
-tekstiredaktorit. Leht avaneb teenuse juuraadressil. Parooliga sisse loginud klient
+Poeruumi olemasolev Renderi teenus kasutab sama `CompanyHomepage` komponenti, kujundust ja
+tekstiredaktorit. Leht avaneb aadressil https://poeruum.ee/eelvaade/kruk-kruk/. Parooliga sisse loginud klient
 saab vajutada **Muuda**, muuta tekste ja vajutada **Salvesta**. **Välju** sulgeb
 sessiooni. E-poe ja toote lingid viivad Krük-Krüki olemasolevasse poodi.
 
@@ -32,26 +32,26 @@ kirjutada ainult ühe poe mustandit. Andmebaasis hoitakse sellest üksnes SHA-25
 räsi. Iga salvestus kontrollib versiooni ja jätab eelmise teksti alles.
 
 `scripts/configure-company-review.mjs` toetab käske `prepare`, `database`,
-`deploy` ja `status`. `prepare` loob korduvkasutatavad saladused Giti poolt
+`configure` ja `status`. `prepare` loob korduvkasutatavad saladused Giti poolt
 ignoreeritavasse `.env.company-preview` faili; seda ei tohi kopeerida hoidlasse.
 `database` rakendab ainult eelvaate migratsiooni ja loob algmustandi, säilitades
-olemasoleva. `deploy` loob tasuta Renderi teenuse üks kord. Teenuse ID ja URL
-salvestuvad `deployment.json` faili, mis ei sisalda saladusi.
+olemasoleva. `configure` lisab kaks eelvaate saladust olemasolevale Poeruumi
+Renderi teenusele. `deployment.json` näitab sama teenuse ID-d ja kaitstud URL-i.
 
-Render kasutab haru `codex/kruk-client-preview`, ehitab käsuga
-`npm ci && npm run build:company-preview` ja käivitub käsuga
-`npm run start:company-preview`. Automaatne juurutus on väljas: pärast testimist
-juuruta sama teenuse konkreetne kontrollitud commit. Põhirakenduse Renderi teenus
-ja `main` haru ei ole selle eelvaate juurutussiht.
+Eelvaade kasutab Poeruumi olemasolevat tasulist majutust. Eraldi serverit ega
+majutuse kuutasu ei lisandu. Poeruumi `npm run build` ehitab nii põhirakenduse kui
+ka eelvaate; `server.mjs` suunab `/eelvaade/kruk-kruk/` päringud parooliväravasse.
+Kõik eelvaate failid asuvad kaitstud teekonna all. E-poe ja maksete marsruudid
+kasutavad edasi olemasolevat serveriloogikat.
 
 ## Kliendi domeen
 
-Kui domeen on ostetud, lisa see **selle eelvaateteenuse** Custom Domains alla ja
-seadista Renderi tagastatud DNS-kirjed. HTTPS-i sertifikaadi väljastab Render.
-Leht ja salvestatud mustand jäävad samaks; uuel domeenil tuleb uuesti parool
-sisestada. Domeeni ühendamine ei eemalda paroolikaitset.
+Kui domeen on ostetud, lisa see Poeruumi olemasoleva Renderi teenuse Custom
+Domains alla ning seadista Renderi tagastatud DNS-kirjed. Lisa serverisse selle
+domeeni juuraadressi suunamine kliendi kodulehele; DNS üksi ei määra, millist
+Poeruumi lehte näidata. HTTPS-i sertifikaadi väljastab Render. Salvestatud
+mustand jääb samaks. Domeeni ühendamine ei eemalda automaatselt paroolikaitset.
 
 Avalikuks käivitamine on eraldi muudatus: külastajavaade tuleb avada ilma
 muutmisõiguseta ning redaktor peab jääma autentimise taha. Praegust parooliväravat
 ei tohi lihtsalt eemaldada, sest see kaitseb ühtlasi kliendi muutmisõigust.
-Tasuta Renderi teenuse esimene avamine pärast jõudeolekut võib võtta umbes minuti.

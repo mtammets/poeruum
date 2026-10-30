@@ -229,6 +229,9 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Private company review access and editing
+        run: npm run build:company-preview && npm run test:company-preview
+
       - name: Seller setup, Stripe return and first product journey
         run: npm run test:seller-preview -- --workers=1
 

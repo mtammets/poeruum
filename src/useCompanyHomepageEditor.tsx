@@ -10,6 +10,7 @@ const localDevelopment = import.meta.env.DEV && /^(localhost|127\.0\.0\.1|.*\.lo
 
 export type CompanyHomepageReview = {
   shopUrl: string
+  homePath?: string
   save: (copy: CompanyCopy) => Promise<void>
   logout: () => void
 }

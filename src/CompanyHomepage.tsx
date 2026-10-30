@@ -10,6 +10,7 @@ import useWoodpeckerCall, { woodpeckerCalls } from './themes/black-friday/useWoo
 import WoodpeckerBeak, { lowerBeak } from './themes/black-friday/WoodpeckerBeak'
 import { birdImage } from './themes/black-friday/krukHatMotion'
 import useCompanyHomepageEditor, { type CompanyHomepageReview } from './useCompanyHomepageEditor'
+import { publicAssetUrl } from './lib/publicAssetUrl'
 import './companyHomepage.css'
 
 const Arrow = () => <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
@@ -42,7 +43,7 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
   const isSignatureHat = featured?.slug === 'nokkmuts'
   const dedicated = isDedicatedStorefrontHostname(window.location.hostname)
   const shopPath = review?.shopUrl ?? (dedicated ? '/' : getStorefrontPath(store.slug))
-  const homepagePath = review ? '/' : getCompanyHomepagePath(store.slug)
+  const homepagePath = review ? review.homePath || '/' : getCompanyHomepagePath(store.slug)
   const productPath = (product: Product) => review ? new URL(`/toode/${encodeURIComponent(getProductUrlSlug(product))}/`, review.shopUrl).href : dedicated ? `/toode/${encodeURIComponent(getProductUrlSlug(product))}/` : getStorefrontPath(store.slug, product)
   const socials = [['instagramLabel', settings.instagramUrl], ['facebookLabel', settings.facebookUrl], ['tiktokLabel', settings.tiktokUrl]]
     .map(([label, value]) => ({ label: String(label), url: externalUrl(value) })).filter(item => item.url)
@@ -158,7 +159,7 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
         </div>
         <div className="company-about__body">
           <figure className="company-about__portrait">
-            <img src="/images/campaigns/kruk-cap-forest-model-v1.webp" alt="Krük-Krüki kahe rähniga nokkmütsi kandev mees päikeselises metsas" width="1254" height="1254" loading="lazy" decoding="async" />
+            <img src={publicAssetUrl('/images/campaigns/kruk-cap-forest-model-v1.webp')} alt="Krük-Krüki kahe rähniga nokkmütsi kandev mees päikeselises metsas" width="1254" height="1254" loading="lazy" decoding="async" />
             <figcaption>{edit('portraitCaption')}{edit('portraitCredit')}</figcaption>
           </figure>
           <div className="company-about__copy">
@@ -179,7 +180,7 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
             <a className="company-text-link" href={featured ? '#looming' : shopPath}><span>{edit('sketchesShop')}</span><Arrow /></a>
           </div>
           <figure className="company-sketchbook__photo">
-            <img src="/images/kruk-kruk/mark-sketches.jpg" alt="Krük-Krüki kahe punase pealaega rähni märgi käsitsi joonistatud visandid täpilisel paberil" width="1368" height="1824" loading="lazy" decoding="async" />
+            <img src={publicAssetUrl('/images/kruk-kruk/mark-sketches.jpg')} alt="Krük-Krüki kahe punase pealaega rähni märgi käsitsi joonistatud visandid täpilisel paberil" width="1368" height="1824" loading="lazy" decoding="async" />
             <figcaption>{edit('sketchesCaption')}{edit('sketchesCredit')}</figcaption>
           </figure>
         </div>
@@ -190,7 +191,7 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
         <div className="company-feature__body">
         <a className="company-feature__image" href={productPath(featured)} aria-label={`Vaata toodet ${featured.name}`}>
           {isSignatureHat && <span className="company-feature__edition" aria-hidden={editor.editing ? undefined : true}>{edit('productEdition')}</span>}
-          <img {...(isSignatureHat ? { src: '/images/campaigns/kruk-cap-cutout-v1.webp', width: 1448, height: 1086 } : getResponsiveImageProps(featured, featured.image))} className={isSignatureHat ? 'is-cutout' : undefined} alt={featured.alt || featured.name} loading="lazy" decoding="async" />
+          <img {...(isSignatureHat ? { src: publicAssetUrl('/images/campaigns/kruk-cap-cutout-v1.webp'), width: 1448, height: 1086 } : getResponsiveImageProps(featured, featured.image))} className={isSignatureHat ? 'is-cutout' : undefined} alt={featured.alt || featured.name} loading="lazy" decoding="async" />
           <span className="company-feature__caption"><span>{edit('productCaption')}</span><Arrow /></span>
         </a>
         <div className="company-feature__copy">

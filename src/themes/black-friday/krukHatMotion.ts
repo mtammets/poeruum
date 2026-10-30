@@ -1,6 +1,7 @@
-export const birdImage = '/images/campaigns/musta-rahni-cutout-v2.webp'
-export const bareheadedImage = '/images/campaigns/musta-rahni-bareheaded-v1.webp'
-export const capImage = '/images/campaigns/kruk-cap-cutout-v1.webp'
+import { publicAssetUrl } from '../../lib/publicAssetUrl'
+export const birdImage = publicAssetUrl('/images/campaigns/musta-rahni-cutout-v2.webp')
+export const bareheadedImage = publicAssetUrl('/images/campaigns/musta-rahni-bareheaded-v1.webp')
+export const capImage = publicAssetUrl('/images/campaigns/kruk-cap-cutout-v1.webp')
 
 // Original photo coordinates; the foreground starts with these exact pixels.
 export const capOutline = 'M 667 223 C 676 216 690 216 699 214 C 709 196 722 185 738 187 C 766 188 783 214 784 246 L 771 246 C 751 236 735 232 716 231 C 701 239 681 241 667 232 Z'

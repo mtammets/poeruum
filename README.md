@@ -178,3 +178,8 @@ Render käivitab `npm run build`, mis ehitab rakenduse ja genereerib SEO-varad,
 ning serveerib tulemust käsuga `npm start`. Deploy toimub ainult pärast CI
 kontrollide läbimist. Tootmissaladused ei tohi kasutada `VITE_` prefiksit;
 brauserisse tohivad jõuda ainult `.env.example` failis avalikuks märgitud võtmed.
+
+
+## Krük-Krüki kliendieelvaade
+
+Parooliga eelvaade: https://poeruum.ee/eelvaade/kruk-kruk/. See töötab Poeruumi olemasolevas majutuses. Kliendi tekstimuudatused salvestuvad privaatsesse versioonidega mustandisse. Juhend: [kliendieelvaade](previews/company-homepage/README.md).

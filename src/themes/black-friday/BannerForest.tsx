@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
+import { publicAssetUrl } from '../../lib/publicAssetUrl'
 import './bannerForest.css'
 
-const forestImage = '/images/campaigns/musta-rahni-forest-v1.webp'
+const forestImage = publicAssetUrl('/images/campaigns/musta-rahni-forest-v1.webp')
 
 export default function BannerForest() {
   const root = useRef<HTMLDivElement>(null)
