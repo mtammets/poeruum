@@ -6,6 +6,8 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { normalizeClosedStore, renderClosedStoreDocument } from './shared/closed-storefront.mjs'
 import { getHoroscopeShareMetadata, getHoroscopeSharePath, getHoroscopeSignFromLocation } from './shared/horoscope-share.mjs'
+import { COMPANY_HOMEPAGE_IMAGE, COMPANY_HOMEPAGE_PATH, companyHomepageMetadata, hasCompanyHomepage, isCompanyHomepagePath } from './shared/company-homepage.mjs'
+import { companyCopyDefaults, normalizeCompanyCopy } from './shared/company-homepage-copy.mjs'
 import {
   decodePathname,
   getProductSlugFromPath,
@@ -162,6 +164,29 @@ const seoBlock = ({ title, description, canonical, socialUrl = canonical, image,
     ${verification ? `<meta name="google-site-verification" content="${escapeHtml(verification)}" />` : ''}
     <script type="application/ld+json" data-poeruum-structured-data>${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>
     <!-- poeruum:seo:end -->`
+}
+
+function renderCompanyHomepage(template, store) {
+  const settings = store.settings || {}
+  const copy = { ...companyCopyDefaults(settings, store.store_name), ...normalizeCompanyCopy(settings.companyHomepage) }
+  const name = copy.brand
+  const { title, description } = companyHomepageMetadata(name, copy)
+  const canonical = `https://${store.primary_hostname}${COMPANY_HOMEPAGE_PATH}`
+  const logo = absoluteImage(settings.storeLogo)
+  const schema = {
+    '@context': 'https://schema.org', '@type': 'Organization', name: copy.company || name,
+    url: canonical, description, ...(logo ? { logo } : {}),
+    ...(copy.email ? { email: copy.email } : {}),
+    ...(copy.phone ? { telephone: copy.phone } : {}),
+  }
+  const fallback = `<main class="seo-fallback"><div><span>${escapeHtml(name)}</span><h1>${escapeHtml(`${copy.heroTitle} ${copy.heroAccent}`)}</h1><p>${escapeHtml(description)}</p><a href="/">${escapeHtml(copy.heroShop)}</a>${copy.email ? `<p>${escapeHtml(copy.navContact)}: <a href="mailto:${escapeHtml(copy.email)}">${escapeHtml(copy.email)}</a></p>` : ''}</div></main>`
+  return template
+    .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
+      title, description, canonical, image: COMPANY_HOMEPAGE_IMAGE,
+      type: 'website', schema, verification: settings.searchConsoleVerification,
+    }))
+    .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`)
+    .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${fallback}<!-- poeruum:content:end -->`)
 }
 
 function renderStorefront(template, store, product) {
@@ -588,15 +613,32 @@ createServer(async (req, res) => {
     const store = await getStore(slug)
     if (!store) return send(res, 404, 'Poodi ei leitud.', { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex' })
     const primaryHost = String(store.primary_hostname).toLowerCase()
-    const canonicalPath = productSlug ? `/toode/${encodeURIComponent(productSlug)}/` : '/'
+    const isCompanyPage = isCompanyHomepagePath(url.pathname)
+    if (isCompanyPage && !hasCompanyHomepage(slug)) return send(res, 404, 'Lehte ei leitud.', { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex' })
+    const canonicalPath = isCompanyPage ? COMPANY_HOMEPAGE_PATH : productSlug ? `/toode/${encodeURIComponent(productSlug)}/` : '/'
     if (host !== primaryHost || pathStore) {
-      return send(res, 301, null, { Location: `https://${primaryHost}${canonicalPath}` })
+      return send(res, 301, null, { Location: `https://${primaryHost}${canonicalPath}${isCompanyPage ? url.search : ''}` })
+    }
+    if (isCompanyPage) {
+      if (url.pathname !== COMPANY_HOMEPAGE_PATH) return send(res, 301, null, { Location: `${COMPANY_HOMEPAGE_PATH}${url.search}` })
+      // The SEO RPC deliberately selects a small set of shop settings. Read the
+      // public view for fresh authored copy, without exposing private settings.
+      const query = new URLSearchParams({ select: 'settings', slug: `eq.${slug}`, limit: '1' })
+      const response = await fetch(`${supabaseUrl}/rest/v1/public_storefronts?${query}`, {
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }, signal: AbortSignal.timeout(5000),
+      })
+      if (!response.ok) throw new Error('Company homepage settings unavailable')
+      const [homepage] = await response.json()
+      if (!homepage) return send(res, 404, 'Poodi ei leitud.', { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex' })
+      return send(res, 200, req.method === 'HEAD' ? null : renderCompanyHomepage(await templatePromise, { ...store, settings: homepage.settings }), {
+        'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store',
+      })
     }
     if (url.pathname === '/robots.txt') {
       return send(res, 200, `User-agent: *\nAllow: /\nDisallow: /*?checkout=\nSitemap: https://${primaryHost}/sitemap.xml\n`, { 'Content-Type': 'text/plain; charset=utf-8' })
     }
     if (url.pathname === '/sitemap.xml') {
-      const entries = [`https://${primaryHost}/`, ...(store.products || []).filter((item) => item.search_visible).map((item) => `https://${primaryHost}/toode/${encodeURIComponent(item.slug)}/`)]
+      const entries = [`https://${primaryHost}/`, ...(hasCompanyHomepage(slug) ? [`https://${primaryHost}${COMPANY_HOMEPAGE_PATH}`] : []), ...(store.products || []).filter((item) => item.search_visible).map((item) => `https://${primaryHost}/toode/${encodeURIComponent(item.slug)}/`)]
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.map((entry) => `  <url><loc>${escapeHtml(entry)}</loc></url>`).join('\n')}\n</urlset>\n`
       return send(res, 200, xml, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=30, s-maxage=60' })
     }

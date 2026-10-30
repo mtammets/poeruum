@@ -158,11 +158,12 @@ describe('setStorePublication', () => {
 
 describe('updateStore', () => {
   it('never forwards publication state through the generic content update', async () => {
-    const single = vi.fn().mockResolvedValue({ data: store, error: null })
-    const select = vi.fn(() => ({ single }))
-    const eq = vi.fn(() => ({ select }))
-    const update = vi.fn(() => ({ eq }))
-    const from = vi.fn(() => ({ update }))
+    const query = { select: vi.fn(), eq: vi.fn(), update: vi.fn(), single: vi.fn(), maybeSingle: vi.fn() }
+    for (const key of ['select', 'eq', 'update'] as const) query[key].mockReturnValue(query)
+    query.single.mockResolvedValue({ data: { settings: {}, updated_at: 'now' }, error: null })
+    query.maybeSingle.mockResolvedValue({ data: store, error: null })
+    const { update } = query
+    const from = vi.fn(() => query)
     vi.mocked(requireSupabase).mockReturnValue({ from } as unknown as ReturnType<typeof requireSupabase>)
 
     const staleAutosavePayload = {
@@ -175,6 +176,18 @@ describe('updateStore', () => {
     expect(from).toHaveBeenCalledWith('stores')
     expect(update).toHaveBeenCalledWith({ settings: { storeTheme: 'sand' } })
     expect(update).not.toHaveBeenCalledWith(expect.objectContaining({ is_published: expect.anything() }))
+  })
+
+  it('preserves homepage text from a newer tab and retries a concurrent settings save', async () => {
+    const query = { select: vi.fn(), eq: vi.fn(), update: vi.fn(), single: vi.fn(), maybeSingle: vi.fn() }
+    for (const key of ['select', 'eq', 'update'] as const) query[key].mockReturnValue(query)
+    query.single.mockResolvedValueOnce({ data: { settings: { companyHomepage: { heroTitle: 'Esimene' } }, updated_at: 'first' } })
+      .mockResolvedValueOnce({ data: { settings: { companyHomepage: { heroTitle: 'Uuem tekst' } }, updated_at: 'second' } })
+    query.maybeSingle.mockResolvedValueOnce({ data: null }).mockResolvedValueOnce({ data: store })
+    vi.mocked(requireSupabase).mockReturnValue({ from: () => query } as unknown as ReturnType<typeof requireSupabase>)
+    await updateStore(store.id, { settings: { storeTheme: 'paper', companyHomepage: { heroTitle: 'Vana tekst' } } })
+    expect(query.update).toHaveBeenLastCalledWith({ settings: { storeTheme: 'paper', companyHomepage: { heroTitle: 'Uuem tekst' } } })
+    expect(query.eq).toHaveBeenCalledWith('updated_at', 'second')
   })
 })
 

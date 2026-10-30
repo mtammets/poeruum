@@ -8,10 +8,10 @@ import { useKrukPurchase } from './useKrukPurchase'
 import KrukHatShowcase from './KrukHatShowcase'
 import BannerForest from './BannerForest'
 import BlackFridayScreensaver from './BlackFridayScreensaver'
+import useWoodpeckerCall, { woodpeckerCalls } from './useWoodpeckerCall'
+import WoodpeckerBeak, { lowerBeak } from './WoodpeckerBeak'
 import { bareheadedImage, birdImage, capImage, capOutline, getHatOrigin, headPatch, type HatOrigin } from './krukHatMotion'
 
-// The lower mandible in the original image's 1448 × 1086 coordinate space.
-const lowerBeak = 'M 39 468 L 265 488 L 272 506 L 247 520 L 209 519 L 147 506 L 83 487 Z'
 const cryLetters = [...'KRÜK-KRÜK']
 const cryDrops = [[1.1, -2.5], [3.6, -.5], [1.8, .7], [4.8, -2.8], [2.7, -3.2], [.8, 1.1]]
 
@@ -21,9 +21,8 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
   const banner = useRef<HTMLElement>(null)
   const bird = useRef<SVGSVGElement>(null)
   const hatButton = useRef<HTMLButtonElement>(null)
-  const callAudio = useRef<HTMLAudioElement>(null)
-  const callPending = useRef(false)
-  const [calling, setCalling] = useState(false)
+  const call = useWoodpeckerCall()
+  const { calling } = call
   const [hatOrigin, setHatOrigin] = useState<HatOrigin | null>(null)
   const [hatReady, setHatReady] = useState(false)
   const closeHat = useCallback(() => setHatOrigin(null), [])
@@ -36,25 +35,9 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
     return () => { cancelled = true }
   }, [purchase.product])
 
-  const finishCall = () => {
-    callPending.current = false
-    setCalling(false)
-  }
-
-  const startCall = () => {
-    const sound = callAudio.current
-    if (!sound || callPending.current) return
-    callPending.current = true
-    sound.currentTime = 0
-    sound.volume = .75
-    // Start inside the user gesture so mobile browsers can play the sound.
-    void sound.play().catch(finishCall)
-  }
-
   useEffect(() => {
     const element = banner.current
-    const sound = callAudio.current
-    if (!element || !sound) return
+    if (!element) return
     const motion = window.matchMedia('(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)')
     let frame = 0
     const reset = () => {
@@ -79,25 +62,17 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
       element.removeEventListener('pointermove', move)
       element.removeEventListener('pointerleave', reset)
       reset()
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setCalling(false)
       if (motion.matches) {
         element.addEventListener('pointermove', move)
         element.addEventListener('pointerleave', reset)
       }
     }
-    const stopWhenHidden = () => {
-      if (!document.hidden) return
-      sound.pause()
-    }
     sync()
     motion.addEventListener('change', sync)
-    document.addEventListener('visibilitychange', stopWhenHidden)
     return () => {
       motion.removeEventListener('change', sync)
-      document.removeEventListener('visibilitychange', stopWhenHidden)
       element.removeEventListener('pointermove', move)
       element.removeEventListener('pointerleave', reset)
-      sound.pause()
       reset()
     }
   }, [])
@@ -118,7 +93,8 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
           type="button"
           className="black-friday-banner__bird"
           aria-label="Pane rähn häälitsema"
-          onClick={startCall}
+          aria-busy={calling || undefined}
+          onClick={call.play}
         >
           <svg
             ref={bird}
@@ -139,16 +115,13 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
                 <path d={lowerBeak} />
               </clipPath>
             </defs>
-            <path className="black-friday-banner__mouth" d="M 208 484 L 272 486 L 274 529 L 239 524 Z" fill="#201818" />
             <image href={birdImage} width="1448" height="1086" clipPath={calling || hatOrigin ? `url(#${clipId}-body)` : undefined} />
             {hatOrigin && <image href={bareheadedImage} width="1448" height="1086" clipPath={`url(#${clipId}-head)`} />}
             {!hatOrigin && <g className="black-friday-banner__hat-highlight" aria-hidden="true">
               <image href={birdImage} width="1448" height="1086" clipPath={`url(#${clipId}-hat)`} />
               <path d={capOutline} />
             </g>}
-            <g className="black-friday-banner__beak">
-              <image href={birdImage} width="1448" height="1086" clipPath={`url(#${clipId}-beak)`} />
-            </g>
+            <WoodpeckerBeak clipId={clipId} {...call} />
           </svg>
           <span className="black-friday-banner__beak-note" aria-hidden="true">
             <span>Nokk</span>
@@ -190,16 +163,6 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
     {hatOrigin && store && purchase.product && <KrukHatShowcase store={store} purchase={purchase}
       origin={hatOrigin} source={bird} trigger={hatButton} onClose={closeHat} />}
     {purchase.purchase && <KrukCheckout purchase={purchase.purchase} onClose={purchase.close} returnFocusTo={purchase.returnFocusTo} />}
-    <audio
-      ref={callAudio}
-      src="/audio/campaigns/musta-rahni-call.mp3"
-      preload="auto"
-      onPlaying={() => {
-        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) setCalling(true)
-      }}
-      onEnded={finishCall}
-      onPause={finishCall}
-      onError={finishCall}
-    />
+    <audio ref={call.audioRef} src={woodpeckerCalls[0].src} preload="auto" hidden />
   </section>
 }

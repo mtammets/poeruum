@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "build:company-preview": "node scripts/build-company-preview.mjs",
+    "start:company-preview": "node previews/company-homepage/server.mjs",
+    "test:company-preview": "node --test scripts/test-company-preview.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:app": "vite",
     "dev:black-friday": "vite --host 0.0.0.0 --port 5175 --strictPort --open \"http://kaubamaja.localhost:5175/?theme=black-friday\"",
@@ -35,6 +38,7 @@
     "test:directory-highlights-server": "node scripts/test-directory-highlights-server.mjs",
     "test:horoscope-server": "node scripts/test-horoscope-server.mjs",
     "test:closed-storefront-server": "node scripts/test-closed-storefront-server.mjs",
+    "test:company-homepage-server": "node scripts/test-company-homepage-server.mjs",
     "test:reservation-cap": "node scripts/test-reservation-cap.mjs",
     "test:billing-delinquency": "node scripts/test-billing-delinquency.mjs",
     "test:outreach-db": "node scripts/test-outreach-automation.mjs",
@@ -79,10 +83,7 @@
     "test:seller-settings-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-seller-settings-edge.ts",
     "test:withdrawals": "node scripts/test-withdrawals.mjs",
     "test:stripe-payouts-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-stripe-payouts-edge.ts",
-    "test:withdrawal-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-withdrawal-edge.ts",
-    "build:company-preview": "node scripts/build-company-preview.mjs",
-    "start:company-preview": "node previews/company-homepage/server.mjs",
-    "test:company-preview": "node --test scripts/test-company-preview.mjs"
+    "test:withdrawal-edge": "deno test --node-modules-dir=auto --frozen --minimum-dependency-age=0 --allow-env --allow-read scripts/test-withdrawal-edge.ts"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

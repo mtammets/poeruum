@@ -10,7 +10,7 @@ await new Promise((resolve) => probe.close(resolve))
 const server = spawn(process.execPath, ['server.mjs'], { env: { ...process.env, PORT: String(port), VITE_SUPABASE_URL: '', VITE_SUPABASE_PUBLISHABLE_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] })
 try {
   await Promise.race([once(server.stdout, 'data'), once(server, 'exit').then(() => { throw new Error('Server exited before listening') })])
-  for (const path of ['/admin/campaigns', '/admin/campaigns/', '/campaigns/soundtrack.m4a', '/campaigns/manrope.woff2', '/campaigns/phone-demo.mp4', '/audio/campaigns/musta-rahni-call.mp3', '/fonts/bodoni-moda/BodoniModa-Italic.ttf', '/fonts/bodoni-moda/BodoniModa-Semibold.ttf', '/fonts/anton/Anton-Regular.ttf', '/fonts/caveat/Caveat-Variable.ttf']) {
+  for (const path of ['/admin/campaigns', '/admin/campaigns/', '/campaigns/soundtrack.m4a', '/campaigns/manrope.woff2', '/campaigns/phone-demo.mp4', '/audio/campaigns/musta-rahni-call.mp3', '/audio/campaigns/musta-rahni-call-1.mp3', '/audio/campaigns/musta-rahni-call-2.mp3', '/fonts/bodoni-moda/BodoniModa-Italic.ttf', '/fonts/bodoni-moda/BodoniModa-Semibold.ttf', '/fonts/anton/Anton-Regular.ttf', '/fonts/caveat/Caveat-Variable.ttf']) {
     const response = await new Promise((resolve, reject) => {
       const req = request({ hostname: '127.0.0.1', port, path, headers: { Host: 'poeruum.ee' } }, (res) => {
         const chunks = []; res.on('data', (chunk) => chunks.push(chunk)); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }))

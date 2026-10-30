@@ -6,6 +6,7 @@ import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFie
 import { hasSellerDetails, normalizeSellerSettings, sellerDetailsError, sellerType as getSellerType, type SellerType } from '../shared/seller'
 import AccountEmailNotice from './AccountEmailNotice'
 import ClosedStorefront from './ClosedStorefront'
+import { hasCompanyHomepage, isCompanyHomepagePath } from '../shared/company-homepage.mjs'
 import type { ClosedStore } from '../shared/closed-storefront.mjs'
 import { requireMerchantEmail } from './lib/accountEmail'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
@@ -47,6 +48,7 @@ const Storefront = lazy(async () => {
   return { default: module.Storefront }
 })
 const StripeEmbeddedOnboarding = lazy(() => import('./StripeEmbeddedOnboarding'))
+const CompanyHomepage = lazy(() => import('./CompanyHomepage'))
 
 type Screen = 'landing' | 'login' | 'forgot-password' | 'reset-password' | 'account' | 'store' | 'payments' | 'shipping' | 'business' | 'product' | 'publish' | 'storefront'
 type RegistryLookupStatus = 'idle' | 'loading' | 'found' | 'not-found' | 'error'
@@ -1480,6 +1482,12 @@ function PlatformFlow() {
   }
 
   if (shouldLoadPublicStore && closedStore) return <ClosedStorefront store={closedStore} />
+  if (shouldLoadPublicStore && publicStore && !isPublicStoreLoading && isCompanyHomepagePath(window.location.pathname)) {
+    if (hasCompanyHomepage(publicStore.slug)) return <Suspense fallback={<StorefrontLoadingScreen store={publicStore} />}>
+      <CompanyHomepage key={publicStore.id} store={publicStore} products={publicProducts} />
+    </Suspense>
+    return <main className="platform-loading"><div><h1>Lehte ei leitud.</h1><a href="/">Tagasi e-poodi</a></div></main>
+  }
   if (shouldLoadPublicStore && (isPublicStoreLoading || publicStore)) return <div className="public-storefront-bootstrap">
     {!isPublicStoreLoading && publicStore && <Suspense key="storefront-content" fallback={null}><Storefront
       key={publicStore.id}

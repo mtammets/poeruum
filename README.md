@@ -75,6 +75,39 @@ Kaubamaja kampaania kuvamist saab hallata adminis **Kaubamaja → Kampaania**:
 väljas, kohe sees või algus- ja lõpuajaga ajastatud (Eesti aeg).
 Vajalik migratsioon: `202610220001_directory_campaign.sql`; vaikimisi on kampaania väljas.
 
+Krük-Krüki ettevõtte koduleht asub poe aadressil `/koduleht/` (kohalikus arenduses
+`/p/kruk-kruk/koduleht/`). Kodulehel on oma söehall, rähnipunane ja paberitoonis kujundus
+ning kohalikud Anton ja Noto fondid. Madise mina-vormis tutvustus, nime sünnilugu ja joonistuste
+lugu on kodulehele kirjutatud eraldi. Logo ja kontaktid tulevad poe seadetest ning
+toote nimi, hind ja link e-poest; 2rähni mütsi tutvustus seob toote Madise looga.
+Rähn, portree, metsapanoraam ja nokkmütsi väljalõige kasutavad Musta rähni kampaania
+olemasolevaid pilte. Märgi visandite originaalfoto asub `public/images/kruk-kruk/` all.
+Avaploki rähn hõljub ning ekraani laiune mets kasutab kampaania kolme liikuvat kihti.
+Liikumine peatub vaateväljast lahkudes ja järgib vähendatud liikumise eelistust.
+Rähnile vajutades kõlavad vaheldumisi kaks kasutaja antud salvestist; noka liikumine
+järgib heli taasesituse aega ja helitugevust. Sama lahendust kasutab ka kaubamaja.
+E-poe päises ja jaluses on link
+kodulehele. Oma domeeni ühendamisel säilib `/koduleht/` teekond; domeeni juuraadressil
+avaneb endiselt e-pood. Peidetud poe koduleht näitab sama sulgemisteadet nagu pood.
+
+Kodulehe nupp **Muuda** lubab poe omanikul tekste otse lehel muuta. **Eelvaade**
+peidab muutmisraamid, **Salvesta** avaldab tekstid ning **Loobu** taastab salvestatud
+seisu; **Võta tagasi** taastab tühistatud muudatused ilma brauseri kinnituskastita.
+Kodulehe tekstid, sealhulgas kontaktid ja toote tutvustus, salvestuvad eraldi
+`stores.settings.companyHomepage` alla; toote hind ja ostulink tulevad jätkuvalt
+e-poest. Kodulehe kontaktide muutmine ei muuda müüja arve- ega registriandmeid.
+Salvestamine kasutab omaniku sessiooni ja olemasolevaid RLS-õigusi ning kontrollib
+samaaegseid muudatusi. Tavapoe seadete salvestamine säilitab kodulehe värske teksti.
+Kohalikus Vite'i arenduses saab sisselogimata kasutada **Salvesta eelvaade** nuppu:
+see hoiab tekste ainult selles brauseris. Avalikus tootmisversioonis näeb muutmise
+nuppu ainult poe omanik. Uut migratsiooni ei ole vaja.
+
+Kliendile jagatav, serveris parooliga kaitstud eelvaade töötab Poeruumi olemasolevas Renderi
+teenuses: https://poeruum.ee/eelvaade/kruk-kruk/. Eraldi majutust ei lisandu. Selle tekstid salvestuvad
+privaatsesse versioonidega mustandisse ja on mõlemale osapoolele nähtavad.
+Eelvaate juurutus ning hilisem oma domeeni ühendamine on kirjeldatud
+[kliendieelvaate juhendis](previews/company-homepage/README.md).
+
 ## Kvaliteedikontroll
 
 ```sh
@@ -178,8 +211,3 @@ Render käivitab `npm run build`, mis ehitab rakenduse ja genereerib SEO-varad,
 ning serveerib tulemust käsuga `npm start`. Deploy toimub ainult pärast CI
 kontrollide läbimist. Tootmissaladused ei tohi kasutada `VITE_` prefiksit;
 brauserisse tohivad jõuda ainult `.env.example` failis avalikuks märgitud võtmed.
-
-
-## Krük-Krüki kliendieelvaade
-
-Parooliga eelvaade: https://poeruum.ee/eelvaade/kruk-kruk/. See töötab Poeruumi olemasolevas majutuses. Kliendi tekstimuudatused salvestuvad privaatsesse versioonidega mustandisse. Juhend: [kliendieelvaade](previews/company-homepage/README.md).
