@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-company-preview/
 playwright-report/
 test-results/
 

@@ -1,0 +1,6 @@
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: #ece8dd; }
+button, input { font: inherit; }
+.review-loading { min-height: 100svh; display: grid; place-content: center; gap: 1rem; font: 16px/1.6 sans-serif; padding: 2rem; color: #252923; }
+.company-editor .company-editor__logout { border: 0; border-left: 1px solid #ffffff30; border-radius: 0; margin-right: .4rem; font-weight: 400; font-size: .75rem; color: #d3d0c6; }

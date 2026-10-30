@@ -5,6 +5,7 @@ import {
   getStoreSlugFromPath,
   isReservedStoreSlug,
 } from '../../shared/storefront-route.mjs'
+import { COMPANY_HOMEPAGE_PATH } from '../../shared/company-homepage.mjs'
 
 const configuredRootDomain = import.meta.env.VITE_STOREFRONT_ROOT_DOMAIN?.trim().toLowerCase()
 
@@ -155,4 +156,11 @@ export function getStorefrontCanonicalUrl(
 export function getStorefrontPath(storeSlug: string, product?: { id: string; slug?: string }) {
   const storePath = `/p/${encodeURIComponent(storeSlug)}`
   return product ? `${storePath}/toode/${encodeURIComponent(getProductUrlSlug(product))}/` : `${storePath}/`
+}
+
+// Keep company and shop navigation on the same host, including custom domains.
+export function getCompanyHomepagePath(storeSlug: string, hostname = window.location.hostname) {
+  return isDedicatedStorefrontHostname(hostname)
+    ? COMPANY_HOMEPAGE_PATH
+    : `/p/${encodeURIComponent(storeSlug)}${COMPANY_HOMEPAGE_PATH}`
 }
