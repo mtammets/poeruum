@@ -14,8 +14,12 @@ node scripts/render-black-friday-reel.mjs --youtube
 node scripts/render-black-friday-bumper.mjs
 
 Esimesed kaks käsku toetavad --preview ja --audio-only lippu.
-Need kasutavad repo kampaaniapilte, fonte ja CC0 rähnihäält. Veebi ega
-tootmisandmebaasi renderdamisel ei muudeta. Väljundid on output/ kaustas.
+15 s ekspordid kasutavad repo kampaaniapilte, fonte ja kasutaja antud
+musta-rahni-call-1.mp3 ning musta-rahni-call-2.mp3 salvestusi. Ajastus ja
+noka liikumine tulevad samast ajakavast ning veebis kasutatavast helikõverast.
+Hääle või ajastuse muutmisel tee täisrenderdus, mitte --audio-only, et ka
+noka liikumine uueneks. 6 s bumperi skript kasutab veel varasemat CC0 heli.
+Veebi ega tootmisandmebaasi renderdamisel ei muudeta. Väljundid on output/ kaustas.
 
 Pakendamine:
 node scripts/package-black-friday-assets.mjs

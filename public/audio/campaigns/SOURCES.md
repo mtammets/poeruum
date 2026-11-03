@@ -1,5 +1,15 @@
 # Musta rähni päevade heli
 
+Praeguse kodulehe ja 15-sekundiliste videoeksportide salvestused on kasutaja
+antud `rahn_1.mp3` ja `rahn_2.mp3`, kopeeritud muutmata kujul:
+
+- `musta-rahni-call-1.mp3` — 1,071 s.
+- `musta-rahni-call-2.mp3` — 2,821 s.
+
+Noka liikumine järgib `src/themes/black-friday/woodpeckerCalls.json` kõveraid.
+15-sekundilises videos algavad salvestused vastavalt 3,8 ja 10,7 sekundil.
+Järgnev allikainfo puudutab varasemat helifaili ja vanu videoeksporte.
+
 `musta-rahni-call.mp3` on 1,3-sekundiline lõik päris musträhni
 (*Dryocopus martius*) salvestusest.
 
