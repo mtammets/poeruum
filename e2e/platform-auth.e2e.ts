@@ -740,6 +740,12 @@ const installSupabaseBackend = async (
         await json(route, currentStore)
         return
       }
+      // Settings saves read the current row by ID before an optimistic update.
+      // Match PostgREST's singular response used by this authenticated lookup.
+      if (url.searchParams.get('id') === `eq.${currentStore.id}` && request.headers().accept?.includes('application/vnd.pgrst.object+json')) {
+        await json(route, currentStore)
+        return
+      }
       const isOwnedStoreRequest = url.searchParams.get('owner_id') === `eq.${USER_ID}`
       if (isOwnedStoreRequest) await json(route, [currentStore])
       else await json(route, [])
