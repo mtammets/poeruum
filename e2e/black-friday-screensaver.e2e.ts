@@ -26,6 +26,48 @@ async function openCampaign(page: Page, theme = 'black-friday') {
 }
 
 const saver = (page: Page) => page.getByRole('dialog', { name: 'Rähni lennuvaade' })
+const birdButton = (page: Page) => page.getByRole('button', { name: 'Pane rähn häälitsema ja ava lennuvaade', exact: true })
+
+test('pressing the bird plays the current call and opens a flight that stays open until dismissed', async ({ page }) => {
+  await openCampaign(page)
+  await page.addStyleTag({ content: '.black-friday-banner__arrival { animation: none !important; translate: none !important; rotate: none !important; scale: 1 !important; }' })
+  const sound = page.locator('.black-friday-banner audio')
+  await birdButton(page).click()
+  await expect(saver(page)).toBeVisible()
+  await expect(sound).toHaveAttribute('src', '/audio/campaigns/musta-rahni-call-1.mp3')
+  await expect(sound).toHaveJSProperty('paused', false)
+  await expect.poll(() => saver(page).locator('.woodpecker-beak').evaluate(beak =>
+    Number(beak.getAttribute('transform')?.match(/rotate\(([-.\d]+)/)?.[1] || 0))).toBeLessThan(-1)
+  await page.mouse.move(4, 4)
+  await expect(saver(page)).toBeVisible()
+  await expect.poll(() => sound.evaluate(audio => audio.ended)).toBe(true)
+  await expect(saver(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(saver(page)).toHaveCount(0)
+  await expect(birdButton(page)).toBeFocused()
+
+  await birdButton(page).press('Enter')
+  await expect(saver(page)).toBeVisible()
+  await expect(sound).toHaveAttribute('src', '/audio/campaigns/musta-rahni-call-2.mp3')
+  await expect(sound).toHaveJSProperty('paused', false)
+  await page.keyboard.press('Escape')
+  await expect(saver(page)).toHaveCount(0)
+  await expect(sound).toHaveJSProperty('paused', true)
+  await page.clock.fastForward(60_001)
+  await expect(saver(page)).toBeVisible()
+  await expect(sound).toHaveJSProperty('paused', true)
+})
+
+test('the bird still opens the flight if audio cannot load', async ({ page }) => {
+  await page.route('**/audio/campaigns/musta-rahni-call-1.mp3', route => route.abort())
+  await openCampaign(page)
+  await birdButton(page).press('Enter')
+  await expect(saver(page)).toBeVisible()
+  await expect.poll(() => page.locator('.black-friday-banner audio').evaluate(audio => audio.error !== null)).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(saver(page)).toHaveCount(0)
+  await expect(birdButton(page)).toBeFocused()
+})
 
 test('waits a full minute after activity, hides all UI and restores scroll and focus', async ({ page }) => {
   await openCampaign(page)
@@ -208,6 +250,20 @@ test('the ordinary directory has no campaign screensaver', async ({ page }) => {
 
 test.describe('touchscreen', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } })
+  test('tapping the bird starts sound and flight, and the next tap only closes it', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await openCampaign(page)
+    const sound = page.locator('.black-friday-banner audio')
+    await birdButton(page).tap()
+    await expect(saver(page)).toBeVisible()
+    await expect(sound).toHaveJSProperty('paused', false)
+    await expect(saver(page).locator('.woodpecker-beak')).toHaveAttribute('transform', 'rotate(0.00 265 490)')
+    await page.touchscreen.tap(200, 700)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(sound).toHaveJSProperty('paused', true)
+    await expect(page.locator('#root')).toHaveCSS('visibility', 'visible')
+  })
+
   test('fills the phone screen and a tap restores the page without opening checkout', async ({ page }) => {
     await openCampaign(page)
     await page.clock.fastForward(60_001)
