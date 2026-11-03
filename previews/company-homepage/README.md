@@ -44,14 +44,27 @@ ka eelvaate; `server.mjs` suunab `/eelvaade/kruk-kruk/` päringud paroolivärava
 Kõik eelvaate failid asuvad kaitstud teekonna all. E-poe ja maksete marsruudid
 kasutavad edasi olemasolevat serveriloogikat.
 
-## Kliendi domeen
+## Avalik koduleht ja kliendi domeen
 
-Kui domeen on ostetud, lisa see Poeruumi olemasoleva Renderi teenuse Custom
-Domains alla ning seadista Renderi tagastatud DNS-kirjed. Lisa serverisse selle
-domeeni juuraadressi suunamine kliendi kodulehele; DNS üksi ei määra, millist
-Poeruumi lehte näidata. HTTPS-i sertifikaadi väljastab Render. Salvestatud
-mustand jääb samaks. Domeeni ühendamine ei eemalda automaatselt paroolikaitset.
+`https://kruk-kruk.ee/` on avalik koduleht. `www.kruk-kruk.ee` suunab juurdomeenile.
+Mõlemad domeenid kuuluvad Poeruumi olemasoleva Renderi teenuse alla. Veebimajutuses
+on juurdomeeni A-kirje `216.24.57.1` ning `www` CNAME `poeruum-web.onrender.com`.
+E-posti, FTP ja Elkdata nimeserverite kirjeid ei muudeta.
 
-Avalikuks käivitamine on eraldi muudatus: külastajavaade tuleb avada ilma
-muutmisõiguseta ning redaktor peab jääma autentimise taha. Praegust parooliväravat
-ei tohi lihtsalt eemaldada, sest see kaitseb ühtlasi kliendi muutmisõigust.
+Kodulehe domeeni ei lisata poe peamiseks domeeniks: e-pood ja ostmine jäävad
+`https://kruk-kruk.poeruum.ee/` aadressile. Avaliku lehe tekstid tulevad avaldatud
+poe `settings.companyHomepage` väljast; privaatset eelvaatemustandit ei avaldata
+automaatselt. Poe peitmine sulgeb ka kodulehe ning eemaldab sitemap'i.
+
+Omanik logib sisse Poeruumi ja avab poe halduses **Muuda kodulehte**. Redaktor
+asub `https://kruk-kruk.poeruum.ee/koduleht/`, kus omaniku sessioon on olemas.
+Muutmisnupp ja salvestamine nõuavad selle poe omaniku sessiooni ning andmebaasi
+RLS-õigusi. **Salvesta** avaldab tekstid ka eraldi domeenil. Kodulehe canonical
+ja sitemap viitavad `https://kruk-kruk.ee/` aadressile.
+
+Senine `https://poeruum.ee/eelvaade/kruk-kruk/` jääb parooliga kaitstud eraldi
+mustandiks. Selle parool ei anna avaliku kodulehe muutmisõigust.
+
+Kontrollid: `npm run test:company-homepage-server`,
+`npm run test:smoke -- e2e/company-homepage.e2e.ts` ning
+`npm run test:unit -- src/lib/companyHomepage.test.ts src/lib/storefrontUrl.test.ts src/lib/database.test.ts`.

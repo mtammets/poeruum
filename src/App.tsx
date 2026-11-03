@@ -41,7 +41,7 @@ import ProductDescriptionGenerator from './ProductDescriptionGenerator'
 import ProductImageTray from './ProductImageTray'
 import StoreName from './StoreName'
 import { hasCompanyHomepage } from '../shared/company-homepage.mjs'
-import { getCompanyHomepagePath } from './lib/storefrontUrl'
+import { getCompanyHomepageEditorPath, getCompanyHomepagePath } from './lib/storefrontUrl'
 import useProductTitleFit from './useProductTitleFit'
 import PasswordInput from './PasswordInput'
 import { getCaptchaRequiredMessage, isCaptchaConfigured, Turnstile } from './Turnstile'
@@ -2772,7 +2772,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </div>
           {!isEditOpen && <div className="header-actions">
             {storeSlug && hasCompanyHomepage(storeSlug) && !isAdminMode && !embeddedPreview && <a className="store-homepage-link" href={getCompanyHomepagePath(storeSlug)}>Koduleht <span aria-hidden="true">↗</span></a>}
-            {storeSlug && hasCompanyHomepage(storeSlug) && isAdminMode && merchantMode && !embeddedPreview && <a className="store-homepage-link" href={getCompanyHomepagePath(storeSlug)}>Muuda kodulehte <span aria-hidden="true">↗</span></a>}
+            {storeSlug && hasCompanyHomepage(storeSlug) && isAdminMode && merchantMode && !embeddedPreview && <a className="store-homepage-link" href={getCompanyHomepageEditorPath(storeSlug)}>Muuda kodulehte <span aria-hidden="true">↗</span></a>}
             <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi ja sirvi kategooriaid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
             {isAdminMode ? !adminShowcaseMode && <button className="logout-button" onClick={logOut} aria-label="Logi välja">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14 8l4 4-4 4m4-4H9" /></svg>

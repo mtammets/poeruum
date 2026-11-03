@@ -5,7 +5,7 @@ import {
   getStoreSlugFromPath,
   isReservedStoreSlug,
 } from '../../shared/storefront-route.mjs'
-import { COMPANY_HOMEPAGE_PATH } from '../../shared/company-homepage.mjs'
+import { COMPANY_HOMEPAGE_PATH, COMPANY_HOMEPAGE_URL, getCompanyHomepageStoreSlug, hasCompanyHomepage } from '../../shared/company-homepage.mjs'
 
 const configuredRootDomain = import.meta.env.VITE_STOREFRONT_ROOT_DOMAIN?.trim().toLowerCase()
 
@@ -115,6 +115,8 @@ export function getMerchantStoreUrl(storeSlug: string, location: Pick<Location, 
 }
 
 export function getRequestedStoreSlug(location: StorefrontLocation) {
+  const companySlug = getCompanyHomepageStoreSlug(location.hostname)
+  if (companySlug) return companySlug
   const hostnameSlug = getStoreSlugFromHostname(location.hostname)
   if (hostnameSlug) return hostnameSlug
 
@@ -158,9 +160,14 @@ export function getStorefrontPath(storeSlug: string, product?: { id: string; slu
   return product ? `${storePath}/toode/${encodeURIComponent(getProductUrlSlug(product))}/` : `${storePath}/`
 }
 
-// Keep company and shop navigation on the same host, including custom domains.
-export function getCompanyHomepagePath(storeSlug: string, hostname = window.location.hostname) {
+// Owners edit on the shop origin, where their authenticated session is available.
+export function getCompanyHomepageEditorPath(storeSlug: string, hostname = window.location.hostname) {
   return isDedicatedStorefrontHostname(hostname)
     ? COMPANY_HOMEPAGE_PATH
     : `/p/${encodeURIComponent(storeSlug)}${COMPANY_HOMEPAGE_PATH}`
+}
+
+export function getCompanyHomepagePath(storeSlug: string, hostname = window.location.hostname) {
+  const local = /^(localhost|127\.0\.0\.1|.*\.localhost)$/.test(hostname)
+  return hasCompanyHomepage(storeSlug) && !local ? COMPANY_HOMEPAGE_URL : getCompanyHomepageEditorPath(storeSlug, hostname)
 }

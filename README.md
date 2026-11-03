@@ -110,6 +110,13 @@ Eelvaate juurutus ning hilisem oma domeeni ühendamine on kirjeldatud
 
 ## Kvaliteedikontroll
 
+Krük-Krüki avalik koduleht asub aadressil **https://kruk-kruk.ee/**.
+E-pood jääb aadressile **https://kruk-kruk.poeruum.ee/**. Poe omanik saab
+halduses valida **Muuda kodulehte**; salvestatud tekstid ilmuvad avalikul
+kodulehel. Tavakülastaja ja teise poe omanik redaktorit kasutada ei saa.
+Kohalik eelvaade on `/p/kruk-kruk/koduleht/` ning domeeni ühendamise ja
+privaatse kliendieelvaate juhend asub [siin](previews/company-homepage/README.md).
+
 ```sh
 npm run check
 npm run test:smoke

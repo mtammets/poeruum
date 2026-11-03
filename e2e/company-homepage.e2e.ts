@@ -3,7 +3,26 @@ import { readFile } from 'node:fs/promises'
 
 test.use({ baseURL: 'http://kruk-kruk.poeruum.localhost:4174' })
 
-async function backend(page: Page, { closed = false, empty = false, slug = 'kruk-kruk', signedIn = false, failSave = false } = {}) {
+for (const signedIn of [false, true]) test(`public domain loads without editing rights for ${signedIn ? 'another owner' : 'an anonymous visitor'}`, async ({ page }) => {
+  const api = await backend(page, { signedIn, owner: false })
+  // Exercise the actual public hostname without changing DNS or reaching production.
+  await page.route('http://kruk-kruk.ee:4174/**', async route => {
+    const url = new URL(route.request().url())
+    url.hostname = '127.0.0.1'
+    await route.fulfill({ response: await page.request.get(url.href) })
+  })
+  await page.goto('http://kruk-kruk.ee:4174/')
+  await expect(page.getByRole('heading', { name: 'Töö mingu metsa.', level: 1 })).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByRole('button', { name: 'Muuda', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('textbox')).toHaveCount(0)
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://kruk-kruk.ee/')
+  await expect(page.locator('.company-header__shop')).toHaveAttribute('href', 'https://kruk-kruk.poeruum.ee/')
+  await expect(page.getByRole('link', { name: 'Vaata toodet e-poes' })).toHaveAttribute('href', 'https://kruk-kruk.poeruum.ee/toode/nokkmuts/')
+  expect(api.writes()).toBe(0)
+})
+
+async function backend(page: Page, { closed = false, empty = false, slug = 'kruk-kruk', signedIn = false, failSave = false, owner = true } = {}) {
   const user = { id: '20000000-0000-4000-8000-000000000001', aud: 'authenticated', role: 'authenticated', email: 'owner@example.invalid', app_metadata: {}, user_metadata: {} }
   if (signedIn) await page.addInitScript(user => {
     const access_token = `${btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${btoa(JSON.stringify({ sub: user.id, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 }))}.test`
@@ -30,7 +49,7 @@ async function backend(page: Page, { closed = false, empty = false, slug = 'kruk
     if (path.endsWith('/user')) data = user
     if (path.endsWith('/stores')) {
       expect(new URL(route.request().url()).searchParams.get('owner_id')).toBe(`eq.${user.id}`)
-      data = signedIn ? { ...store, owner_id: user.id, updated_at: '2026-10-30T12:00:00Z', settings: { ...store.settings, orderNotificationEmail: 'private@example.invalid' } } : null
+      data = signedIn && owner ? { ...store, owner_id: user.id, updated_at: '2026-10-30T12:00:00Z', settings: { ...store.settings, orderNotificationEmail: 'private@example.invalid' } } : null
       if (route.request().method() === 'PATCH') {
         writes += 1
         if (failSave) return route.fulfill({ status: 500, json: { message: 'Test save failure' } })

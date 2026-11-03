@@ -6,7 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { normalizeClosedStore, renderClosedStoreDocument } from './shared/closed-storefront.mjs'
 import { getHoroscopeShareMetadata, getHoroscopeSharePath, getHoroscopeSignFromLocation } from './shared/horoscope-share.mjs'
-import { COMPANY_HOMEPAGE_IMAGE, COMPANY_HOMEPAGE_PATH, companyHomepageMetadata, hasCompanyHomepage, isCompanyHomepagePath } from './shared/company-homepage.mjs'
+import { COMPANY_HOMEPAGE_HOST, COMPANY_HOMEPAGE_URL, COMPANY_HOMEPAGE_IMAGE, COMPANY_HOMEPAGE_PATH, companyHomepageMetadata, getCompanyHomepageStoreSlug, hasCompanyHomepage, isCompanyHomepagePath } from './shared/company-homepage.mjs'
 import { companyCopyDefaults, normalizeCompanyCopy } from './shared/company-homepage-copy.mjs'
 import {
   decodePathname,
@@ -166,12 +166,23 @@ const seoBlock = ({ title, description, canonical, socialUrl = canonical, image,
     <!-- poeruum:seo:end -->`
 }
 
+async function loadCompanyHomepageStore(store) {
+  // Read fresh public copy; the cached SEO document deliberately omits it.
+  const query = new URLSearchParams({ select: 'settings', slug: `eq.${store.store_slug}`, limit: '1' })
+  const response = await fetch(`${supabaseUrl}/rest/v1/public_storefronts?${query}`, {
+    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }, signal: AbortSignal.timeout(5000),
+  })
+  if (!response.ok) throw new Error('Company homepage settings unavailable')
+  const [homepage] = await response.json()
+  return homepage ? { ...store, settings: homepage.settings } : null
+}
+
 function renderCompanyHomepage(template, store) {
   const settings = store.settings || {}
   const copy = { ...companyCopyDefaults(settings, store.store_name), ...normalizeCompanyCopy(settings.companyHomepage) }
   const name = copy.brand
   const { title, description } = companyHomepageMetadata(name, copy)
-  const canonical = `https://${store.primary_hostname}${COMPANY_HOMEPAGE_PATH}`
+  const canonical = COMPANY_HOMEPAGE_URL
   const logo = absoluteImage(settings.storeLogo)
   const schema = {
     '@context': 'https://schema.org', '@type': 'Organization', name: copy.company || name,
@@ -179,7 +190,7 @@ function renderCompanyHomepage(template, store) {
     ...(copy.email ? { email: copy.email } : {}),
     ...(copy.phone ? { telephone: copy.phone } : {}),
   }
-  const fallback = `<main class="seo-fallback"><div><span>${escapeHtml(name)}</span><h1>${escapeHtml(`${copy.heroTitle} ${copy.heroAccent}`)}</h1><p>${escapeHtml(description)}</p><a href="/">${escapeHtml(copy.heroShop)}</a>${copy.email ? `<p>${escapeHtml(copy.navContact)}: <a href="mailto:${escapeHtml(copy.email)}">${escapeHtml(copy.email)}</a></p>` : ''}</div></main>`
+  const fallback = `<main class="seo-fallback"><div><span>${escapeHtml(name)}</span><h1>${escapeHtml(`${copy.heroTitle} ${copy.heroAccent}`)}</h1><p>${escapeHtml(description)}</p><a href="https://${escapeHtml(store.primary_hostname)}/">${escapeHtml(copy.heroShop)}</a>${copy.email ? `<p>${escapeHtml(copy.navContact)}: <a href="mailto:${escapeHtml(copy.email)}">${escapeHtml(copy.email)}</a></p>` : ''}</div></main>`
   return template
     .replace(/<!-- poeruum:seo:start -->[\s\S]*?<!-- poeruum:seo:end -->/, seoBlock({
       title, description, canonical, image: COMPANY_HOMEPAGE_IMAGE,
@@ -422,7 +433,9 @@ createServer(async (req, res) => {
   try {
     const host = String(req.headers['x-forwarded-host'] || req.headers.host || platformHost).split(',')[0].trim().toLowerCase().split(':')[0]
     const url = new URL(req.url || '/', `https://${host}`)
-    if (url.pathname === '/eelvaade/kruk-kruk' || url.pathname.startsWith('/eelvaade/kruk-kruk/')) {
+    const companySlug = getCompanyHomepageStoreSlug(host)
+    if (companySlug && host !== COMPANY_HOMEPAGE_HOST) return send(res, 308, null, { Location: `https://${COMPANY_HOMEPAGE_HOST}${url.pathname}${url.search}` })
+    if (!companySlug && (url.pathname === '/eelvaade/kruk-kruk' || url.pathname.startsWith('/eelvaade/kruk-kruk/'))) {
       companyReviewHandler ??= createReviewHandler({
         basePath: '/eelvaade/kruk-kruk/', passwordHash: process.env.COMPANY_REVIEW_PASSWORD_HASH,
         sessionSecret: process.env.COMPANY_REVIEW_ACCESS_KEY,
@@ -450,6 +463,28 @@ createServer(async (req, res) => {
           'Cache-Control': url.pathname === '/admin-push-sw.js' ? 'no-cache' : url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
         })
       }
+    }
+
+    if (companySlug) {
+      const noStore = { 'Cache-Control': 'private, no-store' }
+      if (!['GET', 'HEAD'].includes(req.method)) return send(res, 405, null, { ...noStore, Allow: 'GET, HEAD' })
+      const closedStore = await getClosedStore(companySlug, host)
+      if (closedStore) {
+        const closedHeaders = { ...noStore, 'X-Robots-Tag': 'noindex, nofollow' }
+        if (url.pathname === '/robots.txt') return send(res, 200, req.method === 'HEAD' ? null : 'User-agent: *\nDisallow: /\n', { ...closedHeaders, 'Content-Type': 'text/plain; charset=utf-8' })
+        if (url.pathname === '/sitemap.xml') return send(res, 404, null, closedHeaders)
+        return send(res, 200, req.method === 'HEAD' ? null : renderClosedStoreDocument(closedStore), { ...closedHeaders, 'Content-Type': 'text/html; charset=utf-8' })
+      }
+      const store = await getStore(companySlug)
+      if (!store) return send(res, 404, 'Lehte ei leitud.', { ...noStore, 'X-Robots-Tag': 'noindex' })
+      if (url.pathname === '/robots.txt') return send(res, 200, req.method === 'HEAD' ? null : `User-agent: *\nAllow: /\nSitemap: ${COMPANY_HOMEPAGE_URL}sitemap.xml\n`, { ...noStore, 'Content-Type': 'text/plain; charset=utf-8' })
+      if (url.pathname === '/sitemap.xml') return send(res, 200, req.method === 'HEAD' ? null : `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${COMPANY_HOMEPAGE_URL}</loc></url></urlset>`, { ...noStore, 'Content-Type': 'application/xml; charset=utf-8' })
+      if (isCompanyHomepagePath(url.pathname)) return send(res, 301, null, { Location: `${COMPANY_HOMEPAGE_URL}${url.search}` })
+      if (getProductSlugFromPath(url.pathname)) return send(res, 302, null, { Location: `https://${store.primary_hostname}${url.pathname}${url.search}` })
+      if (url.pathname !== '/') return send(res, 404, req.method === 'HEAD' ? null : 'Lehte ei leitud.', { ...noStore, 'X-Robots-Tag': 'noindex' })
+      const homepage = await loadCompanyHomepageStore(store)
+      if (!homepage) return send(res, 404, 'Lehte ei leitud.', { ...noStore, 'X-Robots-Tag': 'noindex' })
+      return send(res, 200, req.method === 'HEAD' ? null : renderCompanyHomepage(await templatePromise, homepage), { ...noStore, 'Content-Type': 'text/html; charset=utf-8' })
     }
 
     if (/^\/lugu\/?$/.test(url.pathname)) {
@@ -621,16 +656,9 @@ createServer(async (req, res) => {
     }
     if (isCompanyPage) {
       if (url.pathname !== COMPANY_HOMEPAGE_PATH) return send(res, 301, null, { Location: `${COMPANY_HOMEPAGE_PATH}${url.search}` })
-      // The SEO RPC deliberately selects a small set of shop settings. Read the
-      // public view for fresh authored copy, without exposing private settings.
-      const query = new URLSearchParams({ select: 'settings', slug: `eq.${slug}`, limit: '1' })
-      const response = await fetch(`${supabaseUrl}/rest/v1/public_storefronts?${query}`, {
-        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }, signal: AbortSignal.timeout(5000),
-      })
-      if (!response.ok) throw new Error('Company homepage settings unavailable')
-      const [homepage] = await response.json()
+      const homepage = await loadCompanyHomepageStore(store)
       if (!homepage) return send(res, 404, 'Poodi ei leitud.', { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex' })
-      return send(res, 200, req.method === 'HEAD' ? null : renderCompanyHomepage(await templatePromise, { ...store, settings: homepage.settings }), {
+      return send(res, 200, req.method === 'HEAD' ? null : renderCompanyHomepage(await templatePromise, homepage), {
         'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store',
       })
     }
@@ -638,7 +666,7 @@ createServer(async (req, res) => {
       return send(res, 200, `User-agent: *\nAllow: /\nDisallow: /*?checkout=\nSitemap: https://${primaryHost}/sitemap.xml\n`, { 'Content-Type': 'text/plain; charset=utf-8' })
     }
     if (url.pathname === '/sitemap.xml') {
-      const entries = [`https://${primaryHost}/`, ...(hasCompanyHomepage(slug) ? [`https://${primaryHost}${COMPANY_HOMEPAGE_PATH}`] : []), ...(store.products || []).filter((item) => item.search_visible).map((item) => `https://${primaryHost}/toode/${encodeURIComponent(item.slug)}/`)]
+      const entries = [`https://${primaryHost}/`, ...(store.products || []).filter((item) => item.search_visible).map((item) => `https://${primaryHost}/toode/${encodeURIComponent(item.slug)}/`)]
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.map((entry) => `  <url><loc>${escapeHtml(entry)}</loc></url>`).join('\n')}\n</urlset>\n`
       return send(res, 200, xml, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=30, s-maxage=60' })
     }

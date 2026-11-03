@@ -6,7 +6,7 @@ import SellerDetailsFields, { type SellerDetailsValue } from './SellerDetailsFie
 import { hasSellerDetails, normalizeSellerSettings, sellerDetailsError, sellerType as getSellerType, type SellerType } from '../shared/seller'
 import AccountEmailNotice from './AccountEmailNotice'
 import ClosedStorefront from './ClosedStorefront'
-import { hasCompanyHomepage, isCompanyHomepagePath } from '../shared/company-homepage.mjs'
+import { hasCompanyHomepage, isCompanyHomepageLocation } from '../shared/company-homepage.mjs'
 import type { ClosedStore } from '../shared/closed-storefront.mjs'
 import { requireMerchantEmail } from './lib/accountEmail'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
@@ -1482,7 +1482,7 @@ function PlatformFlow() {
   }
 
   if (shouldLoadPublicStore && closedStore) return <ClosedStorefront store={closedStore} />
-  if (shouldLoadPublicStore && publicStore && !isPublicStoreLoading && isCompanyHomepagePath(window.location.pathname)) {
+  if (shouldLoadPublicStore && publicStore && !isPublicStoreLoading && isCompanyHomepageLocation(window.location)) {
     if (hasCompanyHomepage(publicStore.slug)) return <Suspense fallback={<StorefrontLoadingScreen store={publicStore} />}>
       <CompanyHomepage key={publicStore.id} store={publicStore} products={publicProducts} />
     </Suspense>

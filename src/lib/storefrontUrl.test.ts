@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   getMerchantLoginUrl,
+  getCompanyHomepagePath,
+  getCompanyHomepageEditorPath,
   getMerchantStoreUrl,
   getSharedAuthDomain,
   isMerchantManagementLocation,
@@ -16,6 +18,16 @@ import {
 } from './storefrontUrl'
 
 describe('storefront URL parsing', () => {
+  it('keeps the company domain separate from the shop and owner editing origin', () => {
+    for (const host of ['kruk-kruk.ee', 'www.kruk-kruk.ee']) {
+      expect(getRequestedStoreSlug(new URL(`https://${host}/?store=other-shop`))).toBe('kruk-kruk')
+    }
+    expect(getRequestedStoreSlug(new URL('https://kruk-kruk.ee.evil.test/'))).toBeNull()
+    expect(getCompanyHomepagePath('kruk-kruk', 'kruk-kruk.poeruum.ee')).toBe('https://kruk-kruk.ee/')
+    expect(getCompanyHomepageEditorPath('kruk-kruk', 'kruk-kruk.poeruum.ee')).toBe('/koduleht/')
+    expect(getCompanyHomepagePath('kruk-kruk', 'localhost')).toBe('/p/kruk-kruk/koduleht/')
+    expect(getCompanyHomepagePath('kruk-kruk', 'kruk-kruk.poeruum.localhost')).toBe('/p/kruk-kruk/koduleht/')
+  })
   it('opens only the authenticated shop address and preserves payment return intents', () => {
     expect(getMerchantStoreUrl('urgits', new URL('https://poeruum.ee/?continue_setup=1')))
       .toBe('https://urgits.poeruum.ee/haldus')
