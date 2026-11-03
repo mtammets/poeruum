@@ -123,7 +123,6 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
         <BannerForest />
         <div className="company-hero__copy">
           <div className="company-hero__heading">
-            <p className="company-eyebrow">{edit('heroEyebrow')}</p>
             <h1 id="company-title">{edit('heroTitle')}<br /><span className="company-hero__accent">{edit('heroAccent')}</span></h1>
           </div>
           <div className="company-hero__intro">

@@ -54,8 +54,6 @@
 .company-header__shop:hover svg { background: var(--company-ink); color: var(--company-paper); }
 .company-hero__body { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(1.5rem, 2.5vw, 3rem); align-items: center; min-height: 36rem; padding: clamp(1rem, 1.5vw, 1.75rem) 0 clamp(4.5rem, 6vw, 7rem); }
 .company-hero__copy { position: relative; z-index: 2; min-width: 0; }
-.company-hero__heading .company-eyebrow { margin-bottom: 1.8rem; font-size: .68rem; gap: .8rem; }
-.company-hero__heading .company-eyebrow::before { content: ''; width: .5rem; height: .5rem; flex: 0 0 auto; background: var(--company-red); }
 .company-hero h1 { font-size: clamp(5rem, 9vw, 9.6rem); line-height: 1.06; }
 .company-hero h1 > .company-hero__accent {
   color: var(--company-ink);
@@ -203,7 +201,6 @@
   .company-header nav { order: 3; justify-content: space-between; flex-basis: 100%; }
   .company-header nav a { min-height: 44px; font-size: .625rem; }
   .company-hero__body { grid-template-columns: 1fr; min-height: 0; gap: 4rem; padding: 2.5rem 0 3.5rem; }
-  .company-hero__heading .company-eyebrow { font-size: .59rem; margin-bottom: 1.3rem; }
   .company-hero h1 { font-size: clamp(3.8rem, 18.5vw, 6.5rem); }
   .company-hero__art { width: 100%; margin: 0; }
   .company-hero__image { --company-flight-near-scale: 1.28; }
