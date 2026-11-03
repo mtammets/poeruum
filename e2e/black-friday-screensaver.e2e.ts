@@ -26,6 +26,48 @@ async function openCampaign(page: Page, theme = 'black-friday') {
 }
 
 const saver = (page: Page) => page.getByRole('dialog', { name: 'Rähni lennuvaade' })
+const birdButton = (page: Page) => page.getByRole('button', { name: 'Pane rähn häälitsema ja ava lennuvaade', exact: true })
+
+test('pressing the bird plays the current call and opens a flight that stays open until dismissed', async ({ page }) => {
+  await openCampaign(page)
+  await page.addStyleTag({ content: '.black-friday-banner__arrival { animation: none !important; translate: none !important; rotate: none !important; scale: 1 !important; }' })
+  const sound = page.locator('.black-friday-banner audio')
+  await birdButton(page).click()
+  await expect(saver(page)).toBeVisible()
+  await expect(sound).toHaveAttribute('src', '/audio/campaigns/musta-rahni-call-1.mp3')
+  await expect(sound).toHaveJSProperty('paused', false)
+  await expect.poll(() => saver(page).locator('.woodpecker-beak').evaluate(beak =>
+    Number(beak.getAttribute('transform')?.match(/rotate\(([-.\d]+)/)?.[1] || 0))).toBeLessThan(-1)
+  await page.mouse.move(4, 4)
+  await expect(saver(page)).toBeVisible()
+  await expect.poll(() => sound.evaluate(audio => audio.ended)).toBe(true)
+  await expect(saver(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(saver(page)).toHaveCount(0)
+  await expect(birdButton(page)).toBeFocused()
+
+  await birdButton(page).press('Enter')
+  await expect(saver(page)).toBeVisible()
+  await expect(sound).toHaveAttribute('src', '/audio/campaigns/musta-rahni-call-2.mp3')
+  await expect(sound).toHaveJSProperty('paused', false)
+  await page.keyboard.press('Escape')
+  await expect(saver(page)).toHaveCount(0)
+  await expect(sound).toHaveJSProperty('paused', true)
+  await page.clock.fastForward(60_001)
+  await expect(saver(page)).toBeVisible()
+  await expect(sound).toHaveJSProperty('paused', true)
+})
+
+test('the bird still opens the flight if audio cannot load', async ({ page }) => {
+  await page.route('**/audio/campaigns/musta-rahni-call-1.mp3', route => route.abort())
+  await openCampaign(page)
+  await birdButton(page).press('Enter')
+  await expect(saver(page)).toBeVisible()
+  await expect.poll(() => page.locator('.black-friday-banner audio').evaluate(audio => audio.error !== null)).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(saver(page)).toHaveCount(0)
+  await expect(birdButton(page)).toBeFocused()
+})
 
 test('waits a full minute after activity, hides all UI and restores scroll and focus', async ({ page }) => {
   await openCampaign(page)
@@ -151,12 +193,13 @@ test('arrows control speed and depth together without waking or scrolling the di
   await page.clock.runFor(1_000)
   expect(await rate()).toBeGreaterThan(1.5)
   expect(await rate()).toBeLessThan(boosted)
-  await page.keyboard.down('ArrowRight')
   await page.keyboard.down('ArrowUp')
-  await page.clock.runFor(7_000)
+  await page.clock.runFor(2_200)
+  await expect.poll(rate).toBeLessThan(1.4)
+  await page.keyboard.down('ArrowLeft')
+  await page.clock.runFor(4_800)
   await page.keyboard.up('ArrowUp')
-  await page.keyboard.up('ArrowRight')
-  await expect.poll(rate).toBeLessThan(.5)
+  await expect.poll(rate).toBeGreaterThan(2.8)
   expect(near / (await bird.boundingBox())!.width).toBeGreaterThan(2.5)
   expect(await page.evaluate(() => window.scrollY)).toBe(scrollY)
   await page.keyboard.press('Escape')
@@ -165,27 +208,385 @@ test('arrows control speed and depth together without waking or scrolling the di
   expect(await page.evaluate(() => window.scrollY)).toBe(scrollY)
 })
 
+test('manual flight keeps the original speed and depth controls with no added UI', async ({ page }) => {
+  await openCampaign(page)
+  await birdButton(page).press('Enter')
+  const dialog = saver(page)
+  const bird = dialog.locator('.black-friday-screensaver__bird')
+  const rate = () => dialog.locator('.banner-forest__track').first().evaluate(element => element.getAnimations()[0].playbackRate)
+  await expect(dialog).toHaveText('')
+  // Only the pre-existing, full-screen return surface; no added corner controls.
+  await expect(dialog.locator('button')).toHaveCount(1)
+  await expect(dialog.locator('button')).toHaveClass('black-friday-screensaver__scene')
+  await page.keyboard.down('ArrowLeft')
+  await page.keyboard.down('ArrowDown')
+  await page.clock.runFor(5_000)
+  const near = (await bird.boundingBox())!.width
+  await expect.poll(rate).toBeGreaterThan(3)
+  await page.keyboard.up('ArrowDown')
+  await page.keyboard.up('ArrowLeft')
+  await page.keyboard.down('ArrowUp')
+  await page.clock.runFor(2_200)
+  await expect.poll(rate).toBeLessThan(1.4)
+  await page.keyboard.down('ArrowLeft')
+  await page.clock.runFor(4_800)
+  await page.keyboard.up('ArrowUp')
+  await expect.poll(rate).toBeGreaterThan(2.8)
+  expect(near / (await bird.boundingBox())!.width).toBeGreaterThan(2.5)
+  const beforePointer = await bird.boundingBox()
+  await page.mouse.move(10, 10)
+  await expect(dialog).toBeVisible()
+  // Pointer movement has no steering handler.
+  expect(Math.abs((await bird.boundingBox())!.x - beforePointer!.x)).toBeLessThan(10)
+  await page.mouse.click(10, 10)
+  await expect(dialog).toHaveCount(0)
+  await expect(birdButton(page)).toBeFocused()
+})
+
+test('caps in the nearer flight lane appear larger than caps farther away', async ({ page }) => {
+  await openCampaign(page)
+  await birdButton(page).press('Enter')
+  await page.keyboard.down('ArrowLeft')
+  await page.keyboard.down('ArrowDown')
+  await page.clock.runFor(6_800)
+  await page.keyboard.up('ArrowDown')
+  await page.keyboard.up('ArrowLeft')
+  const far = saver(page).locator('.hat-flight__hat[data-depth="0.150"][data-caught="false"]')
+  const near = saver(page).locator('.hat-flight__hat[data-depth="0.650"][data-caught="false"]')
+  await expect(far).toBeVisible()
+  await expect(near).toBeVisible()
+  expect((await near.boundingBox())!.width).toBeGreaterThan((await far.boundingBox())!.width * 1.5)
+  await expect(saver(page)).toHaveText('')
+  await page.keyboard.press('Escape')
+})
+
+test('wings beat gently on autopilot, more strongly under thrust, and respect reduced motion', async ({ page }) => {
+  await openCampaign(page)
+  await birdButton(page).press('Enter')
+  const wings = saver(page).locator('.woodpecker-wing')
+  await expect(wings).toHaveCount(2)
+  const sample = async () => {
+    const angles: number[][] = []
+    for (let i = 0; i < 12; i++) {
+      await page.clock.runFor(150)
+      angles.push(await wings.evaluateAll(elements => elements.map(element =>
+        Math.abs(parseFloat((element as SVGSVGElement).style.transform.match(/rotate\(([-.\d]+)/)?.[1] || '0')))))
+    }
+    return [0, 1].map(wing => Math.max(...angles.map(frame => frame[wing])))
+  }
+  const glide = await sample()
+  expect(Math.min(...glide)).toBeGreaterThan(1)
+  await page.keyboard.down('ArrowLeft')
+  await page.clock.runFor(1_000)
+  const powered = await sample()
+  powered.forEach((angle, wing) => expect(angle).toBeGreaterThan(glide[wing] * 1.5))
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.runFor(2_000)
+  await expect(wings.nth(0)).toHaveCSS('transform', 'none')
+  await expect(wings.nth(1)).toHaveCSS('transform', 'none')
+  await expect(saver(page)).toHaveText('')
+  await page.keyboard.press('Escape')
+})
+
+for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+  test(`forward must stay held and can restore height before falling out at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await openCampaign(page)
+    await birdButton(page).press('Enter')
+    const dialog = saver(page)
+    const bird = dialog.locator('.black-friday-screensaver__bird')
+    const rate = () => dialog.locator('.banner-forest__track').first().evaluate(element => element.getAnimations()[0].playbackRate)
+    await expect.poll(rate).toBeGreaterThan(1.45)
+    // Hold forward while taking over from the automatic depth orbit.
+    await page.keyboard.down('ArrowLeft')
+    await page.clock.runFor(1_500)
+    const centerY = async () => { const box = (await bird.boundingBox())!; return box.y + box.height / 2 }
+    const level = await centerY()
+    await page.keyboard.up('ArrowLeft')
+    await page.clock.runFor(200)
+    expect(await centerY() - level).toBeGreaterThan(0)
+    expect(await centerY() - level).toBeLessThan(viewport.height * .03)
+    await page.clock.runFor(1_900)
+    const fallen = await centerY()
+    expect(fallen - level).toBeGreaterThan(viewport.height * .2)
+    expect(await bird.evaluate(element => parseFloat(element.style.rotate))).toBeLessThan(-10)
+    await page.keyboard.down('ArrowLeft')
+    await page.clock.runFor(6_000)
+    expect(fallen - await centerY()).toBeGreaterThan(viewport.height * .2)
+    expect(Math.abs(await centerY() - level)).toBeLessThan(viewport.height * .05)
+    await expect(dialog).toHaveText('')
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+  })
+
+  test(`the whole bird falls out before the scene and sound close at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.addInitScript(() => {
+      const probe = { top: 0, closedAudio: 0, music: [] as HTMLMediaElement[] }
+      Object.assign(window, { fallExitProbe: probe })
+      const close = HTMLDialogElement.prototype.close
+      HTMLDialogElement.prototype.close = function (...args) {
+        if (this.open && this.matches('.black-friday-screensaver')) {
+          probe.top = this.querySelector('.black-friday-screensaver__bird')!.getBoundingClientRect().top
+        }
+        return close.apply(this, args)
+      }
+      const create = AudioContext.prototype.createMediaElementSource
+      AudioContext.prototype.createMediaElementSource = function (element) {
+        probe.music.push(element)
+        return create.call(this, element)
+      }
+      const closeAudio = AudioContext.prototype.close
+      AudioContext.prototype.close = function () {
+        return closeAudio.call(this).then(() => { probe.closedAudio++ })
+      }
+    })
+    await openCampaign(page)
+    await birdButton(page).press('Enter')
+    const probe = () => page.evaluate(() => {
+      const value = (window as Window & { fallExitProbe: { top: number; closedAudio: number; music: HTMLMediaElement[] } }).fallExitProbe
+      return { top: value.top, closed: value.closedAudio, playing: value.music.some(audio => !audio.paused),
+        loaded: value.music.some(audio => audio.readyState > 0) }
+    })
+    await expect.poll(async () => (await probe()).playing).toBe(true)
+    // Taking over depth without forward thrust starts a gradual descent.
+    await page.keyboard.down(viewport.width === 1280 ? 'ArrowDown' : 'ArrowUp')
+    await page.clock.runFor(600)
+    await expect(saver(page)).toBeVisible()
+    await page.clock.runFor(8_000)
+    await expect(saver(page)).toHaveCount(0)
+    expect((await probe()).top).toBeGreaterThanOrEqual(viewport.height)
+    await expect.poll(async () => (await probe()).closed).toBe(1)
+    expect((await probe()).playing).toBe(false)
+    expect((await probe()).loaded).toBe(false)
+    await expect(birdButton(page)).toBeFocused()
+    await page.keyboard.up(viewport.width === 1280 ? 'ArrowDown' : 'ArrowUp')
+    await birdButton(page).press('Enter')
+    // A new scene starts in autonomous flight until another steering input.
+    await page.clock.runFor(12_000)
+    await expect(saver(page)).toBeVisible()
+    await expect(saver(page)).toHaveText('')
+    await page.keyboard.press('Escape')
+  })
+}
+
+test('toes catch a cap, then release it with the back arrow while forward flight continues', async ({ page }) => {
+  await openCampaign(page)
+  await birdButton(page).press('Enter')
+  await page.keyboard.down('ArrowLeft')
+  await page.clock.runFor(120)
+  const foot = saver(page).locator('.woodpecker-claws')
+  await expect(foot).toHaveAttribute('data-grip', 'resting')
+  let reached = false
+  for (let i = 0; i < 40; i++) {
+    await page.clock.runFor(80)
+    if (await foot.getAttribute('data-grip') === 'reaching') { reached = true; break }
+  }
+  expect(reached).toBe(true)
+  await expect(saver(page).locator('.hat-flight__collected')).toHaveCount(0)
+  const angle = (selector: string) => foot.locator(selector).evaluate(e => Number(e.getAttribute('transform')!.match(/rotate\(([-.\d]+)/)![1]))
+  expect(await angle('.woodpecker-claws__rear')).toBeLessThan(-1)
+  expect(await angle('.woodpecker-claws__front')).toBeGreaterThan(1)
+  await page.clock.runFor(1_500)
+  await expect(foot).toHaveAttribute('data-grip', 'holding')
+  await expect(foot.locator('.hat-flight__collected')).toHaveCount(1)
+  expect(await angle('.woodpecker-claws__front')).toBeCloseTo(14, 1)
+  const rate = () => saver(page).locator('.banner-forest__track').first().evaluate(element => element.getAnimations()[0].playbackRate)
+  const bird = saver(page).locator('.black-friday-screensaver__bird')
+  const level = (await bird.boundingBox())!
+  const beforeRate = await rate()
+  await page.keyboard.down('ArrowRight')
+  await page.clock.runFor(80)
+  await expect(foot).toHaveAttribute('data-grip', 'releasing')
+  expect(await angle('.woodpecker-claws__front')).toBeGreaterThan(25)
+  const held = (await foot.locator('.hat-flight__collected image').boundingBox())!
+  await page.clock.runFor(64)
+  await expect(foot.locator('.hat-flight__collected')).toHaveCount(0)
+  const drop = saver(page).locator('.hat-flight__drop')
+  await expect(drop).toHaveCount(1)
+  const released = (await drop.boundingBox())!
+  expect(Math.abs(released.x + released.width / 2 - held.x - held.width / 2)).toBeLessThan(5)
+  expect(Math.abs(released.y + released.height / 2 - held.y - held.height / 2)).toBeLessThan(5)
+  await page.clock.runFor(300)
+  const falling = (await drop.boundingBox())!
+  expect(falling.y + falling.height / 2 - released.y - released.height / 2).toBeGreaterThan(10)
+  expect(await rate()).toBeGreaterThanOrEqual(beforeRate - .02)
+  const flying = (await bird.boundingBox())!
+  expect(Math.abs(flying.y + flying.height / 2 - level.y - level.height / 2)).toBeLessThan(10)
+  // Holding the release key must not keep creating caps.
+  await page.keyboard.down('ArrowRight')
+  await page.clock.runFor(2_000)
+  await expect(drop).toHaveCount(0)
+  await page.keyboard.up('ArrowRight')
+  await expect(saver(page)).toHaveText('')
+  await page.keyboard.press('Escape')
+  await expect(saver(page)).toHaveCount(0)
+})
+
+test('releasing cargo leaves autopilot alone and new catches start a fresh carried stack', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await openCampaign(page)
+  await birdButton(page).press('Enter')
+  await page.clock.runFor(3_300)
+  const dialog = saver(page)
+  const bird = dialog.locator('.black-friday-screensaver__bird')
+  const caps = dialog.locator('.hat-flight__collected')
+  await expect(caps).toHaveCount(1)
+  const pose = await bird.boundingBox()
+  await page.keyboard.down('ArrowRight')
+  await page.clock.runFor(700)
+  await expect(caps).toHaveCount(0)
+  await expect(dialog.locator('.hat-flight__drop')).toHaveCount(1)
+  expect(await bird.boundingBox()).toEqual(pose)
+  await page.keyboard.down('ArrowLeft')
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp')
+  await page.clock.runFor(2_400)
+  await expect(dialog).toHaveAttribute('data-caught', '2')
+  await expect(caps).toHaveCount(1)
+  await expect(dialog.locator('.hat-flight__drop')).toHaveCount(0)
+  await page.keyboard.down('ArrowRight') // repeat while still held
+  await page.clock.runFor(180)
+  await expect(caps).toHaveCount(1)
+  await page.keyboard.up('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await page.clock.runFor(180)
+  await expect(caps).toHaveCount(0)
+  await expect(dialog.locator('.hat-flight__drop')).toHaveCount(1)
+  await expect(dialog).toHaveText('')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+})
+
+test('background music starts on entry, ducks for a catch, loops and releases on exit', async ({ page }) => {
+  let musicRequests = 0
+  page.on('request', request => { if (request.url().includes('musta-rahni-flight-music.mp3')) musicRequests++ })
+  await page.addInitScript(() => {
+    const tracks: { element: HTMLMediaElement; gain?: GainNode }[] = []
+    Object.assign(window, { flightMusicProbe: tracks })
+    const create = AudioContext.prototype.createMediaElementSource
+    AudioContext.prototype.createMediaElementSource = function (element) {
+      const source = create.call(this, element)
+      const entry: { element: HTMLMediaElement; gain?: GainNode } = { element }
+      tracks.push(entry)
+      const connect = source.connect.bind(source)
+      source.connect = ((destination: AudioNode) => {
+        if (destination instanceof GainNode) entry.gain = destination
+        return connect(destination)
+      }) as typeof source.connect
+      return source
+    }
+  })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await openCampaign(page)
+  expect(musicRequests).toBe(0)
+  await birdButton(page).press('Enter')
+  const music = () => page.evaluate(() => {
+    const tracks = (window as Window & { flightMusicProbe?: { element: HTMLMediaElement; gain?: GainNode }[] }).flightMusicProbe!
+    const current = tracks.at(-1)!
+    return { tracks: tracks.length, active: tracks.filter(t => !t.element.paused).length,
+      playing: !current.element.paused, time: current.element.currentTime, duration: current.element.duration,
+      loop: current.element.loop, level: current.gain?.gain.value ?? 0, src: current.element.getAttribute('src'),
+      ready: current.element.readyState, network: current.element.networkState }
+  })
+  await expect.poll(async () => (await music()).time).toBeGreaterThan(0)
+  expect((await music()).loop).toBe(true)
+  await expect.poll(async () => (await music()).level).toBeGreaterThan(.3)
+  await page.clock.runFor(3_300)
+  await expect(saver(page)).toHaveAttribute('data-caught', '1')
+  await expect.poll(async () => (await music()).level).toBeLessThan(.22)
+  await expect.poll(async () => (await music()).level).toBeGreaterThan(.3)
+  await page.evaluate(() => {
+    const tracks = (window as Window & { flightMusicProbe?: { element: HTMLMediaElement }[] }).flightMusicProbe!
+    const element = tracks.at(-1)!.element
+    element.currentTime = element.duration - .15
+  })
+  await expect.poll(async () => (await music()).time).toBeLessThan(1)
+  expect((await music()).playing).toBe(true)
+  await page.keyboard.press('ArrowLeft')
+  expect((await music()).tracks).toBe(1)
+  await page.keyboard.press('Escape')
+  await expect.poll(async () => (await music()).active).toBe(0)
+  expect((await music()).src).toBeNull()
+  // Chromium retains currentSrc after load(); the empty media/network states
+  // verify that the decoder and network resource were actually released.
+  await expect.poll(async () => (await music()).ready).toBe(0)
+  await expect.poll(async () => (await music()).network).toBe(0)
+  await birdButton(page).press('Enter')
+  await expect.poll(async () => (await music()).time).toBeGreaterThan(0)
+  expect((await music()).tracks).toBe(2)
+  expect((await music()).active).toBe(1)
+  await expect(saver(page)).toHaveText('')
+  await page.keyboard.press('Escape')
+  await expect.poll(async () => (await music()).active).toBe(0)
+})
+
+test('catches attach to the real claws, play each current call, and stop sound on exit', async ({ page }) => {
+  await page.addInitScript(() => {
+    const probe = { decoded: 0, calls: [] as number[], closed: 0 }
+    Object.assign(window, { flightAudioProbe: probe })
+    const decode = AudioContext.prototype.decodeAudioData
+    AudioContext.prototype.decodeAudioData = function (data: ArrayBuffer) {
+      return decode.call(this, data).then(buffer => { probe.decoded++; return buffer })
+    }
+    const start = AudioBufferSourceNode.prototype.start
+    AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof start>) {
+      if (this.buffer && !this.loop) probe.calls.push(this.buffer.duration)
+      return start.apply(this, args)
+    }
+    const close = AudioContext.prototype.close
+    AudioContext.prototype.close = function () {
+      return close.call(this).then(() => { probe.closed++ })
+    }
+  })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await openCampaign(page)
+  await birdButton(page).press('Enter')
+  const probe = () => page.evaluate(() => (window as Window & { flightAudioProbe?: { decoded: number; calls: number[]; closed: number } }).flightAudioProbe!)
+  await expect.poll(async () => (await probe()).decoded).toBe(2)
+  await page.clock.runFor(3_300)
+  await expect(saver(page)).toHaveAttribute('data-caught', '1')
+  await expect(saver(page).locator('.hat-flight__collected')).toHaveCount(1)
+  expect((await probe()).calls[0]).toBeCloseTo(1.071, 2)
+  // Keep forward held while moving back in depth to meet the second hat.
+  await page.keyboard.down('ArrowLeft')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await page.clock.runFor(3_000)
+  await expect(saver(page)).toHaveAttribute('data-caught', '2')
+  await expect(saver(page).locator('.hat-flight__collected')).toHaveCount(2)
+  const calls = (await probe()).calls
+  expect(calls).toHaveLength(2)
+  expect(calls[1]).toBeCloseTo(2.82125, 2)
+  await expect(saver(page)).toHaveText('')
+  await page.keyboard.press('Escape')
+  await expect(saver(page)).toHaveCount(0)
+  await expect.poll(async () => (await probe()).closed).toBe(1)
+})
+
 test('losing focus releases held controls and a new flight starts with no stuck keys', async ({ page }) => {
   await openCampaign(page)
   await page.clock.fastForward(60_001)
   await page.keyboard.down('ArrowLeft')
   await page.clock.runFor(3_000)
   await page.evaluate(() => window.dispatchEvent(new Event('blur')))
+  // Losing focus releases forward; the bird descends and the scene ends.
   await page.clock.runFor(10_000)
+  await expect(saver(page)).toHaveCount(0)
   const rate = () => saver(page).locator('.banner-forest__track').first().evaluate(element => element.getAnimations()[0].playbackRate)
-  await expect.poll(rate).toBeLessThan(1.2)
   await page.keyboard.up('ArrowLeft')
-  await page.keyboard.press('Escape')
   await page.clock.fastForward(60_001)
   await expect(saver(page)).toBeVisible()
-  await expect.poll(rate).toBeLessThan(1.2)
+  await expect.poll(rate).toBeGreaterThan(1.45)
+  await expect.poll(rate).toBeLessThan(1.9)
 })
 
-test('reduced motion allows deliberate depth steps without continuing to animate', async ({ page }) => {
+test('reduced motion keeps depth steps steady while forward is held', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await openCampaign(page)
   await page.clock.fastForward(60_001)
   const bird = saver(page).locator('.black-friday-screensaver__bird')
+  await page.keyboard.down('ArrowLeft')
   const before = (await bird.boundingBox())!.width
   await page.keyboard.press('ArrowDown')
   const near = await bird.boundingBox()
@@ -208,6 +609,20 @@ test('the ordinary directory has no campaign screensaver', async ({ page }) => {
 
 test.describe('touchscreen', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } })
+  test('tapping the bird starts sound and flight, and the next tap only closes it', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await openCampaign(page)
+    const sound = page.locator('.black-friday-banner audio')
+    await birdButton(page).tap()
+    await expect(saver(page)).toBeVisible()
+    await expect(sound).toHaveJSProperty('paused', false)
+    await expect(saver(page).locator('.woodpecker-beak')).toHaveAttribute('transform', 'rotate(0.00 265 490)')
+    await page.touchscreen.tap(200, 700)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(sound).toHaveJSProperty('paused', true)
+    await expect(page.locator('#root')).toHaveCSS('visibility', 'visible')
+  })
+
   test('fills the phone screen and a tap restores the page without opening checkout', async ({ page }) => {
     await openCampaign(page)
     await page.clock.fastForward(60_001)

@@ -323,17 +323,6 @@
   user-select: none;
   filter: drop-shadow(0 1.5rem 1rem #5b351318);
 }
-.black-friday-banner__beak,
-.black-friday-banner__mouth { visibility: hidden; }
-.black-friday-banner__beak {
-  transform-box: view-box;
-  transform-origin: 265px 490px;
-}
-.black-friday-banner[data-calling] .black-friday-banner__beak,
-.black-friday-banner[data-calling] .black-friday-banner__mouth { visibility: visible; }
-.black-friday-banner[data-calling] .black-friday-banner__beak {
-  animation: black-friday-call 1300ms ease-in-out both;
-}
 .black-friday-banner__cry {
   --cry-start-x: -6.1em;
   --cry-exit-x: -110vw;
@@ -578,12 +567,6 @@
   from { --black-friday-flight-phase: 0deg; }
   to { --black-friday-flight-phase: 360deg; }
 }
-/* Six syllables, aligned with the local 1.3-second recording. */
-@keyframes black-friday-call {
-  0%, 100% { transform: rotate(0); }
-  10%, 31%, 47%, 62%, 77%, 91% { transform: rotate(-16deg); }
-  24%, 40%, 55%, 70%, 84%, 97% { transform: rotate(-2deg); }
-}
 @keyframes black-friday-cry {
   0% { opacity: 0; transform: translate(0, 0) rotate(-25deg) scale(.05); }
   10% { opacity: 1; }
@@ -676,7 +659,6 @@
   .black-friday-banner__musta,
   .black-friday-banner__bird,
   .black-friday-banner__arrival,
-  .black-friday-banner[data-calling] .black-friday-banner__beak,
   .black-friday-banner[data-calling] .black-friday-banner__cry-letter,
   .black-friday-banner[data-calling] .black-friday-banner__cry-drop { animation: none; }
   .black-friday-banner__arrival { translate: none; rotate: none; scale: none; }

@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { Ref } from 'react'
 import { birdImage } from './krukHatMotion'
 
 // Lower mandible and hinge in the source image's 1448 × 1086 coordinate space.
@@ -7,8 +7,8 @@ export const lowerBeak = 'M 39 468 L 265 488 L 272 506 L 247 520 L 209 519 L 147
 export default function WoodpeckerBeak({ clipId, calling, beakRef, mouthRef }: {
   clipId: string
   calling: boolean
-  beakRef: RefObject<SVGGElement | null>
-  mouthRef: RefObject<SVGPathElement | null>
+  beakRef: Ref<SVGGElement>
+  mouthRef: Ref<SVGPathElement>
 }) {
   return <g visibility={calling ? 'visible' : 'hidden'} aria-hidden="true">
     <path ref={mouthRef} className="woodpecker-mouth" d="" fill="#201818" />

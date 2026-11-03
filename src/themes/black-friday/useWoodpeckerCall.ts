@@ -17,8 +17,19 @@ export function beakOpening(call: typeof calls[number], time: number) {
 
 export default function useWoodpeckerCall() {
   const audioRef = useRef<HTMLAudioElement>(null)
-  const beakRef = useRef<SVGGElement>(null)
-  const mouthRef = useRef<SVGPathElement>(null)
+  // The banner and its flight overlay share one sound and one animation clock.
+  const beaks = useRef(new Set<SVGGElement>())
+  const mouths = useRef(new Set<SVGPathElement>())
+  const beakRef = useCallback((element: SVGGElement | null) => {
+    if (!element) return
+    beaks.current.add(element)
+    return () => { beaks.current.delete(element) }
+  }, [])
+  const mouthRef = useCallback((element: SVGPathElement | null) => {
+    if (!element) return
+    mouths.current.add(element)
+    return () => { mouths.current.delete(element) }
+  }, [])
   const frame = useRef(0)
   const pending = useRef(false)
   const attempt = useRef(0)
@@ -28,12 +39,12 @@ export default function useWoodpeckerCall() {
 
   const draw = useCallback((opening: number) => {
     const angle = -16 * opening
-    beakRef.current?.setAttribute('transform', `rotate(${angle.toFixed(2)} 265 490)`)
+    beaks.current.forEach(beak => beak.setAttribute('transform', `rotate(${angle.toFixed(2)} 265 490)`))
     // Only the hinge is a dark mouth interior; the gap between the tips is air.
     const radians = angle * Math.PI / 180
     const x = 265 - 57 * Math.cos(radians) + 6 * Math.sin(radians)
     const y = 490 - 57 * Math.sin(radians) - 6 * Math.cos(radians)
-    mouthRef.current?.setAttribute('d', opening > .001 ? `M208 484 L265 490 L${x.toFixed(2)} ${y.toFixed(2)} Z` : '')
+    mouths.current.forEach(mouth => mouth.setAttribute('d', opening > .001 ? `M208 484 L265 490 L${x.toFixed(2)} ${y.toFixed(2)} Z` : ''))
   }, [])
 
   const stopMotion = useCallback(() => {
@@ -47,6 +58,11 @@ export default function useWoodpeckerCall() {
     stopMotion()
     setCalling(false)
   }, [stopMotion])
+
+  const stop = useCallback(() => {
+    audioRef.current?.pause()
+    finish()
+  }, [finish])
 
   useEffect(() => {
     const sound = audioRef.current
@@ -107,5 +123,5 @@ export default function useWoodpeckerCall() {
     }).catch(() => { if (attempt.current === id) finish() })
   }
 
-  return { audioRef, beakRef, mouthRef, calling, play }
+  return { audioRef, beakRef, mouthRef, calling, play, stop }
 }

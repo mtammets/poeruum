@@ -25,7 +25,7 @@ const server = createServer(async (req, res) => {
   if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return }
   try {
     const body = await readFile(file)
-    const types = { '.html': 'text/html', '.webp': 'image/webp', '.ttf': 'font/ttf' }
+    const types = { '.html': 'text/html', '.mjs': 'text/javascript', '.json': 'application/json', '.webp': 'image/webp', '.ttf': 'font/ttf' }
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' }).end(body)
   } catch { res.writeHead(404).end() }
 }).listen(0, '127.0.0.1')
@@ -37,6 +37,9 @@ try {
   page.on('pageerror', error => { throw error })
   await page.goto(`http://127.0.0.1:${server.address().port}/scripts/black-friday-${youtube ? 'youtube' : 'reel'}.html`)
   console.log('Composition:', JSON.stringify(await page.evaluate(() => window.ready)))
+  const calls = await page.evaluate(() => window.campaignCalls.map(({ src, start, duration, gain }) => ({ src, start, duration, gain })))
+  if (calls.some(call => call.start + call.duration > duration)) throw new Error('A woodpecker recording would be cut off')
+  console.log('Current recordings:', JSON.stringify(calls))
   for (const t of [0, 3.9, 7.5, 11, 14.9667, 15]) {
     const data = await page.evaluate(t => {
       window.renderFrame(t)
@@ -61,19 +64,18 @@ try {
       if (code !== 0) throw new Error(`ffmpeg exited ${code}`)
       console.log('Silent master rendered.')
     }
-    // A quiet original wind/needle-rustle bed beneath the existing CC0 woodpecker call.
-    // Two calls match the mandible animation; no music or voiceover is introduced.
+    // Use the owner's current recordings, with the exact timeline driving the beak.
+    // Keep the quiet wind/needle-rustle bed and each recording's original speed/pitch.
+    const windInput = calls.length + 1, leavesInput = windInput + 1
     const soundGraph = [
-      "[2:a]highpass=f=200,lowpass=f=1900,volume='0.30+0.07*sin(2*PI*t/15)':eval=frame,pan=stereo|c0=c0|c1=0.94*c0[wind]",
-      "[3:a]highpass=f=2400,lowpass=f=6500,volume='0.035+0.018*sin(4*PI*t/15+0.6)':eval=frame,pan=stereo|c0=0.75*c0|c1=c0[leaves]",
-      '[1:a]aformat=channel_layouts=stereo,asplit=2[c1][c2]',
-      '[c1]volume=1.7,adelay=3800|3800[call1]',
-      '[c2]volume=1.5,adelay=10700|10700[call2]',
-      '[wind][leaves][call1][call2]amix=inputs=4:duration=longest:normalize=0,volume=2,afade=t=in:st=0:d=0.2,afade=t=out:st=14.8:d=0.2,alimiter=limit=0.85:level=0[a]',
+      `[${windInput}:a]highpass=f=200,lowpass=f=1900,volume='0.30+0.07*sin(2*PI*t/15)':eval=frame,pan=stereo|c0=c0|c1=0.94*c0[wind]`,
+      `[${leavesInput}:a]highpass=f=2400,lowpass=f=6500,volume='0.035+0.018*sin(4*PI*t/15+0.6)':eval=frame,pan=stereo|c0=0.75*c0|c1=c0[leaves]`,
+      ...calls.map((call, index) => `[${index + 1}:a]aformat=channel_layouts=stereo,asetpts=PTS-STARTPTS,volume=${call.gain},adelay=${Math.round(call.start * 1000)}:all=1[call${index}]`),
+      `[wind][leaves]${calls.map((_, index) => `[call${index}]`).join('')}amix=inputs=${calls.length + 2}:duration=longest:normalize=0,volume=2,afade=t=in:st=0:d=0.2,afade=t=out:st=14.8:d=0.2,alimiter=limit=0.85:level=0:latency=1[a]`,
     ].join(';')
     const mix = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y',
       '-i', path.join(out, 'musta-rahni-paevad-silent.mp4'),
-      '-i', path.join(root, 'public/audio/campaigns/musta-rahni-call.mp3'),
+      ...calls.flatMap(call => ['-i', path.join(root, 'public', call.src)]),
       '-f', 'lavfi', '-i', 'anoisesrc=color=pink:amplitude=0.8:sample_rate=48000:duration=15:seed=4927',
       '-f', 'lavfi', '-i', 'anoisesrc=color=white:amplitude=0.35:sample_rate=48000:duration=15:seed=1783',
       '-filter_complex', soundGraph, '-map', '0:v:0', '-map', '[a]', '-c:v', 'copy',
