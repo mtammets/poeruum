@@ -1,7 +1,7 @@
 # Musta rähni päevade heli
 
-Kaubamaja ja Krük-Krüki kodulehe rähn kasutavad alates 29.10.2026 kasutaja antud
-salvestisi `rahn_1.mp3` ja `rahn_2.mp3`. Failid on kopeeritud muutmata kujul:
+Kaubamaja, Krük-Krüki koduleht ja 15-sekundilised videoekspordid kasutavad kasutaja
+antud salvestisi `rahn_1.mp3` ja `rahn_2.mp3`, kopeeritud muutmata kujul:
 
 - `musta-rahni-call-1.mp3` — `rahn_1.mp3`, 1,071 s.
 - `musta-rahni-call-2.mp3` — `rahn_2.mp3`, 2,821 s.
@@ -10,9 +10,9 @@ Vajutused esitavad neid vaheldumisi. Noka liikumise helitugevuskõverad on faili
 `src/themes/black-friday/woodpeckerCalls.json`; need saab uuesti luua käsuga
 `node scripts/generate-woodpecker-calls.mjs` (vajab FFmpegi). Liikumist juhib
 helifaili taasesituse aeg, mitte eraldi CSS-taimer.
+15-sekundilises videos algavad salvestused vastavalt 3,8 ja 10,7 sekundil.
 
-Järgnev allikainfo puudutab varasemat faili, mida veebilehtede rähn enam ei kasuta.
-See on alles varasemate videote renderdusskripti jaoks.
+Järgnev allikainfo puudutab varasemat helifaili ja vanu videoeksporte.
 
 `musta-rahni-call.mp3` on 1,3-sekundiline lõik päris musträhni
 (*Dryocopus martius*) salvestusest.
