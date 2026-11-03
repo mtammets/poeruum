@@ -37,26 +37,32 @@ body:has(.black-friday-screensaver[open]) .store-directory * { animation-play-st
   width: 100%;
   height: 100%;
   transform: none;
-  translate: 0 var(--flight-landscape-y, 0px);
-  scale: var(--flight-landscape-scale, 1);
+  translate: 0 0;
+  scale: 1;
   transform-origin: 50% 70%;
 }
 .black-friday-screensaver .banner-forest::after {
   background: linear-gradient(180deg, #f0eadc 0%, #f0eadc00 32%, #f0eadc00 90%, #f0eadc33 100%);
 }
+/* The colour treatment moves with each track, so it can be cached as a surface. */
+.black-friday-screensaver .banner-forest__layer { filter: none; }
+.black-friday-screensaver .banner-forest__track { filter: saturate(var(--forest-saturation)); }
 .black-friday-screensaver .banner-forest__layer--far {
+  --forest-saturation: .6;
   --forest-tile: max(130vw, 150vh);
   --forest-height: 72vh;
   --forest-bottom: 18vh;
   --forest-opacity: .45;
 }
 .black-friday-screensaver .banner-forest__layer--middle {
+  --forest-saturation: .75;
   --forest-tile: max(105vw, 120vh);
   --forest-height: 62vh;
   --forest-bottom: 0vh;
   --forest-opacity: .75;
 }
 .black-friday-screensaver .banner-forest__layer--near {
+  --forest-saturation: .85;
   --forest-tile: max(120vw, 140vh);
   --forest-height: 66vh;
   --forest-bottom: -15vh;
@@ -72,17 +78,73 @@ body:has(.black-friday-screensaver[open]) .store-directory * { animation-play-st
   pointer-events: none;
 }
 .black-friday-screensaver__bird {
+  position: relative;
   display: block;
   width: 100%;
   height: auto;
   max-width: none;
   transform-origin: 58% 45%;
-  translate: var(--flight-x, 0px) var(--flight-y, 0px);
-  rotate: var(--flight-bank, 0deg);
-  scale: var(--flight-scale, .8);
-  filter: drop-shadow(0 2rem 1.5rem #38201320);
+  translate: 0 0;
+  rotate: 0deg;
+  scale: .8;
   user-select: none;
   will-change: translate, rotate, scale;
+}
+.black-friday-screensaver__body {
+  position: relative;
+  display: block; width: 100%; height: auto;
+  filter: drop-shadow(0 2rem 1.5rem #38201320);
+}
+.woodpecker-wing {
+  position: absolute;
+  display: block;
+  overflow: visible;
+  will-change: transform;
+}
+.woodpecker-wing-roots { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.woodpecker-head {
+  position: absolute; display: block; inset: 0; pointer-events: none;
+  transform-origin: calc(482 / 1448 * 100%) calc(610 / 1086 * 100%);
+  animation: woodpecker-neck-sway 17s ease-in-out infinite;
+  will-change: transform;
+}
+.woodpecker-head__image {
+  position: absolute; display: block; overflow: visible;
+  left: calc(10 / 1448 * 100%); top: calc(370 / 1086 * 100%);
+  width: calc(580 / 1448 * 100%); height: calc(330 / 1086 * 100%);
+}
+@keyframes woodpecker-neck-sway {
+  0%, 100% { transform: rotate(0deg); }
+  18% { transform: rotate(-.65deg); }
+  42% { transform: rotate(.35deg); }
+  68% { transform: rotate(-.9deg); }
+  84% { transform: rotate(.2deg); }
+}
+.woodpecker-eye {
+  position: absolute; display: block; pointer-events: none;
+  left: calc(282 / 1448 * 100%); top: calc(442 / 1086 * 100%);
+  width: calc(50 / 1448 * 100%); height: calc(48 / 1086 * 100%);
+}
+.woodpecker-wing--far {
+  left: calc(175 / 1448 * 100%); top: 0;
+  width: calc(490 / 1448 * 100%); height: calc(470 / 1086 * 100%);
+  transform-origin: calc(350 / 490 * 100%) calc(410 / 470 * 100%);
+}
+.woodpecker-wing--near {
+  left: calc(780 / 1448 * 100%); top: calc(50 / 1086 * 100%);
+  width: calc(668 / 1448 * 100%); height: calc(800 / 1086 * 100%);
+  transform-origin: calc(70 / 668 * 100%) calc(560 / 800 * 100%);
+}
+/* Small independent SVG surfaces keep toe/beak updates out of the body raster. */
+.black-friday-screensaver__beak-layer,
+.black-friday-screensaver__claw-layer { position: absolute; display: block; overflow: visible; }
+.black-friday-screensaver__beak-layer {
+  left: calc(30 / 1448 * 100%); top: calc(450 / 1086 * 100%);
+  width: calc(255 / 1448 * 100%); height: calc(110 / 1086 * 100%);
+}
+.black-friday-screensaver__claw-layer {
+  left: calc(775 / 1448 * 100%); top: calc(830 / 1086 * 100%);
+  width: calc(210 / 1448 * 100%); height: calc(240 / 1086 * 100%);
 }
 @keyframes black-friday-screensaver-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 760px) {
@@ -92,5 +154,9 @@ body:has(.black-friday-screensaver[open]) .store-directory * { animation-play-st
   .black-friday-screensaver__scene,
   .black-friday-screensaver__bird { animation: none; }
   .black-friday-screensaver__bird { will-change: auto; }
+  .woodpecker-wing { will-change: auto; transform: none !important; }
+  .woodpecker-head { animation: none; transform: none; will-change: auto; }
+  .woodpecker-eye__iris { transform: none !important; }
+  .woodpecker-eye__lid { transform: translateX(-28px) !important; }
   .black-friday-screensaver__flight { width: min(95vw, 112dvh); }
 }

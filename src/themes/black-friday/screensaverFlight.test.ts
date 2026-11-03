@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createFlightMotion, frameFlight, stepFlight, type FlightInput, type FlightMotion } from './screensaverFlight'
+import { createFlightMotion, flightHasFallenOut, flightSpeeds, frameFlight, stepFlight, type FlightInput, type FlightMotion } from './screensaverFlight'
 
 function fly(motion: FlightMotion, input: FlightInput, seconds: number, fps = 60) {
   for (let frame = 0; frame < seconds * fps; frame++) stepFlight(motion, input, 1 / fps)
 }
 
 describe('screensaver flight', () => {
-  it('keeps acceleration consistent at different frame rates and coasts after release', () => {
+  it('keeps acceleration consistent at different frame rates and loses speed after release', () => {
     const slow = createFlightMotion()
     const fast = createFlightMotion()
     fly(slow, { throttle: 1, depth: 1 }, 2, 30)
@@ -19,7 +19,84 @@ describe('screensaver flight', () => {
     expect(fast.speed).toBeLessThan(boosted)
     expect(fast.speed).toBeGreaterThan(2)
     fly(fast, { throttle: 0, depth: 0 }, 15)
-    expect(fast.speed).toBeCloseTo(1, 2)
+    expect(fast.speed).toBeCloseTo(flightSpeeds.minimum, 2)
+    expect(fast.fall).toBeGreaterThan(100)
+  })
+
+  it('cruises faster and descends gradually after taking over without thrust', () => {
+    const motion = createFlightMotion()
+    expect(motion.speed).toBeGreaterThan(1.5)
+    fly(motion, { throttle: 0, depth: 0 }, 30)
+    expect(motion.fall).toBe(0)
+    motion.controlled = true
+    stepFlight(motion, { throttle: 0, depth: 0 }, 1 / 60)
+    expect(motion.speed).toBeGreaterThan(1.5)
+    expect(motion.fall).toBeGreaterThan(0)
+    expect(motion.fallVelocity).toBeLessThan(.5)
+    fly(motion, { throttle: 0, depth: 0 }, 10)
+    expect(motion.fall).toBeGreaterThan(100)
+  })
+
+  it('needs forward held after any steering input, including a depth-only input', () => {
+    const motion = createFlightMotion()
+    fly(motion, { throttle: 1, depth: 0 }, 20)
+    expect(motion.fall).toBe(0)
+    expect(motion.speed).toBeCloseTo(flightSpeeds.maximum)
+    stepFlight(motion, { throttle: 0, depth: 0 }, 1 / 60)
+    expect(motion.fall).toBeGreaterThan(0)
+    expect(motion.fallVelocity).toBeLessThan(.5)
+    expect(motion.speed).toBeGreaterThan(3)
+    fly(motion, { throttle: 0, depth: 0 }, .2)
+    expect(motion.fall).toBeLessThan(1)
+    fly(motion, { throttle: 0, depth: 0 }, 2)
+    expect(motion.fall).toBeGreaterThan(20)
+    const depthOnly = createFlightMotion()
+    stepFlight(depthOnly, { throttle: 0, depth: 1 }, 1 / 60)
+    expect(depthOnly.controlled).toBe(true)
+    expect(depthOnly.fall).toBeGreaterThan(0)
+    const untouched = createFlightMotion()
+    fly(untouched, { throttle: 0, depth: 0 }, 90)
+    expect(untouched.controlled).toBe(false)
+    expect(untouched.fall).toBe(0)
+  })
+
+  it('pitches down without thrust and can recover before leaving the screen', () => {
+    const motion = createFlightMotion()
+    const initialDepth = motion.depth
+    motion.controlled = true
+    fly(motion, { throttle: 0, depth: 0 }, 2)
+    expect(motion.speed).toBeLessThan(flightSpeeds.cruise)
+    expect(motion.fall).toBeGreaterThan(8)
+    expect(motion.fallVelocity).toBeGreaterThan(10)
+    expect(motion.pose.bank).toBeLessThan(-10)
+    expect(motion.depth).toBe(initialDepth)
+    const before = { ...motion }
+    stepFlight(motion, { throttle: 1, depth: 0 }, 1 / 60)
+    expect(Math.abs(motion.fall - before.fall)).toBeLessThan(.5)
+    fly(motion, { throttle: 1, depth: 0 }, 5)
+    expect(motion.fall).toBeLessThan(.1)
+    expect(motion.pose.bank).toBeGreaterThan(-8)
+  })
+
+  it('continues falling beyond the former limit at consistent frame rates', () => {
+    const slow = createFlightMotion(), fast = createFlightMotion()
+    slow.controlled = fast.controlled = true
+    fly(slow, { throttle: 0, depth: 0 }, 3, 30)
+    fly(fast, { throttle: 0, depth: 0 }, 3, 120)
+    expect(slow.fall).toBeCloseTo(fast.fall, 0)
+    for (const motion of [slow, fast]) {
+      fly(motion, { throttle: 0, depth: 0 }, 5)
+      expect(motion.fall).toBeGreaterThan(150)
+      expect(motion.fallVelocity).toBeGreaterThan(20)
+    }
+  })
+
+  it('waits for the whole rotated bird to pass the bottom before ending flight', () => {
+    const geometry = { pose: { x: 0, y: 0, bank: -25, scale: 1 },
+      bounds: { left: 0, top: 0, width: 200, height: 150 }, position: { x: 0, y: 100 } }
+    expect(flightHasFallenOut(geometry, 180)).toBe(false)
+    geometry.position.y = 250
+    expect(flightHasFallenOut(geometry, 180)).toBe(true)
   })
 
   it('takes over without jumping and recovers immediately from held depth limits', () => {
@@ -32,9 +109,9 @@ describe('screensaver flight', () => {
     fly(motion, { throttle: 1, depth: 1 }, 20)
     expect(motion.depth).toBe(1)
     expect(motion.pose.scale).toBeLessThanOrEqual(1.55)
-    fly(motion, { throttle: -1, depth: -1 }, 1)
+    fly(motion, { throttle: 0, depth: -1 }, 1)
     expect(motion.depth).toBeLessThan(.8)
-    fly(motion, { throttle: -1, depth: -1 }, 20)
+    fly(motion, { throttle: 0, depth: -1 }, 20)
     expect(motion.depth).toBe(0)
     expect(motion.pose.scale).toBeGreaterThanOrEqual(.48)
     expect(motion.speed).toBeCloseTo(.35)

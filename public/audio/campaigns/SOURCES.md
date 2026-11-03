@@ -26,3 +26,24 @@ See on alles varasemate videote renderdusskripti jaoks.
   +10 dB; 25 ms algus- ja 120 ms lõpphajutus; mono MP3, 44,1 kHz, 96 kbit/s.
 
 Allikas ja CC0-litsents on säilitatud ka MP3 metaandmetes.
+
+## Lennuvaate taustamuusika
+
+`musta-rahni-flight-music.mp3` on selle mängu jaoks kirjutatud originaalne
+koomilise tagaajamise instrumentaal „Müts taga, rähn ees”. Kiire svingiv rütm,
+kõndiv kontrabass, pizzicato-keelpillid, klarnet, ksülofon, fagotivastused ja
+lühikesed trompetiaktsendid. Keskmine osa kasvatab pinget ja naaseb põhiteema juurde.
+Varasema rahuliku 96 BPM loo asendas see versioon 03.11.2026.
+
+- 32 takti, 49,23-sekundiline korduv fraas, 156 lööki minutis.
+- Stereo MP3, 32 kHz, 96 kbit/s; umbes 592 KB.
+- Originaalkompositsioon: `scripts/generate-flight-music.mjs`.
+- Renderdamine: `scripts/render-flight-score.swift`, macOS-i süsteemne General MIDI
+  pillipank (`gs_instruments.dls`) läbi AVAudioUnitSampleri. Pillipanka ei levitata;
+  brauserisse jõuab üksnes valmis muusikapala. Olemasolevaid muusikapalu pole sämplitud.
+- Taasloomine macOS-is: `node scripts/generate-flight-music.mjs`
+  (vajab Swifti/Command Line Toolsi ja FFmpegi). Command Line Toolsi valimiseks võib
+  käsule lisada `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
+- Kolmest renderdatud kordusest kasutatakse keskmist, et ruumikaja jätkuks loo piiril.
+- Mäng laeb muusika käivitamisel ning esitab seda voona. Püüdmisel vaigistub see
+  ajutiselt, et kasutaja antud rähnisalvestis jääks selgelt kuuldavaks.

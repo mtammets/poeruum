@@ -7,7 +7,7 @@ import KrukCheckout from './KrukCheckout'
 import { useKrukPurchase } from './useKrukPurchase'
 import KrukHatShowcase from './KrukHatShowcase'
 import BannerForest from './BannerForest'
-import BlackFridayScreensaver from './BlackFridayScreensaver'
+import BlackFridayScreensaver, { type ScreensaverHandle } from './BlackFridayScreensaver'
 import useWoodpeckerCall, { woodpeckerCalls } from './useWoodpeckerCall'
 import WoodpeckerBeak, { lowerBeak } from './WoodpeckerBeak'
 import { bareheadedImage, birdImage, capImage, capOutline, getHatOrigin, headPatch, type HatOrigin } from './krukHatMotion'
@@ -21,6 +21,7 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
   const banner = useRef<HTMLElement>(null)
   const bird = useRef<SVGSVGElement>(null)
   const hatButton = useRef<HTMLButtonElement>(null)
+  const screensaver = useRef<ScreensaverHandle>(null)
   const call = useWoodpeckerCall()
   const { calling } = call
   const [hatOrigin, setHatOrigin] = useState<HatOrigin | null>(null)
@@ -78,7 +79,7 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
   }, [])
 
   return <section ref={banner} className="black-friday-banner" data-hat-away={Boolean(hatOrigin) || undefined} data-shopping={Boolean(purchase.product) || undefined} data-calling={calling || undefined} aria-labelledby="black-friday-heading">
-    <BlackFridayScreensaver paused={Boolean(hatOrigin || purchase.purchase || purchase.busy)} />
+    <BlackFridayScreensaver ref={screensaver} call={call} paused={Boolean(hatOrigin || purchase.purchase || purchase.busy)} />
     <BannerForest />
     <h1 id="black-friday-heading" className="black-friday-banner__title" aria-label="MUSTA RÄHNI PÄEVAD">
       <span className="black-friday-banner__musta" aria-hidden="true">MUSTA</span>
@@ -92,9 +93,10 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
         <button
           type="button"
           className="black-friday-banner__bird"
-          aria-label="Pane rähn häälitsema"
+          aria-label="Pane rähn häälitsema ja ava lennuvaade"
+          aria-haspopup="dialog"
           aria-busy={calling || undefined}
-          onClick={call.play}
+          onClick={() => { call.play(); screensaver.current?.open() }}
         >
           <svg
             ref={bird}

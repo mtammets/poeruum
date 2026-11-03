@@ -1,0 +1,10 @@
+.hat-flight__hats { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
+.hat-flight__hat, .hat-flight__drop { position: absolute; top: 0; left: 0; will-change: transform; }
+.hat-flight__hat img, .hat-flight__drop img { display: block; width: 100%; height: auto; filter: drop-shadow(0 10px 7px #2d201c4a); }
+.hat-flight__cargo { transform-origin: 850px 895px; }
+.hat-flight__collected { animation: hat-collected .22s .2s ease-out both; }
+@keyframes hat-collected { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .hat-flight__cargo { transform: none; }
+  .hat-flight__collected { animation: none; }
+}
