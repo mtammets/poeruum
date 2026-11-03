@@ -157,6 +157,10 @@ jobs:
         if: needs.scope.outputs.mode == 'full'
         run: npm run test:closed-storefront-server
 
+      - name: Company homepage routing, domains and SEO
+        if: needs.scope.outputs.mode == 'full'
+        run: npm run test:company-homepage-server
+
       - name: Production campaign routing and assets
         if: needs.scope.outputs.mode == 'full'
         run: npm run test:campaign-server

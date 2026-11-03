@@ -217,3 +217,25 @@
     top: calc(max(.85rem, env(safe-area-inset-top)) + 9rem);
   }
 }
+.story-header .store-homepage-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .3rem;
+  min-height: 44px;
+  padding: .45rem .7rem;
+  border: 1px solid #ffffff66;
+  border-radius: 999px;
+  background: #0005;
+  color: #fff;
+  text-decoration: none;
+  font-size: .7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.story-header .store-homepage-link span { color: inherit; font-size: .9rem; letter-spacing: 0; }
+.store-homepage-link:focus-visible, .store-homepage-footer-link:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.site-footer .store-homepage-footer-link { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 0; margin-bottom: .75rem; border-bottom: 1px solid currentColor; color: inherit; font-size: .85rem; font-weight: 700; text-decoration: none; }
+@media (max-width: 420px) {
+  .story-header .store-homepage-link { position: absolute; top: calc(100% + .65rem); left: 0; min-height: 36px; }
+}

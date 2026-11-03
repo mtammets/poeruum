@@ -226,6 +226,24 @@ export async function createStore(input: StoreContentInput) {
 }
 
 export async function updateStore(storeId: string, input: Partial<StoreContentInput>) {
+  if (input.settings !== undefined) {
+    // Homepage copy has its own editor. Preserve its latest value even when
+    // another tab saves an older snapshot of the ordinary shop settings.
+    const client = requireSupabase()
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const { data: current, error: readError } = await client.from('stores').select('settings,updated_at').eq('id', storeId).single()
+      throwIfError(readError)
+      if (!current) throw new Error('Poe seadeid ei leitud. Logi uuesti sisse.')
+      const settings = { ...input.settings }
+      delete settings.companyHomepage
+      if (current.settings.companyHomepage !== undefined) settings.companyHomepage = current.settings.companyHomepage
+      const { data, error } = await client.from('stores').update(toStoreContentPayload({ ...input, settings }))
+        .eq('id', storeId).eq('updated_at', current.updated_at).select().maybeSingle()
+      throwIfError(error)
+      if (data) return data as StoreRecord
+    }
+    throw new Error('Poe seaded muutusid salvestamise ajal. Proovi uuesti.')
+  }
   const { data, error } = await requireSupabase()
     .from('stores')
     .update(toStoreContentPayload(input))

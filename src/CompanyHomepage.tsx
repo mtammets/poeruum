@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef } from 'react'
-import { COMPANY_HOMEPAGE_IMAGE, companyHomepageMetadata } from '../shared/company-homepage.mjs'
+import { COMPANY_HOMEPAGE_IMAGE, COMPANY_HOMEPAGE_URL, companyHomepageMetadata, getCompanyHomepageStoreSlug } from '../shared/company-homepage.mjs'
 import type { PublicStoreRecord } from './lib/database'
 import { applySeoMetadata, isLocalSeoPreview } from './lib/seo'
-import { getCompanyHomepagePath, getProductUrlSlug, getStorefrontPath, isDedicatedStorefrontHostname } from './lib/storefrontUrl'
+import { getCompanyHomepageEditorPath, getProductUrlSlug, getStorefrontPath, isDedicatedStorefrontHostname } from './lib/storefrontUrl'
 import { getProductPrice, getResponsiveImageProps } from './storefrontModel'
 import type { Product } from './products'
 import BannerForest from './themes/black-friday/BannerForest'
@@ -42,9 +42,11 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
   const registry = copy.registry
   const isSignatureHat = featured?.slug === 'nokkmuts'
   const dedicated = isDedicatedStorefrontHostname(window.location.hostname)
-  const shopPath = review?.shopUrl ?? (dedicated ? '/' : getStorefrontPath(store.slug))
-  const homepagePath = review ? review.homePath || '/' : getCompanyHomepagePath(store.slug)
-  const productPath = (product: Product) => review ? new URL(`/toode/${encodeURIComponent(getProductUrlSlug(product))}/`, review.shopUrl).href : dedicated ? `/toode/${encodeURIComponent(getProductUrlSlug(product))}/` : getStorefrontPath(store.slug, product)
+  const companyDomain = getCompanyHomepageStoreSlug(window.location.hostname) !== null
+  const externalShop = review?.shopUrl ?? (companyDomain ? `https://${store.slug}.poeruum.ee/` : null)
+  const shopPath = externalShop ?? (dedicated ? '/' : getStorefrontPath(store.slug))
+  const homepagePath = review ? review.homePath || '/' : companyDomain ? '/' : getCompanyHomepageEditorPath(store.slug)
+  const productPath = (product: Product) => externalShop ? new URL(`/toode/${encodeURIComponent(getProductUrlSlug(product))}/`, externalShop).href : dedicated ? `/toode/${encodeURIComponent(getProductUrlSlug(product))}/` : getStorefrontPath(store.slug, product)
   const socials = [['instagramLabel', settings.instagramUrl], ['facebookLabel', settings.facebookUrl], ['tiktokLabel', settings.tiktokUrl]]
     .map(([label, value]) => ({ label: String(label), url: externalUrl(value) })).filter(item => item.url)
 
@@ -89,7 +91,7 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
   }, [])
 
   useEffect(() => {
-    const canonicalUrl = new URL(homepagePath, window.location.origin).href
+    const canonicalUrl = review ? new URL(homepagePath, window.location.origin).href : COMPANY_HOMEPAGE_URL
     applySeoMetadata({
       title: companyHomepageMetadata(name).title, description, canonicalUrl, imageUrl: COMPANY_HOMEPAGE_IMAGE,
       noIndex: Boolean(review) || isLocalSeoPreview() || window.location.hostname.endsWith('.localhost'), searchConsoleVerification: text(settings.searchConsoleVerification),
@@ -123,7 +125,6 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
         <BannerForest />
         <div className="company-hero__copy">
           <div className="company-hero__heading">
-            <p className="company-eyebrow">{edit('heroEyebrow')}</p>
             <h1 id="company-title">{edit('heroTitle')}<br /><span className="company-hero__accent">{edit('heroAccent')}</span></h1>
           </div>
           <div className="company-hero__intro">
