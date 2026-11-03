@@ -14,7 +14,7 @@ async function openBird(page: Page, homepage = false) {
     return route.fulfill({ json })
   })
   await page.goto(homepage ? '/p/kruk-kruk/koduleht/' : 'http://kaubamaja.poeruum.localhost:4174/?theme=black-friday')
-  const button = page.getByRole('button', { name: 'Pane rähn häälitsema', exact: true })
+  const button = page.getByRole('button', { name: homepage ? 'Pane rähn häälitsema' : 'Pane rähn häälitsema ja ava lennuvaade', exact: true })
   await expect(button).toBeVisible()
   // Freeze flight for reliable pointer targeting; beak playback remains active.
   await page.addStyleTag({ content: '.company-hero__image, .black-friday-banner__arrival { animation: none !important; translate: none !important; rotate: none !important; scale: 1 !important; }' })
@@ -51,8 +51,8 @@ for (const homepage of [false, true]) {
     await button.click()
     await expect(sound).toHaveJSProperty('paused', false)
     await expect(sound).toHaveAttribute('src', '/audio/campaigns/musta-rahni-call-1.mp3')
-    // A second press during the same call must not layer or restart recordings.
-    await button.press('Enter')
+    // The homepage bird remains available; the campaign opens its flight overlay.
+    if (homepage) await button.press('Enter')
     await expect(sound).toHaveAttribute('src', '/audio/campaigns/musta-rahni-call-1.mp3')
     await expect.poll(() => sound.evaluate(audio => audio.ended)).toBe(true)
     const first = await samples(page)
@@ -60,6 +60,7 @@ for (const homepage of [false, true]) {
     expect(first.some(sample => sample.time > .9 && Math.abs(sample.angle) < .5)).toBe(true)
     await expect(beak).toHaveAttribute('transform', 'rotate(0.00 265 490)')
 
+    if (!homepage) await page.keyboard.press('Escape')
     await button.press('Enter')
     await expect(sound).toHaveAttribute('src', '/audio/campaigns/musta-rahni-call-2.mp3')
     await expect(sound).toHaveJSProperty('paused', false)
@@ -71,6 +72,7 @@ for (const homepage of [false, true]) {
     expect(tail.length).toBeGreaterThan(2)
     expect(tail.every(sample => Math.abs(sample.angle) < .1)).toBe(true)
     await expect(beak).toHaveAttribute('transform', 'rotate(0.00 265 490)')
+    if (!homepage) await page.keyboard.press('Escape')
     await button.press('Enter')
     await expect(sound).toHaveAttribute('src', '/audio/campaigns/musta-rahni-call-1.mp3')
   })

@@ -75,7 +75,7 @@ Kaubamaja kampaania kuvamist saab hallata adminis **Kaubamaja → Kampaania**:
 väljas, kohe sees või algus- ja lõpuajaga ajastatud (Eesti aeg).
 Vajalik migratsioon: `202610220001_directory_campaign.sql`; vaikimisi on kampaania väljas.
 
-Krük-Krüki ettevõtte koduleht asub poe aadressil `/koduleht/` (kohalikus arenduses
+Krük-Krüki avalik koduleht asub aadressil **https://kruk-kruk.ee/** (kohalikus arenduses
 `/p/kruk-kruk/koduleht/`). Kodulehel on oma söehall, rähnipunane ja paberitoonis kujundus
 ning kohalikud Anton ja Noto fondid. Madise mina-vormis tutvustus, nime sünnilugu ja joonistuste
 lugu on kodulehele kirjutatud eraldi. Logo ja kontaktid tulevad poe seadetest ning
@@ -86,9 +86,10 @@ Avaploki rähn hõljub ning ekraani laiune mets kasutab kampaania kolme liikuvat
 Liikumine peatub vaateväljast lahkudes ja järgib vähendatud liikumise eelistust.
 Rähnile vajutades kõlavad vaheldumisi kaks kasutaja antud salvestist; noka liikumine
 järgib heli taasesituse aega ja helitugevust. Sama lahendust kasutab ka kaubamaja.
-E-poe päises ja jaluses on link
-kodulehele. Oma domeeni ühendamisel säilib `/koduleht/` teekond; domeeni juuraadressil
-avaneb endiselt e-pood. Peidetud poe koduleht näitab sama sulgemisteadet nagu pood.
+E-pood asub aadressil **https://kruk-kruk.poeruum.ee/** ning selle päises ja jaluses
+on link kodulehele. Omaniku **Muuda kodulehte** link avab poe aadressi `/koduleht/`
+teekonna, kus töötab omaniku sisselogimissessioon. Peidetud poe koduleht näitab
+sama sulgemisteadet nagu pood.
 
 Kodulehe nupp **Muuda** lubab poe omanikul tekste otse lehel muuta. **Eelvaade**
 peidab muutmisraamid, **Salvesta** avaldab tekstid ning **Loobu** taastab salvestatud
@@ -109,13 +110,6 @@ Eelvaate juurutus ning hilisem oma domeeni ühendamine on kirjeldatud
 [kliendieelvaate juhendis](previews/company-homepage/README.md).
 
 ## Kvaliteedikontroll
-
-Krük-Krüki avalik koduleht asub aadressil **https://kruk-kruk.ee/**.
-E-pood jääb aadressile **https://kruk-kruk.poeruum.ee/**. Poe omanik saab
-halduses valida **Muuda kodulehte**; salvestatud tekstid ilmuvad avalikul
-kodulehel. Tavakülastaja ja teise poe omanik redaktorit kasutada ei saa.
-Kohalik eelvaade on `/p/kruk-kruk/koduleht/` ning domeeni ühendamise ja
-privaatse kliendieelvaate juhend asub [siin](previews/company-homepage/README.md).
 
 ```sh
 npm run check
