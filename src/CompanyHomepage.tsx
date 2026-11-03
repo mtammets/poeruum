@@ -192,7 +192,7 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
         <div className="company-feature__body">
         <a className="company-feature__image" href={productPath(featured)} aria-label={`Vaata toodet ${featured.name}`}>
           {isSignatureHat && <span className="company-feature__edition" aria-hidden={editor.editing ? undefined : true}>{edit('productEdition')}</span>}
-          <img {...(isSignatureHat ? { src: publicAssetUrl('/images/campaigns/kruk-cap-cutout-v1.webp'), width: 1448, height: 1086 } : getResponsiveImageProps(featured, featured.image))} className={isSignatureHat ? 'is-cutout' : undefined} alt={featured.alt || featured.name} loading="lazy" decoding="async" />
+          <img {...(isSignatureHat ? { src: publicAssetUrl('/images/campaigns/kruk-cap-cutout-v2.webp'), width: 1448, height: 1086 } : getResponsiveImageProps(featured, featured.image))} className={isSignatureHat ? 'is-cutout' : undefined} alt={featured.alt || featured.name} loading="lazy" decoding="async" />
           <span className="company-feature__caption"><span>{edit('productCaption')}</span><Arrow /></span>
         </a>
         <div className="company-feature__copy">

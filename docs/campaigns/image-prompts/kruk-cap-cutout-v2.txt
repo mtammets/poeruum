@@ -1,0 +1,6 @@
+Mode: built-in image_gen image edit; transparent_background=true.
+Source: public/images/campaigns/kruk-cap-cutout-v1.webp
+Output: public/images/campaigns/kruk-cap-cutout-v2.webp
+Web export: 1448 x 1086, cwebp -q 94 -alpha_q 100.
+
+Use case: precise-object-edit. Asset type: existing website product photograph, transparent cap cutout. Edit target: the attached original 1448 x 1086 black trucker-cap cutout. Remove ONLY the two small stitched ventilation eyelets in the black front crown fabric: the round eyelet centered near pixel (635, 250), and the narrow angled eyelet near (970, 241). Seamlessly fill these two small spots with matching black woven fabric, following the surrounding weave, light and curvature. Preserve every other part of the original photograph as closely as possible: identical hat silhouette, position, scale, crop, top button, front panel seams, black side mesh with all its mesh openings, visor and visor stitching, shadows, fabric grain, and the exact white-and-red embroidered two-woodpecker logo. Do not remove the mesh holes or any other stitching. Keep a genuinely transparent background and existing transparency; no text, no annotation rings, no background or added objects. Match original 1448 x 1086 canvas and framing.
