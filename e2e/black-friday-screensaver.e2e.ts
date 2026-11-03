@@ -373,6 +373,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
 test('toes catch a cap, then release it with the back arrow while forward flight continues', async ({ page }) => {
   await openCampaign(page)
   await birdButton(page).press('Enter')
+  // Keep assertion/locator round trips from advancing the 120 ms release on CI.
+  // Only runFor advances the scene while we inspect the opening toes and cap.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100))
   await page.keyboard.down('ArrowLeft')
   await page.clock.runFor(120)
   const foot = saver(page).locator('.woodpecker-claws')
