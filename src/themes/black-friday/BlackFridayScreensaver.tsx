@@ -4,8 +4,13 @@ import BannerForest from './BannerForest'
 import { birdImage } from './krukHatMotion'
 import useScreensaverFlight, { isFlightKey } from './useScreensaverFlight'
 import type useWoodpeckerCall from './useWoodpeckerCall'
-import WoodpeckerBeak, { lowerBeak } from './WoodpeckerBeak'
+import ForestFlightAudio from './forestFlightAudio'
+import useHatFlightGame from './useHatFlightGame'
+import WoodpeckerClaws, { WoodpeckerClawDefs, WoodpeckerFootFeathers } from './WoodpeckerClaws'
+import WoodpeckerWings, { wingCutouts } from './WoodpeckerWings'
+import WoodpeckerHead, { headCutout } from './WoodpeckerHead'
 import './blackFridayScreensaver.css'
+import './hatFlightGame.css'
 
 const idleDelay = 60_000
 const activityEvents = ['pointermove', 'pointerdown', 'touchstart', 'wheel', 'scroll', 'keydown', 'click', 'focusin'] as const
@@ -15,6 +20,7 @@ type WoodpeckerCall = ReturnType<typeof useWoodpeckerCall>
 
 export default function BlackFridayScreensaver({ paused, call, ref }: { paused: boolean; call: WoodpeckerCall; ref?: Ref<ScreensaverHandle> }) {
   const [active, setActive] = useState(false)
+  const [forestAudio] = useState(() => new ForestFlightAudio())
   const awake = useRef<(() => void) | null>(null)
   const open = useRef<(() => void) | null>(null)
   const dismiss = useCallback(() => awake.current?.(), [])
@@ -35,6 +41,7 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
     }
     const wake = () => {
       if (showing) stopCall()
+      forestAudio.stop()
       showing = false
       manuallyOpened = false
       setActive(false)
@@ -48,6 +55,7 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
       if (hasDialog) { schedule(); return }
       clear()
       manuallyOpened = manual
+      if (manual) void forestAudio.start()
       showing = true
       setActive(true)
     }
@@ -64,7 +72,7 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
       if (showing && manuallyOpened && event.type === 'pointermove') return
       // The flight controller consumes arrows; all other activity still wakes
       // the directory, with the first click protected from buying anything.
-      if (showing && isFlightKey(event)) return
+      if (showing && isFlightKey(event)) { void forestAudio.start(); return }
       if (showing) {
         if (event.type === 'pointerdown' || event.type === 'touchstart') suppressClickUntil = performance.now() + 500
         if (event.cancelable) event.preventDefault()
@@ -72,7 +80,7 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
       }
       wake()
     }
-    const visibility = () => { showing = false; setActive(false); schedule() }
+    const visibility = () => { stopCall(); forestAudio.stop(); showing = false; setActive(false); schedule() }
     awake.current = wake
     open.current = () => start(true)
     activityEvents.forEach(name => window.addEventListener(name, activity, { capture: true, passive: false }))
@@ -83,15 +91,16 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
       awake.current = null
       open.current = null
       stopCall()
+      forestAudio.stop()
       activityEvents.forEach(name => window.removeEventListener(name, activity, true))
       document.removeEventListener('visibilitychange', visibility)
     }
-  }, [paused, stopCall])
+  }, [paused, stopCall, forestAudio])
 
-  return active && !paused ? <FlightScene onClose={dismiss} call={call} /> : null
+  return active && !paused ? <FlightScene onClose={dismiss} call={call} audio={forestAudio} /> : null
 }
 
-function FlightScene({ onClose, call }: { onClose: () => void; call: WoodpeckerCall }) {
+function FlightScene({ onClose, call, audio }: { onClose: () => void; call: WoodpeckerCall; audio: ForestFlightAudio }) {
   const root = useRef<HTMLDialogElement>(null)
   const clipId = useId()
 
@@ -107,22 +116,31 @@ function FlightScene({ onClose, call }: { onClose: () => void; call: WoodpeckerC
     }
   }, [])
 
-  useScreensaverFlight(root)
+  const flight = useScreensaverFlight(root, onClose)
+  const caught = useHatFlightGame(root, audio, flight)
 
   return createPortal(<dialog ref={root} className="black-friday-screensaver" aria-label="Rähni lennuvaade"
-    aria-description="Juhi nooleklahvidega: vasak lisab hoogu, parem aeglustab, üles viib kaugemale ja alla lähemale. Escape viib tagasi kaubamajja."
+    aria-description="Juhtimist alustades hoia lendamiseks vasaknool all. Lahti lastes lind vajub, parem nool vabastab kogutud mütsid. Üles viib kaugemale ja alla lähemale. Ekraanilt alla kukkumine või Escape viib tagasi kaubamajja."
     onCancel={event => { event.preventDefault(); onClose() }}>
     <button type="button" className="black-friday-screensaver__scene" aria-label="Tagasi kaubamajja" onClick={onClose}>
       <BannerForest />
+      <span className="hat-flight__hats" aria-hidden="true" />
       <span className="black-friday-screensaver__flight" aria-hidden="true">
-        <svg className="black-friday-screensaver__bird" viewBox="0 0 1448 1086" width="1448" height="1086">
-          <defs>
-            <clipPath id={`${clipId}-body`}><path d={`M0 0 H1448 V1086 H0 Z ${lowerBeak}`} clipRule="evenodd" /></clipPath>
-            <clipPath id={`${clipId}-beak`}><path d={lowerBeak} /></clipPath>
-          </defs>
-          <image href={birdImage} width="1448" height="1086" clipPath={call.calling ? `url(#${clipId}-body)` : undefined} />
-          <WoodpeckerBeak clipId={clipId} {...call} />
-        </svg>
+        <span className="black-friday-screensaver__bird">
+          <WoodpeckerWings clipId={clipId} />
+          <WoodpeckerHead clipId={clipId} call={call} />
+          <svg className="black-friday-screensaver__body" viewBox="0 0 1448 1086" width="1448" height="1086">
+            <defs>
+              <clipPath id={`${clipId}-body`}><path d={`M0 0 H1448 V1086 H0 Z ${headCutout} ${wingCutouts}`} clipRule="evenodd" /></clipPath>
+            </defs>
+            <WoodpeckerClawDefs clipId={clipId} />
+            <image href={birdImage} width="1448" height="1086" clipPath={`url(#${clipId}-body)`} mask={`url(#${clipId}-without-foot)`} />
+            <WoodpeckerFootFeathers clipId={clipId} />
+          </svg>
+          <svg className="black-friday-screensaver__claw-layer" viewBox="775 830 210 240" width="210" height="240">
+            <WoodpeckerClaws clipId={clipId} caught={caught} />
+          </svg>
+        </span>
       </span>
     </button>
   </dialog>, document.body)
