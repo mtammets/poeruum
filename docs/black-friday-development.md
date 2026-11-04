@@ -108,7 +108,8 @@ Rähnile või püsivale „Alusta mängu” sildile vajutamine avab sama vaate m
 Alguses kuvatakse neli klahvi klaviatuuri paigutuses: ↑ ülal ning ← ↓ → alumises
 reas. Taustakasti pole; iga klahvi kohal on selle juhis: „Hoia all”, „Kaugemale”,
 „Lähemale” või „Vabasta mütsid”. Vasaknool on bordoopunane ja vajub kaks korda
-õrnalt alla, näidates hoidmist. Arvutis on juhis allservas, telefonis üleval.
+õrnalt alla, näidates hoidmist. Klaviatuurijuhis on nähtav ainult arvutivaates;
+telefonis ja puuteekraanil jäävad juhtimiseks alumised puutenupud.
 Juhised kasutavad suuremat, kergelt kaldu Caveat-käsikirja; „HOIA ALL” on rõhutatud
 kampaania Anton-fondiga. Klahvide nooled jäävad selgesse tavakirja.
 Juhis hajub kaheksa sekundi möödudes; vähendatud liikumise korral animatsioon puudub.

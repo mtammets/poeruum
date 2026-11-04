@@ -149,6 +149,9 @@ body:has(.black-friday-screensaver[open]) .store-directory * { animation-play-st
 @media (any-pointer: coarse) {
   .black-friday-screensaver__controls { display: flex; }
 }
+@media (max-width: 760px), (pointer: coarse) {
+  .black-friday-screensaver__hint { display: none; }
+}
 .black-friday-screensaver__scene {
   position: absolute;
   inset: 0;

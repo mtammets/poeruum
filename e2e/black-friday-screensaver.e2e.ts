@@ -737,7 +737,7 @@ test.describe('touchscreen', () => {
     const thrust = dialog.getByRole('button', { name: 'Lenda: hoia all' })
     const near = dialog.getByRole('button', { name: 'Lenda lähemale' })
     const hint = dialog.locator('.black-friday-screensaver__hint')
-    await expect(hint).toBeVisible()
+    await expect(hint).toBeHidden()
     const center = async (button: ReturnType<Page['locator']>, id: number) => {
       const box = (await button.boundingBox())!
       return { x: box.x + box.width / 2, y: box.y + box.height / 2, id }
@@ -747,10 +747,7 @@ test.describe('touchscreen', () => {
     const cdp = await context.newCDPSession(page)
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [left] })
     await expect(thrust).toHaveAttribute('data-pressed', 'true')
-    await expect(hint).toContainText('Kaugemale')
-    await expect(hint).toContainText('Lähemale')
-    await expect(hint).toContainText('Vabasta mütsid')
-    await expect(hint).not.toHaveAttribute('data-dismissed', 'true')
+    await expect(hint).toBeHidden()
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [left, down] })
     await expect(near).toHaveAttribute('data-pressed', 'true')
     const bird = dialog.locator('.black-friday-screensaver__bird')

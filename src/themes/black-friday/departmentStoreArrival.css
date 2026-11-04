@@ -73,14 +73,10 @@ body:has(.black-friday-screensaver[data-returning]) #root { visibility: visible;
   .hat-delivery__counter-symbols img { width: 29px; }
   .hat-delivery__counter-symbols svg { width: 24px; height: 24px; }
   .hat-delivery__route { margin-top: .4rem; }
-  .black-friday-screensaver[data-level-phase='collecting'] .black-friday-screensaver__hint { top: max(1.1rem, env(safe-area-inset-top)); left: 59%; scale: .82; transform-origin: top center; }
   .hat-delivery__sign { left: 40%; top: 46%; flex-direction: column; align-items: flex-start; gap: .8cqw; }
   .hat-delivery__sign .platform-brand strong { font-size: 3.5cqw; }
   .hat-delivery__sign .platform-brand__mark { width: 5.5cqw; height: 5.5cqw; }
   .hat-delivery__edition { padding-left: 6.5cqw; border: 0; font-size: 1.7cqw; }
-}
-@media (max-width: 370px) {
-  .black-friday-screensaver[data-level-phase='collecting'] .black-friday-screensaver__hint { top: 1rem; left: 64%; scale: .7; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hat-delivery__total > span, .hat-delivery__counter[data-delivered] .hat-delivery__check { animation: none; }
