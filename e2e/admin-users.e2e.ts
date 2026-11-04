@@ -514,7 +514,7 @@ test.describe('admin stories navigation', () => {
       last_import: null, last_send: null,
     } }))
     await page.goto('/admin')
-    const paths = ['/admin', '/admin/analytics', '/admin/users', '/admin/campaigns', '/admin/seo', '/admin/business-card', '/admin/leads', '/admin/support', '/admin/kaubamaja', '/admin/settings']
+    const paths = ['/admin', '/admin/analytics', '/admin/users', '/admin/campaigns', '/admin/seo', '/admin/business-card', '/admin/leads', '/admin/support', '/admin/kaubamaja', '/admin/musta-rahni', '/admin/settings']
     const move = async (forward: boolean) => {
       await page.evaluate(() => window.scrollTo(0, 0))
       const panel = page.locator('.admin-story-panel.is-current')
