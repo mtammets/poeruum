@@ -28,6 +28,26 @@ async function openCampaign(page: Page, theme = 'black-friday') {
 const saver = (page: Page) => page.getByRole('dialog', { name: 'Rähni lennuvaade' })
 const birdButton = (page: Page) => page.getByRole('button', { name: 'Pane rähn häälitsema ja ava lennuvaade', exact: true })
 
+for (const [name, destination] of [
+  ['Minu poe haldus', 'http://poeruum.localhost:4174/?continue_setup=1'],
+  ['Loo oma e-pood', 'https://poeruum.ee/#hind'],
+]) test(`header link ${name} remains clickable when the bird flies over the header`, async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await openCampaign(page)
+  // Hold the real flight at its closest position, where its transparent image
+  // area covers both merchant links. Use a coordinate click so retries cannot
+  // hide the overlap by waiting until the bird moves away.
+  await page.addStyleTag({ content: '.black-friday-banner__arrival { animation: none !important; --black-friday-flight-phase: 180deg !important; }' })
+  const target = new URL(destination)
+  target.hash = ''
+  await page.route(target.href, route => route.fulfill({ contentType: 'text/html', body: '<h1>Sihtleht</h1>' }))
+  const link = page.getByRole('link', { name, exact: true })
+  const bounds = (await link.boundingBox())!
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+  await expect(page).toHaveURL(destination)
+  await expect(page.getByRole('heading', { name: 'Sihtleht' })).toBeVisible()
+})
+
 test('pressing the bird plays the current call and opens a flight that stays open until dismissed', async ({ page }) => {
   await openCampaign(page)
   await page.addStyleTag({ content: '.black-friday-banner__arrival { animation: none !important; translate: none !important; rotate: none !important; scale: 1 !important; }' })
