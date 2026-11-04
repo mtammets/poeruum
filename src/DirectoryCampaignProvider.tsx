@@ -7,6 +7,7 @@ import { supabase } from './lib/supabase'
 export default function DirectoryCampaignProvider({ children }: { children: ReactNode }) {
   const [verifiedAdmin, setVerifiedAdmin] = useState(false)
   const [sample, setSample] = useState<{ campaign: DirectoryCampaign; receivedAt: number } | null>(null)
+  const [resolved, setResolved] = useState(!supabase)
   const [tick, setTick] = useState(0)
   const [checkoutCount, setCheckoutCount] = useState(0)
   const keepCampaignVisible = useCallback(() => {
@@ -52,7 +53,10 @@ export default function DirectoryCampaignProvider({ children }: { children: Reac
       } catch {
         // An unavailable/missing campaign setting must never enable the promotion.
         if (active) setSample(null)
-      } finally { window.clearTimeout(timeout); request = null }
+      } finally {
+        if (active) setResolved(true)
+        window.clearTimeout(timeout); request = null
+      }
     }
     const wake = () => {
       if (document.visibilityState === 'hidden') return
@@ -80,6 +84,9 @@ export default function DirectoryCampaignProvider({ children }: { children: Reac
   }, [preview, boundary, now, tick])
   // Keep a buyer's entered details mounted until they finish or close checkout.
   const theme = checkoutCount > 0 ? 'black-friday' : preview ?? (campaignStatus(sample?.campaign ?? null, now) === 'active' ? 'black-friday' : 'default')
+  // The public theme is unknown until the first request settles. Do not mount
+  // the default directory and replace it with the campaign a moment later.
+  if (!preview && !resolved) return <main className="platform-loading" aria-label="Laadin Kaubamaja" aria-busy="true"><span /></main>
   return <DirectoryThemeContext.Provider value={{ theme, canPreview: import.meta.env.DEV || verifiedAdmin, preview, keepCampaignVisible }}>
     {children}
   </DirectoryThemeContext.Provider>

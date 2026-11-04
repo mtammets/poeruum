@@ -399,7 +399,12 @@ function renderStoreDirectory(template, stores, sharedHoroscope = null, publishe
   const highlights = products ? `<section class="store-directory__highlights" aria-labelledby="directory-products-heading"><div class="store-directory__section-head"><div><h2 id="directory-products-heading">Parimad kingiideed</h2><p class="store-directory__highlights-intro">Valik tooteid Eesti e-poodidest.</p></div></div><div class="store-directory__product-grid">${products}</div></section>` : ''
   const hero = featuredStory ? renderDirectoryStoryHero(featuredStory, publishedStories.length === 1)
     : `<header class="store-directory__hero${heroProducts.length ? '' : ' store-directory__hero--text-only'}"><div class="store-directory__intro"><h1>${heading}</h1><p>${description}</p></div>${heroMedia}</header>`
-  const content = `<main class="store-directory">${directoryNavigationMarkup()}${hero}${highlights}<section class="store-directory__stores" aria-labelledby="store-directory-heading"><div class="store-directory__section-head"><h2 id="store-directory-heading">Leia oma uus lemmikpood</h2></div><div class="store-directory__grid">${cards}</div>${renderDirectoryStoryTeaser(publishedStories.slice(1))}</section>${directoryFooterMarkup}</main>`
+  // The browser resolves the public campaign before choosing its first theme.
+  // Keep the directory available without JavaScript, but do not flash this
+  // default server markup while the campaign-aware client is loading.
+  const loading = '<main class="platform-loading" data-directory-loading aria-label="Laadin Kaubamaja" aria-busy="true"><span></span></main>'
+  const bootstrapStyles = '<style>[data-directory-bootstrap]{display:none}</style><noscript><style>[data-directory-bootstrap]{display:block}[data-directory-loading]{display:none}</style></noscript>'
+  const content = `${loading}<main class="store-directory" data-directory-bootstrap>${directoryNavigationMarkup()}${hero}${highlights}<section class="store-directory__stores" aria-labelledby="store-directory-heading"><div class="store-directory__section-head"><h2 id="store-directory-heading">Leia oma uus lemmikpood</h2></div><div class="store-directory__grid">${cards}</div>${renderDirectoryStoryTeaser(publishedStories.slice(1))}</section>${directoryFooterMarkup}</main>`
   const initialData = JSON.stringify(stores).replace(/</g, '\\u003c')
 
   return template
@@ -417,7 +422,7 @@ function renderStoreDirectory(template, stores, sharedHoroscope = null, publishe
       schema,
     }))
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(sharedHoroscope?.title || title)}</title>`)
-    .replace('</head>', `<script type="application/json" id="poeruum-store-directory-data" data-highlight-seed="${highlightSeed}">${initialData}</script>${storiesDataMarkup(publishedStories)}</head>`)
+    .replace('</head>', `${bootstrapStyles}<script type="application/json" id="poeruum-store-directory-data" data-highlight-seed="${highlightSeed}">${initialData}</script>${storiesDataMarkup(publishedStories)}</head>`)
     .replace(/<!-- poeruum:content:start -->[\s\S]*?<!-- poeruum:content:end -->/, `<!-- poeruum:content:start -->${content}<!-- poeruum:content:end -->`)
 }
 
