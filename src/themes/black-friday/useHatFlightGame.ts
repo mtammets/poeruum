@@ -5,11 +5,14 @@ import { beakOpening } from './useWoodpeckerCall'
 import recordings from './woodpeckerCalls.json'
 import { projectFlightPoint, type FlightGeometry } from './screensaverFlight'
 import type ForestFlightAudio from './forestFlightAudio'
+import { createHatDelivery, deliveryFlightSeconds, readDeliveredHats, returnToStoreSeconds, saveDeliveredHats, stepHatDelivery, type HatDelivery, type DeliveryPhase } from './hatDelivery'
 
 // The existing flight controller alone moves the bird. This layer observes its
 // real, transformed claws and adds hats; it does not handle any user input.
-export default function useHatFlightGame(root: RefObject<HTMLDialogElement | null>, audio: ForestFlightAudio, flight: RefObject<FlightGeometry | null>) {
+export default function useHatFlightGame(root: RefObject<HTMLDialogElement | null>, audio: ForestFlightAudio, flight: RefObject<FlightGeometry | null>, journey: RefObject<HatDelivery>, onComplete: () => void) {
   const [caught, setCaught] = useState(0)
+  const [score, setScore] = useState(0)
+  const [phase, setPhase] = useState<DeliveryPhase>('collecting')
   useLayoutEffect(() => {
     const stage = root.current
     if (!stage) return
@@ -23,7 +26,12 @@ export default function useHatFlightGame(root: RefObject<HTMLDialogElement | nul
     const frontToes = bird.querySelector('.woodpecker-claws__front')!
     const preference = matchMedia('(prefers-reduced-motion: reduce)')
     const game = createHatFlight(stage.clientWidth || innerWidth, stage.clientHeight || innerHeight)
-    const gameId = crypto.randomUUID()
+    journey.current = createHatDelivery()
+    const destination = stage.querySelector<HTMLImageElement>('.hat-delivery__photograph')!
+    const clearing = stage.querySelector<HTMLImageElement>('.hat-delivery__ground-image')!
+    let counter = stage.querySelector<HTMLElement>('.hat-delivery__counter')
+    let totalDelivered = readDeliveredHats()
+    const gameId = globalThis.crypto?.randomUUID?.() ?? null
     let startedAt: number | null = null, initialScore = 0, lastProgress = 0
     trackWoodpecker({ event_name: 'game_view', game_id: gameId })
     const report = (event_name: 'game_progress' | 'game_end') => {
@@ -69,7 +77,7 @@ export default function useHatFlightGame(root: RefObject<HTMLDialogElement | nul
         game.birdBaseWidth = geometry.bounds.width
         game.birdWidth = geometry.bounds.width * geometry.pose.scale
         if (!previous) game.previousBird = { ...game.bird }
-        if ((geometry.releaseCount ?? 0) !== lastRelease) {
+        if (journey.current.phase === 'collecting' && (geometry.releaseCount ?? 0) !== lastRelease) {
           lastRelease = geometry.releaseCount ?? 0
           if (game.carried && released) {
             releaseAt = game.time; released = false
@@ -78,16 +86,39 @@ export default function useHatFlightGame(root: RefObject<HTMLDialogElement | nul
         }
       }
       previous = now
-      const catches = stepHatFlight(game, dt, reduced)
+      const catches = journey.current.phase === 'collecting' ? stepHatFlight(game, dt, reduced) : []
       if (catches.length) {
         catchTime = game.time; catchRecording = (game.score - 1) % recordings.length
         audio.catchHat(catchRecording)
         cargo.style.visibility = ''
         setCaught(game.carried)
+        setScore(game.score)
         stage.dataset.caught = String(game.score)
         report('game_progress')
       }
       const releasing = game.time - releaseAt < .6
+      const beforePhase = journey.current.phase
+      const deliveredNow = stepHatDelivery(journey.current, game, dt, Boolean(stage.dataset.interactive),
+        destination.complete && destination.naturalWidth > 0 && clearing.complete && clearing.naturalWidth > 0,
+        !released || releasing || game.time - catchTime < .5)
+      if (journey.current.phase !== beforePhase) {
+        stage.dataset.levelPhase = journey.current.phase
+        setPhase(journey.current.phase)
+      }
+      if (deliveredNow) {
+        // Re-read to retain deliveries made in another tab since entry.
+        totalDelivered = Math.min(Number.MAX_SAFE_INTEGER, Math.max(totalDelivered, readDeliveredHats()) + deliveredNow)
+        saveDeliveredHats(totalDelivered)
+        setCaught(0)
+        cargo.style.visibility = 'hidden'
+        stage.dataset.delivered = String(totalDelivered)
+      }
+      if (journey.current.phase === 'delivered') {
+        if (journey.current.elapsed >= returnToStoreSeconds - .65) stage.dataset.returning = 'true'
+        if (journey.current.elapsed >= returnToStoreSeconds) { onComplete(); return }
+      }
+      counter ??= stage.querySelector<HTMLElement>('.hat-delivery__counter')
+      counter?.style.setProperty('--delivery-progress', String(Math.min(1, journey.current.flightTime / deliveryFlightSeconds)))
       const wantedGrip = releasing ? 1 : reduced ? 0 : clawOpening(game, catchTime)
       grip = reduced ? wantedGrip : grip + (wantedGrip - grip) * (1 - Math.exp(-dt * 22))
       const held = game.carried > 0 ? 1 - grip : 0
@@ -155,6 +186,6 @@ export default function useHatFlightGame(root: RefObject<HTMLDialogElement | nul
       drops.forEach(element => element.remove())
       preference.removeEventListener('change', motionChange)
     }
-  }, [root, audio, flight])
-  return caught
+  }, [root, audio, flight, journey, onComplete])
+  return { caught, score, phase }
 }

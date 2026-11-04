@@ -14,7 +14,7 @@ async function openBird(page: Page, homepage = false) {
     return route.fulfill({ json })
   })
   await page.goto(homepage ? '/p/kruk-kruk/koduleht/' : 'http://kaubamaja.poeruum.localhost:4174/?theme=black-friday')
-  const button = page.getByRole('button', { name: homepage ? 'Pane rähn häälitsema' : 'Pane rähn häälitsema ja ava lennuvaade', exact: true })
+  const button = page.getByRole('button', { name: homepage ? 'Pane rähn häälitsema' : 'Alusta rähnimängu', exact: true })
   await expect(button).toBeVisible()
   // Freeze flight for reliable pointer targeting; beak playback remains active.
   await page.addStyleTag({ content: '.company-hero__image, .black-friday-banner__arrival { animation: none !important; translate: none !important; rotate: none !important; scale: 1 !important; }' })

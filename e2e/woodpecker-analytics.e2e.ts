@@ -109,7 +109,7 @@ test('an automatic flight is not a player; real controls send one game and a fin
     return route.fulfill({ json })
   })
   await page.goto('http://kaubamaja.poeruum.localhost:4174/')
-  const bird = page.getByRole('button', { name: 'Pane rähn häälitsema ja ava lennuvaade', exact: true })
+  const bird = page.getByRole('button', { name: 'Alusta rähnimängu', exact: true })
   await expect(bird).toBeVisible()
   await page.clock.runFor(1000)
   await expect.poll(() => events.some(e => e.event_name === 'visit')).toBe(true)

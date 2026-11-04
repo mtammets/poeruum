@@ -29,6 +29,7 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
   const [hatOrigin, setHatOrigin] = useState<HatOrigin | null>(null)
   const [hatReady, setHatReady] = useState(false)
   const closeHat = useCallback(() => setHatOrigin(null), [])
+  const startGame = () => { trackWoodpecker({ event_name: 'bird_call', placement: 'hero' }); call.play(); screensaver.current?.open() }
 
   useEffect(() => {
     if (!purchase.product) return
@@ -95,10 +96,10 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
         <button
           type="button"
           className="black-friday-banner__bird"
-          aria-label="Pane rähn häälitsema ja ava lennuvaade"
+          aria-label="Alusta rähnimängu"
           aria-haspopup="dialog"
           aria-busy={calling || undefined}
-          onClick={() => { trackWoodpecker({ event_name: 'bird_call', placement: 'hero' }); call.play(); screensaver.current?.open() }}
+          onClick={startGame}
         >
           <svg
             ref={bird}
@@ -127,10 +128,6 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
             </g>}
             <WoodpeckerBeak clipId={clipId} {...call} />
           </svg>
-          <span className="black-friday-banner__beak-note" aria-hidden="true">
-            <span>Nokk</span>
-            <svg viewBox="0 0 100 60" fill="none"><path d="M28 36C8 34 6 24 10 8M10 8l-8 9M10 8l6 10" /></svg>
-          </span>
           <span className="black-friday-banner__cry" aria-hidden="true">
             {cryLetters.map((letter, index) => <span
               key={index}
@@ -157,6 +154,13 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
         </button>}
       </div>
     </div>
+    <button type="button" className="black-friday-banner__game-note" aria-label="Alusta mängu"
+      aria-description="Juhi nooleklahvide või ekraaninuppudega." aria-haspopup="dialog" onClick={startGame}>
+      <svg aria-hidden="true" className="black-friday-banner__game-arrow" viewBox="0 0 80 100" fill="none"><path d="M24 94C-10 63 10 14 70 9M70 9 58 2M70 9 60 20" /></svg>
+      <span className="black-friday-banner__game-title">Alusta mängu
+        <svg aria-hidden="true" className="black-friday-banner__game-underline" viewBox="0 0 190 9" fill="none" preserveAspectRatio="none"><path pathLength="1" d="M2 6Q83 0 187 4" /></svg>
+      </span>
+    </button>
     {store && purchase.product && <KrukKrukSpotlight store={store} purchase={purchase} />}
     {store && !purchase.product && <a className="black-friday-banner__shop" href={getStoreDirectoryVisitUrl(store)}
       aria-label={`Ava ${store.name} pood`}
