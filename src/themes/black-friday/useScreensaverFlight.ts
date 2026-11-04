@@ -43,7 +43,7 @@ export default function useScreensaverFlight(root: RefObject<HTMLDialogElement |
 
     const draw = () => {
       const position = frameFlight(motion.pose, bounds, viewport, motion.fall)
-      let current: FlightGeometry = { pose: { ...motion.pose }, bounds, position, releaseCount }
+      let current: FlightGeometry = { pose: { ...motion.pose }, bounds, position, releaseCount, controlled: motion.controlled }
       if (journey.current.phase !== 'collecting') {
         current = { ...drawArrival(journey.current, current, viewport, preference.matches), releaseCount }
       }

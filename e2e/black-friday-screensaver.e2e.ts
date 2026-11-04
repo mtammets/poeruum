@@ -96,6 +96,26 @@ test('arrival fits a rotated phone and cancelling before delivery awards nothing
   await expect(saver(page).locator('.hat-delivery__total')).toHaveText('0')
 })
 
+for (const [name, destination] of [
+  ['Minu poe haldus', 'http://poeruum.localhost:4174/?continue_setup=1'],
+  ['Loo oma e-pood', 'https://poeruum.ee/#hind'],
+]) test(`header link ${name} remains clickable when the bird flies over the header`, async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await openCampaign(page)
+  // Hold the real flight at its closest position, where its transparent image
+  // area covers both merchant links. Use a coordinate click so retries cannot
+  // hide the overlap by waiting until the bird moves away.
+  await page.addStyleTag({ content: '.black-friday-banner__arrival { animation: none !important; --black-friday-flight-phase: 180deg !important; }' })
+  const target = new URL(destination)
+  target.hash = ''
+  await page.route(target.href, route => route.fulfill({ contentType: 'text/html', body: '<h1>Sihtleht</h1>' }))
+  const link = page.getByRole('link', { name, exact: true })
+  const bounds = (await link.boundingBox())!
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+  await expect(page).toHaveURL(destination)
+  await expect(page.getByRole('heading', { name: 'Sihtleht' })).toBeVisible()
+})
+
 test('pressing the bird plays the current call and opens a flight that stays open until dismissed', async ({ page }) => {
   await openCampaign(page)
   await page.addStyleTag({ content: '.black-friday-banner__arrival { animation: none !important; translate: none !important; rotate: none !important; scale: 1 !important; }' })
@@ -162,7 +182,7 @@ test('waits a full minute after activity, hides all UI and restores scroll and f
   await expect(saver(page)).toBeVisible()
 })
 
-test('waking by keyboard, click or wheel does not activate the covered purchase button', async ({ page }) => {
+test('waking by keyboard, click or wheel does not activate the covered store link', async ({ page }) => {
   await openCampaign(page)
   const buy = page.locator('#kruk-kruk .kruk-offer__buy')
   await buy.focus()
@@ -182,6 +202,7 @@ test('waking by keyboard, click or wheel does not activate the covered purchase 
   await expect(saver(page)).toBeVisible()
   await page.mouse.wheel(0, 100)
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page).toHaveURL('http://kaubamaja.poeruum.localhost:4174/?theme=black-friday')
 })
 
 test('does not interrupt the hat view or checkout and resumes after they close', async ({ page }) => {
@@ -191,13 +212,14 @@ test('does not interrupt the hat view or checkout and resumes after they close',
   await expect(page.locator('.kruk-hat')).toBeVisible()
   await page.clock.fastForward(120_000)
   await expect(saver(page)).toHaveCount(0)
-  await page.keyboard.press('Escape')
-  await expect(page.locator('.kruk-hat')).toHaveCount(0)
-  await page.locator('#kruk-kruk .kruk-offer__buy').click()
+  await page.locator('.kruk-hat .kruk-offer__buy').click()
   await expect(page.getByRole('dialog', { name: 'Ostukorv' })).toBeVisible()
   await page.clock.fastForward(120_000)
   await expect(saver(page)).toHaveCount(0)
   await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Ostukorv' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.kruk-hat')).toHaveCount(0)
   await page.clock.fastForward(60_001)
   await expect(saver(page)).toBeVisible()
 })

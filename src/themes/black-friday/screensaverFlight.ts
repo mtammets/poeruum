@@ -113,7 +113,7 @@ export function frameFlight(pose: FlightPose, bounds: FlightBounds, viewport: { 
   }
 }
 
-export type FlightGeometry = { pose: FlightPose; bounds: FlightBounds; position: { x: number; y: number }; releaseCount?: number }
+export type FlightGeometry = { pose: FlightPose; bounds: FlightBounds; position: { x: number; y: number }; releaseCount?: number; controlled?: boolean }
 
 // Project a source-image point using the same pose that draws the bird. This
 // avoids asking SVG to flush style/layout just to locate the claws each frame.

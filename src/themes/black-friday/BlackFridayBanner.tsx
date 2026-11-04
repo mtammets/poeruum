@@ -1,3 +1,4 @@
+import { useWoodpeckerTracking, trackWoodpecker } from '../../lib/woodpeckerTracking'
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import type { StoreDirectoryEntry } from '../../../shared/store-directory.mjs'
 import { getStoreDirectoryVisitUrl } from '../../../shared/store-directory.mjs'
@@ -16,6 +17,7 @@ const cryLetters = [...'KRÜK-KRÜK']
 const cryDrops = [[1.1, -2.5], [3.6, -.5], [1.8, .7], [4.8, -2.8], [2.7, -3.2], [.8, 1.1]]
 
 export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEntry }) {
+  useWoodpeckerTracking('directory')
   const purchase = useKrukPurchase(store)
   const clipId = useId()
   const banner = useRef<HTMLElement>(null)
@@ -27,7 +29,7 @@ export default function BlackFridayBanner({ store }: { store?: StoreDirectoryEnt
   const [hatOrigin, setHatOrigin] = useState<HatOrigin | null>(null)
   const [hatReady, setHatReady] = useState(false)
   const closeHat = useCallback(() => setHatOrigin(null), [])
-  const startGame = () => { call.play(); screensaver.current?.open() }
+  const startGame = () => { trackWoodpecker({ event_name: 'bird_call', placement: 'hero' }); call.play(); screensaver.current?.open() }
 
   useEffect(() => {
     if (!purchase.product) return

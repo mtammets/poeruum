@@ -79,6 +79,40 @@ test('invalid intervals and conflicting saves preserve the draft', async ({ page
   await expect(page.getByRole('radio', { name: /^Väljas/ })).toBeChecked()
 })
 
+for (const result of ['on', 'off', 'unavailable'] as const) {
+  test(`initial directory waits for campaign configuration: ${result}`, async ({ page }) => {
+    await backend(page)
+    let release!: () => void
+    const pending = new Promise<void>(resolve => { release = resolve })
+    await page.route('**/rest/v1/rpc/get_directory_campaign', async route => {
+      await pending
+      await route.fulfill(result === 'unavailable'
+        ? { status: 503, json: { message: 'offline' } }
+        : { json: { ...initial, mode: result } })
+    })
+    const requested = page.waitForRequest('**/rest/v1/rpc/get_directory_campaign')
+    await page.goto('http://kaubamaja.poeruum.localhost:4174/')
+    await requested
+    await expect(page.getByRole('main', { name: 'Laadin Kaubamaja' })).toBeVisible()
+    await expect(page.locator('main.store-directory')).toHaveCount(0)
+    release()
+    await expect(page.locator('main.store-directory')).toHaveAttribute('data-directory-theme', result === 'on' ? 'black-friday' : 'default')
+    await expect(page.getByRole('main', { name: 'Laadin Kaubamaja' })).toHaveCount(0)
+  })
+}
+
+test('campaign request timeout releases the initial loading screen', async ({ page }) => {
+  await backend(page)
+  await page.clock.install()
+  await page.route('**/rest/v1/rpc/get_directory_campaign', () => { /* Never responds. */ })
+  const requested = page.waitForRequest('**/rest/v1/rpc/get_directory_campaign')
+  await page.goto('http://kaubamaja.poeruum.localhost:4174/')
+  await requested
+  await expect(page.getByRole('main', { name: 'Laadin Kaubamaja' })).toBeVisible()
+  await page.clock.runFor(5100)
+  await expect(page.locator('main.store-directory')).toHaveAttribute('data-directory-theme', 'default')
+})
+
 test('public campaign starts and ends on server time without reloading', async ({ page }) => {
   const api = await backend(page)
   // The visitor's wall clock is deliberately years out of date.

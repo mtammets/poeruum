@@ -75,6 +75,10 @@ Kaubamaja kampaania kuvamist saab hallata adminis **Kaubamaja → Kampaania**:
 väljas, kohe sees või algus- ja lõpuajaga ajastatud (Eesti aeg).
 Vajalik migratsioon: `202610220001_directory_campaign.sql`; vaikimisi on kampaania väljas.
 
+Musta rähni kampaania eraldi statistikavaade asub admini menüüs **Musta rähni päevad**
+(`/admin/musta-rahni`). Mõõtmise ulatus, mängijate tuvastamise piirid ja avaldamise
+sammud: [kampaania statistika](docs/woodpecker-analytics.md).
+
 Krük-Krüki avalik koduleht asub aadressil **https://kruk-kruk.ee/** (kohalikus arenduses
 `/p/kruk-kruk/koduleht/`). Kodulehel on oma söehall, rähnipunane ja paberitoonis kujundus
 ning kohalikud Anton ja Noto fondid. Madise mina-vormis tutvustus, nime sünnilugu ja joonistuste

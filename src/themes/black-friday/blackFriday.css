@@ -531,10 +531,10 @@
 }
 .kruk-offer__buy:focus-visible { color: var(--black-friday-accent); }
 @media (hover: hover) and (pointer: fine) {
-  .kruk-offer__buy:enabled:hover { color: var(--black-friday-accent); }
-  .kruk-offer__buy:enabled:hover .kruk-offer__cap { translate: 0 -.3rem; scale: 1.04; }
+  .kruk-offer__buy:not(:disabled):hover { color: var(--black-friday-accent); }
+  .kruk-offer__buy:not(:disabled):hover .kruk-offer__cap { translate: 0 -.3rem; scale: 1.04; }
 }
-.kruk-offer__buy:enabled:focus-visible .kruk-offer__cap { translate: 0 -.3rem; scale: 1.04; }
+.kruk-offer__buy:not(:disabled):focus-visible .kruk-offer__cap { translate: 0 -.3rem; scale: 1.04; }
 @media (min-width: 1101px) {
   /* Grow toward the left while keeping the price in its existing position. */
   .black-friday-banner .kruk-offer__buy { transform: translateX(calc(var(--kruk-cap-size) * -.125)); }
@@ -546,6 +546,11 @@
 .kruk-offer__error a { text-decoration: underline; text-underline-offset: .2em; }
 .kruk-checkout { --store-accent: #f0eadc; --store-accent-ink: #531b25; font-family: Manrope, sans-serif; }
 
+/* The bird's transparent hit area can extend above the banner during flight. */
+.store-directory[data-directory-theme='black-friday'] :is(.store-directory__nav, .directory-theme-preview) {
+  position: relative;
+  z-index: 1;
+}
 .store-directory[data-directory-theme='black-friday'] .store-directory__nav { border-bottom: 0; }
 .store-directory[data-directory-theme='black-friday'] .store-directory__brand-edition,
 .store-directory[data-directory-theme='black-friday'] .store-directory__manage { color: var(--black-friday-ink); }

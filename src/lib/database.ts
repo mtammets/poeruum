@@ -356,6 +356,7 @@ export async function startStripeStoreCheckout(input: {
   billing: { company: boolean; name: string; registryCode: string; vatNumber: string; address: string }
   delivery: { type: 'parcel' | 'courier' | 'pickup'; provider?: 'omniva' | 'dpd' | 'smartposti'; label: string }
   checkoutRequestId: string
+  campaign?: { visitor_id: string; session_id: string }
 }) {
   return invokeCheckoutFunction('stripe-store-checkout', { ...input, returnUrl: window.location.origin })
 }
