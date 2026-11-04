@@ -84,7 +84,7 @@
 .kruk-model-ad__price { display: flex; flex-wrap: wrap; align-items: baseline; gap: .55rem; margin: 0; }
 .kruk-model-ad__price strong { font-size: clamp(1.4rem, 4.5cqw, 1.9rem); font-weight: 600; line-height: 1.2; white-space: nowrap; }
 .kruk-model-ad__price del { font-size: .7rem; opacity: .7; }
-.kruk-model-ad__buy {
+.kruk-model-ad__visit {
   z-index: 3;
   display: inline-flex;
   align-items: center;
@@ -99,25 +99,23 @@
   color: inherit;
   font: 650 clamp(.85rem, 2.2cqw, .95rem)/1.25 Manrope, sans-serif;
   cursor: pointer;
+  text-decoration: none;
   transition: border-color 180ms ease;
 }
-/* Stretch the single purchase button across the ad; the store link remains above it. */
-.kruk-model-ad__buy::after {
+/* Stretch the homepage link across the ad; the brand link remains above it. */
+.kruk-model-ad__visit::after {
   position: absolute;
   inset: 0;
   content: '';
   border-radius: inherit;
 }
-.kruk-model-ad__buy svg { width: 1.15rem; height: 1.15rem; flex-shrink: 0; stroke: currentColor; stroke-width: 1.6; transition: transform 180ms ease; }
-.kruk-model-ad__buy:hover { border-color: currentColor; }
-.kruk-model-ad__buy:disabled { cursor: wait; opacity: .65; }
-.kruk-model-ad__buy:focus-visible, .kruk-model-ad__brand:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
-.kruk-model-ad__buy:focus-visible::after { outline: 2px solid currentColor; outline-offset: -5px; border-radius: 1.25rem; }
-.kruk-model-ad__error { position: relative; z-index: 4; margin: 0; font-size: .75rem; }
-.kruk-model-ad__error a { color: inherit; text-decoration: underline; }
+.kruk-model-ad__visit svg { width: 1.15rem; height: 1.15rem; flex-shrink: 0; stroke: currentColor; stroke-width: 1.6; transition: transform 180ms ease; }
+.kruk-model-ad__visit:hover { border-color: currentColor; }
+.kruk-model-ad__visit:focus-visible, .kruk-model-ad__brand:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.kruk-model-ad__visit:focus-visible::after { outline: 2px solid currentColor; outline-offset: -5px; border-radius: 1.25rem; }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .kruk-model-ad:hover .kruk-model-ad__photo { transform: scale(1.02); }
-  .kruk-model-ad__buy:hover svg { transform: translateX(3px); }
+  .kruk-model-ad__visit:hover svg { transform: translateX(3px); }
 }
 @container (max-width: 450px) {
   .kruk-model-ad__photo {
@@ -135,5 +133,5 @@
   .kruk-model-ad__photo { object-position: right top; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .kruk-model-ad__photo, .kruk-model-ad__buy, .kruk-model-ad__buy svg { transition: none; }
+  .kruk-model-ad__photo, .kruk-model-ad__visit, .kruk-model-ad__visit svg { transition: none; }
 }

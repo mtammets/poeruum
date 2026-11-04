@@ -176,11 +176,11 @@ Kui kampaaniavaate poekaartide viimane rida jätab ühe lahtri vabaks, täidab
 selle modelliga mütsireklaam. Kasutaja foto mees on algsest metsast ja linnust
 eraldatud ning paigutatud uude, pehme õhtuvalgusega männimetsa. Pealkiri on
 „Loodusest nokk ees.” jämedas Manrope'i kirjas; samale fotopinnale on sobitatud kataloogist
-tulev tootenimi ja hind ning „Osta nokkmüts”, mis avab sama tellimusvormi.
-Ostunupp on hinna all vasakul tekstilise, õhukese alajoone ja paremale noolega;
+tulev tootenimi ja hind ning „Vaata kodulehte”, mis avab `https://kruk-kruk.ee/`.
+Link on hinna all vasakul tekstilise, õhukese alajoone ja paremale noolega;
 eraldi heledat kasti pole. Puuteala kõrgus on vähemalt 44 pikslit.
-Sama ostunupu vajutatav pind katab kogu reklaami: foto ja tekst avavad otse
-tellimusvormi. Logo ja poe nime link jääb eraldi vajutatavaks ning avab poe.
+Sama lingi vajutatav pind katab kogu reklaami: foto ja tekst avavad kodulehe.
+Logo ja poe nime link jääb eraldi vajutatavaks ning avab samuti kodulehe.
 Ülanurgas on kataloogist tulev Krük-Krüki logo ja poe nimega link.
 Telefonis on reklaam viimase poekaardi järel. Otsingus, tavavaates ning
 saadaval oleva mütsi puudumisel reklaami ei kuvata. Näitamiste ja klikkide
