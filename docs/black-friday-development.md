@@ -104,20 +104,36 @@ Kui lehel pole 60 sekundit hiire-, puute-, kerimis- ega klaviatuuritegevust,
 avaneb täisekraani lennuvaade. Alles jäävad kolm liikuvat metsakihti ning rähn
 koos ratsanikuga. 28-sekundilisel sujuval lennukaarel muutub linnu skaala
 0,48-st 1,55-ni; lähiplaanil võivad tiivad ulatuda üle ekraani serva.
-Nooleklahvid võtavad lennu juhtimise üle: vasak lisab hoogu, parem pidurdab,
+Rähnile või püsivale „Alusta mängu” sildile vajutamine avab sama vaate mänguna.
+Alguses kuvatakse neli klahvi klaviatuuri paigutuses: ↑ ülal ning ← ↓ → alumises
+reas. Taustakasti pole; iga klahvi kohal on selle juhis: „Hoia all”, „Kaugemale”,
+„Lähemale” või „Vabasta mütsid”. Vasaknool on bordoopunane ja vajub kaks korda
+õrnalt alla, näidates hoidmist. Arvutis on juhis allservas, telefonis üleval.
+Juhised kasutavad suuremat, kergelt kaldu Caveat-käsikirja; „HOIA ALL” on rõhutatud
+kampaania Anton-fondiga. Klahvide nooled jäävad selgesse tavakirja.
+Juhis hajub kaheksa sekundi möödudes; vähendatud liikumise korral animatsioon puudub.
+Nooleklahvid võtavad lennu juhtimise üle:
+vasakut tuleb õhus püsimiseks all hoida, parem vabastab kogutud mütsid,
 üles viib linnu kaugemale ja alla toob lähemale. Hoida saab mitut noolt korraga.
+Puuteekraanil on vasakus alanurgas suur lennunupp ning paremal kauguse ja mütside
+vabastamise nupud. Need toetavad mitut sõrme korraga; sõrme nihkumisel nupult
+välja kestab hoidmine kuni vabastamise või puute tühistamiseni.
 Hoog muudab ka metsakihtide möödumise kiirust; lind kaldub ja kaamera järgib
 lähenemist nii, et nokk ja ratsanik püsivad ka kitsal ekraanil nähtaval.
-Kiirendus ja sügavuse muutus on sujuvad, klahvide vabastamisel hajub inerts
-ning kiirus taastub tasapisi tavaliseks. Valitud kaugus säilib. Kui juhtimist
+Kiirendus ja sügavuse muutus on sujuvad. Lennunupu vabastamisel lind vajub;
+uuesti hoidmine taastab kõrguse. Valitud kaugus säilib. Kui juhtimist
 ei kasutata, jätkub automaatne lennukaar. Brauseri fookuse kaotamisel vabastatakse
 kõik all hoitud juhtnupud. Nooled ei kerita peidetud lehte ega sule lennuvaadet.
-Hiire liigutamine, puudutus, kerimine, Escape või muu klahv taastab lehe koos
-senise kerimiskoha ja klaviatuurifookusega. Äratusvajutus ei aktiveeri peidus
+Automaatselt avanenud lennuvaate sulgeb hiire liigutamine, puudutus, kerimine
+või muu klahv. Teadlikult avatud või nooleklahvidega üle võetud mäng sulgub
+ristinupust, Escape'iga või linnu ekraanilt välja kukkumisel; tavaline puudutus
+mängu ei lõpeta. Leht taastub senise kerimiskoha ja klaviatuurifookusega.
+Äratusvajutus ei aktiveeri peidus
 ostunuppu. Mütsi tootevaate, ostukorvi ja teiste dialoogide ajal lennuvaade
 ei käivitu. Peidetud brauserivahelehel taimer peatub; naasmisel algab uus minut.
-Vähendatud liikumise eelistuse korral on lennuvaade paigal; noole vajutus muudab
-asendit väikese sammuga, ilma automaatse liikumise või inertsita.
+Vähendatud liikumise eelistuse korral puudub automaatne lennukaar ja kaugus muutub
+väikeste sammudega. Pärast juhtimise ülevõtmist toimivad endiselt mänguks vajalik
+vajumine ja kõrguse taastamine.
 Teostus: `src/themes/black-friday/BlackFridayScreensaver.tsx` ja
 `blackFridayScreensaver.css`, juhtimine `useScreensaverFlight.ts` ja
 `screensaverFlight.ts`; käitumiskontrollid:
@@ -126,11 +142,12 @@ Teostus: `src/themes/black-friday/BlackFridayScreensaver.tsx` ja
 Bänneri sisse on sobitatud kataloogi poe `kruk-kruk` nokkmütsi `nokkmuts`
 ostuvõimalus. Käsikirjaline „Müts” (kohalik Caveat font) ja vabakäelise ilmega
 lühike kaarjas nool osutavad mütsile, jättes nooleotsa ja mütsi vahele õhuvahe.
-Noka all on samas käekirjas „Nokk” ja üles nokale osutav lühike nool.
-Mõlemad märkused koos nooltega on vaikimisi peidus ning ilmuvad koos,
-kui hiir liigub linnule või mütsile. Klaviatuuriga liikudes ilmuvad need
-vastava nupu fookuses; puuteekraanil ei jää need puudutuse järel nähtavale.
-Noka märkus peitub häälitsuse ajaks, et lendav „KRÜK-KRÜK” jääks vabaks.
+Rähni all on samas käekirjas püsiv „Alusta mängu” koos linnule osutava kaarja
+noolega; täiendavat juhtimisteksti ega klahvimärke bänneris pole.
+Silt on eraldi nupp, mis avab sama mängu
+nagu rähn. See püsib linnu liikumise ajal paigal, et jääda loetavaks ja vajutatavaks.
+Hiirega või klaviatuuriga rähnile liikudes joonistub mängukutse alla joon.
+„Müts” märkus ilmub endiselt ainult hiirega või klaviatuurifookusega.
 Hiire või klaviatuuri fookuse korral muutub ainult müts heledamaks ja saab
 heleda serva; käsikirjaline märkus muutub punaseks ning allajoonituks.
 Ratsaniku mütsil on eraldi vajutatav ala: sellele vajutades
@@ -237,6 +254,35 @@ Eraldi cron-tööd pole vaja. Kui seadistust ei saa lugeda, kasutatakse tavavaad
 Pooleliolevat tellimusvormi kampaania lõppedes ei suleta: ostja saab selle lõpetada
 või sulgeda, misjärel rakendub tavavaade. Soodushinnad ja laoseis tulevad endiselt
 poe tootekataloogist; kampaania ajastus ei muuda tootehinda.
+
+## Mängu esimene lennuring
+
+Ülanurgas olev suur Anton-number kasvab iga püütud mütsiga, kohe lennu ajal.
+See on käesoleva lennu punktisumma; mahapillamine juba saadud punkte ei kustuta.
+Peenike teekonnajoon liigub Poeruumi kotimärgi poole. Pärast 32 sekundit algab
+kaubamajja laskumine, kui küüniste vahel on vähemalt üks müts. Tühja koormaga
+lendab mäng edasi järgmise püügini. Pildid laaditakse mängu avamisel ette;
+poolelioleva püügi või vabastamise ajal maandumine ei alga.
+
+Kaubamaja on läbipaistva taustaga objekt samas metsas. Hoone ja lagendik
+liiguvad vasakult kaadrisse, kaamera peatub, rähn laskub parempoolse sissepääsu
+juurde ning lendab senises suunas vasakule, fassaadi taha. Metsapilti ei vahetata
+ega hajutata uueks stseeniks. Hoone sildil kasutatakse lehe olemasolevat `Brand`
+komponenti koos kampaania värvidega. Ukse ees vähenevad tiivalöögid; varju ja
+fassaadi kihid seovad linnu sissepääsuga. Suur punktisumma jääb alles, selle kõrvale
+ilmub lõpetamisel linnuke. Seejärel avaneb tegelik kaubamaja poodide nimekiri.
+
+`hatDelivery.ts` eristab lennu punkte ja päriselt kohale viidud koormat. Ainult
+ukse taha jõudnud mütsid lisatakse kohalikku kohaletoimetamiste arvestusse
+(`poeruum:woodpecker:delivered:v1`); see ei ole poe laoseis ega üle kasutajate
+jagatud tulemus. Uue lennu nähtav punktisumma algab nullist. Sulgemine enne
+sisenemist koormat kohaleviiduks ei loe. Passiivne ekraanisäästja jääb lõputuks.
+
+Vaate failid: `DepartmentStoreArrival.tsx`, `departmentStoreArrival.css` ja
+`drawStoreArrival.ts`. Sisseehitatud imagegeniga loodud fotokihid on
+`public/images/campaigns/poeruum-flight-destination-v2.webp` ning
+`public/images/campaigns/poeruum-flight-clearing-v1.webp`. Täpsed juhised asuvad
+samanimelistes failides `docs/campaigns/image-prompts/` all.
 
 ## Kontrollimine ja Git
 

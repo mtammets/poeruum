@@ -9,6 +9,8 @@ import useHatFlightGame from './useHatFlightGame'
 import WoodpeckerClaws, { WoodpeckerClawDefs, WoodpeckerFootFeathers } from './WoodpeckerClaws'
 import WoodpeckerWings, { wingCutouts } from './WoodpeckerWings'
 import WoodpeckerHead, { headCutout } from './WoodpeckerHead'
+import DepartmentStoreArrival, { DeliveryCounter } from './DepartmentStoreArrival'
+import { createHatDelivery } from './hatDelivery'
 import './blackFridayScreensaver.css'
 import './hatFlightGame.css'
 
@@ -19,17 +21,27 @@ export type ScreensaverHandle = { open: () => void }
 type WoodpeckerCall = ReturnType<typeof useWoodpeckerCall>
 
 export default function BlackFridayScreensaver({ paused, call, ref }: { paused: boolean; call: WoodpeckerCall; ref?: Ref<ScreensaverHandle> }) {
-  const [active, setActive] = useState(false)
+  const [active, setActive] = useState<'idle' | 'game' | null>(null)
   const [forestAudio] = useState(() => new ForestFlightAudio())
   const awake = useRef<(() => void) | null>(null)
   const open = useRef<(() => void) | null>(null)
   const dismiss = useCallback(() => awake.current?.(), [])
+  const complete = useCallback(() => {
+    awake.current?.()
+    requestAnimationFrame(() => {
+      const heading = document.getElementById('store-directory-heading')
+      if (!heading) return
+      heading.tabIndex = -1
+      heading.scrollIntoView({ behavior: 'instant', block: 'start' })
+      heading.focus({ preventScroll: true })
+    })
+  }, [])
   const stopCall = call.stop
 
   useImperativeHandle(ref, () => ({ open: () => open.current?.() }), [])
 
   useEffect(() => {
-    if (paused) { setActive(false); return }
+    if (paused) { setActive(null); return }
     let timer: number | undefined
     let showing = false
     let manuallyOpened = false
@@ -44,7 +56,7 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
       forestAudio.stop()
       showing = false
       manuallyOpened = false
-      setActive(false)
+      setActive(null)
       schedule()
     }
     const start = (manual = false) => {
@@ -57,7 +69,7 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
       manuallyOpened = manual
       if (manual) void forestAudio.start()
       showing = true
-      setActive(true)
+      setActive(manual ? 'game' : 'idle')
     }
     const activity = (event: Event) => {
       if (event.type === 'click' && performance.now() < suppressClickUntil) {
@@ -68,11 +80,17 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
       // Opening/closing a modal restores focus and can adjust scroll, including
       // React's development effect replay. Only user input should wake it.
       if (showing && (event.type === 'focusin' || event.type === 'scroll')) return
-      // A deliberately opened flight should survive normal pointer drift.
-      if (showing && manuallyOpened && event.type === 'pointermove') return
-      // The flight controller consumes arrows; all other activity still wakes
-      // the directory, with the first click protected from buying anything.
-      if (showing && isFlightKey(event)) { void forestAudio.start(); return }
+      if (showing && isFlightKey(event)) {
+        manuallyOpened = true
+        setActive('game')
+        void forestAudio.start()
+        return
+      }
+      // Deliberate play ends with Close, Escape or falling out. Let pointer
+      // events reach the touch controls instead of dismissing the game.
+      if (showing && manuallyOpened) return
+      // The passive screensaver still wakes on activity, without clicking
+      // through to the covered shop.
       if (showing) {
         if (event.type === 'pointerdown' || event.type === 'touchstart') suppressClickUntil = performance.now() + 500
         if (event.cancelable) event.preventDefault()
@@ -80,7 +98,7 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
       }
       wake()
     }
-    const visibility = () => { stopCall(); forestAudio.stop(); showing = false; setActive(false); schedule() }
+    const visibility = () => { stopCall(); forestAudio.stop(); showing = false; setActive(null); schedule() }
     awake.current = wake
     open.current = () => start(true)
     activityEvents.forEach(name => window.addEventListener(name, activity, { capture: true, passive: false }))
@@ -97,18 +115,28 @@ export default function BlackFridayScreensaver({ paused, call, ref }: { paused: 
     }
   }, [paused, stopCall, forestAudio])
 
-  return active && !paused ? <FlightScene onClose={dismiss} call={call} audio={forestAudio} /> : null
+  return active && !paused ? <FlightScene onClose={dismiss} onComplete={complete} call={call} audio={forestAudio} interactive={active === 'game'} /> : null
 }
 
-function FlightScene({ onClose, call, audio }: { onClose: () => void; call: WoodpeckerCall; audio: ForestFlightAudio }) {
+function FlightScene({ onClose, onComplete, call, audio, interactive }: { onClose: () => void; onComplete: () => void; call: WoodpeckerCall; audio: ForestFlightAudio; interactive: boolean }) {
   const root = useRef<HTMLDialogElement>(null)
+  const journey = useRef(createHatDelivery())
   const clipId = useId()
+  const [hint, setHint] = useState(true)
+  const dismissHint = useCallback(() => setHint(false), [])
+
+  useEffect(() => {
+    if (!interactive) return
+    const timer = window.setTimeout(dismissHint, 8_000)
+    return () => window.clearTimeout(timer)
+  }, [interactive, dismissHint])
 
   useLayoutEffect(() => {
     const dialog = root.current
     if (!dialog) return
     const overflow = document.body.style.overflow
     dialog.showModal()
+    dialog.focus({ preventScroll: true })
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = overflow
@@ -116,14 +144,17 @@ function FlightScene({ onClose, call, audio }: { onClose: () => void; call: Wood
     }
   }, [])
 
-  const flight = useScreensaverFlight(root, onClose)
-  const caught = useHatFlightGame(root, audio, flight)
+  const flight = useScreensaverFlight(root, onClose, journey)
+  const { caught, score, phase } = useHatFlightGame(root, audio, flight, journey, onComplete)
 
-  return createPortal(<dialog ref={root} className="black-friday-screensaver" aria-label="Rähni lennuvaade"
-    aria-description="Juhtimist alustades hoia lendamiseks vasaknool all. Lahti lastes lind vajub, parem nool vabastab kogutud mütsid. Üles viib kaugemale ja alla lähemale. Ekraanilt alla kukkumine või Escape viib tagasi kaubamajja."
+  return createPortal(<dialog ref={root} className="black-friday-screensaver" aria-label="Rähni lennuvaade" tabIndex={-1}
+    data-interactive={interactive || undefined}
+    data-level-phase={phase}
+    aria-description="Kogu mütse ja vii need kaubamajja. Hoia lendamiseks vasaknoolt või ekraani lennunuppu all. Lahti lastes lind vajub, parem nool vabastab kogutud mütsid. Üles viib kaugemale ja alla lähemale. Lennu lõpus maandub rähn kaubamajas. Loendur näitab selle lennu jooksul püütud mütse. Sulgemisnupp, Escape või ekraanilt alla kukkumine viib tagasi kaubamajja."
     onCancel={event => { event.preventDefault(); onClose() }}>
-    <button type="button" className="black-friday-screensaver__scene" aria-label="Tagasi kaubamajja" onClick={onClose}>
+    <div className="black-friday-screensaver__scene" aria-hidden="true">
       <BannerForest />
+      <DepartmentStoreArrival />
       <span className="hat-flight__hats" aria-hidden="true" />
       <span className="black-friday-screensaver__flight" aria-hidden="true">
         <span className="black-friday-screensaver__bird">
@@ -142,6 +173,30 @@ function FlightScene({ onClose, call, audio }: { onClose: () => void; call: Wood
           </svg>
         </span>
       </span>
-    </button>
+    </div>
+    {interactive && <>
+      <DeliveryCounter total={score} phase={phase} />
+      <button type="button" className="black-friday-screensaver__close" aria-label="Sulge mäng" onClick={onClose}>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>
+      </button>
+      <div className="black-friday-screensaver__hint" data-dismissed={!hint || undefined} aria-hidden={!hint || undefined}>
+        <dl className="black-friday-screensaver__hint-keys">
+          <div className="black-friday-screensaver__hint-thrust"><dt><kbd>←</kbd></dt><dd>Hoia all</dd></div>
+          <div className="black-friday-screensaver__hint-far"><dt><kbd>↑</kbd></dt><dd>Kaugemale</dd></div>
+          <div className="black-friday-screensaver__hint-near"><dt><kbd>↓</kbd></dt><dd>Lähemale</dd></div>
+          <div className="black-friday-screensaver__hint-release"><dt><kbd>→</kbd></dt><dd>Vabasta mütsid</dd></div>
+        </dl>
+      </div>
+      <div className="black-friday-screensaver__controls" role="group" aria-label="Mängu juhtimine">
+        <button type="button" className="black-friday-screensaver__thrust" data-flight-key="ArrowLeft" aria-label="Lenda: hoia all" title="Lenda: hoia all">
+          <span aria-hidden="true">←</span><small>Hoia</small>
+        </button>
+        <div className="black-friday-screensaver__steering">
+          <button type="button" data-flight-key="ArrowUp" aria-label="Lenda kaugemale" title="Lenda kaugemale"><span aria-hidden="true">↑</span></button>
+          <button type="button" data-flight-key="ArrowDown" aria-label="Lenda lähemale" title="Lenda lähemale"><span aria-hidden="true">↓</span></button>
+          <button type="button" data-flight-key="ArrowRight" aria-label="Vabasta mütsid" title="Vabasta mütsid"><span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </>}
   </dialog>, document.body)
 }

@@ -16,6 +16,139 @@ body:has(.black-friday-screensaver[open]) .store-directory * { animation-play-st
   cursor: none;
 }
 .black-friday-screensaver::backdrop { background: #f0eadc; }
+.black-friday-screensaver[data-interactive] { cursor: default; }
+.black-friday-screensaver[data-interactive] .black-friday-screensaver__scene { cursor: default; }
+/* The four keys follow the keyboard's inverted T, directly over the scene. */
+.black-friday-screensaver__close {
+  position: absolute;
+  z-index: 4;
+  top: max(1.25rem, env(safe-area-inset-top));
+  right: max(1.25rem, env(safe-area-inset-right));
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border: 0;
+  border-radius: 6px;
+  color: #531b25;
+  background: #f0eadcdd;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+.black-friday-screensaver__close svg { width: 100%; height: 100%; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.black-friday-screensaver__close:hover { background: #fffaf0; }
+.black-friday-screensaver__hint {
+  position: absolute;
+  z-index: 3;
+  bottom: max(2rem, env(safe-area-inset-bottom));
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  color: #fff8ea;
+  translate: -50% 0;
+  pointer-events: none;
+  animation: woodpecker-guide-in 650ms cubic-bezier(.2, .8, .2, 1) both;
+  transition: opacity 450ms ease, transform 450ms ease, visibility 450ms;
+}
+.black-friday-screensaver__hint-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 5.5rem);
+  grid-template-areas: '. far .' 'thrust near release';
+  gap: .7rem .4rem;
+  margin: 0;
+}
+.black-friday-screensaver__hint-thrust { grid-area: thrust; }
+.black-friday-screensaver__hint-far { grid-area: far; }
+.black-friday-screensaver__hint-near { grid-area: near; }
+.black-friday-screensaver__hint-release { grid-area: release; }
+.black-friday-screensaver__hint-keys > div { display: grid; grid-template-rows: 3.1rem auto; justify-items: center; gap: .45rem; }
+.black-friday-screensaver__hint-keys dt { grid-row: 2; margin: 0; }
+.black-friday-screensaver__hint-keys dd {
+  grid-row: 1;
+  align-self: end;
+  margin: 0;
+  font: 700 1.6rem / .95 'Caveat Campaign', cursive;
+  text-align: center;
+  text-shadow: 0 1px 4px #24180e, 0 0 12px #24180eb3;
+}
+.black-friday-screensaver__hint-far dd { rotate: 3deg; }
+.black-friday-screensaver__hint-near dd { rotate: -3deg; }
+.black-friday-screensaver__hint-release dd { rotate: 4deg; }
+.black-friday-screensaver__hint kbd {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 80px;
+  height: 64px;
+  border: 1px solid #531b253b;
+  border-radius: 8px;
+  background: #fcf8f0;
+  box-shadow: 0 3px 0 #d8cbbd;
+  color: #531b25;
+  font: 400 2rem / 1 Manrope, sans-serif;
+}
+.black-friday-screensaver__hint-thrust kbd { background: #531b25; border-color: #531b25; color: #fff8ea; box-shadow: 0 3px 0 #321018; animation: woodpecker-key-hold 3s 800ms 2; }
+.black-friday-screensaver__hint-thrust dd { font: 400 1.1rem / 1.1 'Anton Cry', Impact, sans-serif; letter-spacing: .025em; text-transform: uppercase; rotate: -4deg; }
+.black-friday-screensaver__hint[data-dismissed] { opacity: 0; transform: translateY(10px); visibility: hidden; }
+@keyframes woodpecker-guide-in { from { opacity: 0; translate: -50% 12px; } to { opacity: 1; translate: -50% 0; } }
+@keyframes woodpecker-key-hold { 15%, 70% { transform: translateY(3px); box-shadow: 0 0 0 #321018; background: #702735; } }
+@media (max-width: 900px) {
+  .black-friday-screensaver__hint { top: max(1rem, env(safe-area-inset-top)); bottom: auto; color: #531b25; }
+  .black-friday-screensaver__hint-keys { grid-template-columns: repeat(3, 4.75rem); gap: .5rem .25rem; }
+  .black-friday-screensaver__hint-keys > div { grid-template-rows: 2.6rem auto; gap: .3rem; }
+  .black-friday-screensaver__hint-keys dd { font-size: 1.3rem; text-shadow: 0 1px 6px #f0eadc, 0 0 12px #f0eadc; }
+  .black-friday-screensaver__hint-thrust dd { font-size: 1rem; }
+  .black-friday-screensaver__hint kbd { width: 68px; height: 46px; font-size: 1.6rem; }
+  .black-friday-screensaver__hint[data-dismissed] { transform: translateY(-10px); }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .black-friday-screensaver__hint { top: .75rem; bottom: auto; left: 22%; color: #531b25; }
+  .black-friday-screensaver__hint-keys dd { text-shadow: 0 1px 6px #f0eadc, 0 0 12px #f0eadc; }
+}
+.black-friday-screensaver__controls {
+  position: absolute;
+  z-index: 3;
+  right: max(1.25rem, env(safe-area-inset-right));
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  left: max(1.25rem, env(safe-area-inset-left));
+  display: none;
+  align-items: flex-end;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.black-friday-screensaver__controls button {
+  display: grid;
+  place-content: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid #531b2573;
+  border-bottom-width: 3px;
+  border-radius: 12px;
+  color: #531b25;
+  background: #f0eadcf2;
+  box-shadow: 0 3px 12px #32140b12;
+  font: 400 1.7rem / 1 Manrope, sans-serif;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.black-friday-screensaver__controls .black-friday-screensaver__thrust { width: 76px; height: 76px; background: #531b25; color: #f0eadc; }
+.black-friday-screensaver__thrust small { margin-top: .2rem; font: 700 1.1rem / 1 'Caveat Campaign', cursive; }
+.black-friday-screensaver__controls button[data-pressed='true'] { translate: 0 2px; border-bottom-width: 1px; background: #bc2b29; color: #fff8ea; }
+.black-friday-screensaver__steering { display: grid; grid-template-columns: repeat(2, 56px); gap: 8px; }
+.black-friday-screensaver__steering [data-flight-key='ArrowUp'] { grid-column: 1; }
+.black-friday-screensaver__steering [data-flight-key='ArrowDown'] { grid-column: 1; grid-row: 2; }
+.black-friday-screensaver__steering [data-flight-key='ArrowRight'] { grid-column: 2; grid-row: 2; }
+.black-friday-screensaver :is(.black-friday-screensaver__close, [data-flight-key]):focus-visible { outline: 2px solid #531b25; outline-offset: 4px; }
+@media (any-pointer: coarse) {
+  .black-friday-screensaver__controls { display: flex; }
+}
 .black-friday-screensaver__scene {
   position: absolute;
   inset: 0;
@@ -151,6 +284,9 @@ body:has(.black-friday-screensaver[open]) .store-directory * { animation-play-st
   .black-friday-screensaver__flight { width: min(110vw, 105dvh); }
 }
 @media (prefers-reduced-motion: reduce) {
+  .black-friday-screensaver__hint,
+  .black-friday-screensaver__hint-thrust kbd { animation: none; transition: none; }
+  .black-friday-screensaver__close { transition: none; }
   .black-friday-screensaver__scene,
   .black-friday-screensaver__bird { animation: none; }
   .black-friday-screensaver__bird { will-change: auto; }
