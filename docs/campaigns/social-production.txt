@@ -19,6 +19,12 @@ musta-rahni-call-1.mp3 ning musta-rahni-call-2.mp3 salvestusi. Ajastus ja
 noka liikumine tulevad samast ajakavast ning veebis kasutatavast helikõverast.
 Hääle või ajastuse muutmisel tee täisrenderdus, mitte --audio-only, et ka
 noka liikumine uueneks. 6 s bumperi skript kasutab veel varasemat CC0 heli.
+Story/Reelsi metsakohin on 12 dB vaiksem, rähnisalvestiste tugevus säilib.
+Taustal mängib sama originaalmuusika nagu lennumängus
+(`musta-rahni-flight-music.mp3`); see vaibub rähnihäälitsuste ajaks ning
+video algus ja lõpp on sujuva helihajutusega.
+Selle helitugevuse paranduse saab eksportida --audio-only lipuga, kasutades
+juba praeguste rähnisalvestiste järgi renderdatud vaikset videomasterit.
 Veebi ega tootmisandmebaasi renderdamisel ei muudeta. Väljundid on output/ kaustas.
 
 Pakendamine:

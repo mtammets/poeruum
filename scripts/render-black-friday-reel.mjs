@@ -67,17 +67,29 @@ try {
     // Use the owner's current recordings, with the exact timeline driving the beak.
     // Keep the quiet wind/needle-rustle bed and each recording's original speed/pitch.
     const windInput = calls.length + 1, leavesInput = windInput + 1
+    // Stories need a much softer forest bed beneath the current bird recordings.
+    const ambienceVolume = youtube ? '0dB' : '-12dB'
+    const musicInput = leavesInput + 1
+    // Match the game's music/ducking levels after the mix's final 2× gain.
+    // Anticipate each call by 80 ms and recover gently after its quiet tail.
+    const duckWindows = calls.map(call => `clip(min((t-${call.start - .08})/.08,(${call.start + call.duration + .12 + .35}-t)/.35),0,1)`)
+    const duckEnvelope = duckWindows.reduce((previous, next) => `max(${previous},${next})`, '0')
+    const musicGraph = youtube ? [] : [
+      `[${musicInput}:a]aformat=channel_layouts=stereo,atrim=duration=${duration},asetpts=PTS-STARTPTS,volume='0.21-0.13*${duckEnvelope}':eval=frame,afade=t=in:st=0:d=0.2,afade=t=out:st=14.35:d=0.65[music]`,
+    ]
     const soundGraph = [
-      `[${windInput}:a]highpass=f=200,lowpass=f=1900,volume='0.30+0.07*sin(2*PI*t/15)':eval=frame,pan=stereo|c0=c0|c1=0.94*c0[wind]`,
-      `[${leavesInput}:a]highpass=f=2400,lowpass=f=6500,volume='0.035+0.018*sin(4*PI*t/15+0.6)':eval=frame,pan=stereo|c0=0.75*c0|c1=c0[leaves]`,
+      `[${windInput}:a]highpass=f=200,lowpass=f=1900,volume='0.30+0.07*sin(2*PI*t/15)':eval=frame,volume=${ambienceVolume},pan=stereo|c0=c0|c1=0.94*c0[wind]`,
+      `[${leavesInput}:a]highpass=f=2400,lowpass=f=6500,volume='0.035+0.018*sin(4*PI*t/15+0.6)':eval=frame,volume=${ambienceVolume},pan=stereo|c0=0.75*c0|c1=c0[leaves]`,
       ...calls.map((call, index) => `[${index + 1}:a]aformat=channel_layouts=stereo,asetpts=PTS-STARTPTS,volume=${call.gain},adelay=${Math.round(call.start * 1000)}:all=1[call${index}]`),
-      `[wind][leaves]${calls.map((_, index) => `[call${index}]`).join('')}amix=inputs=${calls.length + 2}:duration=longest:normalize=0,volume=2,afade=t=in:st=0:d=0.2,afade=t=out:st=14.8:d=0.2,alimiter=limit=0.85:level=0:latency=1[a]`,
+      ...musicGraph,
+      `[wind][leaves]${calls.map((_, index) => `[call${index}]`).join('')}${youtube ? '' : '[music]'}amix=inputs=${calls.length + (youtube ? 2 : 3)}:duration=longest:normalize=0,volume=2,afade=t=in:st=0:d=0.2,afade=t=out:st=14.8:d=0.2,alimiter=limit=0.85:level=0:latency=1[a]`,
     ].join(';')
     const mix = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y',
       '-i', path.join(out, 'musta-rahni-paevad-silent.mp4'),
       ...calls.flatMap(call => ['-i', path.join(root, 'public', call.src)]),
       '-f', 'lavfi', '-i', 'anoisesrc=color=pink:amplitude=0.8:sample_rate=48000:duration=15:seed=4927',
       '-f', 'lavfi', '-i', 'anoisesrc=color=white:amplitude=0.35:sample_rate=48000:duration=15:seed=1783',
+      ...(youtube ? [] : ['-i', path.join(root, 'public/audio/campaigns/musta-rahni-flight-music.mp3')]),
       '-filter_complex', soundGraph, '-map', '0:v:0', '-map', '[a]', '-c:v', 'copy',
       '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-t', String(duration),
       '-map_metadata', '-1', '-metadata', 'title=MUSTA RÄHNI PÄEVAD',
