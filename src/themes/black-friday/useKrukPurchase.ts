@@ -1,3 +1,4 @@
+import { trackWoodpecker } from '../../lib/woodpeckerTracking'
 import { useCallback, useRef, useState } from 'react'
 import type { StoreDirectoryEntry } from '../../../shared/store-directory.mjs'
 import { trackDirectoryEvent } from '../../lib/directoryAnalytics'
@@ -21,7 +22,12 @@ export function useKrukPurchase(store?: StoreDirectoryEntry, position = 1) {
     setBusy(true)
     setError('')
     trackProduct()
-    try { setPurchase(await loadKrukPurchase(store.id, product.id)) }
+    trackWoodpecker({ event_name: 'product_click', product_id: product.id, placement: 'directory' })
+    try {
+      const next = await loadKrukPurchase(store.id, product.id)
+      trackWoodpecker({ event_name: 'add_to_cart', product_id: product.id, placement: 'directory' })
+      setPurchase(next)
+    }
     catch (error) { setError(error instanceof Error ? error.message : 'Ostu ei õnnestunud avada. Proovi uuesti.') }
     finally { buying.current = false; setBusy(false) }
   }

@@ -9,6 +9,7 @@ export const adminViewConfig = {
   leads: { path: '/admin/leads', title: 'Kliendiotsing' },
   support: { path: '/admin/support', title: 'Klienditugi' },
   directory: { path: '/admin/kaubamaja', title: 'Kaubamaja' },
+  woodpecker: { path: '/admin/musta-rahni', title: 'Musta rähni päevad' },
   settings: { path: '/admin/settings', title: 'Seaded' },
 }
 

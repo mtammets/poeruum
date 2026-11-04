@@ -35,6 +35,7 @@ import type { AdminUserRow, LatestEmailDelivery } from './lib/adminUserOverview'
 
 const AdminBusinessCard = lazy(() => import('./AdminBusinessCard'))
 const AdminKaubamaja = lazy(() => import('./AdminKaubamaja'))
+const AdminWoodpecker = lazy(() => import('./AdminWoodpecker'))
 const AdminCampaigns = lazy(() => import('./AdminCampaigns'))
 
 type SocialPreviewPlatform = 'facebook' | 'linkedin' | 'slack'
@@ -48,6 +49,7 @@ const getAdminView = (pathname = window.location.pathname): AdminView => {
   if (/^\/admin\/business-card\/?$/i.test(pathname)) return 'business-card'
   if (/^\/admin\/kaubamaja\/?$/i.test(pathname)) return 'directory'
   if (/^\/admin\/campaigns\/?$/i.test(pathname)) return 'campaigns'
+  if (/^\/admin\/musta-rahni\/?$/i.test(pathname)) return 'woodpecker'
   if (/^\/admin\/settings\/?$/i.test(pathname)) return 'settings'
   return 'overview'
 }
@@ -911,6 +913,7 @@ export default function AdminApp() {
         <button type="button" onClick={() => void openShowcaseManager()}><span><AdminIcon name="store" /></span>Näidispood</button>
         <a className={activeView === 'support' ? 'is-active' : undefined} href="/admin/support" aria-current={activeView === 'support' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'support')}><span><AdminIcon name="message" /></span>Klienditugi</a>
         <a className={activeView === 'directory' ? 'is-active' : undefined} href="/admin/kaubamaja" aria-current={activeView === 'directory' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'directory')}><span><AdminIcon name="store" /></span>Kaubamaja</a>
+        <a className={activeView === 'woodpecker' ? 'is-active' : undefined} href="/admin/musta-rahni" aria-current={activeView === 'woodpecker' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'woodpecker')}><span><AdminIcon name="analytics" /></span>Musta rähni päevad</a>
         <a href="http://127.0.0.1:4185/previews/payments.html" target="_blank" rel="noopener noreferrer" aria-label="Maksete eelvaade (kohalik server, avaneb uuel vahelehel)" title="Kohalik eelvaade · käivita npm run dev"><span><AdminIcon name="arrow" /></span>Maksete eelvaade</a>
       </nav>
       <div className="admin-sidebar__account"><span>{session.user.email?.charAt(0).toUpperCase()}</span><div><strong>Administraator</strong><small>{session.user.email}</small></div><a className="admin-sidebar__settings" href="/admin/settings" aria-label="Seaded" title="Seaded" aria-current={activeView === 'settings' ? 'page' : undefined} onClick={(event) => navigateToView(event, 'settings')}><AdminIcon name="settings" /></a><button type="button" onClick={() => void logOut()} aria-label="Logi välja"><AdminIcon name="logout" /></button></div>
@@ -918,11 +921,13 @@ export default function AdminApp() {
 
     <section inert={watch.active} aria-hidden={watch.active || undefined} className={`admin-main${activeView === 'business-card' ? ' admin-main--business-card' : activeView === 'overview' ? ' admin-main--overview' : activeView === 'analytics' ? ' admin-main--analytics' : ''}`}>
       <AdminStoryDeck ref={storyDeck} view={activeView} onNavigate={changeView} renderView={(view) => <>
-      {view !== 'users' && view !== 'overview' && view !== 'analytics' && view !== 'campaigns' && view !== 'support' && <header className="admin-topbar"><div><h1>{adminViewConfig[view].title}</h1></div>{view !== 'leads' && view !== 'business-card' && view !== 'directory' && view !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
+      {view !== 'woodpecker' && view !== 'users' && view !== 'overview' && view !== 'analytics' && view !== 'campaigns' && view !== 'support' && <header className="admin-topbar"><div><h1>{adminViewConfig[view].title}</h1></div>{view !== 'leads' && view !== 'business-card' && view !== 'directory' && view !== 'settings' && <button type="button" onClick={() => { setAnalyticsRefreshRevision((value) => value + 1); void loadDashboard() }} disabled={isLoading}><span className={isLoading ? 'is-spinning' : ''}><AdminIcon name="refresh" /></span>{isLoading ? 'Uuendan…' : 'Uuenda andmeid'}</button>}</header>}
 
       {view === 'business-card' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin visiitkaarti…</div>}><AdminBusinessCard key={session.user.id} userId={session.user.id} /></Suspense>}
 
       {view === 'campaigns' && <Suspense fallback={<div className="admin-table__empty" role="status">Laadin kampaaniate loojat…</div>}><AdminCampaigns key={session.user.id} userId={session.user.id} /></Suspense>}
+
+      {view === 'woodpecker' && <Suspense fallback={<div role="status">Laadin kampaania statistikat…</div>}><AdminWoodpecker active={activeView === 'woodpecker'} /></Suspense>}
 
       {view === 'settings' && <AdminSettings push={pushFeedback} />}
 

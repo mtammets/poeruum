@@ -30,7 +30,7 @@ export default function useScreensaverFlight(root: RefObject<HTMLDialogElement |
 
     const draw = () => {
       const position = frameFlight(motion.pose, bounds, viewport, motion.fall)
-      geometry.current = { pose: { ...motion.pose }, bounds, position, releaseCount }
+      geometry.current = { pose: { ...motion.pose }, bounds, position, releaseCount, controlled: motion.controlled }
       // Direct properties keep pose changes from invalidating inherited custom
       // properties throughout the large SVG and forest subtrees.
       bird.style.translate = `${position.x.toFixed(3)}px ${position.y.toFixed(3)}px`

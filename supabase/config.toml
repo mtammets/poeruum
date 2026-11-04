@@ -534,3 +534,6 @@ verify_jwt = false
 
 [functions.story-interview]
 verify_jwt = false
+
+[functions.woodpecker-analytics]
+verify_jwt = false

@@ -1,3 +1,4 @@
+import { useWoodpeckerTracking, trackWoodpecker } from './lib/woodpeckerTracking'
 import { useEffect, useId, useRef } from 'react'
 import { COMPANY_HOMEPAGE_IMAGE, COMPANY_HOMEPAGE_URL, companyHomepageMetadata, getCompanyHomepageStoreSlug } from '../shared/company-homepage.mjs'
 import type { PublicStoreRecord } from './lib/database'
@@ -31,6 +32,7 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
   const { settings } = store
   const featured = products.find(product => product.slug === 'nokkmuts') ?? products[0]
   const editor = useCompanyHomepageEditor(store, featured, review)
+  useWoodpeckerTracking('homepage', !review && !editor.editing)
   const { copy, editable: edit } = editor
   const name = copy.brand
   const logo = text(settings.storeLogo)
@@ -133,7 +135,7 @@ export default function CompanyHomepage({ store, products, review }: { store: Pu
           </div>
         </div>
         <div className="company-hero__art" data-calling={call.calling || undefined}>
-          <button className="company-hero__image" type="button" onClick={call.play} aria-label="Pane rähn häälitsema" aria-busy={call.calling || undefined}>
+          <button className="company-hero__image" type="button" onClick={() => { trackWoodpecker({ event_name: 'bird_call', placement: 'homepage' }); call.play() }} aria-label="Pane rähn häälitsema" aria-busy={call.calling || undefined}>
             <svg className="company-hero__bird-image" viewBox="0 0 1448 1086" width="1448" height="1086" role="img" aria-label="Fantaasiapilt suure musta rähni seljas lendavast Krük-Krüki nokkmütsiga ratsanikust">
               <defs>
                 <clipPath id={`${clipId}-body`}><path d={`M0 0 H1448 V1086 H0 Z ${lowerBeak}`} clipRule="evenodd" /></clipPath>

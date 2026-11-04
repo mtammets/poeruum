@@ -1,3 +1,4 @@
+import { trackWoodpecker } from '../../lib/woodpeckerTracking'
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { capWidthInBirdImage, claw, clawOpening, createHatFlight, gameCapImage, releaseCarriedHats, resizeHatFlight, stepHatFlight } from './hatFlightPhysics'
 import { beakOpening } from './useWoodpeckerCall'
@@ -22,6 +23,16 @@ export default function useHatFlightGame(root: RefObject<HTMLDialogElement | nul
     const frontToes = bird.querySelector('.woodpecker-claws__front')!
     const preference = matchMedia('(prefers-reduced-motion: reduce)')
     const game = createHatFlight(stage.clientWidth || innerWidth, stage.clientHeight || innerHeight)
+    const gameId = crypto.randomUUID()
+    let startedAt: number | null = null, initialScore = 0, lastProgress = 0
+    trackWoodpecker({ event_name: 'game_view', game_id: gameId })
+    const report = (event_name: 'game_progress' | 'game_end') => {
+      if (startedAt === null) return
+      trackWoodpecker({ event_name, game_id: gameId, value: Math.max(0, game.score - initialScore),
+        duration: Math.min(86400, Math.floor((performance.now() - startedAt) / 1000)) })
+    }
+    const leave = () => report('game_end')
+    window.addEventListener('pagehide', leave)
     const elements = new Map<number, HTMLDivElement>()
     const drops = new Map<number, HTMLDivElement>()
     const attributes = new WeakMap<Element, Map<string, string>>()
@@ -49,6 +60,11 @@ export default function useHatFlightGame(root: RefObject<HTMLDialogElement | nul
       const dt = previous ? Math.min((now - previous) / 1000, .05) : 0
       const geometry = flight.current
       if (geometry) {
+        if (geometry.controlled && startedAt === null) {
+          startedAt = now; initialScore = game.score; lastProgress = now
+          trackWoodpecker({ event_name: 'game_start', game_id: gameId })
+        }
+        if (startedAt !== null && now - lastProgress >= 15000) { lastProgress = now; report('game_progress') }
         game.bird = projectFlightPoint(geometry, claw)
         game.birdBaseWidth = geometry.bounds.width
         game.birdWidth = geometry.bounds.width * geometry.pose.scale
@@ -69,6 +85,7 @@ export default function useHatFlightGame(root: RefObject<HTMLDialogElement | nul
         cargo.style.visibility = ''
         setCaught(game.carried)
         stage.dataset.caught = String(game.score)
+        report('game_progress')
       }
       const releasing = game.time - releaseAt < .6
       const wantedGrip = releasing ? 1 : reduced ? 0 : clawOpening(game, catchTime)
@@ -133,6 +150,7 @@ export default function useHatFlightGame(root: RefObject<HTMLDialogElement | nul
     preference.addEventListener('change', motionChange)
     frame = requestAnimationFrame(tick)
     return () => {
+      report('game_end'); window.removeEventListener('pagehide', leave)
       cancelAnimationFrame(frame); observer.disconnect(); elements.forEach(element => element.remove())
       drops.forEach(element => element.remove())
       preference.removeEventListener('change', motionChange)
