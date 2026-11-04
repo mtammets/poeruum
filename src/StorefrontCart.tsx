@@ -1,3 +1,4 @@
+import { trackWoodpecker, woodpeckerCheckoutContext } from './lib/woodpeckerTracking'
 import StoreTermsContent from './StoreTermsContent'
 import './withdrawal.css'
 import './orderDocuments.css'
@@ -47,6 +48,7 @@ const findParcelMachines = (machines: ParcelMachine[], query: string) => {
 export default function StorefrontCart({ storeId, items, initialStep, returnsText = '', contactEmail = '', paymentProvider, paymentsReady, deliverySettings, vatRegistered, onRemove, onQuantityChange, onClose }: { storeId?: string; items: CartItem[]; initialStep: 'cart' | 'checkout'; returnsText?: string; contactEmail?: string; paymentProvider: PaymentProvider; paymentsReady: boolean; deliverySettings: DeliverySettings; vatRegistered: boolean; onRemove: (cartKey: string) => void; onQuantityChange: (cartKey: string, quantity: number) => void; onClose: () => void }) {
   const checkoutRef = useRef<HTMLElement>(null)
   const [step, setStep] = useState<'cart' | 'checkout'>(initialStep)
+  useEffect(() => { if (step === 'checkout') trackWoodpecker({ event_name: 'checkout_start' }) }, [step])
   const enabledParcelProviders = SHIPPING_PROVIDERS.filter((provider) => deliverySettings.parcelProviders[provider].enabled)
   const enabledParcelProviderKey = enabledParcelProviders.join(',')
   const parcelEnabled = enabledParcelProviders.length > 0
@@ -194,9 +196,11 @@ export default function StorefrontCart({ storeId, items, initialStep, returnsTex
           vatNumber: businessBuyer ? String(data.get('billingVatNumber') ?? '') : '', address: String(data.get('billingAddress') ?? '') },
         delivery: { type: delivery, provider: selectedParcelMachine?.provider, label: deliveryLabel },
       }
-      const url = await startStripeStoreCheckout({ ...input, checkoutRequestId: await checkoutAttemptId(input) })
+      const url = await startStripeStoreCheckout({ ...input, checkoutRequestId: await checkoutAttemptId(input), campaign: woodpeckerCheckoutContext() })
+      trackWoodpecker({ event_name: 'checkout_redirect' })
       window.location.assign(url)
     } catch (error) {
+      trackWoodpecker({ event_name: 'checkout_error' })
       setPaymentError(error instanceof Error ? error.message : 'Makse algatamine ebaõnnestus.')
       if (error && typeof error === 'object' && 'restartCheckout' in error && error.restartCheckout === true) forgetCheckoutAttempt()
       setIsPaying(false)

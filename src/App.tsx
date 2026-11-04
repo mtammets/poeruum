@@ -1,3 +1,4 @@
+import { useWoodpeckerTracking, trackWoodpecker } from './lib/woodpeckerTracking'
 import WithdrawalDialog from './WithdrawalDialog'
 import StoreTermsSettings from './StoreTermsSettings'
 import StoreTermsContent from './StoreTermsContent'
@@ -1760,6 +1761,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const addToCart = (product: Product) => {
     const stockLimit = getProductStockLimit(product)
     if (stockLimit <= 0) return
+    const quantityInCart = cart.filter(item => item.id === product.id).reduce((sum, item) => sum + item.quantity, 0)
+    if (quantityInCart >= stockLimit) return
+    if (storeSlug === 'kruk-kruk') trackWoodpecker({ event_name: 'add_to_cart', product_id: product.id, placement: 'store' })
     const selections = getSelectionsForProduct(product)
     const cartKey = createCartKey(product.id, selections)
     setCart((items) => {
@@ -1823,6 +1827,13 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
 
   const activeProduct = displayProducts[activeIndex]
   useStoreAnalyticsTracking(storeId, Boolean(isSeoStorefront && !isLoggedIn && !merchantMode && !embeddedPreview && !adminShowcaseMode && !isShowcasePreview), activeProduct?.id)
+  const campaignTrackingEnabled = storeSlug === 'kruk-kruk' && isSeoStorefront && !isLoggedIn && !merchantMode && !embeddedPreview && !adminShowcaseMode && !isShowcasePreview
+  useWoodpeckerTracking('store', campaignTrackingEnabled)
+  useEffect(() => {
+    if (!campaignTrackingEnabled || !activeProduct?.id) return
+    const timer = setTimeout(() => { if (!document.hidden) trackWoodpecker({ event_name: 'product_view', product_id: activeProduct.id }) }, 900)
+    return () => clearTimeout(timer)
+  }, [campaignTrackingEnabled, activeProduct?.id])
   useProductTitleFit(editProductNameRef, activeProduct?.name, isEditOpen)
   const activeProductHasSale = activeProduct !== undefined && activeProduct.salePrice !== undefined && activeProduct.price !== undefined && activeProduct.salePrice < activeProduct.price
   const activeProductDiscount = activeProductHasSale ? Math.round((1 - activeProduct.salePrice! / activeProduct.price!) * 100) : 0

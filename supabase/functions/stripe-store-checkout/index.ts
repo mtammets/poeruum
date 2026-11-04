@@ -1,3 +1,4 @@
+import { campaignCheckoutContext } from '../_shared/woodpecker-analytics.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { syncSellerPaymentCheck } from '../_shared/seller-payment-check.ts'
 import Stripe from 'npm:stripe@^22'
@@ -26,6 +27,7 @@ type CheckoutItem = { id: string; quantity: number; selectedOptions?: Record<str
 type DeliveryInput = { type: 'parcel' | 'courier' | 'pickup'; provider?: 'omniva' | 'dpd' | 'smartposti'; label: string }
 type CheckoutBody = {
   storeId?: string
+  campaign?: unknown
   checkoutRequestId?: string
   returnUrl?: string
   items?: CheckoutItem[]
@@ -221,6 +223,16 @@ Deno.serve(async (request) => {
       }
       if (orderError.message.includes('CHECKOUT_REQUEST_REUSED')) return json({ error: 'Maksepäringu andmed muutusid. Proovi uuesti.' }, 409)
       throw orderError
+    }
+    const campaign = campaignCheckoutContext(body.campaign)
+    if (store.slug === 'kruk-kruk' && stripeMode === 'live' && campaign) {
+      // Analytics is optional; a missing migration or write failure must not stop checkout.
+      try {
+        const { error: attributionError } = await admin.rpc('attribute_woodpecker_order', {
+          target_order_id: order.id, target_visitor_id: campaign.visitor_id, target_session_id: campaign.session_id,
+        }).abortSignal(AbortSignal.timeout(1500))
+        if (attributionError) console.warn('Campaign attribution unavailable')
+      } catch { console.warn('Campaign attribution unavailable') }
     }
     // The database reserves the monthly allowance in the same per-store
     // transaction as stock, so concurrent checkouts cannot exceed the cap.
