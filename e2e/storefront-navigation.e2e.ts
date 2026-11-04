@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 
-async function openStore(page: Page, count = 4) {
-  await page.setViewportSize({ width: 1440, height: 900 })
+async function openStore(page: Page, count = 4, imageCount = 1, width = 1440, autoplay = false) {
+  await page.setViewportSize({ width, height: 900 })
   await page.goto('/')
-  await page.evaluate(async (productCount) => {
+  await page.evaluate(async ({ productCount, imageCount, autoplay }) => {
     const { mountStorefrontNavigationHarness } = await import('/e2e/storefront-preview-harness.tsx')
-    mountStorefrontNavigationHarness(productCount)
-  }, count)
+    mountStorefrontNavigationHarness(productCount, imageCount, autoplay)
+  }, { productCount: count, imageCount, autoplay })
   await expectProduct(page, count)
   await page.locator('.story-stage').hover()
 }
@@ -64,4 +64,87 @@ test('a single-product store keeps both navigation arrows disabled', async ({ pa
   await openStore(page, 1)
   await expect(page.getByRole('button', { name: 'Eelmine toode', exact: true })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Järgmine toode', exact: true })).toBeDisabled()
+})
+
+async function expectImage(page: Page, number: number, productNumber = 1) {
+  await expect(page.getByRole('button', { name: `Pilt ${number}`, exact: true })).toHaveClass('is-active')
+  const image = page.locator('.story-slide img[fetchpriority="high"]')
+  await expect.poll(async () => decodeURIComponent(await image.getAttribute('src') ?? '')).toContain(`>${productNumber}:${number}</text>`)
+}
+
+async function swipePhoto(page: Page, direction: 'next' | 'previous') {
+  const touch = await page.context().newCDPSession(page)
+  const from = direction === 'next' ? 320 : 70
+  const to = direction === 'next' ? 70 : 320
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y: 350 }] })
+  for (let step = 1; step <= 12; step++) {
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from + (to - from) * step / 12, y: 350 }] })
+    await page.waitForTimeout(25)
+  }
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await touch.detach()
+}
+
+for (const imageCount of [2, 3]) {
+  test(`one product with ${imageCount} photos swipes through the gallery in both directions`, async ({ page }) => {
+    await openStore(page, 1, imageCount, 390)
+    const url = page.url()
+    await expectImage(page, 1)
+    for (const number of [...Array.from({ length: imageCount - 1 }, (_, index) => index + 2), 1]) {
+      await swipePhoto(page, 'next')
+      await expectImage(page, number)
+      await expect.poll(() => page.locator('.story-track').evaluate((track) => track.scrollLeft / track.clientWidth)).toBe(number)
+    }
+    await swipePhoto(page, 'previous')
+    await expectImage(page, imageCount)
+    await expect.poll(() => page.locator('.story-track').evaluate((track) => track.scrollLeft / track.clientWidth)).toBe(imageCount)
+    await expect(page.locator('.product-details h1')).toHaveText('Ese 1')
+    await expect(page).toHaveURL(url)
+    expect(await page.evaluate(() => window.scrollY)).toBe(0)
+
+    await page.getByRole('button', { name: 'Pilt 1', exact: true }).click()
+    await expectImage(page, 1)
+    await expect.poll(() => page.locator('.story-track').evaluate((track) => track.scrollLeft / track.clientWidth)).toBe(1)
+    await swipePhoto(page, 'next')
+    await expectImage(page, 2)
+  })
+}
+
+test('single-product gallery arrows and resizing keep the selected photo', async ({ page }) => {
+  await openStore(page, 1, 3)
+  const url = page.url()
+  for (const number of [2, 3, 1]) {
+    await page.getByRole('button', { name: 'Järgmine pilt', exact: true }).click()
+    await expectImage(page, number)
+    await expect.poll(() => page.locator('.story-track').evaluate((track) => track.scrollLeft / track.clientWidth)).toBe(number)
+  }
+  await page.getByRole('button', { name: 'Eelmine pilt', exact: true }).click()
+  await expectImage(page, 3)
+  await expect.poll(() => page.locator('.story-track').evaluate((track) => track.scrollLeft / track.clientWidth)).toBe(3)
+  await page.setViewportSize({ width: 390, height: 900 })
+  await expectImage(page, 3)
+  await expect.poll(() => page.locator('.story-track').evaluate((track) => track.scrollLeft / track.clientWidth)).toBe(3)
+  await expect(page).toHaveURL(url)
+})
+
+test('multiple products still swipe between products and remember each selected photo', async ({ page }) => {
+  await openStore(page, 3, 3, 390)
+  await page.getByRole('button', { name: 'Pilt 2', exact: true }).click()
+  await expectImage(page, 2, 3)
+  await swipePhoto(page, 'next')
+  await expectProduct(page, 1)
+  await expectImage(page, 1)
+  await swipePhoto(page, 'previous')
+  await expectProduct(page, 3)
+  await expectImage(page, 2, 3)
+})
+
+test('single-product screensaver advances gallery photos and wakes on interaction', async ({ page }) => {
+  await openStore(page, 1, 3, 1440, true)
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-screensaver', 'active')
+  await expectImage(page, 2)
+  await expectImage(page, 3)
+  await expectImage(page, 1)
+  await page.locator('.story-stage').hover({ position: { x: 100, y: 250 } })
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-screensaver', 'idle')
 })
