@@ -364,7 +364,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const isSeoStorefront = Boolean(storeSlug && !merchantMode && !isShowcasePreview)
   const shouldOpenInitialSettings = merchantMode && Boolean(initialSettingsSection)
   const trackRef = useRef<HTMLDivElement>(null)
-  const activeIndexRef = useRef(0)
+  const navigationIndexRef = useRef(0)
   const initialVisualReadyReportedRef = useRef(false)
   const logoTapCountRef = useRef(0)
   const logoTapTimerRef = useRef<number | null>(null)
@@ -1491,12 +1491,22 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     setIsAddOpen(true)
   }
 
-  activeIndexRef.current = activeIndex
   const displayProducts = [...addedProducts, ...persistedProducts]
     .filter((product) => !deletedProductIds.includes(product.id))
     .map((product) => ({ ...product, ...(productEdits[product.id] ?? {}) }))
-  const renderedProducts = displayProducts.length
-    ? [displayProducts[displayProducts.length - 1], ...displayProducts, displayProducts[0]]
+  const singleProductId = displayProducts.length === 1 ? displayProducts[0].id : null
+  const singleProductImageCount = displayProducts.length === 1 ? (displayProducts[0].gallery?.length || 1) : 0
+  // Embedded previews drive their own product/gallery tour.
+  const isGalleryNavigation = singleProductImageCount > 1 && !isEditOpen && !embeddedPreview
+  const galleryImageIndex = singleProductId === null ? 0 : Math.min(selectedImages[singleProductId] ?? 0, singleProductImageCount - 1)
+  const navigationIndex = isGalleryNavigation ? galleryImageIndex : activeIndex
+  navigationIndexRef.current = navigationIndex
+  const navigationSlides = isGalleryNavigation
+    ? displayProducts[0].gallery!.map((_, imageIndex) => ({ product: displayProducts[0], imageIndex }))
+    : displayProducts.map((product) => ({ product, imageIndex: undefined }))
+  const navigationCount = navigationSlides.length
+  const renderedSlides = navigationCount
+    ? [navigationSlides[navigationCount - 1], ...navigationSlides, navigationSlides[0]]
     : []
   const isAdminMode = isLoggedIn && !isCustomerPreview
 
@@ -1507,18 +1517,18 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       || product.id.toLowerCase() === initialProductSlug.toLowerCase(),
     )
     if (index < 0) return
-    activeIndexRef.current = index
+    navigationIndexRef.current = isGalleryNavigation ? galleryImageIndex : index
     setActiveIndex(index)
     const frame = window.requestAnimationFrame(() => {
       const track = trackRef.current
-      track?.scrollTo({ left: (index + 1) * track.clientWidth, behavior: 'auto' })
+      track?.scrollTo({ left: (navigationIndexRef.current + 1) * track.clientWidth, behavior: 'auto' })
     })
     return () => window.cancelAnimationFrame(frame)
   }, [initialProductSlug, displayProducts.length])
 
   useEffect(() => {
     const track = trackRef.current
-    if (!track || !displayProducts.length) return
+    if (!track || !navigationCount) return
     let frame = 0
     let normalizeTimeout: number | undefined
     const normalizePosition = () => {
@@ -1526,8 +1536,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       const physicalIndex = Math.round(track.scrollLeft / width)
       const snappedPosition = physicalIndex * width
       const loopTarget = physicalIndex === 0
-        ? displayProducts.length * width
-        : physicalIndex === displayProducts.length + 1
+        ? navigationCount * width
+        : physicalIndex === navigationCount + 1
           ? width
           : null
 
@@ -1553,17 +1563,20 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         const position = track.scrollLeft / width
         const physicalIndex = Math.round(position)
         const logicalIndex = physicalIndex <= 0
-          ? displayProducts.length - 1
-          : physicalIndex >= displayProducts.length + 1
+          ? navigationCount - 1
+          : physicalIndex >= navigationCount + 1
             ? 0
             : physicalIndex - 1
-        setActiveIndex(logicalIndex)
+        if (isGalleryNavigation && singleProductId !== null) {
+          setSelectedImages((current) => current[singleProductId] === logicalIndex
+            ? current : { ...current, [singleProductId]: logicalIndex })
+        } else setActiveIndex(logicalIndex)
 
         if (normalizeTimeout !== undefined) window.clearTimeout(normalizeTimeout)
         normalizeTimeout = window.setTimeout(normalizePosition, 180)
       })
     }
-    const alignPosition = () => track.scrollTo({ left: (activeIndexRef.current + 1) * track.clientWidth, behavior: 'auto' })
+    const alignPosition = () => track.scrollTo({ left: (navigationIndexRef.current + 1) * track.clientWidth, behavior: 'auto' })
     track.addEventListener('scroll', syncIndex, { passive: true })
     track.addEventListener('scrollend', normalizePosition)
     window.addEventListener('resize', alignPosition)
@@ -1575,7 +1588,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       track.removeEventListener('scrollend', normalizePosition)
       window.removeEventListener('resize', alignPosition)
     }
-  }, [displayProducts.length])
+  }, [navigationCount, isGalleryNavigation, singleProductId])
 
   useEffect(() => {
     if (!isLoginOpen && !isEditOpen && !isAddOpen && !imageUpload && !isSearchVisible && !isDeleteOpen && !isPasswordChangeOpen && !isEmailChangeOpen && !isAccountDeleteOpen && !isShareOpen && !isSettingsOpen && !isOrdersOpen && !isStatisticsOpen && !isAboutOpen && !legalView && !isBillingCardOpen) return
@@ -1659,9 +1672,6 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     }
   }, [])
 
-  const singleProductId = displayProducts.length === 1 ? displayProducts[0].id : null
-  const singleProductImageCount = displayProducts.length === 1 ? (displayProducts[0].gallery?.length || 1) : 0
-
   useEffect(() => {
     if (!autoSwipeEnabled || isEditOpen || productRouteSlug || (displayProducts.length < 2 && singleProductImageCount < 2)) {
       setIsScreensaverActive(false)
@@ -1679,17 +1689,10 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     }
 
     const showNextSlide = () => {
-      if (singleProductId !== null) {
-        setSelectedImages((current) => ({
-          ...current,
-          [singleProductId]: (Math.min(current[singleProductId] ?? 0, singleProductImageCount - 1) + 1) % singleProductImageCount,
-        }))
-        return
-      }
       const track = trackRef.current
-      if (!track || !displayProducts.length) return
+      if (!track || !navigationCount) return
       const physicalIndex = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1))
-      if (physicalIndex >= displayProducts.length + 1) {
+      if (physicalIndex >= navigationCount + 1) {
         const previousSnap = track.style.scrollSnapType
         track.style.scrollSnapType = 'none'
         track.scrollTo({ left: track.clientWidth, behavior: 'auto' })
@@ -1736,13 +1739,20 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, scheduleScreensaver))
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [isCartOpen, isEditOpen, isProductVisualActive, displayProducts.length, singleProductId, singleProductImageCount, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, productRouteSlug])
+  }, [isCartOpen, isEditOpen, isProductVisualActive, displayProducts.length, navigationCount, singleProductImageCount, autoSwipeEnabled, autoSwipeDelay, autoSwipeSpeed, productRouteSlug])
+
+  const selectProductImage = (productId: string, imageIndex: number) => {
+    if (isGalleryNavigation) {
+      const track = trackRef.current
+      track?.scrollTo({ left: (imageIndex + 1) * track.clientWidth, behavior: 'smooth' })
+    } else setSelectedImages((current) => ({ ...current, [productId]: imageIndex }))
+  }
 
   const goToProduct = (index: number) => {
     if (!displayProducts.length) return
     const track = trackRef.current
     // Adjacent clone slides keep the last/first transition moving one step.
-    track?.scrollTo({ left: (index + 1) * track.clientWidth, behavior: 'smooth' })
+    track?.scrollTo({ left: ((isGalleryNavigation ? galleryImageIndex : index) + 1) * track.clientWidth, behavior: 'smooth' })
     const product = displayProducts[(index + displayProducts.length) % displayProducts.length]
     if (embeddedPreview || !isSeoStorefront || !storeSlug || !product) return
     const nextSlug = getProductUrlSlug(product)
@@ -1915,16 +1925,16 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const editColorSwatches: Record<string, string> = { Must: '#242424', Valge: '#f5f2e9', Sinine: '#6caef0', Roheline: '#70bd8d', Punane: '#ed766f' }
   const getSelectedImageIndex = (product: Product) => embeddedPreview && previewImageSelection?.productId === product.id
     ? previewImageSelection.index : selectedImages[product.id] ?? 0
-  const getDisplayedProductImage = (product: Product) => {
+  const getDisplayedProductImage = (product: Product, imageIndex?: number) => {
     if (isEditOpen && activeProduct?.id === product.id) {
       return editProductImages[Math.min(selectedImages[product.id] ?? 0, Math.max(0, editProductImages.length - 1))] ?? EMPTY_PRODUCT_IMAGE
     }
     const images = product.gallery?.length ? product.gallery : [product.image]
-    return images[Math.min(getSelectedImageIndex(product), images.length - 1)]
+    return images[Math.min(imageIndex ?? getSelectedImageIndex(product), images.length - 1)]
   }
 
-  const getDisplayedProductImageProps = (product: Product, preferred: 'thumb' | 'medium' | 'large' = 'large') => {
-    const image = getDisplayedProductImage(product)
+  const getDisplayedProductImageProps = (product: Product, preferred: 'thumb' | 'medium' | 'large' = 'large', imageIndex?: number) => {
+    const image = getDisplayedProductImage(product, imageIndex)
     const sourceProduct = isEditOpen && activeProduct?.id === product.id
       ? { ...product, imageVariants: editProductImageVariants }
       : product
@@ -1936,8 +1946,8 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     reportInitialVisualReady()
   }
 
-  const getDisplayedImageTransform = (product: Product) => {
-    const image = getDisplayedProductImage(product)
+  const getDisplayedImageTransform = (product: Product, imageIndex?: number) => {
+    const image = getDisplayedProductImage(product, imageIndex)
     return isEditOpen && activeProduct?.id === product.id
       ? editImageTransforms[image] ?? DEFAULT_IMAGE_TRANSFORM
       : product.imageTransforms?.[image] ?? DEFAULT_IMAGE_TRANSFORM
@@ -2801,13 +2811,13 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         </div>}
 
         <div className="story-track" ref={trackRef}>
-          {renderedProducts.map((product, index) => {
-            const isActiveSlide = index === activeIndex + 1
+          {renderedSlides.map(({ product, imageIndex }, index) => {
+            const isActiveSlide = index === navigationIndex + 1
             const imageProps = isActiveSlide || mayLoadNonCriticalImages
-              ? getDisplayedProductImageProps(product)
+              ? getDisplayedProductImageProps(product, 'large', imageIndex)
               : { src: EMPTY_PRODUCT_IMAGE }
             return <article className="story-slide" key={`${product.id}-${index}`}>
-              <img {...imageProps} sizes="100vw" alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product).x}%, ${getDisplayedImageTransform(product).y}%, 0) scale(${getDisplayedImageTransform(product).scale})`, transformOrigin: 'center' }} loading={isActiveSlide ? 'eager' : 'lazy'} fetchPriority={isActiveSlide ? 'high' : 'low'} decoding="async" onLoad={isActiveSlide ? handleInitialProductImageSettled : undefined} onError={isActiveSlide ? handleInitialProductImageSettled : undefined} />
+              <img {...imageProps} sizes="100vw" alt={product.alt} style={{ objectPosition: product.objectPosition, transform: `translate3d(${getDisplayedImageTransform(product, imageIndex).x}%, ${getDisplayedImageTransform(product, imageIndex).y}%, 0) scale(${getDisplayedImageTransform(product, imageIndex).scale})`, transformOrigin: 'center' }} loading={isActiveSlide ? 'eager' : 'lazy'} fetchPriority={isActiveSlide ? 'high' : 'low'} decoding="async" onLoad={isActiveSlide ? handleInitialProductImageSettled : undefined} onError={isActiveSlide ? handleInitialProductImageSettled : undefined} />
               <div className="story-shade" />
             </article>
           })}
@@ -2889,7 +2899,7 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
               <button
                 key={image}
                 className={getSelectedImageIndex(activeProduct) === index ? 'is-active' : ''}
-                onClick={() => setSelectedImages((current) => ({ ...current, [activeProduct.id]: index }))}
+                onClick={() => selectProductImage(activeProduct.id, index)}
                 aria-label={`Pilt ${index + 1}`}
               >
                 <img {...(mayLoadNonCriticalImages ? getResponsiveImageProps(activeProduct, image, 'thumb') : { src: EMPTY_PRODUCT_IMAGE })} sizes="5rem" alt="" loading="lazy" decoding="async" />
@@ -2938,9 +2948,9 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
           </div>
         )}
 
-        {activeProduct && <div className="desktop-arrows" aria-label="Toote vahetamine">
-          <button onClick={() => goToProduct(activeIndex - 1)} disabled={displayProducts.length < 2} aria-label="Eelmine toode">←</button>
-          <button onClick={() => goToProduct(activeIndex + 1)} disabled={displayProducts.length < 2} aria-label="Järgmine toode">→</button>
+        {activeProduct && <div className="desktop-arrows" aria-label={isGalleryNavigation ? 'Pildi vahetamine' : 'Toote vahetamine'}>
+          <button onClick={() => isGalleryNavigation ? selectProductImage(activeProduct.id, galleryImageIndex - 1) : goToProduct(activeIndex - 1)} disabled={navigationCount < 2} aria-label={isGalleryNavigation ? 'Eelmine pilt' : 'Eelmine toode'}>←</button>
+          <button onClick={() => isGalleryNavigation ? selectProductImage(activeProduct.id, galleryImageIndex + 1) : goToProduct(activeIndex + 1)} disabled={navigationCount < 2} aria-label={isGalleryNavigation ? 'Järgmine pilt' : 'Järgmine toode'}>→</button>
         </div>}
 
       </section>
