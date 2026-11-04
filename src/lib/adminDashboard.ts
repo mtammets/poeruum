@@ -27,6 +27,14 @@ export type AnalyticsDailyPoint = {
   accounts_created: number
 }
 
+export type TrafficVisits = {
+  total: number
+  poeruum: number
+  kaubamaja: number
+  kaubamaja_started_at: string
+  daily: { date: string; poeruum: number; kaubamaja: number | null }[]
+}
+
 export type AnalyticsBreakdown = {
   label: string
   sessions: number
@@ -46,6 +54,7 @@ export type AnalyticsEngagementBucket = {
 }
 
 export type HomepageAnalyticsDashboard = {
+  visits: TrafficVisits | null
   range_days: number
   sessions: number
   anonymous_sessions: number

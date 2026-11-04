@@ -23,6 +23,8 @@ import AdminOverview from './AdminOverview'
 import AdminAnalytics from './AdminAnalytics'
 import AdminStoryDeck, { type AdminStoryDeckHandle } from './AdminStoryDeck'
 import useHomepageVisitFeedback from './useHomepageVisitFeedback'
+import { loadDirectoryReport } from './lib/directoryAnalyticsAdmin'
+import { combineTrafficVisits } from './lib/trafficVisits'
 import useAdminRevenue from './useAdminRevenue'
 import useAdminWatch from './useAdminWatch'
 import { savedPaymentStatuses } from './lib/adminPaymentStatus'
@@ -55,6 +57,7 @@ const getAdminView = (pathname = window.location.pathname): AdminView => {
 }
 
 const emptyHomepageAnalytics: HomepageAnalyticsDashboard = {
+  visits: null,
   range_days: 30,
   sessions: 0,
   anonymous_sessions: 0,
@@ -270,7 +273,7 @@ export default function AdminApp() {
   const [analyticsLive, setAnalyticsLive] = useState(false)
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true)
   const [analyticsRefreshRevision, setAnalyticsRefreshRevision] = useState(0)
-  const loadedAnalyticsRef = useRef<{ userId: string; range: AnalyticsRange } | null>(null)
+  const loadedAnalyticsRef = useRef<{ userId: string; range: AnalyticsRange; includesDirectory: boolean } | null>(null)
   const [latestEmails, setLatestEmails] = useState<Map<string, LatestEmailDelivery>>(() => new Map())
   const [showcaseStore, setShowcaseStore] = useState<StoreRecord | null>(null)
   const [showcaseProducts, setShowcaseProducts] = useState<Product[]>([])
@@ -391,6 +394,7 @@ export default function AdminApp() {
     session && adminAccessGranted ? session.user.id : null, !isManagingShowcase && (activeView === 'overview' || watchEnabled),
   )
   const analyticsViewActive = !isManagingShowcase && (activeView === 'overview' || activeView === 'analytics' || watchEnabled)
+  const includeDirectoryVisits = activeView === 'analytics'
   const pushFeedback = useAdminPush(session && adminAccessGranted ? session.user.id : null)
   const visitFeedback = useHomepageVisitFeedback({
     count: homepageAnalytics.sessions,
@@ -418,6 +422,7 @@ export default function AdminApp() {
     const client = requireSupabase()
     const range = analyticsRange
     let hasData = loadedAnalyticsRef.current?.userId === session.user.id && loadedAnalyticsRef.current.range === range
+      && (!includeDirectoryVisits || loadedAnalyticsRef.current.includesDirectory)
     setIsAnalyticsLoading(!hasData)
     setAnalyticsLive(false)
     setAnalyticsStale(false)
@@ -434,16 +439,31 @@ export default function AdminApp() {
       }
       inFlight = true
       try {
-        const [analyticsResponse, engagementResponse] = await Promise.all([
+        const [analyticsResult, engagementResult, directoryResult] = await Promise.allSettled([
           client.rpc('admin_homepage_analytics', { requested_days: range }).abortSignal(controller.signal),
           client.rpc('admin_homepage_engagement', { requested_days: range }).abortSignal(controller.signal),
+          includeDirectoryVisits ? loadDirectoryReport(range, null, controller.signal) : Promise.resolve(null),
         ])
         if (!active) return
+        if (analyticsResult.status === 'rejected') throw analyticsResult.reason
+        if (engagementResult.status === 'rejected') throw engagementResult.reason
+        if (directoryResult.status === 'rejected') throw directoryResult.reason
+        const analyticsResponse = analyticsResult.value
+        const engagementResponse = engagementResult.value
+        const directory = directoryResult.value
         if (analyticsResponse.error || engagementResponse.error) throw analyticsResponse.error || engagementResponse.error
         const result = (analyticsResponse.data ?? {}) as Partial<HomepageAnalyticsDashboard>
         const engagement = (engagementResponse.data ?? {}) as Partial<HomepageEngagementDashboard>
         const numberValue = (value: unknown) => Number(value ?? 0)
+        const daily = (result.daily ?? []).map((point) => ({
+          date: point.date,
+          sessions: numberValue(point.sessions),
+          signup_starts: numberValue(point.signup_starts),
+          accounts_created: numberValue(point.accounts_created),
+        }))
+        if (directory && directory.range_days !== range) throw new Error('Kaubamaja statistika periood ei vasta päringule.')
         setHomepageAnalytics({
+          visits: directory ? combineTrafficVisits({ sessions: numberValue(result.sessions), daily }, directory) : null,
           range_days: numberValue(result.range_days) || range,
           sessions: numberValue(result.sessions),
           anonymous_sessions: numberValue(result.anonymous_sessions),
@@ -459,12 +479,7 @@ export default function AdminApp() {
           stores_started: numberValue(result.stores_started),
           payments_connected: numberValue(result.payments_connected),
           stores_published: numberValue(result.stores_published),
-          daily: (result.daily ?? []).map((point) => ({
-            date: point.date,
-            sessions: numberValue(point.sessions),
-            signup_starts: numberValue(point.signup_starts),
-            accounts_created: numberValue(point.accounts_created),
-          })),
+          daily,
           sources: (engagement.sources ?? []).map((row) => ({
             source: row.source,
             sessions: numberValue(row.sessions),
@@ -480,7 +495,7 @@ export default function AdminApp() {
           ctas: (result.ctas ?? []).map((row) => ({ label: row.label, sessions: numberValue(row.sessions) })),
           faqs: (result.faqs ?? []).map((row) => ({ label: row.label, sessions: numberValue(row.sessions) })),
         })
-        loadedAnalyticsRef.current = { userId: session.user.id, range }
+        loadedAnalyticsRef.current = { userId: session.user.id, range, includesDirectory: Boolean(directory) }
         hasData = true
         setAnalyticsError('')
         setAnalyticsStale(false)
@@ -505,7 +520,8 @@ export default function AdminApp() {
     }
     const channel = client.channel(`admin-homepage-${session.user.id}-${range}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'admin_homepage_refresh' }, schedule)
-      .subscribe((status) => {
+    if (includeDirectoryVisits) channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'admin_directory_refresh' }, schedule)
+    channel.subscribe((status) => {
         if (!active) return
         setAnalyticsLive(status === 'SUBSCRIBED')
         setAnalyticsStale(true)
@@ -532,7 +548,7 @@ export default function AdminApp() {
       window.removeEventListener('offline', onOffline)
       void client.removeChannel(channel)
     }
-  }, [session?.user.id, adminAccessGranted, analyticsViewActive, analyticsRange, analyticsRefreshRevision])
+  }, [session?.user.id, adminAccessGranted, analyticsViewActive, includeDirectoryVisits, analyticsRange, analyticsRefreshRevision])
 
   const loadOnlineUsers = async () => {
     let response = await requireSupabase().rpc('admin_user_presence')
@@ -1104,7 +1120,7 @@ export default function AdminApp() {
 
         {view === 'analytics' && <AdminAnalytics data={homepageAnalytics} range={analyticsRange} active={activeView === 'analytics'}
             loading={isAnalyticsLoading} error={analyticsError} stale={analyticsStale} live={analyticsLive}
-            feedback={visitFeedback} onRangeChange={setAnalyticsRange}
+            onRangeChange={setAnalyticsRange}
             onRefresh={() => setAnalyticsRefreshRevision((value) => value + 1)} />}
         {view === 'users' && <>
             {signupAlerts.length > 0 && <div className="admin-signup-alert" role="status"><strong>Tavapärasest rohkem registreerumiskatseid</strong><p>{signupAlerts.length} võrgu puhul on viimase tunni jooksul vähemalt viis katset. Vaata uued kontod üle.</p></div>}

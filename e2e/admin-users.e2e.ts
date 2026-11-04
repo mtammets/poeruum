@@ -1,10 +1,19 @@
 import { expect, test, type Page, type Route, type WebSocketRoute } from '@playwright/test'
 import type { PaymentDiagnostics } from '../shared/paymentDiagnostics'
+import type { DirectoryReport } from '../src/lib/directoryAnalyticsAdmin'
 
 test.use({ baseURL: 'http://poeruum.localhost:4174' })
 
 const now = Date.parse('2026-10-01T11:00:00Z')
 const ago = (hours: number) => new Date(now - hours * 3_600_000).toISOString()
+const directoryTrafficFixture = (days: number, daily = Array.from({ length: days }, (_, index) => ({ date: new Date(now - (days - 1 - index) * 86_400_000).toISOString().slice(0, 10), visits: 0 }))): DirectoryReport => {
+  const metrics = { visits: 0, impressions: 0, store_clicks: 0, product_clicks: 0, outbound_visits: 0, searches: 0, empty_searches: 0, average_position: null, ctr: null }
+  return { range_days: days, from_date: daily[0].date, to_date: daily.at(-1)!.date,
+    previous_from_date: '2026-06-01', previous_to_date: '2026-06-30', tracking_started_at: '2026-07-01T00:00:00Z', comparison_available: false,
+    current: { ...metrics, visits: daily.reduce((sum, day) => sum + day.visits, 0) }, previous: metrics,
+    store: null, daily: daily.map((day) => ({ ...day, impressions: 0, store_clicks: 0, product_clicks: 0 })), stores: [], sources: [], devices: [], products: [], placements: [],
+  }
+}
 const steps = ['has_store_details', 'has_payments', 'has_delivery', 'has_product', 'has_business_details', 'has_published'] as const
 const users = [
   ['Angel Airshe', 'artist@example.invalid', 4],
@@ -115,6 +124,10 @@ async function installBackend(page: Page) {
     }
     if (path.endsWith('/rpc/admin_user_overview')) return metricsFail ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'Unavailable' }) }) : json(route, metrics)
     if (path.endsWith('/rpc/admin_dashboard_users')) return json(route, rows)
+    if (path.endsWith('/rpc/admin_directory_analytics')) {
+      const days = route.request().postDataJSON().requested_days
+      return json(route, directoryTrafficFixture(days))
+    }
     if (path.endsWith('/rpc/admin_user_presence')) return json(route, onlineIds.map((user_id) => ({ user_id, current_view: user_id === users[0].user_id ? 'payments' : 'storefront', last_seen_at: ago(0) })))
     if (path.endsWith('/rpc/admin_online_users')) return json(route, onlineIds.map((user_id) => ({ user_id })))
     if (path.endsWith('/rpc/admin_latest_email_deliveries')) return json(route, rows.filter((_, i) => i !== 7).map((row, index) => ({
@@ -247,8 +260,25 @@ async function installAttractionData(page: Page) {
 async function installTrafficData(page: Page) {
   let mode: 'ready' | 'zero' | 'unmeasured' | 'error' = 'ready'
   let added = 0
+  let directoryAdded = 0
+  let directoryFails = false
+  let directoryPending: Promise<void> | null = null
   const ranges: number[] = []
+  const directoryRanges: number[] = []
   const dailyCounts = [14, 21, 18, 16, 22, 7, 9, 24, 20, 26, 31, 13, 12, 28, 36, 32, 27, 18, 22, 34, 30, 39, 28, 19, 23, 41, 35, 31, 45, 57]
+  const directoryDaily = (days: number) => Array.from({ length: days }, (_, i) => {
+    const date = new Date(now - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10)
+    return { date, visits: mode === 'zero' || date < '2026-09-20' ? 0 : 5 + i % 5 + (i === days - 1 ? directoryAdded : 0) }
+  })
+  await page.route('**/rpc/admin_directory_analytics', async (route) => {
+    const days = route.request().postDataJSON().requested_days
+    directoryRanges.push(days)
+    if (directoryFails) return route.fulfill({ status: 503, json: { message: 'Unavailable' } })
+    const daily = directoryDaily(days)
+    if (directoryPending) await directoryPending
+    const report = directoryTrafficFixture(days, daily)
+    return route.fulfill({ json: { ...report, tracking_started_at: '2026-09-20T00:00:00Z', daily: report.daily.reverse() } })
+  })
   await page.route('**/rpc/admin_homepage_analytics', (route) => {
     const days = route.request().postDataJSON().requested_days
     ranges.push(days)
@@ -269,8 +299,80 @@ async function installTrafficData(page: Page) {
       sources: mode === 'zero' ? [] : ['google.com', 'Otse', 'facebook.com', 'instagram.com', 'uudiskiri', 'bing.com'].map((source, i) => ({ source, sessions: [330, 180, 92, 72, 30, 20][i], measured_sessions: empty ? 0 : 20, engaged_sessions: empty ? 0 : 5, average_engaged_seconds: empty ? 0 : 12 + i * 5 })),
     } })
   })
-  return { ranges, total: dailyCounts.reduce((sum, count) => sum + count, 0), setAdded: (n: number) => { added = n }, setMode: (next: typeof mode) => { mode = next } }
+  const homepageTotal = dailyCounts.reduce((sum, count) => sum + count, 0)
+  const directoryTotal = directoryDaily(30).reduce((sum, day) => sum + day.visits, 0)
+  return { ranges, directoryRanges, homepageTotal, directoryTotal, total: homepageTotal + directoryTotal,
+    setAdded: (n: number) => { added = n }, setMode: (next: typeof mode) => { mode = next },
+    setDirectoryAdded: (n: number) => { directoryAdded = n }, failDirectory: (value: boolean) => { directoryFails = value },
+    holdDirectory: () => { let release!: () => void; directoryPending = new Promise<void>((resolve) => { release = resolve }); return () => { directoryPending = null; release() } },
+  }
 }
+
+test('combined traffic includes recorded history, separates both sites and refreshes Kaubamaja visits', async ({ page }) => {
+  const realtime = await installBackend(page)
+  const backend = await installTrafficData(page)
+  await page.goto('/admin/analytics')
+  const headline = page.locator('.traffic-hero__headline > strong')
+  await expect(headline).toHaveText(String(backend.total))
+  await expect(page.locator('.traffic-chart__line')).toHaveCount(4)
+  await expect(page.locator('.traffic-totals')).toContainText(`Poeruum${backend.homepageTotal}`)
+  await expect(page.locator('.traffic-totals')).toContainText(`Kaubamaja${backend.directoryTotal}`)
+  const chart = page.getByRole('slider', { name: 'Külastused, alustamised ja kontod päevade kaupa' })
+  await chart.focus()
+  await page.keyboard.press('Home')
+  await expect(chart).toHaveAttribute('aria-valuetext', '2. sept: Poeruum 14, Kaubamaja mõõtmata, Alustamised 0, Kontod 1, külastusi kokku mõõtmata')
+  await page.keyboard.press('End')
+  await expect(chart).toHaveAttribute('aria-valuetext', '1. okt: Poeruum 57, Kaubamaja 9, Alustamised 2, Kontod 0, külastusi kokku 66')
+  await expect(page.locator('.traffic-chart__readout')).toContainText('Kaubamaja 9')
+  await page.clock.runFor(350)
+  backend.setDirectoryAdded(3)
+  realtime.emit('admin_directory_refresh')
+  await page.clock.runFor(250)
+  await expect(headline).toHaveText(String(backend.total + 3))
+  await expect(page.locator('.traffic-hero .visit-feedback__badge')).toHaveText('+3 uut külastust')
+  backend.failDirectory(true)
+  realtime.emit('admin_directory_refresh')
+  await page.clock.runFor(250)
+  await expect(page.getByRole('button', { name: /Värskendamine ebaõnnestus/ })).toBeVisible()
+  await expect(headline).toHaveText(String(backend.total + 3))
+  backend.failDirectory(false)
+  await page.getByRole('button', { name: 'Külastuste üksikasjad' }).click()
+  await expect(page.getByRole('dialog')).toContainText('kaubamaja.poeruum.ee')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: '7 päeva', exact: true }).click()
+  await expect(chart).toHaveAttribute('aria-valuemax', '7')
+  expect(backend.directoryRanges.at(-1)).toBe(7)
+  await expect(chart).toHaveAttribute('aria-valuetext', '1. okt: Poeruum 9, Kaubamaja 9, Alustamised 0, Kontod 0, külastusi kokku 18')
+})
+
+test('combined traffic hides incomplete totals and ignores stale Kaubamaja responses after a period change', async ({ page }) => {
+  const realtime = await installBackend(page)
+  const backend = await installTrafficData(page)
+  backend.failDirectory(true)
+  await page.goto('/admin/analytics')
+  // Finish the subscription catch-up before enabling success for the manual retry.
+  await expect.poll(() => backend.directoryRanges.length).toBeGreaterThanOrEqual(2)
+  await expect(page.getByRole('alert')).toContainText('Andmed pole saadaval')
+  const headline = page.locator('.traffic-hero__headline > strong')
+  await expect(headline).toHaveText('—')
+  backend.failDirectory(false)
+  await page.getByRole('button', { name: 'Proovi uuesti', exact: true }).click()
+  await expect(headline).toHaveText(String(backend.total))
+  await page.clock.runFor(350)
+  const count = backend.directoryRanges.length
+  const release = backend.holdDirectory()
+  backend.setDirectoryAdded(1000)
+  realtime.emit('admin_directory_refresh')
+  await page.clock.runFor(250)
+  await expect.poll(() => backend.directoryRanges.length).toBe(count + 1)
+  backend.setDirectoryAdded(0)
+  await page.getByRole('button', { name: '7 päeva', exact: true }).click()
+  await expect.poll(() => backend.directoryRanges.at(-1)).toBe(7)
+  release()
+  // 107 Poeruum visits and 46 Kaubamaja visits; the old 30-day response must not win.
+  await expect(headline).toHaveText('153')
+  await expect(page.getByRole('slider')).toHaveAttribute('aria-valuemax', '7')
+})
 
 test('visual traffic dashboard shows real metrics, explores charts, and reveals definitions on demand', async ({ page }) => {
   await installBackend(page)
@@ -291,15 +393,23 @@ test('visual traffic dashboard shows real metrics, explores charts, and reveals 
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Kontode edenemise selgitus' })).toBeFocused()
-  const metricPicker = page.getByRole('group', { name: 'Trendi näitaja' })
-  await metricPicker.getByRole('button', { name: 'Alustamised' }).click()
-  await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('25')
-  const chart = page.getByRole('slider', { name: 'Alustamised päevade kaupa' })
+  await expect(page.getByRole('group', { name: 'Trendi näitaja' })).toHaveCount(0)
+  await expect(page.locator('.traffic-totals button')).toHaveCount(0)
+  const legend = page.getByRole('list', { name: 'Graafiku näitajad' })
+  await expect(legend.getByRole('listitem', { name: 'Alustamised: 25', exact: true })).toBeVisible()
+  await expect(legend.getByRole('listitem', { name: 'Kontod: 6', exact: true })).toBeVisible()
+  const lines = page.locator('.traffic-chart__line')
+  await expect(lines).toHaveCount(4)
+  expect(new Set(await lines.evaluateAll((elements) => elements.map((line) => line.getAttribute('stroke')))).size).toBe(4)
+  await expect(page.locator('.traffic-chart__account-point')).toHaveCount(6)
+  const chart = page.getByRole('slider', { name: 'Külastused, alustamised ja kontod päevade kaupa' })
   await chart.focus()
   await page.keyboard.press('Home')
-  await expect(chart).toHaveAttribute('aria-valuetext', '2. sept: 0 alustamised')
+  await expect(chart).toHaveAttribute('aria-valuetext', '2. sept: Poeruum 14, Kaubamaja mõõtmata, Alustamised 0, Kontod 1, külastusi kokku mõõtmata')
   await page.keyboard.press('ArrowRight')
-  await expect(chart).toHaveAttribute('aria-valuetext', '3. sept: 1 alustamised')
+  await expect(chart).toHaveAttribute('aria-valuetext', '3. sept: Poeruum 21, Kaubamaja mõõtmata, Alustamised 1, Kontod 0, külastusi kokku mõõtmata')
+  await expect(page.locator('.traffic-chart__readout')).toContainText('Alustamised 1')
+  await expect(page.locator('.traffic-chart__readout')).toContainText('Kontod 0')
   await page.getByRole('group', { name: 'Jaotuse valik' }).getByRole('button', { name: 'Küsimused' }).click()
   await expect(page.locator('.traffic-ranking__name').first()).toHaveText('Hind')
   await page.getByRole('button', { name: 'Hind: 12, 52,2%' }).click()
@@ -361,8 +471,9 @@ test('visual traffic dashboard distinguishes zero, unmeasured engagement, and fa
   await page.clock.runFor(250)
   await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('0')
   await expect(page.locator('.traffic-ring__segment')).toHaveCount(0)
-  await expect(page.getByRole('slider', { name: 'Külastused päevade kaupa' })).toBeVisible()
-  await expect(page.locator('.traffic-chart__line')).not.toHaveAttribute('d', /NaN|Infinity/)
+  await expect(page.getByRole('slider', { name: 'Külastused, alustamised ja kontod päevade kaupa' })).toBeVisible()
+  await expect(page.locator('.traffic-chart__line')).toHaveCount(4)
+  for (const line of await page.locator('.traffic-chart__line').all()) await expect(line).not.toHaveAttribute('d', /NaN|Infinity/)
 })
 
 test('visual traffic dashboard catches a realtime event that arrives during an unfinished request', async ({ page }) => {
@@ -416,7 +527,7 @@ test('visual traffic dashboard fits desktop screens with a ninety-day chart and 
 
 test.describe('visual traffic on touchscreens', () => {
   test.use({ hasTouch: true })
-  test('charts, metric switches and disclosures work without horizontal overflow', async ({ page }) => {
+  test('all four lines and disclosures work without horizontal overflow', async ({ page }) => {
     await installBackend(page)
     const backend = await installTrafficData(page)
     await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -426,6 +537,9 @@ test.describe('visual traffic on touchscreens', () => {
       await page.setViewportSize({ width, height: 844 })
       await page.getByRole('slider').tap()
       await expect(page.locator('.traffic-chart__readout time')).toBeVisible()
+      await expect(page.locator('.traffic-chart__line')).toHaveCount(4)
+      const readout = await page.locator('.traffic-chart__readout').evaluate((el) => ({ height: el.clientHeight, scroll: el.scrollHeight }))
+      expect(readout.scroll).toBeLessThanOrEqual(readout.height + 1)
       await page.getByRole('button', { name: 'Huvi üksikasjad' }).tap()
       await expect(page.getByRole('dialog')).toContainText('Mõõtmata aeg ei tähenda null sekundit')
       await page.getByRole('button', { name: 'Sulge üksikasjad' }).tap()
@@ -455,7 +569,7 @@ test.describe('admin stories navigation', () => {
     await installBackend(page)
     await installTrafficData(page)
     await page.goto('/admin/analytics')
-    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('778')
+    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('865')
     const nav = page.getByRole('navigation', { name: 'Administraatori menüü' })
     await expect(nav.getByRole('link').nth(2)).toHaveText('Kasutajad')
     const trafficLink = await nav.getByRole('link', { name: 'Külastatavus', exact: true }).boundingBox()
@@ -489,7 +603,7 @@ test.describe('admin stories navigation', () => {
     await installBackend(page)
     await installTrafficData(page)
     await page.goto('/admin/analytics')
-    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('778')
+    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('865')
     const headline = await page.locator('.traffic-hero__headline').boundingBox()
     const y = headline!.y + headline!.height / 2
     await swipe(page, { x: 250, y }, { x: 225, y })
@@ -586,7 +700,7 @@ test.describe('admin stories navigation', () => {
     await installBackend(page)
     await installTrafficData(page)
     await page.goto('/admin/analytics')
-    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('778')
+    await expect(page.locator('.traffic-hero__headline > strong')).toHaveText('865')
     const headline = await page.locator('.traffic-hero__headline').boundingBox()
     await page.mouse.move(headline!.x + headline!.width / 2, headline!.y + headline!.height / 2)
     await page.mouse.wheel(450, 0)
