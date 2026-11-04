@@ -17,7 +17,7 @@ async function headerMetrics(page: Page) {
     const range = document.createRange()
     range.selectNodeContents(element)
     const rect = element.getBoundingClientRect()
-    const logo = document.querySelector('.secret-login-trigger')!.getBoundingClientRect()
+    const logo = document.querySelector('.story-brand__logo')!.getBoundingClientRect()
     const actions = document.querySelector('.header-actions')!.getBoundingClientRect()
     return {
       size: parseFloat(style.fontSize), spacing: parseFloat(style.letterSpacing) || 0,

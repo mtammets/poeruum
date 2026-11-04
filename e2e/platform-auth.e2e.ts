@@ -1541,7 +1541,8 @@ for (const storefrontUrl of ['http://kruk-kruk.poeruum.localhost:4174/', '/p/kru
     await page.getByRole('button', { name: /Jätka oma poega/ }).click()
     await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
     await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
-    await expect(page.getByRole('button', { name: store.name, exact: true })).toBeVisible()
+    await expect(page.locator('.story-brand strong')).toHaveText(store.name.toLocaleUpperCase('et'))
+    await expect(page.locator('a.story-brand')).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Teise poe toode', exact: true })).toHaveCount(0)
     await page.reload()
     await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
@@ -1744,7 +1745,7 @@ test('a saved login migrates to the owner address and cannot reopen another shop
   await expect(page.getByRole('button', { name: /Seaded/ })).toBeVisible()
   await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
   await page.goto('http://kruk-kruk.poeruum.localhost:4174/haldus')
-  await expect(page.getByRole('button', { name: store.name, exact: true })).toBeVisible()
+  await expect(page.locator('.story-brand strong')).toHaveText(store.name.toLocaleUpperCase('et'))
   await expect(page).toHaveURL('http://sisselogimise-testipood.poeruum.localhost:4174/haldus')
   expect(backend.passwordSignIns()).toBe(0)
 

@@ -66,6 +66,23 @@ test('a single-product store keeps both navigation arrows disabled', async ({ pa
   await expect(page.getByRole('button', { name: 'Järgmine toode', exact: true })).toBeDisabled()
 })
 
+for (const count of [1, 3]) test(`shop logo returns to the first product and photo without losing the cart (${count} products)`, async ({ page }) => {
+  await openStore(page, count, 3, 390)
+  await page.locator('.buy-now').click()
+  await page.locator('.cart-overlay').getByRole('button', { name: 'Sulge', exact: true }).click()
+  await page.getByRole('button', { name: 'Pilt 3', exact: true }).click()
+  await expectImage(page, 3, count)
+  const brand = page.getByRole('link', { name: 'Ringipood poe avaleht', exact: true })
+  await expect(brand).toHaveAttribute('href', '/p/ringipood/')
+  await brand.focus()
+  await page.keyboard.press('Enter')
+  await expectProduct(page, 1)
+  await expectImage(page, 1)
+  await expect(page).toHaveURL(/\/p\/ringipood\/$/)
+  await expect(page.getByRole('button', { name: 'Ostukorv, 1 toodet', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+})
+
 async function expectImage(page: Page, number: number, productNumber = 1) {
   await expect(page.getByRole('button', { name: `Pilt ${number}`, exact: true })).toHaveClass('is-active')
   const image = page.locator('.story-slide img[fetchpriority="high"]')

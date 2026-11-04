@@ -366,8 +366,6 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
   const trackRef = useRef<HTMLDivElement>(null)
   const navigationIndexRef = useRef(0)
   const initialVisualReadyReportedRef = useRef(false)
-  const logoTapCountRef = useRef(0)
-  const logoTapTimerRef = useRef<number | null>(null)
   const storeLogoObjectUrlRef = useRef<string | null>(null)
   const storeAboutImageObjectUrlRef = useRef<string | null>(null)
   const directoryCoverObjectUrlRef = useRef<string | null>(null)
@@ -1813,22 +1811,6 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     setIsLoginOpen(true)
   }
 
-  const handleLogoTap = () => {
-    if (isShowcasePreview) return
-    if (isLoggedIn) {
-      logoTapCountRef.current = 0
-      return
-    }
-    logoTapCountRef.current += 1
-    if (logoTapTimerRef.current) window.clearTimeout(logoTapTimerRef.current)
-    if (logoTapCountRef.current >= 3) {
-      logoTapCountRef.current = 0
-      openOwnerLogin()
-      return
-    }
-    logoTapTimerRef.current = window.setTimeout(() => { logoTapCountRef.current = 0 }, 900)
-  }
-
   const reportInitialVisualReady = useCallback(() => {
     if (!onInitialVisualReady || initialVisualReadyReportedRef.current) return
     initialVisualReadyReportedRef.current = true
@@ -2746,6 +2728,17 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
     </span>)}
   </div>
   const storeDirectoryReturnUrl = getStoreDirectoryReturnUrl()
+  const hasCompanyPage = Boolean(storeSlug && hasCompanyHomepage(storeSlug))
+  const storeBrandHref = isSeoStorefront && !isAdminMode && !embeddedPreview && storeSlug
+    ? hasCompanyPage ? getCompanyHomepagePath(storeSlug)
+      : isDedicatedStorefrontHostname(window.location.hostname) ? '/' : getStorefrontPath(storeSlug)
+    : null
+  const storeBrand = <>
+    <span className="story-brand__logo" aria-hidden="true">
+      {storeLogo ? <img src={storeLogo} alt="" /> : <span className="story-logo-fallback">{storeInitial}</span>}
+    </span>
+    <StoreName name={editableStoreName} />
+  </>
 
   return (
     <main className="app-shell" style={{ '--store-accent': storeAccent, '--store-accent-ink': getReadableTextColor(storeAccent), '--announcement-bg': announcementBackground, '--announcement-color': announcementColor } as CSSProperties} data-screensaver={isScreensaverActive ? 'active' : 'idle'} data-store-theme={storeTheme} data-buy-button-size={buyButtonSize} data-announcement={announcementEnabled && announcementText.trim() && !isEditOpen ? 'true' : 'false'} data-announcement-speed={announcementSpeed} data-announcement-direction={announcementDirection} data-store-empty={activeProduct ? 'false' : 'true'} data-photo-empty={isEditOpen && !editProductImages.length ? 'true' : 'false'} data-setup-editing={onContinueSetup && isEditOpen ? 'true' : 'false'} data-inline-editing={isEditOpen ? 'true' : 'false'} data-merchant={merchantMode ? 'true' : 'false'} data-store-hidden={showHiddenStoreNotice ? 'true' : 'false'} data-preview={hasPreviewBar ? 'true' : 'false'} data-editing={isAdminMode ? 'true' : 'false'} data-product-editor={isAddOpen && addProductStep === 'details' ? 'true' : 'false'}>
@@ -2785,14 +2778,23 @@ export function Storefront({ storeId, seedProducts = products, seedCategories, s
         </nav>
 
         <header className="story-header">
-          <div className="story-brand">
-            <button className="secret-login-trigger" onClick={handleLogoTap} aria-label={editableStoreName}>
-              {storeLogo ? <img src={storeLogo} alt="" /> : <span className="story-logo-fallback" aria-hidden="true">{storeInitial}</span>}
-            </button>
-            <StoreName name={editableStoreName} />
-          </div>
+          {storeBrandHref ? <a className="story-brand" href={storeBrandHref}
+            aria-label={`${editableStoreName} ${hasCompanyPage ? 'koduleht' : 'poe avaleht'}`}
+            onClick={event => {
+              if (hasCompanyPage || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+              event.preventDefault()
+              // Return within this storefront so the customer's cart survives.
+              navigationIndexRef.current = 0
+              setActiveIndex(0)
+              const firstProduct = displayProducts[0]
+              if (firstProduct) setSelectedImages(current => ({ ...current, [firstProduct.id]: 0 }))
+              const track = trackRef.current
+              track?.scrollTo({ left: track.clientWidth, behavior: 'instant' })
+              window.history.pushState({}, '', storeBrandHref)
+              setProductRouteSlug(null)
+              window.scrollTo({ top: 0, behavior: 'instant' })
+            }}>{storeBrand}</a> : <div className="story-brand">{storeBrand}</div>}
           {!isEditOpen && <div className="header-actions">
-            {storeSlug && hasCompanyHomepage(storeSlug) && !isAdminMode && !embeddedPreview && <a className="store-homepage-link" href={getCompanyHomepagePath(storeSlug)}>Koduleht <span aria-hidden="true">↗</span></a>}
             {storeSlug && hasCompanyHomepage(storeSlug) && isAdminMode && merchantMode && !embeddedPreview && <a className="store-homepage-link" href={getCompanyHomepageEditorPath(storeSlug)}>Muuda kodulehte <span aria-hidden="true">↗</span></a>}
             <button className="search-button" onClick={() => setIsSearchOpen(true)} aria-label="Otsi ja sirvi kategooriaid"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
             {isAdminMode ? !adminShowcaseMode && <button className="logout-button" onClick={logOut} aria-label="Logi välja">

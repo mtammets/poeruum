@@ -89,7 +89,7 @@ test('company page tells Madis’s story, links to product and returns from the 
   await page.getByRole('link', { name: 'Vaata toodet e-poes' }).click()
   await expect(page).toHaveURL(/\/toode\/nokkmuts\/$/)
   await expect(page.locator('.product-details h1')).toHaveText('Nokkmüts „2rähn“')
-  await page.locator('.store-homepage-link').click()
+  await page.getByRole('link', { name: 'Krük-Krük koduleht', exact: true }).click()
   await expect(page).toHaveURL(/\/koduleht\/$/)
   await expect(page.locator('.company-hero')).toBeVisible()
   await page.reload()
@@ -113,11 +113,38 @@ test('phone and desktop layouts scroll to company information without horizontal
   }
 })
 
+test('shop logo and name share the company link in the compact mobile and desktop header', async ({ page }) => {
+  await backend(page)
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/')
+    const brand = page.getByRole('link', { name: 'Krük-Krük koduleht', exact: true })
+    await expect(brand).toHaveAttribute('href', '/koduleht/')
+    await expect(brand).not.toHaveAttribute('target', '_blank')
+    await expect(page.locator('.header-actions > button')).toHaveCount(2)
+    await expect(page.locator('.story-header').getByRole('link', { name: 'Koduleht', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: /Tutvu meie looga/ })).toHaveAttribute('href', '/koduleht/')
+    const brandBox = (await brand.boundingBox())!
+    const actionsBox = (await page.locator('.header-actions').boundingBox())!
+    expect(brandBox.y + brandBox.height / 2).toBeCloseTo(actionsBox.y + actionsBox.height / 2, 0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await brand.locator(width === 390 ? '.story-brand__logo' : 'strong').click()
+    await expect(page).toHaveURL(/\/koduleht\/$/)
+    await expect(page.getByRole('link', { name: 'E-poodi', exact: true })).toBeVisible()
+  }
+})
+
 test('path-based preview keeps links within the selected shop', async ({ page }) => {
   await backend(page)
   await page.goto('http://poeruum.localhost:4174/p/kruk-kruk/koduleht/')
   await expect(page.getByRole('link', { name: 'E-poodi', exact: true })).toHaveAttribute('href', '/p/kruk-kruk/')
   await expect(page.getByRole('link', { name: 'Vaata toodet e-poes' })).toHaveAttribute('href', '/p/kruk-kruk/toode/nokkmuts/')
+  await page.getByRole('link', { name: 'E-poodi', exact: true }).click()
+  const brand = page.getByRole('link', { name: 'Krük-Krük koduleht', exact: true })
+  await expect(brand).toHaveAttribute('href', '/p/kruk-kruk/koduleht/')
+  await brand.focus()
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL('http://poeruum.localhost:4174/p/kruk-kruk/koduleht/')
 })
 
 test('company information remains available when the product list is empty', async ({ page }) => {
