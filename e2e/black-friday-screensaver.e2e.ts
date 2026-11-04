@@ -114,7 +114,7 @@ test('waits a full minute after activity, hides all UI and restores scroll and f
   await expect(saver(page)).toBeVisible()
 })
 
-test('waking by keyboard, click or wheel does not activate the covered purchase button', async ({ page }) => {
+test('waking by keyboard, click or wheel does not activate the covered store link', async ({ page }) => {
   await openCampaign(page)
   const buy = page.locator('#kruk-kruk .kruk-offer__buy')
   await buy.focus()
@@ -134,6 +134,7 @@ test('waking by keyboard, click or wheel does not activate the covered purchase 
   await expect(saver(page)).toBeVisible()
   await page.mouse.wheel(0, 100)
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page).toHaveURL('http://kaubamaja.poeruum.localhost:4174/?theme=black-friday')
 })
 
 test('does not interrupt the hat view or checkout and resumes after they close', async ({ page }) => {
@@ -143,13 +144,14 @@ test('does not interrupt the hat view or checkout and resumes after they close',
   await expect(page.locator('.kruk-hat')).toBeVisible()
   await page.clock.fastForward(120_000)
   await expect(saver(page)).toHaveCount(0)
-  await page.keyboard.press('Escape')
-  await expect(page.locator('.kruk-hat')).toHaveCount(0)
-  await page.locator('#kruk-kruk .kruk-offer__buy').click()
+  await page.locator('.kruk-hat .kruk-offer__buy').click()
   await expect(page.getByRole('dialog', { name: 'Ostukorv' })).toBeVisible()
   await page.clock.fastForward(120_000)
   await expect(saver(page)).toHaveCount(0)
   await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Ostukorv' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.kruk-hat')).toHaveCount(0)
   await page.clock.fastForward(60_001)
   await expect(saver(page)).toBeVisible()
 })
